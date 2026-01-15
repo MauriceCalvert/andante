@@ -152,3 +152,27 @@ class VoiceResult:
 - Tests throughout
 
 **Scope:** Significant refactor across entire pipeline.
+
+---
+
+### TODO-002: Support chromatic alterations in schema degrees
+
+**Priority:** Medium (limits schema expressiveness)
+
+**Current state:** `soprano_degrees` and `bass_degrees` in schemas are plain integers (1-7), representing diatonic scale degrees. No way to specify chromatic alterations like ♭7 or ♯7.
+
+**Problem:** Schemas like Quiescenza require chromatic motion (♭7 → 6 → ♯7 → 1). Currently approximated with diatonic 7, losing the characteristic semitone inflections.
+
+**Proposed fix:** Extend degree notation:
+- `7` = diatonic 7th (leading tone in major, subtonic in minor)
+- `b7` or `-7` = lowered 7th
+- `#7` or `+7` = raised 7th (rare, but possible in minor)
+
+Alternatively, use a modifier syntax: `{"degree": 7, "alter": -1}` for ♭7.
+
+**Files affected:**
+- `data/schemas.yaml` - degree notation
+- `engine/schema.py` - parsing and pitch resolution
+- `shared/pitch.py` - chromatic offset handling
+
+**Source:** Gjerdingen, "Music in the Galant Style" — Quiescenza and other schemas require chromatic voice-leading.

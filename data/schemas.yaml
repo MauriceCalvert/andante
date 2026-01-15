@@ -43,3 +43,11 @@ rule_of_octave_desc:
   durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
   soprano_degrees: [3, 5, 4, 3, 6, 5, 4, 3]
   bars: 4
+
+quiescenza:
+  description: Tonic pedal with chromatic neighbor motion (ending/framing schema)
+  bass_degrees: [1, 1, 1, 1]
+  durations: [1/2, 1/2, 1/2, 1/2]
+  soprano_degrees: [7, 6, 7, 1]  # TODO: should be b7, 6, #7, 1 (chromatic)
+  bars: 2
+  pedal: true
