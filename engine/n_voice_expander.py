@@ -99,13 +99,15 @@ def expand_single_voice(
         material = apply_tonal_answer(material)
 
     # Apply melodic transformation
-    if spec.treatment in ("invert", "retrograde", "augment", "diminish"):
-        material = apply_transform(material, spec.treatment, {})
-    elif spec.treatment == "inversion":
+    # Extract base treatment name (strip ornament annotations like [circulatio])
+    base_treatment: str = spec.treatment.split("[")[0] if spec.treatment else ""
+    if base_treatment in ("invert", "retrograde", "augment", "diminish"):
+        material = apply_transform(material, base_treatment, {})
+    elif base_treatment == "inversion":
         material = apply_transform(material, "invert", {})
-    elif spec.treatment == "augmentation":
+    elif base_treatment == "augmentation":
         material = apply_transform(material, "augment", {})
-    elif spec.treatment == "diminution":
+    elif base_treatment == "diminution":
         material = apply_transform(material, "diminish", {})
 
     pitches = material.pitches
