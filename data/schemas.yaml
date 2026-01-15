@@ -1,56 +1,8 @@
 # Harmonic schemas: partimento-style bass patterns that imply harmonic progressions
+# Based on Gjerdingen, "Music in the Galant Style" (2007), Appendix A
 # Each schema provides bass degrees and implied harmony over a specified number of bars
 
-fonte:
-  description: Descending fifths sequence (down by step)
-  bass_degrees: [5, 1, 4, 7, 3, 6]
-  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
-  soprano_degrees: [2, 3, 1, 2, 7, 1]
-  bars: 3
-
-monte:
-  description: Ascending fifths sequence (5-1 model, up by step)
-  bass_degrees: [5, 1, 6, 2, 7, 3]
-  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
-  soprano_degrees: [7, 3, 1, 4, 2, 5]
-  bars: 3
-
-prinner:
-  description: Stepwise descent to cadence (6-5-4-3 bass with 4-3-2-1 soprano)
-  bass_degrees: [6, 5, 4, 3]
-  durations: [1/2, 1/2, 1/2, 1/2]
-  soprano_degrees: [4, 3, 2, 1]
-  bars: 2
-  cadence_approach: true
-
-romanesca:
-  description: Descending bass with 5-6 motion
-  bass_degrees: [1, 7, 6, 5, 4, 3, 2, 1]
-  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
-  soprano_degrees: [5, 5, 3, 3, 1, 1, 7, 1]
-  bars: 4
-
-rule_of_octave_asc:
-  description: Harmonizing ascending scale
-  bass_degrees: [1, 2, 3, 4, 5, 6, 7, 1]
-  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
-  soprano_degrees: [3, 7, 1, 4, 3, 4, 5, 5]
-  bars: 4
-
-rule_of_octave_desc:
-  description: Harmonizing descending scale
-  bass_degrees: [1, 7, 6, 5, 4, 3, 2, 1]
-  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
-  soprano_degrees: [3, 5, 4, 3, 6, 5, 4, 3]
-  bars: 4
-
-quiescenza:
-  description: Tonic pedal with chromatic neighbor motion (ending/framing schema)
-  bass_degrees: [1, 1, 1, 1]
-  durations: [1/2, 1/2, 1/2, 1/2]
-  soprano_degrees: [7, 6, 7, 1]  # TODO: should be b7, 6, #7, 1 (chromatic)
-  bars: 2
-  pedal: true
+# === OPENING SCHEMAS ===
 
 do_re_mi:
   description: Opening gambit with stepwise soprano ascent (1-2-3) over bass neighbor (1-7-1)
@@ -59,3 +11,110 @@ do_re_mi:
   soprano_degrees: [1, 2, 3]
   bars: 1
   opening: true
+
+romanesca:
+  description: Opening schema with descending bass (1-7-6-3) supporting soprano on 1 and 5
+  bass_degrees: [1, 7, 6, 3]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [1, 5, 1, 1]
+  bars: 1
+  opening: true
+
+# === RIPOSTE/ANSWER SCHEMAS ===
+
+prinner:
+  description: Riposte to opening; stepwise descent in both voices (bass 4-3-2-1, soprano 6-5-4-3)
+  bass_degrees: [4, 3, 2, 1]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [6, 5, 4, 3]
+  bars: 1
+  cadence_approach: true
+
+sol_fa_mi:
+  description: Cadential approach; descending melody (5-4-4-3) with bass (1-2-7-1)
+  bass_degrees: [1, 2, 7, 1]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [5, 4, 4, 3]
+  bars: 1
+  cadence_approach: true
+
+# === SEQUENTIAL SCHEMAS ===
+
+fonte:
+  description: Digression and return; two half-cadences, second a step lower (minor then major)
+  bass_degrees: [7, 1, 7, 1]  # second pair transposed down
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [4, 3, 4, 3]  # second pair transposed down
+  bars: 1
+  sequential: true
+  direction: descending
+
+monte:
+  description: Ascending sequence; two pairs, each a step higher
+  bass_degrees: [7, 1, 7, 1]  # second pair transposed up
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [4, 3, 4, 3]  # second pair transposed up
+  bars: 1
+  sequential: true
+  direction: ascending
+
+# === INTERIOR SCHEMAS ===
+
+meyer:
+  description: Interior phrase; open (1-7 over 1-2) answered by closed (4-3 over 7-1)
+  bass_degrees: [1, 2, 7, 1]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [1, 7, 4, 3]
+  bars: 1
+
+fenaroli:
+  description: Fundamental schema; bass 7-1-2-3 with soprano 4-3-7-1, often repeated
+  bass_degrees: [7, 1, 2, 3]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [4, 3, 7, 1]
+  bars: 1
+  repeatable: true
+
+# === PROLONGATION/BRIDGE SCHEMAS ===
+
+ponte:
+  description: Dominant pedal bridge; prolongs V before return or new section
+  bass_degrees: [5, 5, 5]
+  durations: [1/4, 1/4, 1/2]
+  soprano_degrees: [5, 7, 2]
+  bars: 1
+  pedal: true
+  dominant: true
+
+indugio:
+  description: Pre-cadential delay; prolongs 4 before resolving to 5
+  bass_degrees: [4, 4, 4, 5]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [2, 4, 6, 7]  # TODO: 4th bass should be #4 (chromatic)
+  bars: 1
+  pre_cadential: true
+
+quiescenza:
+  description: Tonic pedal with chromatic neighbor motion (ending/framing schema)
+  bass_degrees: [1, 1, 1, 1]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  soprano_degrees: [7, 6, 7, 1]  # TODO: should be b7, 6, #7, 1 (chromatic)
+  bars: 1
+  pedal: true
+  framing: true
+
+# === RULE OF THE OCTAVE ===
+
+rule_of_octave_asc:
+  description: Harmonizing ascending scale
+  bass_degrees: [1, 2, 3, 4, 5, 6, 7, 1]
+  durations: [1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8]
+  soprano_degrees: [3, 7, 1, 4, 3, 4, 5, 5]
+  bars: 1
+
+rule_of_octave_desc:
+  description: Harmonizing descending scale
+  bass_degrees: [1, 7, 6, 5, 4, 3, 2, 1]
+  durations: [1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8]
+  soprano_degrees: [3, 5, 4, 3, 6, 5, 4, 3]
+  bars: 1
