@@ -77,6 +77,7 @@ class Music21Writer(OutputWriter):
             for n in track_notes:
                 m21_note: note.Note = note.Note(n.midiNote)
                 m21_note.quarterLength = float(n.Duration) * 4
+                m21_note.volume.velocity = n.velocity  # Use note's velocity
                 step: str = m21_note.pitch.step
                 key_acc = ky.accidentalByStep(step)
                 note_acc = m21_note.pitch.accidental
@@ -85,6 +86,8 @@ class Music21Writer(OutputWriter):
                         m21_note.pitch.accidental = None
                 elif note_acc and note_acc.name == "natural" and key_acc is None:
                     m21_note.pitch.accidental = None
+                if n.lyric:
+                    m21_note.lyric = n.lyric
                 part.insert(float(n.Offset) * 4, m21_note)
             part.makeRests(fillGaps=True, inPlace=True)
             part.makeMeasures(inPlace=True)
@@ -127,7 +130,7 @@ class NoteFileWriter(OutputWriter):
         beat: str = f"{n.beat}" if n.beat and n.beat >= 1 else ""
         lyric: str = f"{n.lyric}" if n.lyric else ""
         return (f"{n.Offset:.6g},{n.midiNote},{n.Duration:.6g},{n.track},"
-                f"{length},{bar},{beat},{note_name},{lyric}")
+                f"{length},{bar},{beat},{note_name},{lyric},{n.velocity}")
 
     def write(self, path: str, notes: list[Note], **kwargs) -> None:
         """Write notes to .note file."""

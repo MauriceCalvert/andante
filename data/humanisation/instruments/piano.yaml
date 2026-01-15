@@ -1,0 +1,39 @@
+# Piano humanisation profile
+# Full dynamic range, more rubato freedom, expressive articulation
+
+timing:
+  melodic_lead_ms: 22.0
+  agogic_downbeat_ms: 15.0
+  agogic_peak_ms: 25.0
+  agogic_syncopation_ms: -20.0
+  rubato_max_accel: 1.12
+  rubato_max_decel: 0.88
+  rubato_peak_position: 0.4
+  rubato_cadence_start: 0.82
+  stochastic_sigma: 0.008
+  stochastic_theta: 0.3
+  motor_interval_coef: 8.0
+
+dynamics:
+  velocity_min: 40
+  velocity_max: 110
+  phrase_envelope_strength: 1.0
+  phrase_peak_position: 0.4
+  metric_weight_range: 10
+  harmonic_tension_boost: 12
+  contour_range: 10
+  voice_balance_melody: 10
+  voice_balance_thematic: 6
+  touch_variation: 4
+
+articulation:
+  default_gate: 0.92
+  legato_gate: 1.08
+  staccato_gate: 0.58
+  phrase_end_gate: 0.85
+  fast_passage_gate: 0.88
+
+enabled_models:
+  - timing
+  - dynamics
+  - articulation

@@ -1,0 +1,17 @@
+# Baroque style humanisation profile
+# Restrained rubato, clear metric hierarchy, Notes Inegales enabled
+
+timing:
+  rubato_max_accel: 1.04
+  rubato_max_decel: 0.92
+  rubato_cadence_start: 0.88
+  agogic_downbeat_ms: 14.0
+
+dynamics:
+  phrase_envelope_strength: 0.5
+  metric_weight_range: 6
+
+articulation:
+  default_gate: 0.85
+  notes_inegales_ratio: 1.5
+  notes_inegales_threshold: 0.125

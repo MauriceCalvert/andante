@@ -1,0 +1,39 @@
+# Harpsichord humanisation profile
+# Minimal dynamic range, crisp articulation, prominent melodic lead
+
+timing:
+  melodic_lead_ms: 18.0
+  agogic_downbeat_ms: 12.0
+  agogic_peak_ms: 20.0
+  agogic_syncopation_ms: -15.0
+  rubato_max_accel: 1.05
+  rubato_max_decel: 0.95
+  rubato_peak_position: 0.4
+  rubato_cadence_start: 0.85
+  stochastic_sigma: 0.006
+  stochastic_theta: 0.3
+  motor_interval_coef: 6.0
+
+dynamics:
+  velocity_min: 70
+  velocity_max: 90
+  phrase_envelope_strength: 0.3
+  phrase_peak_position: 0.4
+  metric_weight_range: 4
+  harmonic_tension_boost: 6
+  contour_range: 5
+  voice_balance_melody: 5
+  voice_balance_thematic: 3
+  touch_variation: 2
+
+articulation:
+  default_gate: 0.88
+  legato_gate: 1.02
+  staccato_gate: 0.55
+  phrase_end_gate: 0.82
+  fast_passage_gate: 0.85
+
+enabled_models:
+  - timing
+  - dynamics
+  - articulation

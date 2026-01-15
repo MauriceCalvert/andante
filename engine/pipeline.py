@@ -36,8 +36,23 @@ def execute_and_export(
     yaml_str: str,
     output_path: str,
     annotation_granularity: str | None = None,
+    humanise_output: bool = False,
+    instrument: str = "harpsichord",
+    style: str = "baroque",
 ) -> list[Note]:
-    """Execute plan and export to .mid, .note, .musicxml, and .trace files."""
+    """Execute plan and export to .mid, .note, .musicxml, and .trace files.
+
+    Args:
+        yaml_str: YAML plan string
+        output_path: Output file path (without extension)
+        annotation_granularity: Level of text annotations
+        humanise_output: If True, apply humanisation for expressive timing/dynamics
+        instrument: Instrument profile for humanisation (harpsichord, piano, clavichord)
+        style: Style profile for humanisation (baroque)
+
+    Returns:
+        List of Note objects (humanised if humanise_output=True)
+    """
     tracer = get_tracer()
     midi_notes, piece = execute(yaml_str)
     tempo: int = tempo_from_name(piece.tempo)
@@ -47,6 +62,15 @@ def execute_and_export(
     upbeat: Fraction = piece.upbeat
     granularity: str = annotation_granularity or ANNOTATION_GRANULARITY
     annotations: tuple[Annotation, ...] = extract_annotations(piece, granularity)
+
+    # Optional humanisation
+    if humanise_output:
+        from humanisation.engine import humanise
+        from humanisation.profile_loader import load_profile
+
+        profile = load_profile(instrument, style)
+        midi_notes = humanise(midi_notes, profile, piece.metre, tempo)
+
     writer = create_writer()
     writer.write(
         path=output_path,

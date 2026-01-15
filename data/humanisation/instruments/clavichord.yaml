@@ -1,0 +1,39 @@
+# Clavichord humanisation profile
+# Intimate, very expressive, sustained touch, limited but real dynamics
+
+timing:
+  melodic_lead_ms: 15.0
+  agogic_downbeat_ms: 18.0
+  agogic_peak_ms: 28.0
+  agogic_syncopation_ms: -18.0
+  rubato_max_accel: 1.15
+  rubato_max_decel: 0.85
+  rubato_peak_position: 0.42
+  rubato_cadence_start: 0.80
+  stochastic_sigma: 0.010
+  stochastic_theta: 0.25
+  motor_interval_coef: 10.0
+
+dynamics:
+  velocity_min: 50
+  velocity_max: 95
+  phrase_envelope_strength: 1.2
+  phrase_peak_position: 0.42
+  metric_weight_range: 8
+  harmonic_tension_boost: 10
+  contour_range: 8
+  voice_balance_melody: 8
+  voice_balance_thematic: 5
+  touch_variation: 3
+
+articulation:
+  default_gate: 0.95
+  legato_gate: 1.10
+  staccato_gate: 0.65
+  phrase_end_gate: 0.88
+  fast_passage_gate: 0.90
+
+enabled_models:
+  - timing
+  - dynamics
+  - articulation

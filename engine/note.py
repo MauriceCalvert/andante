@@ -13,10 +13,11 @@ class Note:
     bar: int = 0
     beat: int = 0
     lyric: str = ""
+    velocity: int = 80  # MIDI velocity (1-127), default mf
 
     @staticmethod
     def csv_header() -> str:
-        return "Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric"
+        return "Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric,velocity"
 
 
 TEMPO_MAP: dict[str, int] = {

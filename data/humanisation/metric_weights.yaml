@@ -1,0 +1,82 @@
+# Metric hierarchy weights per metre
+# Based on Lerdahl & Jackendoff metric well-formedness rules
+# Weight 1.0 = strongest beat, 0.0 = weakest
+
+"4/4":
+  bar_duration: 1.0
+  beats:
+    0.0: 1.0     # beat 1 = primary
+    0.25: 0.4    # beat 2 = weak
+    0.5: 0.7     # beat 3 = secondary
+    0.75: 0.4    # beat 4 = weak
+  subdivisions:
+    0.125: 0.2   # eighth = off-beat
+    0.0625: 0.1  # sixteenth = subdivision
+    0.03125: 0.05  # thirty-second
+
+"3/4":
+  bar_duration: 0.75
+  beats:
+    0.0: 1.0     # beat 1 = primary
+    0.25: 0.4    # beat 2 = weak
+    0.5: 0.5     # beat 3 = slightly stronger
+  subdivisions:
+    0.125: 0.2
+    0.0625: 0.1
+
+"2/4":
+  bar_duration: 0.5
+  beats:
+    0.0: 1.0     # beat 1 = primary
+    0.25: 0.5    # beat 2 = secondary
+  subdivisions:
+    0.125: 0.2
+    0.0625: 0.1
+
+"6/8":
+  bar_duration: 0.75
+  beats:
+    0.0: 1.0       # beat 1 = primary
+    0.125: 0.3     # subdivision
+    0.25: 0.3      # subdivision
+    0.375: 0.7     # beat 4 = secondary
+    0.5: 0.3       # subdivision
+    0.625: 0.3     # subdivision
+  subdivisions:
+    0.0625: 0.15
+
+"3/8":
+  bar_duration: 0.375
+  beats:
+    0.0: 1.0
+    0.125: 0.4
+    0.25: 0.5
+  subdivisions:
+    0.0625: 0.15
+
+"12/8":
+  bar_duration: 1.5
+  beats:
+    0.0: 1.0
+    0.125: 0.3
+    0.25: 0.3
+    0.375: 0.6
+    0.5: 0.3
+    0.625: 0.3
+    0.75: 0.8
+    0.875: 0.3
+    1.0: 0.3
+    1.125: 0.6
+    1.25: 0.3
+    1.375: 0.3
+  subdivisions:
+    0.0625: 0.15
+
+"2/2":
+  bar_duration: 1.0
+  beats:
+    0.0: 1.0     # beat 1 = primary
+    0.5: 0.6     # beat 2 = secondary
+  subdivisions:
+    0.25: 0.3
+    0.125: 0.15
