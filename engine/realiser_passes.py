@@ -171,8 +171,15 @@ def should_apply_dissonance_fix(
 
 def should_apply_parallel_fix(
     has_cadence: bool,
+    texture: str = "",
 ) -> bool:
-    """Determine if parallel fix should be applied (always yes, but preserve cadence)."""
+    """Determine if parallel fix should be applied.
+
+    Skip for baroque_invention texture - parallel motion is expected
+    in imitative entries (stretto, canon-like passages).
+    """
+    if texture == "baroque_invention":
+        return False
     return True
 
 
@@ -191,6 +198,6 @@ def apply_bass_passes(
     result: tuple[RealisedNote, ...] = bass
     if should_apply_dissonance_fix(episode_type, texture, has_cadence, voice_count):
         result = fix_downbeat_dissonance(soprano, result, bar_dur, phrase_idx, key)
-    if should_apply_parallel_fix(has_cadence):
+    if should_apply_parallel_fix(has_cadence, texture):
         result = fix_parallel_violations(soprano, result, key, phrase_idx, has_cadence)
     return result

@@ -111,6 +111,7 @@ def realise_voice_against(
     reference_voices: list[tuple[RealisedNote, ...]],
     tonal_target: str | None = None,
     voice_range: tuple[int, int] | None = None,
+    skip_parallels: bool = False,
 ) -> tuple[RealisedNote, ...]:
     """Realise voice avoiding parallels with all reference voices.
 
@@ -120,6 +121,8 @@ def realise_voice_against(
     Args:
         voice_range: Optional (min, max) MIDI range for voice. If provided,
             strongly penalizes out-of-range pitches during octave selection.
+        skip_parallels: If True, don't penalize parallel motion (for imitative textures
+            like baroque_invention where parallel motion is expected in stretto).
     """
     tracer = get_tracer()
     step: Fraction = Fraction(1, 16)
@@ -147,7 +150,7 @@ def realise_voice_against(
             midi = pitch.midi
         elif isinstance(pitch, FloatingNote):
             midi = key.floating_to_midi(pitch, prev_midi, median, voice_range)
-            midi = best_octave_against(midi, prev_midi, median, OCTAVE, ref_pairs, CONSONANCES, voice_range)
+            midi = best_octave_against(midi, prev_midi, median, OCTAVE, ref_pairs, CONSONANCES, voice_range, skip_parallels)
         else:
             raise TypeError(f"Unknown pitch type: {type(pitch)}")
         interval: int = midi - prev_midi

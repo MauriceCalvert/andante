@@ -21,6 +21,7 @@ from engine.realiser_guards import check_guards
 from engine.realiser_passes import apply_bass_passes
 from engine.surprise import get_register_shift as get_surprise_shift
 from engine.treatment_caps import allows
+from engine.texture import texture_allows
 from shared.tracer import get_tracer
 from engine.engine_types import ExpandedPhrase, RealisedNote, RealisedPhrase, RealisedVoice
 from engine.voice_pair import VoicePairSet
@@ -55,12 +56,12 @@ def apply_phrase_gap(notes: tuple[RealisedNote, ...], metre: str) -> tuple[Reali
     return notes[:-1] + (shortened,)
 
 
-def validate_notes(notes: tuple[RealisedNote, ...], voice: str, metre: str) -> None:
+def validate_notes(notes: tuple[RealisedNote, ...], voice: str, metre: str, allow_gaps: bool = False) -> None:
     """Assert note sequence has valid durations and no unintended gaps."""
     min_dur: Fraction = shortest(metre)
     for i, note in enumerate(notes):
         assert note.duration >= min_dur, f"{voice} note {i}: duration {note.duration} < {min_dur}"
-        if i < len(notes) - 1:
+        if i < len(notes) - 1 and not allow_gaps:
             next_note: RealisedNote = notes[i + 1]
             gap: Fraction = next_note.offset - (note.offset + note.duration)
             assert gap <= min_dur, f"{voice} gap after note {i}: {gap} > {min_dur}"
@@ -160,9 +161,9 @@ def realise_phrase(
 
         for i, rv in enumerate(realised_voices):
             voice_name = voice_names[i]
-            validate_notes(tuple(rv.notes), f"phrase_{phrase.index}/{voice_name}", metre)
+            validate_notes(tuple(rv.notes), f"phrase_{phrase.index}/{voice_name}", metre, allow_gaps=not texture_allows(phrase.texture, "gap_validation"))
             tracer.realise(f"phrase_{phrase.index}", voice_name, len(rv.notes), offset=phrase_offset)
-        return RealisedPhrase(index=phrase.index, voices=realised_voices)
+        return RealisedPhrase(index=phrase.index, voices=realised_voices, treatment=phrase.treatment, texture=phrase.texture)
 
     # Handle interleaved 2-voice texture: voice_1, voice_2 (no separate bass)
     if is_interleaved and phrase.voices.count == 2:
@@ -187,9 +188,9 @@ def realise_phrase(
 
         for i, rv in enumerate(realised_voices):
             voice_name = voice_names[i]
-            validate_notes(tuple(rv.notes), f"phrase_{phrase.index}/{voice_name}", metre)
+            validate_notes(tuple(rv.notes), f"phrase_{phrase.index}/{voice_name}", metre, allow_gaps=not texture_allows(phrase.texture, "gap_validation"))
             tracer.realise(f"phrase_{phrase.index}", voice_name, len(rv.notes), offset=phrase_offset)
-        return RealisedPhrase(index=phrase.index, voices=realised_voices)
+        return RealisedPhrase(index=phrase.index, voices=realised_voices, treatment=phrase.treatment, texture=phrase.texture)
 
     # Standard voice realisation (non-interleaved)
     voice_names: tuple[str, ...] = ("soprano", "alto", "tenor", "bass")[:phrase.voices.count]
@@ -213,13 +214,16 @@ def realise_phrase(
         soprano_notes = apply_ornaments(soprano_notes, home_key, False, bar_dur, phrase.index)
     realised_voices.append(RealisedVoice(0, list(soprano_notes)))
     realised_notes.append(soprano_notes)
+    # For baroque_invention, skip parallel penalties - imitative entries naturally create parallels
+    skip_parallels: bool = phrase.texture == "baroque_invention"
     for i, voice_mat in enumerate(phrase.voices.voices[1:], start=1):
         voice_name: str = voice_names[i]
         median: int = register(voice_name) + total_shift
         v_range: tuple[int, int] = voice_range(voice_name)
         notes: tuple[RealisedNote, ...] = realise_voice_against(
             tuple(voice_mat.pitches), tuple(voice_mat.durations), home_key,
-            median, voice_name, phrase_offset, realised_notes, tonal_target, v_range
+            median, voice_name, phrase_offset, realised_notes, tonal_target, v_range,
+            skip_parallels
         )
         realised_voices.append(RealisedVoice(i, list(notes)))
         realised_notes.append(notes)
@@ -231,9 +235,9 @@ def realise_phrase(
     realised_voices[-1] = RealisedVoice(phrase.voices.count - 1, list(bass_notes))
     for i, rv in enumerate(realised_voices):
         voice_name = voice_names[i]
-        validate_notes(tuple(rv.notes), f"phrase_{phrase.index}/{voice_name}", metre)
+        validate_notes(tuple(rv.notes), f"phrase_{phrase.index}/{voice_name}", metre, allow_gaps=not texture_allows(phrase.texture, "gap_validation"))
         tracer.realise(f"phrase_{phrase.index}", voice_name, len(rv.notes), offset=phrase_offset)
-    return RealisedPhrase(index=phrase.index, voices=realised_voices)
+    return RealisedPhrase(index=phrase.index, voices=realised_voices, treatment=phrase.treatment, texture=phrase.texture)
 
 
 def realise_phrases(
@@ -255,7 +259,7 @@ def realise_phrases(
         realised.append(rp)
         offset += sum(phrase.soprano_durations, Fraction(0))
     guards = create_guards()
-    diagnostics: list[Diagnostic] = check_guards(realised, phrases, guards, bar_duration, metre)
+    diagnostics: list[Diagnostic] = check_guards(realised, phrases, guards, bar_duration, metre, key=home_key)
     if realised:
         voice_count: int = len(realised[0].voices)
         pairs: VoicePairSet = VoicePairSet.compute(voice_count)

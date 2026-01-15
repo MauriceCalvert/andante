@@ -103,6 +103,7 @@ def best_octave_against(
     ref_pitches: list[tuple[int | None, int | None]],
     consonances: set[int],
     voice_range: tuple[int, int] | None = None,
+    skip_parallels: bool = False,
 ) -> int:
     """Choose octave avoiding parallels with all reference voices.
 
@@ -114,9 +115,10 @@ def best_octave_against(
         ref_pitches: List of (prev_pitch, curr_pitch) for each reference voice
         consonances: Consonant intervals for vertical check
         voice_range: Optional (min, max) MIDI range for voice
+        skip_parallels: If True, don't penalize parallel motion (for imitative textures)
 
     Selection priorities:
-    1. Avoid parallel fifths/octaves with all reference voices
+    1. Avoid parallel fifths/octaves with all reference voices (unless skip_parallels)
     2. Consonance with highest reference voice (soprano)
     3. Stay within voice range
     4. Minimize interval from previous pitch
@@ -150,10 +152,13 @@ def best_octave_against(
 
     def score(m: int) -> float:
         parallels: int = parallel_count(m)
-        parallel_penalty: float = parallels * 200.0
+        parallel_penalty: float = 0.0 if skip_parallels else parallels * 200.0
         consonance_penalty: float = 0.0 if is_consonant(m) else 50.0
         interval: float = abs(m - prev_midi)
-        register_dist: float = abs(m - median) * 1.0  # Equal weight to prevent drift
+        # For imitative textures (skip_parallels), reduce register weight
+        # so melodic contour is prioritized over register drift
+        register_weight: float = 0.3 if skip_parallels else 1.0
+        register_dist: float = abs(m - median) * register_weight
         # Penalize crossing above soprano (bass should stay below)
         crossing_penalty: float = 0.0
         if ref_pitches:
