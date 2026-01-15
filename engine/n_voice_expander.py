@@ -214,22 +214,46 @@ def generate_baroque_entries(
     base_treatment: str = treatment.split("[")[0] if treatment else ""
 
     # Stretto: both voices play subject with overlapping entries
+    # Uses "real answer" (pure transposition) not "tonal answer" (interval adjustment)
     if base_treatment == "stretto":
         # Stretto delay: second voice enters after half the subject length
         # This creates the characteristic overlapping effect
         stretto_delay = Fraction(subject_bars) / 2
         if voice_count == 2:
-            # Soprano starts subject, bass enters with subject after stretto_delay
+            # Soprano starts subject, bass enters with subject transposed to dominant
+            # interval=4 transposes degrees up a fourth (1→5, 5→2, 3→7 = real answer)
             specs = [
                 VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
-                VoiceTreatmentSpec(treatment, "subject", 0, stretto_delay, "dominant"),
+                VoiceTreatmentSpec(treatment, "subject", 4, stretto_delay, "tonic"),
             ]
         else:
-            # Three voices: stagger all three
+            # Three voices: stagger all three with real answer transpositions
             specs = [
                 VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
                 VoiceTreatmentSpec(treatment, "subject", 0, stretto_delay, "tonic"),
-                VoiceTreatmentSpec(treatment, "subject", 0, stretto_delay * 2, "dominant"),
+                VoiceTreatmentSpec(treatment, "subject", 4, stretto_delay * 2, "tonic"),
+            ]
+        return PhraseVoiceEntry(
+            phrase_index=phrase_index,
+            texture="baroque_invention",
+            voice_specs=tuple(specs),
+        )
+
+    # Augmentation/Diminution: these treatments should always apply to the subject
+    # (not counter_subject), so soprano gets subject regardless of phrase parity
+    if base_treatment in ("augmentation", "diminution"):
+        if voice_count == 2:
+            # Soprano plays subject (transformed), bass plays counter_subject
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
+            ]
+        else:
+            # Three voices: soprano has subject, others have counter_subject
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
             ]
         return PhraseVoiceEntry(
             phrase_index=phrase_index,
