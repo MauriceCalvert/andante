@@ -9,7 +9,7 @@ Public API:
     add_inner_voices() - Adapter for ExpandedPhrase integration
 """
 from fractions import Fraction
-from typing import Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from engine.engine_types import ExpandedPhrase
@@ -24,12 +24,9 @@ from engine.diatonic_solver.core import (
     get_voice_constraints,
 )
 from engine.diatonic_solver.constraints import get_chord_tones
-from engine.diatonic_solver.strategies import solve_cpsat, solve_greedy
+from engine.diatonic_solver.strategies import solve_cpsat
 from engine.voice_material import ExpandedVoices, VoiceMaterial
 from shared.pitch import FloatingNote, Pitch, Rest, is_rest
-
-
-Strategy = Literal["cpsat", "greedy"]
 
 
 def solve_inner_voices(
@@ -37,12 +34,11 @@ def solve_inner_voices(
     bass: VoiceMaterial,
     voice_count: int,
     texture: str = "homophonic",
-    strategy: Strategy = "cpsat",
     thematic: dict[int, VoiceMaterial] | None = None,
     metre: str = "4/4",
     timeout: float = 5.0,
 ) -> ExpandedVoices:
-    """Solve inner voice pitches using specified strategy.
+    """Solve inner voice pitches using CP-SAT global optimization.
 
     All inputs/outputs are FloatingNote (diatonic). No MIDI conversion
     occurs within this function.
@@ -52,10 +48,9 @@ def solve_inner_voices(
         bass: VoiceMaterial with bass pitches (FloatingNote)
         voice_count: Total number of voices (e.g., 4 for SATB)
         texture: "polyphonic" or "homophonic"
-        strategy: "cpsat" (global optimal) or "greedy" (fast)
         thematic: Optional dict mapping voice_idx to VoiceMaterial for thematic targets
         metre: Time signature string for beat strength calculation
-        timeout: CP-SAT solver time limit (only used for cpsat strategy)
+        timeout: CP-SAT solver time limit
 
     Returns:
         ExpandedVoices with all voices including solved inner voices.
@@ -88,17 +83,12 @@ def solve_inner_voices(
     if texture == "polyphonic" and thematic:
         thematic_targets = _build_thematic_targets(slices, thematic, voice_count)
 
-    # Solve using selected strategy
-    if strategy == "cpsat":
-        solved_slices = solve_cpsat(
-            slices, voice_count, is_strong_beat, thematic_targets, timeout
-        )
-        if solved_slices is None:
-            # CP-SAT failed - fall back to greedy
-            print("  CP-SAT infeasible, falling back to greedy")
-            solved_slices = solve_greedy(slices, voice_count, is_strong_beat, thematic_targets)
-    else:
-        solved_slices = solve_greedy(slices, voice_count, is_strong_beat, thematic_targets)
+    # Solve using CP-SAT
+    solved_slices = solve_cpsat(
+        slices, voice_count, is_strong_beat, thematic_targets, timeout
+    )
+    if solved_slices is None:
+        raise ValueError("CP-SAT solver failed to find feasible inner voice solution")
 
     # Convert solved slices back to ExpandedVoices
     return _build_voices_from_slices(solved_slices, soprano, bass, voice_count)
@@ -309,7 +299,6 @@ def add_inner_voices(
         bass=bass,
         voice_count=voice_count,
         texture=texture,
-        strategy="cpsat",
         thematic=thematic,
         metre=metre,
         timeout=timeout,
@@ -339,5 +328,4 @@ __all__ = [
     "DiatonicPitch",
     "DiatonicSlice",
     "VoiceConstraints",
-    "Strategy",
 ]
