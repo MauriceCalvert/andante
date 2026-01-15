@@ -196,11 +196,12 @@ def generate_baroque_entries(
     - Phrase 0: Subject in soprano, tonal answer in bass after subject_bars
     - Phrase 1: Subject (inverted) in bass, CS in soprano after delay
     - Phrase 2+: Rotate entries, vary treatments
+    - Stretto: Both voices play subject with overlapping entries
 
     Args:
         phrase_index: Which phrase (0-indexed)
         voice_count: Number of voices (2 or 3)
-        treatment: Phrase treatment (statement, inversion, etc.)
+        treatment: Phrase treatment (statement, inversion, stretto, etc.)
         subject_bars: Length of subject in bars
         phrase_bars: Length of phrase in bars (to cap delays)
 
@@ -208,6 +209,33 @@ def generate_baroque_entries(
         PhraseVoiceEntry with baroque-appropriate voice specs
     """
     specs: list[VoiceTreatmentSpec] = []
+
+    # Extract base treatment name (strip ornament annotations like [circulatio])
+    base_treatment: str = treatment.split("[")[0] if treatment else ""
+
+    # Stretto: both voices play subject with overlapping entries
+    if base_treatment == "stretto":
+        # Stretto delay: second voice enters after half the subject length
+        # This creates the characteristic overlapping effect
+        stretto_delay = Fraction(subject_bars) / 2
+        if voice_count == 2:
+            # Soprano starts subject, bass enters with subject after stretto_delay
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, stretto_delay, "dominant"),
+            ]
+        else:
+            # Three voices: stagger all three
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, stretto_delay, "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, stretto_delay * 2, "dominant"),
+            ]
+        return PhraseVoiceEntry(
+            phrase_index=phrase_index,
+            texture="baroque_invention",
+            voice_specs=tuple(specs),
+        )
 
     # Entry delay: stagger only when phrase is longer than subject
     # For short phrases (phrase_bars <= subject_bars), use simultaneous entries

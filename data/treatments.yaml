@@ -35,10 +35,11 @@
 #   schema              For schema treatment: schema name (e.g., romanesca)
 
 augmentation:
-  soprano_transform: diminish
-  soprano_transform_params: { min_duration: 1/16 }
-  bass_transform: augment
-  bass_delay: 1/4
+  # Augmentation: double note values (slower)
+  soprano_transform: augment
+  bass_source: counter_subject
+  bass_delay: 1/2
+  interdictions: [ornaments]  # preserve augmented durations
 
 bass_development:
   soprano_source: sustained
@@ -67,9 +68,12 @@ dialogue_invert:
   bass_delay: 1
 
 diminution:
+  # Diminution: halve note values (faster)
   soprano_transform: diminish
   soprano_transform_params: { min_duration: 1/16 }
+  bass_source: counter_subject
   bass_delay: 1/8
+  interdictions: [ornaments]  # preserve diminished durations
 
 fragmentation:
   soprano_transform: head
@@ -82,9 +86,13 @@ head_sequence:
   bass_delay: 1/8
 
 imitation:
+  # Imitation: bass imitates subject at the fifth below (interval -4 = fifth below)
+  soprano_source: subject
+  bass_source: subject
+  bass_transform: none
   bass_derivation: imitation
-  bass_derivation_params: { interval: 4 }
-  bass_delay: 1/2
+  bass_derivation_params: { interval: -4 }
+  bass_delay: 1
 
 imitation_cs:
   soprano_source: counter_subject
@@ -92,7 +100,9 @@ imitation_cs:
   bass_delay: 1/2
 
 inversion:
+  # Inversion: soprano inverts subject, bass plays counter_subject
   soprano_transform: invert
+  bass_source: counter_subject
   bass_delay: 1/4
 
 melody_accompaniment:
@@ -104,7 +114,9 @@ repose:
   bass_delay: 1/2
 
 retrograde:
+  # Retrograde: subject played backwards
   soprano_transform: retrograde
+  bass_source: counter_subject
   bass_delay: 1/4
 
 schema:
@@ -116,15 +128,19 @@ sequence:
   bass_delay: 1/4
 
 statement:
+  # Statement: subject in soprano, counter_subject in bass
   soprano_direct: true
-  bass_source: sustained
-  interdictions:
-    - inner_voice_gen      # Opening needs clean soprano statement
+  bass_source: counter_subject
+  interdictions: [inner_voice_gen]
 
 stretto:
+  # Stretto: tight overlapping entries (bass enters before soprano finishes)
+  soprano_source: subject
+  bass_source: subject
   bass_derivation: imitation
-  bass_derivation_params: { interval: 8 }
-  bass_delay: 1/8
+  bass_derivation_params: { interval: -4 }
+  interdictions: [ornaments]  # preserve subject rhythm for recognizable overlap
+  bass_delay: 1/4
 
 voice_exchange:
   soprano_source: subject
