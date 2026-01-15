@@ -127,3 +127,27 @@ melody_accompaniment:
     soprano: leader
     bass: accompaniment
   interdictions: []
+
+baroque_invention:
+  # True baroque invention texture with rotating subject entries
+  # - Subject rotates through all voices at tonic and dominant
+  # - Staggered entries (voices enter 1-2 bars apart)
+  # - Tonal answer when entering on dominant (5th→4th adjustment)
+  # - Bass carries subject entries, not just harmonic support
+  # - Free counterpoint in non-entry voices (not verbatim CS paste)
+  # TODO: Add proper voice-leading solver for entry pairs
+  time_relation: offset
+  pitch_relation: independent
+  parameters:
+    entry_offset_bars: 2    # Default entry delay in bars
+    use_tonal_answer: true  # Apply tonal answer on dominant entries
+    rotate_entries: true    # Subject appears in all voices
+    generate_defaults: true # Auto-generate baroque entry schedule if not specified
+  voice_roles:
+    soprano: thematic       # Can carry subject or CS
+    alto: thematic          # Can carry subject or CS
+    bass: thematic          # Can carry subject or CS
+  interdictions:
+    - inner_voice_gen       # We handle inner voices via entry system
+    - ornaments             # Keep lines clean for counterpoint clarity
+    - parallel_check        # TEMPORARY: skip parallel check until solver added

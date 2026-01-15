@@ -92,8 +92,14 @@ def expand_piece(piece: PieceAST) -> list[ExpandedPhrase]:
             key, phrase_offset,
         )
         # Skip inner voice generation if treatment forbids it (e.g., pedal has fixed bass)
-        # or if texture is interleaved (middle voice already generated with alternation)
-        if piece.voices > 2 and allows(exp.treatment, "inner_voice_gen") and exp.texture != "interleaved":
+        # or if texture is interleaved/baroque_invention (middle voice already generated)
+        from engine.texture import texture_allows
+        skip_inner_gen = (
+            exp.texture == "interleaved" or
+            exp.texture == "baroque_invention" or
+            not texture_allows(exp.texture, "inner_voice_gen")
+        )
+        if piece.voices > 2 and allows(exp.treatment, "inner_voice_gen") and not skip_inner_gen:
             subject_ast = subject_to_motif_ast(piece.subject)
             cs_ast = cs_to_motif_ast(piece.subject)
             # Use CP-SAT solver with fallback to branch-and-bound

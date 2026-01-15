@@ -6,6 +6,85 @@ from engine.sequence import build_sequence, build_sequence_break
 from shared.timed_material import TimedMaterial
 
 
+def apply_tonal_answer(material: TimedMaterial) -> TimedMaterial:
+    """Apply tonal answer transformation for dominant entry.
+
+    In baroque fugue/invention, when the subject enters on the dominant,
+    intervals are adjusted to maintain key coherence:
+
+    1. If subject starts on 1 and leaps to 5, answer starts on 5 and goes to 1
+       (the 4th up becomes a 4th down, or equivalently 5th→4th contraction)
+    2. Remaining intervals are transposed to dominant level (+4 degrees)
+
+    This creates the characteristic "tonal answer" vs "real answer" distinction.
+
+    Example (C major):
+      Subject: C-G-A-G (degrees 1-5-6-5)
+      Answer:  G-C-D-C (degrees 5-1-2-1) - first interval inverted, rest transposed
+    """
+    pitches = list(material.pitches)
+    if len(pitches) < 2:
+        # Too short to need adjustment, just transpose
+        return TimedMaterial(
+            tuple(apply_imitation(tuple(pitches), 4)),
+            material.durations,
+            material.budget,
+        )
+
+    result: list[Pitch] = []
+    first_deg: int | None = None
+    second_deg: int | None = None
+
+    # Find first two non-rest pitches to analyze the opening interval
+    for p in pitches:
+        if not is_rest(p) and isinstance(p, FloatingNote):
+            if first_deg is None:
+                first_deg = p.degree
+            elif second_deg is None:
+                second_deg = p.degree
+                break
+
+    # Determine if we need tonal adjustment
+    # Classic case: subject starts 1→5 (or 5→1), answer should be 5→1 (or 1→5)
+    needs_adjustment = False
+    if first_deg is not None and second_deg is not None:
+        interval = (second_deg - first_deg) % 7
+        # Interval of 4 (a 5th up in 1-indexed) needs tonal adjustment
+        if interval == 4 or interval == -3 or interval == 3:
+            needs_adjustment = True
+
+    # Process pitches
+    processed_first = False
+    processed_second = False
+    for p in pitches:
+        if is_rest(p):
+            result.append(p)
+            continue
+
+        assert isinstance(p, FloatingNote)
+
+        if not processed_first:
+            # First note: transpose to dominant (degree 5)
+            result.append(FloatingNote(wrap_degree(p.degree + 4)))
+            processed_first = True
+        elif not processed_second and needs_adjustment:
+            # Second note with tonal adjustment: contract 5th to 4th
+            # If subject went 1→5, answer goes 5→1 (not 5→2)
+            if first_deg == 1 and second_deg == 5:
+                result.append(FloatingNote(1))  # Answer: 5→1
+            elif first_deg == 5 and second_deg == 1:
+                result.append(FloatingNote(5))  # Answer: 1→5
+            else:
+                # Other intervals: just transpose
+                result.append(FloatingNote(wrap_degree(p.degree + 4)))
+            processed_second = True
+        else:
+            # Remaining notes: straight transposition to dominant
+            result.append(FloatingNote(wrap_degree(p.degree + 4)))
+
+    return TimedMaterial(tuple(result), material.durations, material.budget)
+
+
 def apply_contrary_motion(pitches: tuple[Pitch, ...], axis: int = 4) -> tuple[Pitch, ...]:
     """Mirror degrees around axis for contrary motion."""
     result: list[Pitch] = []

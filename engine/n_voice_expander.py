@@ -31,6 +31,7 @@ class VoiceExpansionContext:
     budget: Fraction
     phrase_index: int
     tonal_target: str
+    bar_dur: Fraction = Fraction(1)
 
 
 def get_source_pitches(
@@ -61,17 +62,43 @@ def expand_single_voice(
     spec: VoiceTreatmentSpec,
     ctx: VoiceExpansionContext,
     voice_index: int,
+    bar_dur: Fraction = Fraction(1),
 ) -> VoiceMaterial:
-    """Expand a single voice based on its treatment spec."""
+    """Expand a single voice based on its treatment spec.
+
+    Handles:
+    - Rest voices (silent)
+    - Free voices (placeholder for species counterpoint)
+    - Delayed entries (prepend rest, truncate end)
+    - Tonal answer (adjust intervals for dominant form)
+    - Standard transformations (invert, retrograde, etc.)
+    """
     if spec.is_rest:
         return VoiceMaterial(
             voice_index=voice_index,
             pitches=[Rest()],
             durations=[ctx.budget],
         )
+
+    # Free counterpoint: placeholder for solver to fill
+    # The inner voice solver will generate species counterpoint against the entries
+    if spec.is_free:
+        return VoiceMaterial(
+            voice_index=voice_index,
+            pitches=[Rest()],
+            durations=[ctx.budget],
+        )
+
     pitches: tuple[Pitch, ...] = get_source_pitches(spec, ctx)
     durations: tuple[Fraction, ...] = get_source_durations(spec, ctx)
     material: TimedMaterial = TimedMaterial(pitches, durations, sum(durations, Fraction(0)))
+
+    # Apply tonal answer if entering on dominant
+    if spec.needs_tonal_answer:
+        from engine.transform import apply_tonal_answer
+        material = apply_tonal_answer(material)
+
+    # Apply melodic transformation
     if spec.treatment in ("invert", "retrograde", "augment", "diminish"):
         material = apply_transform(material, spec.treatment, {})
     elif spec.treatment == "inversion":
@@ -80,19 +107,46 @@ def expand_single_voice(
         material = apply_transform(material, "augment", {})
     elif spec.treatment == "diminution":
         material = apply_transform(material, "diminish", {})
+
     pitches = material.pitches
     durations = material.durations
+
+    # Apply interval transposition
     if spec.interval != 0:
         pitches = apply_imitation(pitches, spec.interval)
     if spec.is_chordal:
         pitches = apply_imitation(pitches, spec.interval)
+
+    # Calculate delay in actual duration
+    delay_dur: Fraction = spec.delay * bar_dur
+
+    # Calculate available budget after delay
+    fill_budget: Fraction = ctx.budget - delay_dur
+    if fill_budget <= Fraction(0):
+        # Entry delay exceeds phrase - voice is effectively silent
+        return VoiceMaterial(
+            voice_index=voice_index,
+            pitches=[Rest()],
+            durations=[ctx.budget],
+        )
+
+    # Extend material to fill available budget
     material = TimedMaterial.repeat_to_budget(
-        list(pitches), list(durations), ctx.budget
+        list(pitches), list(durations), fill_budget
     )
+
+    # Prepend delay rest if needed
+    if delay_dur > Fraction(0):
+        final_pitches: list[Pitch] = [Rest()] + list(material.pitches)
+        final_durations: list[Fraction] = [delay_dur] + list(material.durations)
+    else:
+        final_pitches = list(material.pitches)
+        final_durations = list(material.durations)
+
     return VoiceMaterial(
         voice_index=voice_index,
-        pitches=list(material.pitches),
-        durations=list(material.durations),
+        pitches=final_pitches,
+        durations=final_durations,
     )
 
 
@@ -116,9 +170,100 @@ def expand_phrase_n_voice(
             spec = get_default_treatment_for_voice(
                 phrase.index, i, voice_set.count, arc.treatments
             )
-        material: VoiceMaterial = expand_single_voice(spec, ctx, i)
+        material: VoiceMaterial = expand_single_voice(spec, ctx, i, ctx.bar_dur)
         voice_materials.append(material)
     return ExpandedVoices(voices=voice_materials)
+
+
+def generate_baroque_entries(
+    phrase_index: int,
+    voice_count: int,
+    treatment: str,
+    subject_bars: int = 2,
+    phrase_bars: int = 4,
+) -> PhraseVoiceEntry:
+    """Generate baroque-style entry schedule for a phrase.
+
+    Baroque invention conventions:
+    - Phrase 0: Subject in soprano, tonal answer in bass after subject_bars
+    - Phrase 1: Subject (inverted) in bass, CS in soprano after delay
+    - Phrase 2+: Rotate entries, vary treatments
+
+    Args:
+        phrase_index: Which phrase (0-indexed)
+        voice_count: Number of voices (2 or 3)
+        treatment: Phrase treatment (statement, inversion, etc.)
+        subject_bars: Length of subject in bars
+        phrase_bars: Length of phrase in bars (to cap delays)
+
+    Returns:
+        PhraseVoiceEntry with baroque-appropriate voice specs
+    """
+    specs: list[VoiceTreatmentSpec] = []
+
+    # Entry delay (in bars) - typically subject length, but capped to leave room
+    # Cap delay to at most half the phrase length to ensure meaningful entry
+    max_delay = Fraction(phrase_bars) / 2
+    entry_delay = min(Fraction(subject_bars), max_delay)
+
+    if voice_count == 2:
+        # Two voices: simple alternation
+        if phrase_index == 0:
+            # Opening: soprano states subject, bass answers
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "dominant"),
+            ]
+        elif phrase_index % 2 == 1:
+            # Odd phrases: bass leads
+            specs = [
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, entry_delay, "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+            ]
+        else:
+            # Even phrases: soprano leads
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, entry_delay, "tonic"),
+            ]
+    else:
+        # Three voices: rotation through all voices
+        rotation = phrase_index % 3
+
+        if phrase_index == 0:
+            # Opening: S in soprano at 0, S in bass at +entry_delay (tonal answer)
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, entry_delay, "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "dominant"),
+            ]
+        elif rotation == 0:
+            # Soprano leads, bass follows, alto has CS
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "dominant"),
+            ]
+        elif rotation == 1:
+            # Bass leads, soprano follows, alto has CS
+            specs = [
+                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+            ]
+        else:
+            # Alto leads with subject, soprano has CS, bass follows
+            specs = [
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "dominant"),
+            ]
+
+    return PhraseVoiceEntry(
+        phrase_index=phrase_index,
+        texture="baroque_invention",
+        voice_specs=tuple(specs),
+    )
 
 
 def expand_outer_voices_only(
@@ -140,6 +285,6 @@ def expand_outer_voices_only(
             )
         else:
             spec = VoiceTreatmentSpec.rest()
-        material: VoiceMaterial = expand_single_voice(spec, ctx, i)
+        material: VoiceMaterial = expand_single_voice(spec, ctx, i, ctx.bar_dur)
         voice_materials.append(material)
     return ExpandedVoices(voices=voice_materials)

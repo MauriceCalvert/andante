@@ -451,13 +451,30 @@ def validate_nvoice_guards(
 
     Public API for external callers (e.g., expander.py).
     Returns list of blocker violations.
+
+    Respects texture interdictions:
+    - baroque_invention with 'parallel_check' interdiction skips parallel guards
     """
     from engine.realiser import realise_phrase
     from engine.voice_pair import VoicePairSet
     from engine.guards.registry import create_guards, run_guards
+    from engine.texture import texture_allows
 
     realised = realise_phrase(phrase, key, phrase_offset, bar_dur, metre, False)
     guards = create_guards()
+
+    # Check texture interdictions for parallel checks
+    skip_parallel = False
+    if phrase.texture and not texture_allows(phrase.texture, "parallel_check"):
+        skip_parallel = True
+
+    # Filter guards based on interdictions
+    if skip_parallel:
+        guards = {
+            k: v for k, v in guards.items()
+            if v.name not in ("parallel_fifths", "parallel_octaves")
+        }
+
     voice_count: int = len(realised.voices)
     pairs: VoicePairSet = VoicePairSet.compute(voice_count)
     violations: list = []

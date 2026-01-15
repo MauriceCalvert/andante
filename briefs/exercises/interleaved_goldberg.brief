@@ -37,14 +37,14 @@ structure:
               tonal_target: I
               cadence: null
               treatment: statement
-              texture: interleaved
+              texture: baroque_invention
               surprise: null
             - index: 1
               bars: 4
               tonal_target: V
               cadence: half
               treatment: inversion
-              texture: interleaved
+              texture: baroque_invention
               surprise: null
     - label: B
       repeat: true
@@ -60,14 +60,14 @@ structure:
               tonal_target: vi
               cadence: null
               treatment: fragmentation
-              texture: interleaved
+              texture: baroque_invention
               surprise: null
             - index: 3
               bars: 4
               tonal_target: I
               cadence: authentic
               treatment: retrograde
-              texture: interleaved
+              texture: baroque_invention
               surprise: null
         - type: statement
           bars: 8
@@ -78,12 +78,12 @@ structure:
               tonal_target: I
               cadence: null
               treatment: diminution
-              texture: interleaved
+              texture: baroque_invention
               surprise: null
             - index: 5
               bars: 4
               tonal_target: I
               cadence: authentic
               treatment: augmentation
-              texture: interleaved
+              texture: baroque_invention
               surprise: null

@@ -22,6 +22,12 @@ from engine.engine_types import ExpandedPhrase, PhraseAST
 from engine.voice_expander import expand_voices
 from engine.voice_material import ExpandedVoices
 from engine.voice_pipeline import voice_spec_from_treatment, expand_voice
+from engine.n_voice_expander import (
+    generate_baroque_entries,
+    expand_single_voice,
+    VoiceExpansionContext,
+)
+from engine.voice_entry import PhraseVoiceEntry
 from shared.timed_material import TimedMaterial
 from planner.subject import Subject
 
@@ -83,6 +89,85 @@ def expand_phrase(
     treated_soprano = expand_voice(sop_spec, subject_ast, cs_ast, main_budget, seed, "soprano")
 
     # Step 2: Apply texture to arrange voices
+
+    # Baroque invention texture: use entry system with rotating subjects
+    if texture.name == "baroque_invention":
+        # Generate baroque-appropriate entry schedule
+        subject_bars = subj.bars if hasattr(subj, 'bars') else 2
+        entry: PhraseVoiceEntry = generate_baroque_entries(
+            phrase.index, voice_count, treatment_name, subject_bars, phrase.bars
+        )
+
+        # Create expansion context
+        ctx = VoiceExpansionContext(
+            subject=subject_ast,
+            counter_subject=cs_ast,
+            budget=main_budget,
+            phrase_index=phrase.index,
+            tonal_target=phrase.tonal_target,
+            bar_dur=bar_dur,
+        )
+
+        # Expand each voice according to entry spec
+        voice_materials: list[tuple[list, list]] = []
+        for i in range(voice_count):
+            spec = entry.spec_for_voice(i)
+            material = expand_single_voice(spec, ctx, i, bar_dur)
+            voice_materials.append((material.pitches, material.durations))
+
+        # Extract pitches and durations for each voice
+        v1_p, v1_d = voice_materials[0]
+        if voice_count >= 2:
+            bass_p, bass_d = voice_materials[-1]
+        if voice_count == 3:
+            v2_p, v2_d = voice_materials[1]
+
+        # Apply cadence if needed
+        if use_final_cadence:
+            v1_p, v1_d, bass_p, bass_d = apply_final_cadence(
+                tuple(v1_p), tuple(v1_d), tuple(bass_p), tuple(bass_d),
+                bar_dur, phrase_budget, phrase.tonal_target
+            )
+            v1_p, v1_d, bass_p, bass_d = list(v1_p), list(v1_d), list(bass_p), list(bass_d)
+            if voice_count == 3:
+                v2_total = sum(v2_d, Fraction(0))
+                if v2_total < phrase_budget:
+                    v2_p = list(v2_p) + [v1_p[-1]]
+                    v2_d = list(v2_d) + [phrase_budget - v2_total]
+        elif has_cadence:
+            cad_sop, cad_bass = get_cadence_material(cadence, CADENCE_BUDGET, phrase.tonal_target)
+            v1_p = list(v1_p) + list(cad_sop.pitches)
+            v1_d = list(v1_d) + list(cad_sop.durations)
+            bass_p = list(bass_p) + list(cad_bass.pitches)
+            bass_d = list(bass_d) + list(cad_bass.durations)
+            if voice_count == 3:
+                v2_p = list(v2_p) + list(cad_sop.pitches)
+                v2_d = list(v2_d) + list(cad_sop.durations)
+
+        # Log voices
+        tracer.voice(f"phrase_{phrase.index}", "soprano", list(v1_p), list(v1_d))
+        if voice_count == 3:
+            tracer.voice(f"phrase_{phrase.index}", "alto", list(v2_p), list(v2_d))
+        tracer.voice(f"phrase_{phrase.index}", "bass", list(bass_p), list(bass_d))
+
+        # Build ExpandedVoices
+        if voice_count == 2:
+            voices = ExpandedVoices.from_two_voices(
+                list(v1_p), list(v1_d), list(bass_p), list(bass_d)
+            )
+        else:
+            voices = ExpandedVoices.from_three_voices(
+                list(v1_p), list(v1_d), list(v2_p), list(v2_d), list(bass_p), list(bass_d)
+            )
+
+        return ExpandedPhrase(
+            index=phrase.index, bars=phrase.bars, voices=voices, cadence=phrase.cadence,
+            tonal_target=phrase.tonal_target, is_climax=phrase.is_climax,
+            articulation=phrase.articulation, gesture=phrase.gesture,
+            energy=energy, surprise=phrase.surprise, texture=texture_name, episode_type=episode_type,
+            treatment=treatment_name,
+        )
+
     if texture.name == "interleaved" and voice_count == 3:
         # Use texture system for interleaved 3-voice
         cs_material = TimedMaterial(cs_ast.pitches, cs_ast.durations, sum(cs_ast.durations, Fraction(0)))

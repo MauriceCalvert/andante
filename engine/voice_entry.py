@@ -13,15 +13,19 @@ class VoiceTreatmentSpec:
     """Treatment specification for one voice in one phrase.
 
     treatment: The melodic treatment (statement, imitation, sequence, etc.)
-               or 'rest' for silent, or 'chordal' for harmonic fill.
-    source: Material source ('subject', 'counter_subject').
+               or 'rest' for silent, or 'chordal' for harmonic fill,
+               or 'free' for species counterpoint against other entries.
+    source: Material source ('subject', 'counter_subject', 'free').
     interval: Diatonic transposition interval (0 = unison).
     delay: Entry delay in bars (for staggered imitation).
+    form: Entry form ('tonic', 'dominant', 'subdominant').
+          'dominant' triggers tonal answer adjustment.
     """
     treatment: str
     source: str | None
     interval: int
     delay: Fraction = Fraction(0)
+    form: str = "tonic"
 
     @staticmethod
     def rest() -> "VoiceTreatmentSpec":
@@ -35,7 +39,25 @@ class VoiceTreatmentSpec:
         source: str | None = d.get("source")
         interval: int = d.get("interval", 0)
         delay: Fraction = Fraction(d.get("delay", 0))
-        return VoiceTreatmentSpec(treatment=treatment, source=source, interval=interval, delay=delay)
+        form: str = d.get("form", "tonic")
+        return VoiceTreatmentSpec(
+            treatment=treatment, source=source, interval=interval, delay=delay, form=form
+        )
+
+    @staticmethod
+    def free() -> "VoiceTreatmentSpec":
+        """Create a free counterpoint specification."""
+        return VoiceTreatmentSpec(
+            treatment="free", source="free", interval=0, delay=Fraction(0), form="tonic"
+        )
+
+    @property
+    def is_free(self) -> bool:
+        return self.treatment == "free" or self.source == "free"
+
+    @property
+    def needs_tonal_answer(self) -> bool:
+        return self.form == "dominant" and self.source == "subject"
 
     @property
     def is_rest(self) -> bool:
