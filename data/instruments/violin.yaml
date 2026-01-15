@@ -1,0 +1,47 @@
+# Violin playability constraints
+# Reference: docs/violin.md
+
+range:
+  min: 55           # G3 - open G string
+  max: 91           # G6 - comfortable professional limit
+  max_virtuoso: 100 # E7 - orchestral/virtuoso limit
+  median: 73        # C#5 - center of comfortable range
+
+open_strings:
+  - 55  # G3
+  - 62  # D4
+  - 69  # A4
+  - 76  # E5
+
+# Adjacent string pairs (only these can sound simultaneously)
+adjacent_pairs:
+  - [55, 61, 62, 73]   # G string (55-61) + D string (62-73)
+  - [62, 73, 69, 80]   # D string (62-73) + A string (69-80)
+  - [69, 80, 76, 100]  # A string (69-80) + E string (76-100)
+
+# Double stop intervals (semitones -> difficulty)
+# easy: standard technique, medium: requires practice, hard: virtuoso
+double_stops:
+  2:  hard      # major 2nd - stretch, awkward
+  3:  easy      # minor 3rd - most common
+  4:  easy      # major 3rd - most common
+  5:  easy      # perfect 4th
+  7:  hard      # perfect 5th - single finger bars two strings
+  8:  easy      # minor 6th - natural hand position
+  9:  easy      # major 6th - natural hand position
+  12: medium    # octave - stretch, standard
+  15: hard      # minor 10th - large hands only
+  16: hard      # major 10th - maximum stretch
+
+# Melodic constraints
+melodic:
+  max_leap: 12        # octave - comfortable melodic limit
+  avoid_tritone: true # augmented 4th (6 semitones) hard to tune
+  max_string_skip: 1  # prefer adjacent string crossings
+
+# For monophonic generation (capriccio, solo)
+voice:
+  name: violin
+  min: 55
+  max: 91
+  median: 73

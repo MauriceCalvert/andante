@@ -1,0 +1,121 @@
+# Affektenlehre - Baroque Affect System
+# German terms following baroque treatise conventions
+#
+# Musical characteristics:
+#   interval_profile: Preferred intervals (ascending)
+#     - "stepwise": 2nds and 3rds predominate
+#     - "leaps": 4ths, 5ths, and larger jumps
+#     - "mixed": balance of steps and leaps
+#   contour: Melodic direction tendency
+#     - "ascending": upward motion
+#     - "descending": downward motion (laments)
+#     - "arch": rises then falls
+#     - "wave": undulating
+#   rhythm_density: Note frequency
+#     - "sparse": longer notes, fewer attacks
+#     - "moderate": balanced
+#     - "dense": many short notes
+#   chromaticism: Use of chromatic tones
+#     - "none": diatonic only
+#     - "light": occasional chromatic neighbor
+#     - "heavy": frequent chromatic motion
+
+Sehnsucht:
+  description: "Yearning, reaching, unresolved longing"
+  mode: minor
+  tempo: adagio
+  key_character: dark
+  archetype: quest_to_discovery
+  interval_profile: leaps      # Reaching gestures
+  contour: ascending           # Striving upward
+  rhythm_density: sparse       # Sustained, yearning
+  chromaticism: light          # Chromatic neighbors express longing
+
+Klage:
+  description: "Grief, lament, heavy sorrow"
+  mode: minor
+  tempo: adagio
+  key_character: dark
+  archetype: lament_to_acceptance
+  interval_profile: stepwise   # Sighing seconds
+  contour: descending          # Falling, weeping
+  rhythm_density: sparse       # Heavy, burdened
+  chromaticism: heavy          # Chromatic lament bass
+
+Freudigkeit:
+  description: "Joy, brightness, energetic happiness"
+  mode: major
+  tempo: allegro
+  key_character: bright
+  archetype: playful_dialogue
+  interval_profile: mixed      # Springy, varied
+  contour: arch                # Exuberant leaps and returns
+  rhythm_density: dense        # Energetic, quick
+  chromaticism: none           # Pure diatonic brightness
+
+Majestaet:
+  description: "Majesty, grandeur, ceremonial nobility"
+  mode: major
+  tempo: allegro
+  key_character: dark
+  archetype: assertion_confirmation
+  interval_profile: leaps      # Bold gestures
+  contour: ascending           # Rising, noble
+  rhythm_density: moderate     # Stately, not rushed
+  chromaticism: none           # Clear, definite
+
+Zaertlichkeit:
+  description: "Tenderness, gentleness, intimate affection"
+  mode: major
+  tempo: andante
+  key_character: bright
+  archetype: meditation_deepening
+  interval_profile: stepwise   # Gentle, close
+  contour: wave                # Soft undulations
+  rhythm_density: moderate     # Unhurried
+  chromaticism: light          # Sweet chromatic touches
+
+Zorn:
+  description: "Anger, fury, violent agitation"
+  mode: minor
+  tempo: presto
+  key_character: dark
+  archetype: storm_to_calm
+  interval_profile: leaps      # Violent, jagged
+  contour: wave                # Agitated motion
+  rhythm_density: dense        # Rapid, furious
+  chromaticism: light          # Sharp edges
+
+Verwunderung:
+  description: "Wonder, amazement, questioning surprise"
+  mode: major
+  tempo: andante
+  key_character: bright
+  archetype: quest_to_discovery
+  interval_profile: leaps      # Unexpected jumps
+  contour: arch                # Rising questions, falling answers
+  rhythm_density: moderate     # Contemplative pace
+  chromaticism: light          # Curious chromatic inflections
+
+Entschlossenheit:
+  description: "Resolution, determination, firm decisiveness"
+  mode: major
+  tempo: allegro
+  key_character: bright
+  archetype: assertion_confirmation
+  interval_profile: mixed      # Confident variety
+  contour: ascending           # Forward, upward
+  rhythm_density: moderate     # Measured, firm
+  chromaticism: none           # Clear purpose
+
+# Dolore - added for three_voice_dolore test
+Dolore:
+  description: "Pain, suffering, acute sorrow"
+  mode: minor
+  tempo: adagio
+  key_character: dark
+  archetype: lament_to_acceptance
+  interval_profile: stepwise   # Sighing, groaning
+  contour: descending          # Sinking, despairing
+  rhythm_density: sparse       # Weighted with grief
+  chromaticism: heavy          # Chromatic pain

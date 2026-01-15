@@ -1,0 +1,31 @@
+# Cadenza rhythm patterns - deterministic duration multipliers
+# Each phase has a list of multipliers applied to base_dur (1/16)
+# Multiplier 1 = 1/16, 2 = 1/8, 4 = 1/4
+
+flourish_a:
+  ascent: [1, 1, 2, 1, 1, 2, 1, 2]
+  broken: [1, 2, 1, 2, 1, 2, 1, 2]
+  climax: [1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 2, 1]
+  descent: [1, 2, 2, 1, 2, 2, 1, 2]
+  resolution: [2, 2, 4]
+
+flourish_b:
+  ascent: [1, 2, 1, 2, 1, 1, 2, 1]
+  broken: [2, 1, 2, 1, 2, 1, 2, 1]
+  climax: [1, 2, 1, 1, 2, 1, 2, 1, 1, 2, 1, 2]
+  descent: [2, 1, 2, 2, 1, 2, 2, 1]
+  resolution: [2, 2, 4]
+
+steady:
+  ascent: [1, 1, 1, 1, 1, 1, 1, 1]
+  broken: [1, 1, 1, 1, 1, 1, 1, 1]
+  climax: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  descent: [1, 1, 1, 1, 1, 1, 1, 1]
+  resolution: [2, 2, 4]
+
+rubato:
+  ascent: [2, 1, 1, 2, 2, 1, 1, 2]
+  broken: [2, 2, 1, 1, 2, 2, 1, 1]
+  climax: [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+  descent: [2, 2, 2, 1, 1, 2, 2, 2]
+  resolution: [2, 2, 4]

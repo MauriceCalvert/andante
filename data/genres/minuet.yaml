@@ -1,0 +1,15 @@
+voices: 2
+metre: 3/4
+upbeat: 0
+form: binary
+arc: dance_stately
+min_cs_duration: 1/8
+sections:
+  - label: A
+    tonal_path: [I, V]
+    final_cadence: half
+    bars_per_phrase: 4
+  - label: B
+    tonal_path: [V, I]
+    final_cadence: authentic
+    bars_per_phrase: 4

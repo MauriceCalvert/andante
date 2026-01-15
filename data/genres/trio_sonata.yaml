@@ -1,0 +1,17 @@
+voices: 3
+metre: 4/4
+upbeat: 0
+form: binary
+arc: dialogue
+min_cs_duration: 1/8
+sections:
+  - label: A
+    key_area: I
+    final_cadence: half
+    bars_per_phrase: 4
+    episodes: [statement, response, continuation, cadential]
+  - label: B
+    key_area: I
+    final_cadence: authentic
+    bars_per_phrase: 4
+    episodes: [statement, exchange, intensification, cadential]

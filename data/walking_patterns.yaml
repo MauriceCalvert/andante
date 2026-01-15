@@ -1,0 +1,25 @@
+# Walking bass patterns
+# motion: stepwise, chromatic, arpeggiated
+# direction: ascending, descending, alternating, toward_target
+# notes_per_bar: rhythmic density
+
+arpeggiated:
+  motion: arpeggiated
+  direction: ascending
+  notes_per_bar: 4
+
+compound:
+  motion: stepwise
+  direction: alternating
+  notes_per_bar: 2
+
+chromatic_approach:
+  motion: chromatic
+  direction: toward_target
+  notes_per_bar: 4
+
+scalar:
+  motion: stepwise
+  direction: alternating
+  notes_per_bar: 4
+

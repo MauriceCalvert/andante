@@ -1,0 +1,45 @@
+# Harmonic schemas: partimento-style bass patterns that imply harmonic progressions
+# Each schema provides bass degrees and implied harmony over a specified number of bars
+
+fonte:
+  description: Descending fifths sequence (down by step)
+  bass_degrees: [5, 1, 4, 7, 3, 6]
+  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
+  soprano_degrees: [2, 3, 1, 2, 7, 1]
+  bars: 3
+
+monte:
+  description: Ascending fifths sequence (5-1 model, up by step)
+  bass_degrees: [5, 1, 6, 2, 7, 3]
+  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
+  soprano_degrees: [7, 3, 1, 4, 2, 5]
+  bars: 3
+
+prinner:
+  description: Stepwise descent to cadence (6-5-4-3 bass with 4-3-2-1 soprano)
+  bass_degrees: [6, 5, 4, 3]
+  durations: [1/2, 1/2, 1/2, 1/2]
+  soprano_degrees: [4, 3, 2, 1]
+  bars: 2
+  cadence_approach: true
+
+romanesca:
+  description: Descending bass with 5-6 motion
+  bass_degrees: [1, 7, 6, 5, 4, 3, 2, 1]
+  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
+  soprano_degrees: [5, 5, 3, 3, 1, 1, 7, 1]
+  bars: 4
+
+rule_of_octave_asc:
+  description: Harmonizing ascending scale
+  bass_degrees: [1, 2, 3, 4, 5, 6, 7, 1]
+  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
+  soprano_degrees: [3, 7, 1, 4, 3, 4, 5, 5]
+  bars: 4
+
+rule_of_octave_desc:
+  description: Harmonizing descending scale
+  bass_degrees: [1, 7, 6, 5, 4, 3, 2, 1]
+  durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2]
+  soprano_degrees: [3, 5, 4, 3, 6, 5, 4, 3]
+  bars: 4

@@ -1,0 +1,206 @@
+brief:
+  affect: giocoso
+  genre: invention
+  forces: keyboard
+  bars: 32
+frame:
+  key: G
+  mode: major
+  metre: 4/4
+  tempo: allegro
+  voices: 4
+structure:
+  arc: chorale_4voice
+  sections:
+    - label: A
+      repeat: false
+      tonal_path: [I, IV, V]
+      final_cadence: half
+      episodes:
+        - type: statement
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 0
+              bars: 2
+              tonal_target: I
+              cadence: null
+              treatment: statement
+              rhythm: straight
+              gesture: statement_open
+              device: null
+              surprise: null
+        - type: dialogue
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 1
+              bars: 2
+              tonal_target: I
+              cadence: null
+              treatment: dialogue
+              rhythm: dotted
+              gesture: drive
+              device: null
+              surprise: null
+        - type: sequential
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 2
+              bars: 2
+              tonal_target: IV
+              cadence: null
+              treatment: inversion
+              rhythm: straight
+              gesture: question
+              device: null
+              surprise: null
+        - type: intensification
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 3
+              bars: 2
+              tonal_target: V
+              cadence: half
+              treatment: stretto
+              rhythm: running
+              gesture: drive
+              device: stretto
+              surprise: null
+    - label: B
+      repeat: false
+      tonal_path: [V, vi, IV, I]
+      final_cadence: authentic
+      episodes:
+        - type: bass_statement
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 4
+              bars: 2
+              tonal_target: V
+              cadence: null
+              treatment: bass_statement
+              rhythm: lombardic
+              gesture: surprise
+              device: null
+              surprise: null
+        - type: head_motif
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 5
+              bars: 2
+              tonal_target: vi
+              cadence: null
+              treatment: sequence
+              rhythm: dotted
+              gesture: drive
+              device: null
+              surprise: null
+        - type: sequential
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 6
+              bars: 2
+              tonal_target: vi
+              cadence: null
+              treatment: imitation
+              rhythm: straight
+              gesture: question
+              device: null
+              surprise: null
+        - type: exchange
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 7
+              bars: 2
+              tonal_target: IV
+              cadence: null
+              treatment: voice_exchange
+              rhythm: lombardic
+              gesture: surprise
+              device: invertible
+              surprise: null
+        - type: continuation
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 8
+              bars: 2
+              tonal_target: IV
+              cadence: null
+              treatment: dialogue
+              rhythm: straight
+              gesture: rest
+              device: null
+              surprise: null
+        - type: scalar
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 9
+              bars: 2
+              tonal_target: I
+              cadence: null
+              treatment: retrograde
+              rhythm: running
+              gesture: drive
+              device: null
+              surprise: null
+        - type: climax
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 10
+              bars: 2
+              tonal_target: I
+              cadence: null
+              treatment: augmentation
+              rhythm: dotted
+              gesture: surprise
+              device: null
+              surprise: null
+        - type: retransition
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 11
+              bars: 2
+              tonal_target: V
+              cadence: null
+              treatment: pedal_dominant
+              rhythm: straight
+              gesture: drive
+              device: null
+              surprise: null
+        - type: response_cs
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 12
+              bars: 2
+              tonal_target: I
+              cadence: null
+              treatment: imitation_cs
+              rhythm: dotted
+              gesture: question
+              device: null
+              surprise: null
+        - type: cadential
+          bars: 2
+          texture: polyphonic
+          phrases:
+            - index: 13
+              bars: 2
+              tonal_target: I
+              cadence: authentic
+              treatment: statement
+              rhythm: straight
+              gesture: answer
+              device: null
+              surprise: null

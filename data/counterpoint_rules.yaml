@@ -1,0 +1,372 @@
+# Counterpoint Rules for CP-SAT Solver
+# Synthesized from Fux, Rameau, C.P.E. Bach, Kirnberger, Koch, Marpurg, Mattheson
+
+---
+# Hard constraints: violation = infeasible solution
+hard_constraints:
+
+  parallel_motion:
+    parallel_fifth:
+      description: "Two voices move in parallel perfect fifths"
+      detection: "Both intervals = 7 mod 12, same direction, neither stationary"
+      source: "Fux I.14, Kirnberger II.3"
+
+    parallel_octave:
+      description: "Two voices move in parallel octaves"
+      detection: "Both intervals = 0 or 12 mod 12, same direction, neither stationary"
+      source: "Fux I.14, Kirnberger II.3"
+
+    parallel_unison:
+      description: "Two voices move in parallel unisons"
+      detection: "Both intervals = 0, same direction, neither stationary"
+      source: "Fux I.14"
+
+  direct_motion:
+    direct_fifth_outer:
+      description: "Outer voices arrive at fifth by similar motion, soprano leaps"
+      detection: "Arrive at interval 7, similar motion, upper voice moves > 2 semitones"
+      source: "Fux I.15"
+
+    direct_octave_outer:
+      description: "Outer voices arrive at octave by similar motion, soprano leaps"
+      detection: "Arrive at interval 0/12, similar motion, upper voice moves > 2 semitones"
+      source: "Fux I.15"
+
+  dissonance:
+    unprepared_dissonance:
+      description: "Dissonance on strong beat without preparation"
+      detection: "Strong beat, interval in [1,2,6,10,11], previous beat different pitch"
+      source: "Fux II.1"
+
+    unresolved_dissonance:
+      description: "Dissonance not resolved by step"
+      detection: "Dissonant interval, next motion > 2 semitones"
+      source: "Fux II.2"
+
+    dissonance_resolved_up:
+      description: "Dissonance resolved upward (except leading tone)"
+      detection: "Dissonant interval, resolves by +1 or +2, not leading tone"
+      source: "Fux II.3"
+
+    dissonance_by_leap:
+      description: "Dissonance approached or left by leap"
+      detection: "Dissonant interval, motion > 2 semitones in/out"
+      source: "Fux II.2"
+
+  voice_spacing:
+    voice_overlap:
+      description: "Voice crosses previous position of adjacent voice"
+      detection: "Current pitch crosses previous pitch of neighbor voice"
+      source: "Kirnberger II.5"
+
+---
+# Soft constraints: violation = penalty added to cost
+soft_constraints:
+
+  hidden_parallels:
+    hidden_fifth_inner:
+      description: "Hidden fifth between inner voices"
+      cost: 20
+      source: "Kirnberger II.4"
+
+    hidden_octave_inner:
+      description: "Hidden octave between inner voices"
+      cost: 20
+      source: "Kirnberger II.4"
+
+  voice_crossing:
+    crossing_brief:
+      description: "Voice crossing lasting 1-2 beats"
+      cost: 5
+      note: "Acceptable for melodic continuity"
+      source: "Marpurg III.2"
+
+    crossing_sustained:
+      description: "Voice crossing lasting 3+ beats"
+      cost: 40
+      source: "Kirnberger II.5"
+
+    crossing_wide:
+      description: "Voice crossing by more than a third"
+      cost: 25
+      source: "Kirnberger II.5"
+
+  spacing:
+    soprano_alto_gap:
+      description: "More than octave between soprano and alto"
+      cost: 15
+      threshold_semitones: 12
+      source: "Kirnberger III.1"
+
+    alto_tenor_gap:
+      description: "More than octave between alto and tenor"
+      cost: 10
+      threshold_semitones: 12
+      source: "Kirnberger III.1"
+
+    tenor_bass_gap:
+      description: "More than twelfth between tenor and bass"
+      cost: 5
+      threshold_semitones: 19
+      source: "Traditional"
+
+    unison_non_cadential:
+      description: "Unison between adjacent voices outside cadence"
+      cost: 30
+      source: "Fux I.12"
+
+  melodic_intervals:
+    leap_augmented:
+      description: "Melodic augmented interval"
+      cost: 30
+      intervals: [1, 3, 6, 8, 10]  # augmented unison, 2nd, 4th, 5th, 6th in semitones
+      source: "Fux I.10"
+
+    leap_seventh:
+      description: "Melodic seventh (10 or 11 semitones)"
+      cost: 25
+      intervals: [10, 11]
+      source: "Fux I.10"
+
+    leap_beyond_octave:
+      description: "Melodic leap larger than octave"
+      cost: 30
+      threshold_semitones: 12
+      source: "Fux I.10"
+
+    consecutive_leaps_same_direction:
+      description: "Two leaps in the same direction"
+      cost: 15
+      source: "Fux I.11"
+
+    leap_not_compensated:
+      description: "Leap not followed by contrary stepwise motion"
+      cost: 10
+      source: "Fux I.11"
+
+    tritone_outline:
+      description: "Tritone outlined in melodic line within 4 notes"
+      cost: 20
+      source: "Fux I.10"
+
+  repetition:
+    pitch_repetition:
+      description: "Same pitch more than 3 times consecutively"
+      cost: 15
+      threshold: 3
+      source: "Koch II.3"
+
+    rhythm_monotony:
+      description: "Same rhythm pattern more than 4 bars"
+      cost: 10
+      threshold_bars: 4
+      source: "Mattheson V.2"
+
+    static_bass:
+      description: "Bass unchanged for more than 2 bars (non-pedal)"
+      cost: 20
+      threshold_bars: 2
+      source: "Rameau III.4"
+
+  motion_quality:
+    all_similar_motion:
+      description: "All voices move in similar motion"
+      cost: 12
+      source: "Fux I.16"
+
+    extended_parallel_thirds:
+      description: "Parallel thirds for more than 3 beats"
+      cost: 8
+      threshold_beats: 3
+      source: "Kirnberger II.6"
+
+    extended_parallel_sixths:
+      description: "Parallel sixths for more than 3 beats"
+      cost: 8
+      threshold_beats: 3
+      source: "Kirnberger II.6"
+
+    simultaneous_leaps:
+      description: "All voices leap simultaneously"
+      cost: 15
+      source: "Fux I.17"
+
+  range:
+    outside_comfortable_range:
+      description: "Voice outside comfortable tessitura"
+      cost: 10
+      ranges_midi:
+        soprano: [60, 79]  # C4-G5
+        alto: [55, 74]     # G3-D5
+        tenor: [48, 67]    # C3-G4
+        bass: [40, 60]     # E2-C4
+      source: "Traditional"
+
+    extended_extreme:
+      description: "Voice at range extreme for more than 2 bars"
+      cost: 15
+      source: "Traditional"
+
+    bass_above_tenor:
+      description: "Bass pitch above tenor comfortable range"
+      cost: 20
+      source: "Kirnberger III.2"
+
+---
+# Rewards: bonus subtracted from cost
+rewards:
+
+  motion_types:
+    contrary_outer:
+      description: "Contrary motion between outer voices"
+      reward: 12
+      source: "Fux I.16"
+
+    oblique_motion:
+      description: "One voice stationary while other moves"
+      reward: 4
+      source: "Fux I.16"
+
+    stepwise_motion:
+      description: "Voice moves by step (1-2 semitones)"
+      reward: 10
+      source: "Fux I.9"
+
+    complementary_rhythm:
+      description: "One voice moves while another holds"
+      reward: 8
+      source: "Mattheson IV.3"
+
+  cadential:
+    leading_tone_resolution:
+      description: "Leading tone resolves up by step to tonic"
+      reward: 15
+      source: "Fux III.2"
+
+    suspension_4_3:
+      description: "4-3 suspension at cadence"
+      reward: 12
+      source: "Fux III.3"
+
+    suspension_chain_7_6:
+      description: "Chain of 7-6 suspensions"
+      reward: 10
+      per_suspension: true
+      source: "Fux III.3"
+
+    bass_cadential_fifth:
+      description: "Bass moves by fifth at cadence (V-I or IV-I)"
+      reward: 10
+      source: "Rameau II.3"
+
+  thematic:
+    subject_fragment:
+      description: "Voice contains recognizable subject fragment"
+      reward: 20
+      min_notes: 4
+      source: "Marpurg II.4"
+
+    countersubject_fragment:
+      description: "Voice contains countersubject fragment"
+      reward: 15
+      min_notes: 4
+      source: "Marpurg II.4"
+
+    sequential_repetition:
+      description: "Pattern repeated at different pitch level"
+      reward: 10
+      source: "Mattheson V.4"
+
+    imitation_octave:
+      description: "Imitation at octave or unison"
+      reward: 15
+      source: "Marpurg II.1"
+
+    imitation_fifth:
+      description: "Imitation at fifth or fourth"
+      reward: 12
+      source: "Marpurg II.1"
+
+  independence:
+    distinct_rhythm:
+      description: "Each voice has rhythmically distinct profile"
+      reward: 8
+      source: "Kirnberger IV.2"
+
+    staggered_entries:
+      description: "Voices enter at different times"
+      reward: 6
+      source: "Marpurg II.3"
+
+    offset_climax:
+      description: "Melodic climax occurs at different points per voice"
+      reward: 5
+      source: "Koch III.1"
+
+  compound_melody:
+    implied_voice:
+      description: "Two voices create coherent implied third voice"
+      reward: 25
+      source: "Bach analysis"
+
+    alternating_register:
+      description: "Single voice alternates registers creating polyphonic effect"
+      reward: 20
+      source: "Bach analysis"
+
+    interlocking_fill:
+      description: "Voice pair interlocks to fill harmonic space continuously"
+      reward: 15
+      source: "Traditional"
+
+---
+# Dissonance intervals (semitones mod 12)
+intervals:
+  consonant_perfect: [0, 7, 12]      # unison, fifth, octave
+  consonant_imperfect: [3, 4, 8, 9]  # minor 3rd, major 3rd, minor 6th, major 6th
+  dissonant: [1, 2, 5, 6, 10, 11]    # seconds, fourth, tritone, sevenths
+
+# Note: fourth (5) is dissonant against bass, consonant between upper voices
+
+---
+# Voice ranges (MIDI note numbers)
+voice_ranges:
+  soprano:
+    comfortable: [60, 79]   # C4-G5
+    possible: [55, 84]      # G3-C6
+  alto:
+    comfortable: [55, 74]   # G3-D5
+    possible: [52, 77]      # E3-F5
+  tenor:
+    comfortable: [48, 67]   # C3-G4
+    possible: [43, 72]      # G2-C5
+  bass:
+    comfortable: [40, 60]   # E2-C4
+    possible: [36, 64]      # C2-E4
+
+---
+# Doubling rules for chord voicing
+doubling:
+  priority:
+    - root
+    - fifth
+    - third
+  never_double:
+    - leading_tone
+    - chromatically_altered
+    - seventh
+    - any_tendency_tone
+
+---
+# Document metadata
+metadata:
+  version: "1.0"
+  last_updated: "2025-01"
+  sources:
+    - "Fux: Gradus ad Parnassum (1725)"
+    - "Rameau: Treatise on Harmony (1722)"
+    - "C.P.E. Bach: Essay on the True Art (1753-62)"
+    - "Kirnberger: The Art of Strict Musical Composition (1771-79)"
+    - "Koch: Versuch einer Anleitung zur Composition (1782-93)"
+    - "Marpurg: Abhandlung von der Fuge (1753-54)"
+    - "Mattheson: Der vollkommene Capellmeister (1739)"

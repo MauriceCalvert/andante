@@ -1,0 +1,77 @@
+# Baroque Minor Style for Motif Generation
+# Use for sonatas, inventions in minor keys
+# Natural minor scale; raised 7th applied at cadences during realisation
+
+name: baroque_minor
+
+rhythm:
+  meter: [4, 4]
+  allow_rests: false
+  min_notes: 6
+  max_notes: 12
+  groupings:
+    # Basic patterns
+    - pattern: [0.25, 0.25]
+      weight: 1.0
+    - pattern: [0.125, 0.125, 0.25]
+      weight: 1.2
+    - pattern: [0.125, 0.125, 0.125, 0.125]
+      weight: 1.0
+    - pattern: [0.25, 0.125, 0.125]
+      weight: 1.2
+    # Dotted patterns (characteristic of baroque)
+    - pattern: [0.1875, 0.0625]
+      weight: 0.9
+    - pattern: [0.1875, 0.0625, 0.1875, 0.0625]
+      weight: 0.7
+    # Sixteenth patterns
+    - pattern: [0.125, 0.0625, 0.0625]
+      weight: 0.8
+    - pattern: [0.0625, 0.0625, 0.125]
+      weight: 0.7
+    - pattern: [0.0625, 0.0625, 0.0625, 0.0625]
+      weight: 0.5
+    - pattern: [0.0625, 0.0625, 0.125, 0.125]
+      weight: 0.6
+    # Lombardic (short-long) - expressive in minor
+    - pattern: [0.0625, 0.1875]
+      weight: 0.5
+    # Quarter + sixteenths
+    - pattern: [0.25, 0.0625, 0.0625, 0.125]
+      weight: 0.5
+
+intervals:
+  max_interval: 5
+  step_threshold: 1
+  step_inertia_boost: 1.3
+  weights:
+    0: 0.07     # unison
+    1: 0.16     # second up
+    -1: 0.24    # second down (stronger descending bias in minor)
+    2: 0.13     # third up (minor third characteristic)
+    -2: 0.17    # third down
+    3: 0.05     # fourth up
+    -3: 0.07    # fourth down
+    4: 0.03     # fifth up
+    -4: 0.04    # fifth down
+    5: 0.02     # sixth up
+    -5: 0.02    # sixth down
+  first_weights:
+    0: 0.04     # unison (less common at start)
+    1: 0.22     # second up
+    -1: 0.32    # second down (minor favours descending starts)
+    2: 0.16     # third up
+    -2: 0.18    # third down
+    3: 0.04     # fourth up
+    -3: 0.04    # fourth down
+
+contour:
+  prefer_arch: false
+  prefer_descent: true
+  range_min: 0
+  range_max: 11
+
+target_duration_min: 0.75
+target_duration_max: 1.0
+
+scale_pattern: [0, 2, 3, 5, 7, 8, 10]  # Natural minor

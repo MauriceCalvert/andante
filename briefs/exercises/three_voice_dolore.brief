@@ -1,0 +1,7 @@
+# STUB: Incomplete exercise file for future development
+# TODO: Complete with frame, material, and structure sections
+brief:
+  affect: Klage  # Using valid affect (grief/lament, similar to dolore)
+  genre: trio_sonata
+  forces: keyboard
+  bars: 32

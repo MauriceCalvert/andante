@@ -1,0 +1,18 @@
+# Contrapuntal devices
+# These extend treatments with advanced transformations
+
+augmentation:
+  duration_factor: 2
+  description: Subject with doubled durations
+
+diminution:
+  duration_factor: 1/2
+  description: Subject with halved durations
+
+invertible:
+  voice_swap: true
+  description: Double counterpoint at the octave
+
+stretto:
+  imitation_offset: 1/4
+  description: Compressed imitation (entries overlap)

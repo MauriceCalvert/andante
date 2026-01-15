@@ -1,0 +1,32 @@
+brief:
+  affect: giocoso
+  genre: invention
+  forces: keyboard
+  bars: 8
+frame:
+  key: C
+  mode: major
+  metre: 4/4
+  tempo: allegro
+  voices: 2
+structure:
+  arc: simple
+  sections:
+    - label: A
+      repeat: false
+      tonal_path: [I]
+      final_cadence: authentic
+      episodes:
+        - type: statement
+          bars: 8
+          texture: polyphonic
+          phrases:
+            - index: 0
+              bars: 4
+              tonal_target: I
+              treatment: statement
+            - index: 1
+              bars: 4
+              tonal_target: I
+              cadence: authentic
+              treatment: imitation_cs

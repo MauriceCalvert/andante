@@ -1,0 +1,122 @@
+arch_form:
+  voices: 2
+  treatments: []
+  dynamic_treatments: true
+  climax: mid
+  surprise: null
+  surprise_type: null
+
+chorale_4voice:
+  voices: 4
+  texture: homophonic
+  treatments: [statement, statement, statement, statement]
+  climax: late
+  surprise: null
+  surprise_type: null
+
+dance_balanced:
+  voices: 2
+  treatments: [statement, sequence, statement, sequence]
+  climax: late
+  surprise: null
+  surprise_type: null
+
+dance_contrast:
+  voices: 2
+  treatments: [statement, sequence, inversion, fragmentation, statement]
+  climax: mid
+  surprise: null
+  surprise_type: null
+
+dance_stately:
+  voices: 2
+  treatments: [statement, augmentation, statement, augmentation]
+  climax: mid
+  surprise: null
+  surprise_type: null
+
+dialogue:
+  voices: 3
+  texture: polyphonic
+  treatments: [statement, imitation, sequence, statement]
+  climax: late
+  surprise: null
+  surprise_type: null
+
+fugue_4voice:
+  voices: 4
+  treatments: [statement, sequence, fragmentation, stretto, statement]
+  climax: late
+  surprise: null
+  surprise_type: null
+  voice_entries:
+    # Exposition: staggered subject entries with tonal answers
+    - phrase: 0
+      voices:
+        soprano: {treatment: statement, source: subject}
+        alto: {treatment: rest}
+        tenor: {treatment: rest}
+        bass: {treatment: rest}
+    - phrase: 1
+      voices:
+        soprano: {treatment: counter_subject}
+        alto: {treatment: statement, source: subject, interval: -4}
+        tenor: {treatment: rest}
+        bass: {treatment: rest}
+    - phrase: 2
+      voices:
+        soprano: {treatment: sequence, source: counter_subject}
+        alto: {treatment: counter_subject}
+        tenor: {treatment: statement, source: subject, interval: -7}
+        bass: {treatment: rest}
+    - phrase: 3
+      voices:
+        soprano: {treatment: fragmentation, source: subject}
+        alto: {treatment: sequence, source: counter_subject}
+        tenor: {treatment: counter_subject}
+        bass: {treatment: statement, source: subject, interval: -11}
+
+hymn:
+  voices: 4
+  texture: homophonic
+  treatments: [statement, statement, statement, statement]
+  climax: late
+  surprise: null
+  surprise_type: null
+
+imitative:
+  voices: 2
+  treatments: [statement, imitation, sequence, fragmentation, inversion, sequence, imitation, statement]
+  climax: late
+  surprise: null
+  surprise_type: null
+
+inverted:
+  voices: 2
+  treatments: [statement, inversion, sequence, retrograde, statement, sequence, inversion, statement]
+  climax: mid
+  surprise: null
+  surprise_type: null
+
+jubilant:
+  voices: 2
+  treatments: []
+  dynamic_treatments: true
+  climax: late
+  surprise: null
+  surprise_type: null
+
+simple:
+  voices: 2
+  treatments: [statement, sequence, statement]
+  climax: late
+  surprise: null
+  surprise_type: null
+
+invention:
+  voices: 2
+  treatments: []  # Dynamic generation based on phrase count
+  dynamic_treatments: true
+  climax: late
+  surprise: null
+  surprise_type: null

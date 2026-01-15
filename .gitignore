@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.coverage
+
+# Generated outputs
+output/
+
+# Temp files
+tmpclaude-*
+nul
+
+# Test artifacts at root
+test.*
+test832.*

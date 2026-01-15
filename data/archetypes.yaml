@@ -1,0 +1,241 @@
+# Dramaturgical Archetypes
+# Based on baroque rhetorical structure (dispositio) and affect theory
+#
+# Each archetype defines:
+# - rhetorical_sections: proportions of classical oration parts
+# - tension_curve: points defining dramatic shape [position, level]
+# - key_schemes: tonal paths for minor and major modes
+# - compatible_affects: which affects this archetype suits
+
+struggle_to_triumph:
+  description: "Heroic narrative - from conflict through adversity to victory"
+  rhetorical_sections:
+    exordium: 0.10      # Brief, tense opening
+    narratio: 0.20      # Establish conflict
+    confutatio: 0.35    # Extended struggle, confrontation
+    confirmatio: 0.25   # Victory emerges, resolution builds
+    peroratio: 0.10     # Triumphant conclusion
+  tension_curve:
+    - [0.00, 0.5]       # Start with tension
+    - [0.10, 0.6]       # Rising
+    - [0.30, 0.7]       # Building
+    - [0.50, 0.85]      # Struggle peaks
+    - [0.70, 0.95]      # Climax
+    - [0.85, 0.7]       # Resolution
+    - [1.00, 0.4]       # Triumph, release
+  climax_position: 0.70
+  key_scheme_minor:
+    exordium: i
+    narratio: III
+    confutatio: iv
+    confirmatio: V
+    peroratio: i
+  key_scheme_major:
+    exordium: I
+    narratio: vi
+    confutatio: IV
+    confirmatio: V
+    peroratio: I
+  compatible_affects:
+    - Entschlossenheit
+    - Zorn
+    - Majestaet
+
+lament_to_acceptance:
+  description: "Grief journey - from sorrow through expression to peace"
+  rhetorical_sections:
+    exordium: 0.15      # State of grief
+    narratio: 0.25      # Deepening sorrow
+    confutatio: 0.25    # Wrestling with loss
+    confirmatio: 0.20   # Gradual acceptance
+    peroratio: 0.15     # Peace, resolution
+  tension_curve:
+    - [0.00, 0.6]       # Heavy opening
+    - [0.15, 0.7]       # Grief deepens
+    - [0.35, 0.85]      # Peak of sorrow
+    - [0.50, 0.75]      # Slight easing
+    - [0.70, 0.6]       # Acceptance begins
+    - [0.85, 0.4]       # Peace emerges
+    - [1.00, 0.3]       # Quiet resolution
+  climax_position: 0.35
+  key_scheme_minor:
+    exordium: i
+    narratio: iv
+    confutatio: VI
+    confirmatio: V
+    peroratio: i
+  key_scheme_major:
+    exordium: I
+    narratio: vi
+    confutatio: ii
+    confirmatio: V
+    peroratio: I
+  compatible_affects:
+    - Klage
+    - Sehnsucht
+
+playful_dialogue:
+  description: "Witty exchange - conversation, contrast, delight"
+  rhetorical_sections:
+    exordium: 0.12      # Invitation to play
+    narratio: 0.25      # First theme established
+    confutatio: 0.28    # Playful opposition
+    confirmatio: 0.20   # Themes combine
+    peroratio: 0.15     # Joyful conclusion
+  tension_curve:
+    - [0.00, 0.4]       # Light opening
+    - [0.15, 0.5]       # Engaging
+    - [0.30, 0.6]       # Building playfulness
+    - [0.50, 0.7]       # Peak of wit
+    - [0.70, 0.65]      # Sustained energy
+    - [0.85, 0.55]      # Winding down
+    - [1.00, 0.4]       # Cheerful close
+  climax_position: 0.50
+  key_scheme_minor:
+    exordium: i
+    narratio: III
+    confutatio: VII
+    confirmatio: V
+    peroratio: i
+  key_scheme_major:
+    exordium: I
+    narratio: V
+    confutatio: vi
+    confirmatio: IV
+    peroratio: I
+  compatible_affects:
+    - Freudigkeit
+    - Verwunderung
+
+meditation_deepening:
+  description: "Contemplative journey - from surface to profound depth"
+  rhetorical_sections:
+    exordium: 0.15      # Quiet invitation
+    narratio: 0.25      # Theme introduced gently
+    confutatio: 0.20    # Subtle exploration
+    confirmatio: 0.25   # Deepening insight
+    peroratio: 0.15     # Transcendent close
+  tension_curve:
+    - [0.00, 0.3]       # Stillness
+    - [0.20, 0.35]      # Gentle rise
+    - [0.40, 0.5]       # Deepening
+    - [0.60, 0.6]       # Profound moment
+    - [0.75, 0.55]      # Sustained depth
+    - [0.90, 0.4]       # Return
+    - [1.00, 0.25]      # Peace
+  climax_position: 0.60
+  key_scheme_minor:
+    exordium: i
+    narratio: iv
+    confutatio: VI
+    confirmatio: III
+    peroratio: i
+  key_scheme_major:
+    exordium: I
+    narratio: IV
+    confutatio: vi
+    confirmatio: ii
+    peroratio: I
+  compatible_affects:
+    - Zaertlichkeit
+    - Sehnsucht
+
+quest_to_discovery:
+  description: "Adventure narrative - search, obstacles, revelation"
+  rhetorical_sections:
+    exordium: 0.10      # Setting forth
+    narratio: 0.25      # The journey begins
+    confutatio: 0.30    # Trials and obstacles
+    confirmatio: 0.20   # Discovery achieved
+    peroratio: 0.15     # Celebration of knowledge
+  tension_curve:
+    - [0.00, 0.4]       # Hopeful start
+    - [0.15, 0.55]      # Adventure builds
+    - [0.35, 0.7]       # Obstacles mount
+    - [0.55, 0.8]       # Crisis point
+    - [0.70, 0.9]       # Breakthrough!
+    - [0.85, 0.65]      # Resolution
+    - [1.00, 0.5]       # Satisfied close
+  climax_position: 0.70
+  key_scheme_minor:
+    exordium: i
+    narratio: III
+    confutatio: VII
+    confirmatio: V
+    peroratio: i
+  key_scheme_major:
+    exordium: I
+    narratio: V
+    confutatio: ii
+    confirmatio: vi
+    peroratio: I
+  compatible_affects:
+    - Sehnsucht
+    - Verwunderung
+    - Entschlossenheit
+
+assertion_confirmation:
+  description: "Declarative - statement, proof, triumphant restatement"
+  rhetorical_sections:
+    exordium: 0.15      # Bold statement
+    narratio: 0.20      # Theme elaborated
+    confutatio: 0.25    # Challenges addressed
+    confirmatio: 0.25   # Proof established
+    peroratio: 0.15     # Triumphant restatement
+  tension_curve:
+    - [0.00, 0.6]       # Strong opening
+    - [0.15, 0.65]      # Sustained
+    - [0.35, 0.7]       # Building
+    - [0.55, 0.75]      # Growing certainty
+    - [0.75, 0.85]      # Peak confidence
+    - [0.90, 0.7]       # Resolution
+    - [1.00, 0.55]      # Firm close
+  climax_position: 0.75
+  key_scheme_minor:
+    exordium: i
+    narratio: iv
+    confutatio: V
+    confirmatio: III
+    peroratio: i
+  key_scheme_major:
+    exordium: I
+    narratio: IV
+    confutatio: V
+    confirmatio: vi
+    peroratio: I
+  compatible_affects:
+    - Majestaet
+    - Entschlossenheit
+
+storm_to_calm:
+  description: "Turbulence to peace - violent opening, gradual calming"
+  rhetorical_sections:
+    exordium: 0.12      # Storm unleashed
+    narratio: 0.23      # Full fury
+    confutatio: 0.25    # Struggle with chaos
+    confirmatio: 0.25   # Gradual calming
+    peroratio: 0.15     # Peaceful resolution
+  tension_curve:
+    - [0.00, 0.85]      # Violent start
+    - [0.12, 0.95]      # Storm peaks early
+    - [0.30, 0.85]      # Sustained turbulence
+    - [0.50, 0.65]      # Beginning to calm
+    - [0.70, 0.45]      # Peace emerging
+    - [0.85, 0.3]       # Stillness
+    - [1.00, 0.2]       # Complete calm
+  climax_position: 0.12
+  key_scheme_minor:
+    exordium: i
+    narratio: VII
+    confutatio: iv
+    confirmatio: V
+    peroratio: i
+  key_scheme_major:
+    exordium: I
+    narratio: vi
+    confutatio: IV
+    confirmatio: ii
+    peroratio: I
+  compatible_affects:
+    - Zorn
+    - Klage

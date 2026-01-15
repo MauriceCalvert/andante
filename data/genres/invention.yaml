@@ -1,0 +1,23 @@
+voices: 2
+metre: 4/4
+upbeat: 0
+form: through_composed
+arc: invention
+min_cs_duration: 1/16
+final_cadence_type: invention
+treatment_constraints:
+  must_include: [imitation, stretto]
+  start_with: statement
+  end_with: statement
+  second_phrase: imitation  # Bass answer
+sections:
+  - label: A
+    repeat: false
+    tonal_path: [I, I, iii, V, V]
+    final_cadence: half
+    bars_per_phrase: 2
+  - label: B
+    repeat: false
+    tonal_path: [IV, vi, ii, ii, V, V, I]
+    final_cadence: authentic
+    bars_per_phrase: 2

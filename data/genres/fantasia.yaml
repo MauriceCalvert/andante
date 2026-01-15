@@ -1,0 +1,13 @@
+voices: 2
+metre: 4/4
+upbeat: 0
+form: through_composed
+uses_macro_form: true
+min_cs_duration: 1/16
+min_note_duration: 1/16
+sections:
+  - label: A
+    repeat: false
+    tonal_path: [i]
+    final_cadence: half
+    bars_per_phrase: 4

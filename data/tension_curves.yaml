@@ -1,0 +1,24 @@
+# Tension curve templates for shaping piece-level arc
+# points: [[position_ratio, tension_level], ...]
+# position_ratio: 0.0 = start, 1.0 = end
+# tension_level: 0.0 = calm, 1.0 = maximum intensity
+
+arch:
+  description: Rise to 70%, peak, return
+  points: [[0, 0.3], [0.3, 0.5], [0.7, 0.9], [0.85, 0.7], [1.0, 0.4]]
+
+calm:
+  description: Gentle arc with moderate peak
+  points: [[0, 0.2], [0.4, 0.4], [0.7, 0.5], [1.0, 0.2]]
+
+cumulative:
+  description: Steady rise to late climax
+  points: [[0, 0.3], [0.5, 0.6], [0.8, 0.95], [1.0, 0.5]]
+
+dramatic:
+  description: Intense opening, contrast, late triumph
+  points: [[0, 0.7], [0.2, 0.8], [0.35, 0.3], [0.5, 0.5], [0.8, 0.95], [1.0, 0.6]]
+
+episodic:
+  description: Multiple peaks with final climax
+  points: [[0, 0.3], [0.25, 0.7], [0.35, 0.4], [0.6, 0.8], [0.75, 0.95], [1.0, 0.5]]

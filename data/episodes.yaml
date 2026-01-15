@@ -1,0 +1,232 @@
+# Episode Types - Functional units within phrases
+# Each episode has: treatment override, rhythm tendency, motif handling
+
+arpeggiated:
+  description: Arpeggio-based passage work
+  treatment: sequence
+  rhythm: running
+  motif_portion: 0.25
+  energy_profile: rising
+
+bass_development:
+  description: Bass develops counter-subject
+  treatment: bass_development
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: rising
+
+bass_sequence:
+  description: Bass develops head motif in sequence
+  treatment: bass_sequence
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: rising
+
+bass_statement:
+  description: Bass presents theme while soprano holds
+  treatment: bass_statement
+  rhythm: null
+  motif_portion: 1.0
+  energy_profile: stable
+
+cadenza:
+  description: Virtuosic quasi-improvisatory passage
+  treatment: fragmentation
+  rhythm: null
+  motif_portion: 0.125
+  energy_profile: peak
+
+cadential:
+  description: Achieve closure with repose
+  treatment: repose
+  rhythm: straight
+  motif_portion: 1.0
+  energy_profile: resolving
+
+chromatic:
+  description: Chromatic approach
+  treatment: fragmentation
+  rhythm: running
+  motif_portion: 0.25
+  energy_profile: intensification
+  is_transition: true
+
+climax:
+  description: Maximum tension point
+  treatment: augmentation
+  rhythm: null
+  motif_portion: 1.0
+  energy_profile: peak
+
+coda:
+  description: Final closing passage
+  treatment: statement
+  rhythm: straight
+  motif_portion: 0.5
+  energy_profile: resolving
+
+continuation:
+  description: Spin out from statement, build momentum
+  treatment: sequence
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: rising
+
+dialogue:
+  description: Call and response between voices
+  treatment: dialogue
+  rhythm: null
+  motif_portion: 1.0
+  energy_profile: stable
+
+dialogue_invert:
+  description: Dialogue with inverted response
+  treatment: dialogue_invert
+  rhythm: null
+  motif_portion: 1.0
+  energy_profile: rising
+
+dramatic:
+  description: Dramatic pause and restart
+  treatment: statement
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: suspenseful
+  is_transition: true
+
+exchange:
+  description: Subject and counter-subject swap voices at midpoint
+  treatment: voice_exchange
+  rhythm: null
+  motif_portion: 1.0
+  energy_profile: rising
+
+head_motif:
+  description: Development using subject head only
+  treatment: head_sequence
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: rising
+
+intensification:
+  description: Drive toward climax
+  treatment: stretto
+  rhythm: null
+  motif_portion: 0.25
+  energy_profile: rising
+
+linking:
+  description: Brief melodic link
+  treatment: diminution
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: stable
+  is_transition: true
+
+lyrical:
+  description: Singing melodic passage
+  treatment: statement
+  rhythm: dotted
+  motif_portion: 1.0
+  energy_profile: plateau
+
+pivot:
+  description: Pivot chord modulation
+  treatment: statement
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: stable
+  is_transition: true
+
+release:
+  description: Dissipate tension after climax
+  treatment: fragmentation
+  rhythm: straight
+  motif_portion: 0.5
+  energy_profile: falling
+
+response:
+  description: Answer the statement in another voice
+  treatment: inversion
+  rhythm: null
+  motif_portion: 1.0
+  energy_profile: stable
+
+response_cs:
+  description: Counter-subject in soprano while subject enters in bass
+  treatment: imitation_cs
+  rhythm: null
+  motif_portion: 1.0
+  energy_profile: stable
+
+retransition:
+  description: Prepare return to tonic
+  treatment: sequence
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: suspenseful
+
+scalar:
+  description: Scale-based passage work
+  treatment: sequence
+  rhythm: running
+  motif_portion: 0.25
+  energy_profile: rising
+
+sequential:
+  description: Sequential modulation
+  treatment: sequence
+  rhythm: null
+  motif_portion: 0.25
+  energy_profile: rising
+  is_transition: true
+
+statement:
+  description: Present thematic material clearly
+  treatment: statement
+  rhythm: null
+  motif_portion: 1.0
+  energy_profile: stable
+
+tail_motif:
+  description: Development using subject tail
+  treatment: tail_development
+  rhythm: null
+  motif_portion: 0.5
+  energy_profile: rising
+
+transition:
+  description: Bridge between sections
+  treatment: sequence
+  rhythm: running
+  motif_portion: 0.25
+  energy_profile: suspenseful
+  is_transition: true
+
+triumphant:
+  description: Victorious closing passage
+  treatment: augmentation
+  rhythm: straight
+  motif_portion: 1.0
+  energy_profile: peak
+
+turbulent:
+  description: Agitated developmental passage
+  treatment: diminution
+  rhythm: running
+  motif_portion: 0.5
+  energy_profile: rising
+
+virtuosic:
+  description: Display passage requiring technical skill
+  treatment: diminution
+  rhythm: running
+  motif_portion: 0.25
+  energy_profile: peak
+
+drive:
+  description: Propulsive forward momentum
+  treatment: sequence
+  rhythm: running
+  motif_portion: 0.5
+  energy_profile: rising

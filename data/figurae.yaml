@@ -1,0 +1,211 @@
+# Figurenlehre - Baroque rhetorical musical figures
+# Based on Burmeister, Mattheson, and Scheibe
+#
+# Categories:
+#   melodic: shapes the melodic line of subjects/motifs
+#   rhythmic: affects note durations and patterns
+#   textural: multi-voice effects (not for subject generation)
+#   ornamental: decorative additions (applied later)
+#   structural: large-scale organization
+
+melodic:
+  # Figures of JOY (Freudigkeit)
+  tirata:
+    description: "Rapid ascending/descending scale - energy and brilliance"
+    affects: [Freudigkeit, Zorn, Entschlossenheit]
+    rhetoric_positions: [narratio, confirmatio]
+    tension_range: [0.4, 0.9]
+    constraints:
+      min_notes: 4
+      motion: stepwise
+      max_duration_per_note: 0.125  # eighth note or faster
+
+  circulatio:
+    description: "Circular motion returning to start - playful, spinning joy"
+    affects: [Freudigkeit, Verwunderung]
+    rhetoric_positions: [narratio, confutatio]
+    tension_range: [0.3, 0.7]
+    constraints:
+      min_notes: 4
+      returns_to_start: true
+
+  exclamatio:
+    description: "Ascending sixth leap - joyful outcry"
+    affects: [Freudigkeit, Verwunderung, Majestaet]
+    rhetoric_positions: [exordium, confirmatio, peroratio]
+    tension_range: [0.5, 1.0]
+    constraints:
+      interval_type: [sixth_up, octave_up]
+
+  anabasis:
+    description: "Rising melodic line - triumph, ascent, joy"
+    affects: [Freudigkeit, Majestaet, Entschlossenheit]
+    rhetoric_positions: [narratio, confirmatio]
+    tension_range: [0.4, 0.8]
+    constraints:
+      min_notes: 4
+      direction: ascending
+
+  # Figures of SORROW (Klage)
+  catabasis:
+    description: "Descending melodic line - sorrow, descent, lament"
+    affects: [Klage, Sehnsucht]
+    rhetoric_positions: [narratio, confutatio]
+    tension_range: [0.3, 0.7]
+    constraints:
+      min_notes: 4
+      direction: descending
+
+  passus_duriusculus:
+    description: "Chromatic descent - intense grief, pain"
+    affects: [Klage]
+    rhetoric_positions: [confutatio, peroratio]
+    tension_range: [0.6, 1.0]
+    constraints:
+      min_notes: 4
+      direction: descending
+      chromatic: true
+
+  suspiratio:
+    description: "Sighing figure with rests - grief, longing"
+    affects: [Klage, Sehnsucht]
+    rhetoric_positions: [narratio, confutatio]
+    tension_range: [0.4, 0.8]
+    constraints:
+      short_rests: true
+      between_phrases: true
+
+  # Figures of ANGER (Zorn)
+  saltus_duriusculus:
+    description: "Harsh leap (tritone, 7th) - anger, disturbance"
+    affects: [Zorn]
+    rhetoric_positions: [confutatio]
+    tension_range: [0.7, 1.0]
+    constraints:
+      interval_type: [tritone, seventh]
+
+  # Figures of MAJESTY (Majestaet)
+  noema:
+    description: "Sustained, stately notes - dignity, gravitas"
+    affects: [Majestaet]
+    rhetoric_positions: [exordium, peroratio]
+    tension_range: [0.2, 0.5]
+    constraints:
+      min_notes: 3
+
+  gradatio:
+    description: "Sequential rising pattern - building majesty"
+    affects: [Majestaet, Entschlossenheit]
+    rhetoric_positions: [confirmatio]
+    tension_range: [0.5, 0.9]
+    constraints:
+      min_notes: 6
+      direction: ascending
+
+  # Figures of TENDERNESS (Zaertlichkeit)
+  messa_di_voce:
+    description: "Gentle swelling on long note - tenderness"
+    affects: [Zaertlichkeit, Sehnsucht]
+    rhetoric_positions: [narratio]
+    tension_range: [0.2, 0.5]
+    constraints:
+      min_notes: 2
+
+  # Figures of WONDER (Verwunderung)
+  interrogatio:
+    description: "Rising ending suggesting question - wonder, curiosity"
+    affects: [Verwunderung]
+    rhetoric_positions: [narratio, confutatio]
+    tension_range: [0.4, 0.7]
+    constraints:
+      direction: ascending
+      phrase_end: true
+
+rhythmic:
+  # Rhythmic figures for JOY
+  groppo:
+    description: "Rapid turn figure - playful energy"
+    affects: [Freudigkeit]
+    rhetoric_positions: [narratio, confirmatio]
+    tension_range: [0.4, 0.8]
+    constraints:
+      max_duration_per_note: 0.125
+      neighbor: true
+      oscillation: true
+
+  # Rhythmic figures for MAJESTY
+  lombardic:
+    description: "Short-long pattern (Scotch snap) - assertive, noble"
+    affects: [Majestaet, Entschlossenheit]
+    rhetoric_positions: [exordium, narratio]
+    tension_range: [0.3, 0.6]
+    constraints:
+      pattern: short_long
+      dotted: true
+
+  # Rhythmic figures for SORROW
+  syncopatio:
+    description: "Off-beat accents - unease, yearning"
+    affects: [Klage, Sehnsucht]
+    rhetoric_positions: [confutatio]
+    tension_range: [0.5, 0.8]
+    constraints:
+      accent_off_beat: true
+
+textural:
+  # These apply to treatment/texture, not subject generation
+  fuga:
+    description: "Imitative entry - learned style"
+    affects: [Majestaet, Entschlossenheit]
+    rhetoric_positions: [exordium, narratio]
+    tension_range: [0.3, 0.7]
+    constraints:
+      imitation: true
+      voices: 2
+
+  fauxbourdon:
+    description: "Parallel sixths/thirds - sweetness"
+    affects: [Zaertlichkeit, Freudigkeit]
+    rhetoric_positions: [narratio]
+    tension_range: [0.2, 0.5]
+    constraints:
+      parallel_motion: true
+      homophonic: true
+
+ornamental:
+  # Applied during realisation, not subject generation
+  mordent:
+    description: "Quick lower neighbor - brightness"
+    affects: [Freudigkeit]
+    rhetoric_positions: [narratio, confirmatio]
+    tension_range: [0.3, 0.6]
+    constraints:
+      neighbor: true
+      follows_main_note: true
+
+  trillo:
+    description: "Trill on long note - emphasis"
+    affects: [Freudigkeit, Majestaet]
+    rhetoric_positions: [confirmatio, peroratio]
+    tension_range: [0.5, 0.9]
+    constraints:
+      oscillation: true
+      on_cadence: true
+
+structural:
+  # Large-scale devices
+  climax:
+    description: "Sequential rise to peak - rhetorical climax"
+    affects: [Freudigkeit, Majestaet, Zorn]
+    rhetoric_positions: [confirmatio]
+    tension_range: [0.7, 1.0]
+    constraints:
+      direction: ascending
+
+  antithesis:
+    description: "Contrasting material - dramatic opposition"
+    affects: [Zorn, Verwunderung]
+    rhetoric_positions: [confutatio]
+    tension_range: [0.5, 0.9]
+    constraints:
+      contrast: true

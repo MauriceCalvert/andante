@@ -1,0 +1,173 @@
+stormy_lyrical_triumphant:
+  description: Drama to repose to victory
+  sections:
+    - label: A
+      character: stormy
+      bars: 32
+      texture: polyphonic
+      key_area: i
+      energy_arc: rising
+    - label: B
+      character: lyrical
+      bars: 24
+      texture: melody_accompaniment
+      key_area: III
+      energy_arc: plateau
+    - label: C
+      character: virtuosic
+      bars: 40
+      texture: polyphonic
+      key_area: v
+      energy_arc: rising
+    - label: D
+      character: triumphant
+      bars: 24
+      texture: polyphonic
+      key_area: i
+      energy_arc: peak
+  climax_section: D
+  total_bars: 120
+
+arch_form:
+  description: Build to central climax then return
+  sections:
+    - label: A
+      character: opening
+      bars: 24
+      texture: polyphonic
+      key_area: I
+      energy_arc: rising
+    - label: B
+      character: development
+      bars: 32
+      texture: polyphonic
+      key_area: V
+      energy_arc: rising
+    - label: C
+      character: climax
+      bars: 16
+      texture: polyphonic
+      key_area: vi
+      energy_arc: peak
+    - label: B2
+      character: return
+      bars: 24
+      texture: melody_accompaniment
+      key_area: IV
+      energy_arc: falling
+    - label: A2
+      character: closing
+      bars: 24
+      texture: polyphonic
+      key_area: I
+      energy_arc: resolving
+  climax_section: C
+  total_bars: 120
+
+virtuosic_display:
+  description: Showcase technical brilliance
+  sections:
+    - label: A
+      character: bold
+      bars: 16
+      texture: polyphonic
+      key_area: I
+      energy_arc: stable
+    - label: B
+      character: scalar
+      bars: 32
+      texture: melody_accompaniment
+      key_area: V
+      energy_arc: rising
+    - label: C
+      character: arpeggiated
+      bars: 32
+      texture: melody_accompaniment
+      key_area: vi
+      energy_arc: rising
+    - label: D
+      character: cadenza
+      bars: 24
+      texture: melody_accompaniment
+      key_area: I
+      energy_arc: peak
+    - label: E
+      character: coda
+      bars: 16
+      texture: polyphonic
+      key_area: I
+      energy_arc: resolving
+  climax_section: D
+  total_bars: 120
+
+jubilant:
+  description: Pure joy staying in major keys
+  sections:
+    - label: A
+      character: bold
+      bars: 16
+      texture: polyphonic
+      key_area: I
+      energy_arc: stable
+    - label: B
+      character: scalar
+      bars: 32
+      texture: melody_accompaniment
+      key_area: V
+      energy_arc: rising
+    - label: C
+      character: arpeggiated
+      bars: 32
+      texture: melody_accompaniment
+      key_area: IV
+      energy_arc: rising
+    - label: D
+      character: cadenza
+      bars: 24
+      texture: melody_accompaniment
+      key_area: I
+      energy_arc: peak
+    - label: E
+      character: coda
+      bars: 16
+      texture: polyphonic
+      key_area: I
+      energy_arc: resolving
+  climax_section: D
+  total_bars: 120
+
+tempestuous:
+  description: Unrelenting storm with brief respite
+  sections:
+    - label: A
+      character: stormy
+      bars: 28
+      texture: polyphonic
+      key_area: i
+      energy_arc: rising
+    - label: B
+      character: turbulent
+      bars: 32
+      texture: polyphonic
+      key_area: iv
+      energy_arc: rising
+    - label: C
+      character: lyrical
+      bars: 20
+      texture: melody_accompaniment
+      key_area: VI
+      energy_arc: plateau
+    - label: D
+      character: stormy
+      bars: 32
+      texture: polyphonic
+      key_area: V
+      energy_arc: rising
+    - label: E
+      character: triumphant
+      bars: 28
+      texture: polyphonic
+      key_area: i
+      energy_arc: peak
+  climax_section: E
+  total_bars: 140

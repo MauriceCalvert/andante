@@ -1,0 +1,72 @@
+# Accompaniment Patterns - Baroque bass figures for melody_accompaniment texture
+# degrees: scale degrees relative to current harmony (1=root, 3=third, 5=fifth, 8=octave)
+# durations: as fractions of a bar
+# per_bar: if true, pattern repeats each bar
+
+# Baroque idioms
+
+arpeggiated_down:
+  description: Falling arpeggio
+  degrees: [8, 5, 3, 1]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  per_bar: true
+
+arpeggiated_up:
+  description: Rising arpeggio (lute/keyboard style)
+  degrees: [1, 3, 5, 8]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  per_bar: true
+
+basso_continuo:
+  description: Sustained bass with chord tones (baroque standard)
+  degrees: [1, 5, 3, 1]
+  durations: [1/2, 1/4, 1/8, 1/8]
+  per_bar: true
+
+chaconne:
+  description: Chaconne/passacaglia bass pattern
+  degrees: [1, 5, 1, 5]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  per_bar: true
+
+french_overture:
+  description: Majestic dotted rhythms (Lully style)
+  degrees: [1, 1, 5, 5]
+  durations: [3/16, 1/16, 3/16, 1/16]
+  per_bar: true
+
+lament_bass:
+  description: Descending tetrachord (common in Baroque opera/arias)
+  degrees: [8, 7, 6, 5]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  per_bar: false
+
+murky:
+  description: Octave alternation (murky bass, late baroque)
+  degrees: [1, 8]
+  durations: [1/2, 1/2]
+  per_bar: true
+
+pedal:
+  description: Sustained pedal tone (organ point)
+  degrees: [1]
+  durations: [1]
+  per_bar: true
+
+running:
+  description: Running eighth notes (keyboard fantasia style)
+  degrees: [1, 3, 5, 3, 1, 3, 5, 3]
+  durations: [1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8]
+  per_bar: true
+
+siciliana:
+  description: Pastoral dotted rhythm in compound time
+  degrees: [1, 5, 8, 5]
+  durations: [3/8, 1/8, 2/8, 1/2]
+  per_bar: true
+
+walking:
+  description: Stepwise bass motion (baroque ground bass style)
+  degrees: [1, 2, 3, 4]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  per_bar: true

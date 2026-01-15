@@ -1,0 +1,138 @@
+# Episode Constraints - Rules for constraint-based episode generation
+
+character_affinity:
+  arpeggiated:
+    preferred: [arpeggiated, continuation, intensification, bass_sequence]
+    avoided: [lyrical, release]
+  bold:
+    preferred: [statement, response_cs, exchange, continuation, response, bass_statement]
+    avoided: [turbulent, cadenza, release]
+  cadenza:
+    preferred: [cadenza, scalar, arpeggiated]
+    avoided: [lyrical, continuation]
+  climax:
+    preferred: [intensification, climax, scalar]
+    avoided: [lyrical, release]
+  closing:
+    preferred: [statement, continuation, cadential, dialogue]
+    avoided: [turbulent, cadenza]
+  coda:
+    preferred: [statement, coda, cadential, dialogue]
+    avoided: [turbulent, intensification]
+  development:
+    preferred: [response_cs, exchange, continuation, intensification, scalar, head_motif, tail_motif, bass_sequence, bass_development]
+    avoided: [triumphant, coda]
+  lyrical:
+    preferred: [lyrical, continuation, response, response_cs, dialogue]
+    avoided: [turbulent, cadenza, intensification]
+  opening:
+    preferred: [statement, response_cs, continuation, response, bass_statement]
+    avoided: [turbulent, cadenza]
+  return:
+    preferred: [release, lyrical, continuation, bass_development, dialogue]
+    avoided: [turbulent, intensification]
+  scalar:
+    preferred: [scalar, continuation, intensification, bass_sequence]
+    avoided: [lyrical, release]
+  stormy:
+    preferred: [turbulent, response_cs, exchange, intensification, scalar, bass_development]
+    avoided: [lyrical, triumphant]
+  triumphant:
+    preferred: [triumphant, statement, response_cs, exchange, continuation, bass_statement]
+    avoided: [turbulent, release, cadenza]
+  turbulent:
+    preferred: [turbulent, response_cs, exchange, scalar, intensification, bass_development]
+    avoided: [lyrical, triumphant]
+  virtuosic:
+    preferred: [scalar, arpeggiated, intensification, bass_sequence]
+    avoided: [lyrical, release]
+
+climax_characters: [climax, triumphant]
+
+energy_arc_rules:
+  falling:
+    allowed: [stable, plateau, falling, resolving]
+    required_end: null
+  peak:
+    must_contain: [peak]
+    allowed: [stable, plateau, rising, suspenseful, peak]
+  resolving:
+    required_end: resolving
+    allowed: [stable, plateau, rising, suspenseful, peak, falling, resolving]
+  rising:
+    allowed: [stable, plateau, rising, suspenseful]
+    required_end: null
+  stable:
+    allowed: [stable, plateau]
+    required_end: null
+
+energy_order: [stable, plateau, rising, suspenseful, peak, falling, resolving]
+
+energy_profiles:
+  arpeggiated: rising
+  bass_development: rising
+  bass_sequence: rising
+  bass_statement: stable
+  cadenza: peak
+  cadential: resolving
+  climax: peak
+  coda: resolving
+  continuation: rising
+  dialogue: stable
+  dialogue_invert: rising
+  exchange: rising
+  head_motif: rising
+  intensification: rising
+  lyrical: plateau
+  release: falling
+  retransition: suspenseful
+  response: stable
+  response_cs: stable
+  scalar: rising
+  statement: stable
+  tail_motif: rising
+  triumphant: peak
+  turbulent: rising
+
+first_episode:
+  arpeggiated: [arpeggiated, statement]
+  bold: [statement]
+  cadenza: [cadenza, scalar]
+  climax: [intensification, scalar]
+  closing: [statement]
+  coda: [statement]
+  development: [statement, continuation]
+  lyrical: [lyrical, statement]
+  opening: [statement]
+  return: [release, lyrical]
+  scalar: [scalar, statement]
+  stormy: [statement, turbulent]
+  triumphant: [statement, triumphant]
+  turbulent: [turbulent, statement]
+  virtuosic: [statement, scalar, arpeggiated]
+
+transitions:
+  arpeggiated: [arpeggiated, continuation, scalar, intensification, tail_motif, bass_sequence, cadential]
+  bass_development: [bass_statement, statement, continuation, cadential]
+  bass_sequence: [bass_development, continuation, statement, intensification, dialogue_invert, cadential]
+  bass_statement: [bass_sequence, bass_development, dialogue, continuation, statement, cadential]
+  cadenza: [cadenza, scalar, arpeggiated, cadential]
+  cadential: []
+  climax: [release, bass_statement, cadential, coda]
+  coda: []
+  continuation: [continuation, intensification, scalar, arpeggiated, climax, head_motif, tail_motif, bass_sequence, dialogue, cadential]
+  dialogue: [dialogue_invert, continuation, exchange, bass_statement, cadential]
+  dialogue_invert: [dialogue, continuation, intensification, cadential]
+  exchange: [continuation, intensification, scalar, tail_motif, bass_sequence, cadential]
+  head_motif: [continuation, tail_motif, scalar, intensification, bass_sequence, cadential]
+  intensification: [climax, scalar, arpeggiated, turbulent, cadential]
+  lyrical: [response_cs, continuation, response, tail_motif, bass_statement, dialogue, cadential]
+  release: [lyrical, continuation, tail_motif, bass_development, cadential]
+  response: [exchange, continuation, statement, intensification, bass_statement, cadential]
+  response_cs: [exchange, continuation, statement, intensification, turbulent, head_motif, bass_development, cadential]
+  retransition: [statement, bass_statement, cadential]
+  scalar: [scalar, continuation, arpeggiated, intensification, head_motif, bass_sequence, cadential]
+  statement: [response_cs, exchange, continuation, response, scalar, arpeggiated, head_motif, bass_statement, dialogue, cadential]
+  tail_motif: [continuation, head_motif, arpeggiated, bass_development, cadential]
+  triumphant: [response_cs, triumphant, continuation, bass_statement, cadential, coda]
+  turbulent: [response_cs, exchange, turbulent, scalar, intensification, retransition, bass_development, cadential]

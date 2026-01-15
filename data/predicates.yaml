@@ -1,0 +1,59 @@
+# Builtin predicates for realisation decisions
+# All grounded in baroque theory
+
+# Intervals (semitones)
+intervals:
+  step: 2          # major second - stepwise motion
+  third: 4         # major third - smallest leap
+  tritone: 6       # augmented fourth - avoid
+  fifth: 7         # perfect fifth - max melodic leap
+  sixth: 9         # major sixth - max contour leap
+  octave: 12       # octave equivalence
+
+# Registers (MIDI pitch) - baroque SATB vocal centers
+registers:
+  soprano: 72      # C5
+  alto: 65         # F4
+  tenor: 60        # C4
+  bass: 52         # E3
+
+# Voice ranges (MIDI pitch) - practical baroque SATB ranges
+# Used by slice solver for inner voice generation
+voice_ranges:
+  soprano: [60, 81]  # C4 to A5
+  alto: [53, 74]     # F3 to D5
+  tenor: [48, 67]    # C3 to G4
+  bass: [40, 60]     # E2 to C4
+
+# Interleaved voice ranges (Goldberg-style shared tessitura)
+# Both voices share overlapping range but different home registers
+# This creates ~octave separation while allowing crossings
+interleaved_ranges:
+  voice_1: [60, 79]  # C4 to G5 - upper register
+  voice_2: [48, 67]  # C3 to G4 - lower register
+
+# Interleaved voice medians - home pitch for each voice
+# V1 centered high, V2 centered low = audible voice separation
+interleaved_medians:
+  voice_1: 72  # C5 - like soprano
+  voice_2: 60  # C4 - like tenor
+
+# Contour: prefer small intervals, allow octave displacement for large leaps
+contour:
+  max_interval: 9  # major sixth - beyond this, try octave displacement
+
+# Ornament density: baroque practice is sparse ornamentation
+# 1-2 per phrase, only on structurally stable notes
+ornaments:
+  max_per_phrase: 2
+  min_duration: 1/4  # quarter note or longer (baroque convention)
+
+# Voice spacing constraints
+spacing:
+  max_gap: 24  # two octaves max between soprano and bass
+
+# Consonance: intervals that are consonant on downbeats (mod 12)
+consonance:
+  perfect: [0, 7, 12]       # unison, fifth, octave
+  imperfect: [3, 4, 8, 9]   # thirds and sixths
+  dissonant: [1, 2, 5, 6, 10, 11]  # seconds, fourths, tritone, sevenths

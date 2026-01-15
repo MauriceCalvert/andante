@@ -1,0 +1,64 @@
+# Baroque Gigue Style for Motif Generation
+# 6/8 compound meter, lively character
+
+name: baroque_gigue
+
+rhythm:
+  meter: [6, 8]
+  allow_rests: false
+  min_notes: 6
+  max_notes: 12
+  groupings:
+    # Compound beat patterns (dotted quarter = 0.375 whole notes)
+    - pattern: [0.125, 0.125, 0.125]
+      weight: 1.5
+    - pattern: [0.1875, 0.0625, 0.125]
+      weight: 1.0
+    - pattern: [0.125, 0.1875, 0.0625]
+      weight: 0.8
+    - pattern: [0.375]
+      weight: 0.4
+    # Two-beat patterns
+    - pattern: [0.125, 0.125, 0.125, 0.125, 0.125, 0.125]
+      weight: 1.0
+    - pattern: [0.1875, 0.0625, 0.125, 0.1875, 0.0625, 0.125]
+      weight: 0.7
+    # Hemiola feel
+    - pattern: [0.25, 0.25, 0.25]
+      weight: 0.3
+
+intervals:
+  max_interval: 5
+  step_threshold: 1
+  step_inertia_boost: 1.4  # Stronger inertia for running passages
+  weights:
+    0: 0.05     # Less repetition
+    1: 0.20     # second up
+    -1: 0.24    # second down
+    2: 0.14     # third up
+    -2: 0.16    # third down
+    3: 0.06     # fourth up
+    -3: 0.07    # fourth down
+    4: 0.03     # fifth up
+    -4: 0.03    # fifth down
+    5: 0.01     # sixth up
+    -5: 0.01    # sixth down
+  first_weights:
+    0: 0.03
+    1: 0.28
+    -1: 0.32
+    2: 0.16
+    -2: 0.18
+    3: 0.02
+    -3: 0.01
+
+contour:
+  prefer_arch: false
+  prefer_descent: true  # Running passages often descend
+  range_min: 0
+  range_max: 11
+
+target_duration_min: 0.625   # About 5 eighth notes
+target_duration_max: 1.0
+
+scale_pattern: [0, 2, 4, 5, 7, 9, 11]

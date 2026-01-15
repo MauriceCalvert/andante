@@ -1,0 +1,18 @@
+# Voice spacing constraints for N-voice architecture
+# All intervals in semitones
+
+adjacent_upper:
+  min_interval: 0       # Unison allowed
+  max_interval: 12      # Octave max between adjacent upper voices
+  allow_crossing: true
+  max_crossing_beats: 0.125  # 1/8 beat
+
+bass_gap:
+  min_interval: 0
+  max_interval: 19      # Up to 12th from tenor to bass
+  allow_crossing: false
+
+outer:
+  min_interval: 7       # At least a fifth
+  max_interval: 36      # Three octaves max
+  allow_crossing: false

@@ -1,0 +1,118 @@
+# Schema: Declares cross-file type references in data/*.yaml
+#
+# Format:
+#   file.yaml:
+#     defines: type_name          # Keys at this path define the type
+#     references:
+#       path.to.field: type_name  # Values at this path must exist in type_name
+#
+# Path syntax:
+#   - "keys" means the dictionary keys at that level
+#   - "*.field" means field in all children
+#   - "[*]" means all array elements
+
+affects:
+  defines: affect
+  path: keys
+
+articulations:
+  defines: articulation
+  path: keys
+
+arcs:
+  defines: arc
+  path: keys
+  references:
+    "*.treatments[*]": treatment
+    "*.texture": texture
+
+arc_selection:
+  references:
+    "*.keys": affect
+    "*.*": arc|fantasia_arc
+
+cadences:
+  defines: cadence
+  path: internal.keys + final.keys
+
+energy:
+  defines: energy_level
+  path: levels.keys
+  references:
+    "levels.*.rhythm_override": rhythm
+    "levels.*.articulation": articulation
+
+episodes:
+  defines: episode
+  path: keys
+  references:
+    "*.treatment": treatment
+    "*.energy_profile": energy_level
+    "*.rhythm": rhythm
+
+episode_constraints:
+  references:
+    "energy_profiles.keys": episode
+    "energy_profiles.*": energy_level
+    "energy_arc_rules.keys": energy_level
+    "energy_arc_rules.*.allowed[*]": energy_level
+    "energy_arc_rules.*.must_contain[*]": energy_level
+    "energy_order[*]": energy_level
+    "first_episode.*.options[*]": episode
+    "transitions.keys": episode
+    "transitions.*[*]": episode
+    "character_affinity.*.preferred[*]": episode
+    "character_affinity.*.avoided[*]": episode
+    "climax_characters[*]": episode
+
+fantasia_arcs:
+  defines: fantasia_arc
+  path: keys
+  references:
+    "*.sections[*].character": section_character
+    "*.sections[*].texture": texture
+    "*.sections[*].energy_arc": energy_level
+
+figurations:
+  defines: figuration
+  path: keys
+  references:
+    "*.triggers[*]": episode
+
+genres:
+  path: "genres/*.yaml"
+  references:
+    arc: arc
+    "sections[*].final_cadence": cadence
+    "sections[*].episodes[*]": episode
+
+rhythms:
+  defines: rhythm
+  path: keys
+
+section_templates:
+  defines: section_character
+  path: keys
+  references:
+    "*[*].type": episode
+
+surprises:
+  defines: surprise
+  path: keys
+  references:
+    "*.cadence_override": cadence
+    "*.rhythm_override": rhythm
+
+textures:
+  defines: texture
+  path: keys
+
+transitions:
+  defines: transition
+  path: keys
+  references:
+    "*.treatment": treatment
+
+treatments:
+  defines: treatment
+  path: keys

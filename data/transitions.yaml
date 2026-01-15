@@ -1,0 +1,46 @@
+# Transition types between sections with different key areas
+# bars: typical duration
+# treatment: how the transition unfolds
+# triggers: when to use this transition type
+
+cadential:
+  description: Strong cadence into new section
+  bars: 2
+  treatment: statement
+  energy: arrival
+  triggers: [climax, resolution]
+
+chromatic:
+  description: Chromatic motion to new key
+  bars: 4
+  treatment: fragmentation
+  energy: intensification
+  triggers: [dramatic, distant_key]
+
+dramatic:
+  description: Pause and restart (caesura)
+  bars: 2
+  treatment: hold
+  energy: release
+  triggers: [section_change, contrast]
+
+linking:
+  description: Brief melodic link
+  bars: 2
+  treatment: diminution
+  energy: stable
+  triggers: [related_key, continuation]
+
+pivot:
+  description: Single pivot chord modulation
+  bars: 2
+  treatment: statement
+  energy: stable
+  triggers: [related_key, smooth]
+
+sequential:
+  description: Descending sequence through keys
+  bars: 4
+  treatment: sequence
+  energy: drive
+  triggers: [contrast, distant_key]

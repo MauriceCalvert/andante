@@ -1,0 +1,129 @@
+# Textures - voice relationship patterns
+#
+# A texture specifies how voices interact in time and pitch space.
+# Textures are orthogonal to treatments (melodic transformations).
+#
+# Parameters:
+#   time_relation      How voices align temporally
+#                      Values: independent, synchronized, offset, phased, interlocking
+#
+#   pitch_relation     How voices relate in pitch space
+#                      Values: independent, harmonic, transposed, variant, partials
+#
+#   voice_roles        Named roles assigned to voices
+#                      Values: leader, follower, dux, comes, accompaniment, pedal, filler
+#
+#   parameters         Texture-specific configuration
+#
+#   interdictions      Processing steps to skip for this texture
+
+polyphonic:
+  time_relation: independent
+  pitch_relation: independent
+  voice_roles:
+    soprano: leader
+    bass: leader
+  interdictions: []
+
+homophonic:
+  time_relation: synchronized
+  pitch_relation: harmonic
+  voice_roles:
+    soprano: leader
+    alto: filler
+    tenor: filler
+    bass: accompaniment
+  interdictions:
+    - ornaments
+
+interleaved:
+  # Goldberg-style: voice 2 enters after entry_offset, voices swap material at swap_at
+  time_relation: offset
+  pitch_relation: independent
+  parameters:
+    swap_at: 1/2
+    entry_offset: 1/2  # voice 2 enters half a bar later
+    tessitura: overlapping
+  voice_roles:
+    voice_1: leader
+    voice_2: leader
+    bass: pedal
+  interdictions:
+    - inner_voice_gen
+    - voice_crossing_penalty
+    - ornaments
+    - energy_shift
+    - climax_boost
+
+canon:
+  time_relation: offset
+  pitch_relation: transposed
+  parameters:
+    canon_type: strict
+    offset: 1/2
+    interval: -4
+  voice_roles:
+    dux: leader
+    comes: follower
+    bass: accompaniment
+  interdictions:
+    - inner_voice_gen
+
+hocket:
+  time_relation: interlocking
+  pitch_relation: independent
+  parameters:
+    gap_fill: true
+  voice_roles:
+    voice_1: leader
+    voice_2: leader
+  interdictions:
+    - ornaments
+
+heterophony:
+  time_relation: independent
+  pitch_relation: variant
+  parameters:
+    variation: ornamental
+  voice_roles:
+    plain: leader
+    elaborated: follower
+  interdictions: []
+
+stratified:
+  time_relation: independent
+  pitch_relation: independent
+  parameters:
+    layers:
+      - {role: melody, register: high, activity: active}
+      - {role: bass, register: low, activity: steady}
+      - {role: filler, register: mid, activity: sparse}
+  voice_roles:
+    soprano: melody
+    bass: bass
+    alto: filler
+  interdictions: []
+
+figured_bass:
+  # Special texture: bass from schema, soprano from figure realization
+  time_relation: independent
+  pitch_relation: harmonic
+  parameters:
+    bass_source: schema
+    soprano_source: figures
+  voice_roles:
+    soprano: leader
+    bass: accompaniment
+  interdictions: []
+
+melody_accompaniment:
+  # Clear melodic line with supporting accompaniment
+  time_relation: independent
+  pitch_relation: independent
+  parameters:
+    melody_active: true
+    bass_steady: true
+  voice_roles:
+    soprano: leader
+    bass: accompaniment
+  interdictions: []

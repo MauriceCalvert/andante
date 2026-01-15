@@ -1,0 +1,18 @@
+# Articulation definitions
+# duration_factor: proportion of note value sounded (1 = full)
+# velocity_factor: relative attack strength (1 = normal)
+
+accent:
+  duration_factor: 7/8
+  velocity_factor: 5/4
+  description: Emphasized attack
+
+legato:
+  duration_factor: 1
+  velocity_factor: 1
+  description: Smooth, connected
+
+staccato:
+  duration_factor: 1/2
+  velocity_factor: 1
+  description: Short, detached

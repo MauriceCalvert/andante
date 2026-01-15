@@ -1,0 +1,97 @@
+# Counterpoint rules for Species I counter-subject generation
+# Adapted from proven countercpsat rules.json
+# Severity: H=hard (must satisfy), F=firm (high penalty), S=soft (preference)
+
+consonance:
+  perfect: [0, 7]        # Unison, fifth (in semitones mod 12)
+  imperfect: [3, 4, 8, 9] # Minor 3rd, major 3rd, minor 6th, major 6th
+
+intervals:
+  step_max: 2            # Semitones for stepwise motion
+  leap_small: 5          # Up to perfect 4th
+  leap_large: 7          # Perfect 5th
+  forbidden: [6, 10, 11] # Tritone, minor 7th, major 7th
+
+hard_constraints:
+  - id: ALL-00
+    brief: No unisons except first/last
+    scope: interior
+
+  - id: ALL-01
+    brief: All verticals must be consonant
+    scope: global
+
+  - id: ALL-03
+    brief: No parallel perfect fifths or octaves
+    scope: global
+
+  - id: I-03
+    brief: Begin with perfect consonance (P5 or P8)
+    scope: first
+
+  - id: I-04
+    brief: End with perfect consonance (P5 or P8)
+    scope: last
+
+  - id: INV-01
+    brief: Forbid 5ths between subject and CS (become 4ths when inverted)
+    scope: global
+
+firm_constraints:
+  - id: ALL-05
+    brief: Avoid direct/hidden perfects (similar motion into perfect)
+    penalty: 250
+
+  - id: ALL-08
+    brief: Forbid tritone and 7th leaps
+    penalty: 150
+
+  - id: ALL-09
+    brief: Compensate leaps >= 4th by opposite step
+    penalty: 200
+
+  - id: ALL-10
+    brief: No two same-direction leaps unless triadic
+    penalty: 180
+
+  - id: ALL-11
+    brief: Don't outline tritone by successive intervals
+    penalty: 220
+
+  - id: I-05
+    brief: No interior unisons
+    penalty: 140
+
+  - id: I-07
+    brief: Don't chain consecutive perfect consonances
+    penalty: 130
+
+soft_constraints:
+  - id: ALL-07
+    brief: Prefer stepwise motion (70% threshold)
+    penalty: 30
+
+  - id: ALL-12
+    brief: Avoid immediate pitch repetition
+    penalty: 2
+
+  - id: ALL-13
+    brief: Avoid frequent return to same pitch within 4 notes
+    penalty: 5
+
+  - id: ALL-15
+    brief: Voice independence (limit parallel motion spans)
+    penalty: 25
+
+rhythm_constraints:
+  - id: RHY-01
+    brief: Minimize simultaneous attacks (parallel rhythm)
+    penalty: 100
+
+  - id: RHY-02
+    brief: Avoid consecutive identical durations
+    penalty: 10
+
+  - id: RHY-03
+    brief: Limit repetition of any single duration value
+    max_proportion: 0.5

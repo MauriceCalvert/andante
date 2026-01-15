@@ -1,0 +1,89 @@
+# Figuration patterns for virtuosic passage work
+# type: scalar (stepwise), arpeggiated (chord tones), tremolo (alternating)
+# direction: up, down, round (up then down)
+# degrees_per_beat: note density
+# span: interval covered (octave, two_octaves, third, fifth)
+
+# Scalar figurations (stepwise motion)
+
+scalar_ascending:
+  description: Rising scale passage
+  type: scalar
+  direction: up
+  degrees_per_beat: 4
+  span: octave
+  triggers: [scalar, virtuosic, drive]
+
+scalar_descending:
+  description: Falling scale passage
+  type: scalar
+  direction: down
+  degrees_per_beat: 4
+  span: octave
+  triggers: [scalar, release, cadential]
+
+scalar_round:
+  description: Up then down scale
+  type: scalar
+  direction: round
+  degrees_per_beat: 4
+  span: octave
+  triggers: [scalar, continuation]
+
+# Arpeggiated figurations (chord tones)
+
+arpeggio_ascending:
+  description: Rising arpeggio
+  type: arpeggiated
+  direction: up
+  degrees_per_beat: 4
+  span: two_octaves
+  triggers: [arpeggiated, climax, triumphant]
+
+arpeggio_descending:
+  description: Falling arpeggio
+  type: arpeggiated
+  direction: down
+  degrees_per_beat: 4
+  span: two_octaves
+  triggers: [arpeggiated, release]
+
+arpeggio_sweep:
+  description: Full arpeggio up and down
+  type: arpeggiated
+  direction: round
+  degrees_per_beat: 4
+  span: two_octaves
+  triggers: [cadenza, climax]
+
+# Tremolo figurations (rapid alternation)
+
+tremolo_fifth:
+  description: Rapid fifth alternation
+  type: tremolo
+  interval: 4
+  degrees_per_beat: 4
+  triggers: [dramatic]
+
+tremolo_third:
+  description: Rapid alternation on thirds
+  type: tremolo
+  interval: 2
+  degrees_per_beat: 4
+  triggers: [turbulent]
+
+# Broken patterns
+
+broken_sixths:
+  description: Alternating sixths pattern
+  type: broken
+  pattern: [0, 5, 1, 6, 2, 7, 3, 8]
+  degrees_per_beat: 4
+  triggers: [virtuosic, triumphant]
+
+broken_thirds:
+  description: Alternating thirds pattern
+  type: broken
+  pattern: [0, 2, 1, 3, 2, 4, 3, 5]
+  degrees_per_beat: 4
+  triggers: [continuation, scalar]

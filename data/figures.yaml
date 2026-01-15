@@ -1,0 +1,39 @@
+# Figured bass symbols
+# intervals: semitones above bass for available soprano pitches
+
+"":
+  intervals: [4, 7]         # 3rd + 5th (root position 5/3)
+
+"6":
+  intervals: [3, 8]         # 3rd + 6th (first inversion)
+
+"6/4":
+  intervals: [5, 8]         # 4th + 6th (second inversion)
+
+"7":
+  intervals: [4, 7, 10]     # 3rd + 5th + 7th
+
+"6/5":
+  intervals: [3, 6, 8]      # 3rd + 5th + 6th (first inversion 7th)
+
+"4/3":
+  intervals: [4, 5, 8]      # 3rd + 4th + 6th (second inversion 7th)
+
+"4/2":
+  intervals: [2, 4, 6]      # 2nd + 3rd + 5th (third inversion 7th)
+
+"4-3":
+  intervals: [5, 4]         # suspension: 4th resolving to 3rd
+  suspension: true
+
+"7-6":
+  intervals: [10, 8]        # suspension: 7th resolving to 6th
+  suspension: true
+
+"#":
+  intervals: [5, 8]         # raised 3rd (picardy, secondary dominant)
+  altered: true
+
+"b":
+  intervals: [3, 7]         # lowered note
+  altered: true

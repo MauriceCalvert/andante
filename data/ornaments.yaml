@@ -1,0 +1,26 @@
+# Ornament definitions for baroque melodic decoration
+# trigger: context-based conditions for application
+# steps: degree offsets from main note (0 = main, 1 = upper, -1 = lower)
+# durations: relative duration fractions (must sum to 1.0)
+
+mordent:
+  steps: [0, -1, 0]
+  durations: [1/2, 1/4, 1/4]
+  trigger:
+    position: downbeat
+    min_duration: 1/4
+
+trill:
+  steps: [1, 0, 1, 0]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  trigger:
+    position: cadence
+    min_duration: 1/2
+
+turn:
+  steps: [1, 0, -1, 0]
+  durations: [1/4, 1/4, 1/4, 1/4]
+  trigger:
+    position: any
+    min_duration: 1/4
+    interval_down: true

@@ -1,0 +1,16 @@
+# Key character mappings
+# dark: serious, weighty keys
+# bright: clear, direct keys
+
+dark:
+  - A
+  - D
+  - F
+  - Bb
+  - G    # G minor is dark
+
+bright:
+  - C
+  - G    # G major is bright
+  - E
+  - A    # A major is bright
