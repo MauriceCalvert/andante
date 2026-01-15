@@ -30,11 +30,6 @@ def compute_melodic_lead_offsets(
     base_lead_ms = profile.melodic_lead_ms
 
     for ctx in contexts:
-        if not ctx.voice.is_melody:
-            # Non-melody voices don't get lead
-            offsets.append(0.0)
-            continue
-
         lead_ms = base_lead_ms
 
         # More lead at phrase starts (announcing)
@@ -42,12 +37,16 @@ def compute_melodic_lead_offsets(
             lead_ms += 5.0
 
         # Less lead in fast passages (short notes)
-        # We don't have direct access to duration here, so use metric subdivision
         if ctx.metric.beat_subdivision >= 8:  # Sixteenth notes or faster
             lead_ms *= 0.5
 
-        # Convert to seconds and make negative (early)
-        offset_seconds = -lead_ms / 1000.0
+        if ctx.voice.is_melody:
+            # Melody arrives early (negative offset)
+            offset_seconds = -lead_ms / 1000.0
+        else:
+            # Non-melody arrives late (positive offset)
+            # This ensures melody leads regardless of other timing adjustments
+            offset_seconds = lead_ms / 1000.0
 
         offsets.append(offset_seconds)
 

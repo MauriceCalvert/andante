@@ -105,15 +105,22 @@ class Music21Writer(OutputWriter):
         bpm: int = 120,
         upbeat: Fraction = Fraction(0),
         annotations: tuple["Annotation", ...] = (),
+        midi_only: bool = False,
     ) -> None:
-        """Write MIDI and MusicXML files with optional annotations."""
+        """Write MIDI and MusicXML files with optional annotations.
+
+        Args:
+            midi_only: If True, skip MusicXML export (for humanised output
+                       with fractional durations that MusicXML can't handle)
+        """
         score: stream.Score = self._build_stream(
             notes, timenum, timeden, tonic, mode, bpm, upbeat, annotations
         )
         base: Path = Path(path)
         midi_path: Path = base.with_suffix(".midi")
         score.write("midi", fp=str(midi_path))
-        score.write("musicxml", fp=str(base.with_suffix(".musicxml")), makeNotation=True)
+        if not midi_only:
+            score.write("musicxml", fp=str(base.with_suffix(".musicxml")), makeNotation=True)
 
 
 class NoteFileWriter(OutputWriter):
