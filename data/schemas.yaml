@@ -51,3 +51,11 @@ quiescenza:
   soprano_degrees: [7, 6, 7, 1]  # TODO: should be b7, 6, #7, 1 (chromatic)
   bars: 2
   pedal: true
+
+do_re_mi:
+  description: Opening gambit with stepwise soprano ascent (1-2-3) over bass neighbor (1-7-1)
+  bass_degrees: [1, 7, 1]
+  durations: [1/2, 1/4, 1/4]
+  soprano_degrees: [1, 2, 3]
+  bars: 1
+  opening: true
