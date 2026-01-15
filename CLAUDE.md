@@ -68,6 +68,13 @@ Key paths:
 
 Quick fixes are forbidden. Changes must be canonical and robust, regardless of effort.
 
-Before changing any code, write out the complete data flow from input to output. 
-Identify the single canonical location where the behavior should be controlled. 
+Before changing any code, write out the complete data flow from input to output.
+Identify the single canonical location where the behavior should be controlled.
 Only then propose a change - and get approval before implementing.
+
+---
+
+## Git Workflow
+
+Auto-commit after each bug fix that passes tests. No prompt needed.
+Commit message format: `Fix: [brief description]`
