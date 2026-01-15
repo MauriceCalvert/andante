@@ -112,3 +112,30 @@ class Key:
         new_octave: int = octave + (new_idx // 7)
         new_idx = new_idx % 7
         return self.tonic_pc + new_octave * 12 + self.scale[new_idx]
+
+    def midi_to_degree(self, midi: int) -> int:
+        """Convert MIDI pitch to scale degree (1-7).
+
+        Finds the closest diatonic scale degree for the given MIDI pitch.
+        Chromatic pitches are mapped to the nearest diatonic degree.
+        """
+        pc: int = (midi - self.tonic_pc) % 12
+
+        # Exact match in scale
+        for i, semitones in enumerate(self.scale):
+            if pc == semitones:
+                return i + 1  # 1-indexed
+
+        # Chromatic note - find nearest diatonic
+        best_degree: int = 1
+        best_dist: int = 12
+        for i, semitones in enumerate(self.scale):
+            dist: int = min(abs(pc - semitones), 12 - abs(pc - semitones))
+            if dist < best_dist:
+                best_dist = dist
+                best_degree = i + 1
+        return best_degree
+
+    def midi_to_floating(self, midi: int) -> FloatingNote:
+        """Convert MIDI pitch to FloatingNote."""
+        return FloatingNote(self.midi_to_degree(midi))

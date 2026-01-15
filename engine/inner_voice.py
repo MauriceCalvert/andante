@@ -278,7 +278,13 @@ def _generate_chordal_candidates(
 
             # Select based on preference with voice leading
             if len(pitches) > 0 and not is_rest(pitches[-1]):
-                prev_midi = pitches[-1].midi if isinstance(pitches[-1], MidiPitch) else median
+                prev_pitch = pitches[-1]
+                if isinstance(prev_pitch, MidiPitch):
+                    prev_midi = prev_pitch.midi
+                elif isinstance(prev_pitch, FloatingNote):
+                    prev_midi = key.floating_to_midi(prev_pitch, median, median)
+                else:
+                    prev_midi = median
                 # Sort by distance to previous pitch, then by preference
                 available.sort(key=lambda m: (abs(m - prev_midi), (m % 12 - preference * 4) % 12))
             else:
@@ -286,7 +292,8 @@ def _generate_chordal_candidates(
                 available.sort(key=lambda m: ((m % 12 - preference * 4) % 12, abs(m - median)))
 
             selected = available[0]
-            pitches.append(MidiPitch(selected))
+            # Convert MIDI back to scale degree for diatonic pipeline
+            pitches.append(key.midi_to_floating(selected))
 
             # Duration until next attack or end
             if i < len(attack_points) - 1:

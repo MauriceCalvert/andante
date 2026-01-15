@@ -32,7 +32,9 @@ yaml.add_representer(InlineList, inline_list_representer)
 def _serialize_voice(voice: VoiceMaterial) -> dict:
     """Serialize a VoiceMaterial to dictionary.
 
+    Pipeline is diatonic - all pitches should be FloatingNote (scale degrees).
     Uses degree: 0 for rests per design decision.
+    MidiPitch should never appear here - realiser converts degrees to MIDI.
     """
     degrees: list[int] = []
     for p in voice.pitches:
@@ -41,7 +43,11 @@ def _serialize_voice(voice: VoiceMaterial) -> dict:
         elif isinstance(p, FloatingNote):
             degrees.append(p.degree)
         elif isinstance(p, MidiPitch):
-            degrees.append(p.midi)
+            # This is an architectural violation - MIDI should not appear before realiser
+            raise ValueError(
+                f"MidiPitch found in voice {voice.voice_index} before realisation. "
+                "Pipeline should be diatonic (FloatingNote) until realiser."
+            )
         else:
             degrees.append(0)
     return {

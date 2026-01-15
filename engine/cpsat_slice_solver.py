@@ -262,7 +262,7 @@ def solve_inner_voices_cpsat(
         timeout_seconds: Solver time limit
 
     Returns:
-        ExpandedVoices with solved inner voice pitches as MidiPitch, or None if infeasible
+        ExpandedVoices with solved inner voice pitches as FloatingNote, or None if infeasible
     """
     voice_count = target_voice_count
     inner_count = voice_count - 2
@@ -599,7 +599,8 @@ def solve_inner_voices_cpsat(
 
         for si, ctx in enumerate(contexts):
             if (si, vi) in solved_pitches:
-                pitches.append(MidiPitch(solved_pitches[(si, vi)]))
+                # Convert MIDI back to scale degree for diatonic pipeline
+                pitches.append(key.midi_to_floating(solved_pitches[(si, vi)]))
             else:
                 pitches.append(Rest())
 

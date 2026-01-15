@@ -133,7 +133,7 @@ def realise_figured_bass(
         bass_octave: Octave for bass pitch resolution
 
     Returns:
-        TimedMaterial with soprano degrees and durations
+        TimedMaterial with soprano degrees (FloatingNote) and durations
     """
     assert len(bass_pitches) == len(bass_durations) == len(figures)
     soprano_pitches: list[Pitch] = []
@@ -148,12 +148,14 @@ def realise_figured_bass(
                 bass_midi, fig, prev_soprano_midi, dur, soprano_range
             )
             for mp, md in zip(midi_pitches, midi_durs):
-                soprano_pitches.append(MidiPitch(mp))
+                # Convert MIDI back to scale degree for diatonic pipeline
+                soprano_pitches.append(key.midi_to_floating(mp))
                 soprano_durations.append(md)
             prev_soprano_midi = midi_pitches[-1]
         else:
             sop_midi: int = realise_figure(bass_midi, fig, prev_soprano_midi, soprano_range)
-            soprano_pitches.append(MidiPitch(sop_midi))
+            # Convert MIDI back to scale degree for diatonic pipeline
+            soprano_pitches.append(key.midi_to_floating(sop_midi))
             soprano_durations.append(dur)
             prev_soprano_midi = sop_midi
     return TimedMaterial(

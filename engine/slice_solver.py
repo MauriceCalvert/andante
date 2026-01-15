@@ -855,9 +855,9 @@ def build_solved_voices(
 ) -> ExpandedVoices:
     """Convert solved slices back to ExpandedVoices.
 
-    For 3+ voices, ALL pitches must be MidiPitch (realiser requirement).
-    Outer voices: convert FloatingNote to MidiPitch, preserve original rhythm.
-    Inner voices: use slice-derived pitches and durations.
+    Pipeline is diatonic - all pitches should be FloatingNote (scale degrees).
+    Outer voices: preserve original FloatingNote pitches.
+    Inner voices: convert slice-derived MIDI pitches back to FloatingNote.
     """
     voice_count: int = original_voices.count
     if voice_count == 2:
@@ -884,39 +884,13 @@ def build_solved_voices(
                 # Rest marker - voice is silent at this slice
                 inner_pitches[inner_idx].append(Rest())
             else:
-                inner_pitches[inner_idx].append(MidiPitch(midi))
+                # Convert MIDI back to scale degree for diatonic pipeline
+                inner_pitches[inner_idx].append(key.midi_to_floating(midi))
             inner_durations[inner_idx].append(dur)
-    sop_range: Tuple[int, int] = get_voice_range(0, voice_count)
-    sop_median: int = (sop_range[0] + sop_range[1]) // 2
-    sop_pitches: list[Pitch] = []
-    prev_midi: int = sop_median
-    for p in original_voices.soprano.pitches:
-        if is_rest(p):
-            sop_pitches.append(p)
-        elif isinstance(p, MidiPitch):
-            sop_pitches.append(p)
-            prev_midi = p.midi
-        else:
-            midi: int = key.floating_to_midi(p, prev_midi, sop_median)
-            sop_pitches.append(MidiPitch(midi))
-            prev_midi = midi
-    bass_range: Tuple[int, int] = get_voice_range(voice_count - 1, voice_count)
-    bass_median: int = (bass_range[0] + bass_range[1]) // 2
-    bass_pitches: list[Pitch] = []
-    prev_midi = bass_median
-    for p in original_voices.bass.pitches:
-        if is_rest(p):
-            bass_pitches.append(p)
-        elif isinstance(p, MidiPitch):
-            bass_pitches.append(p)
-            prev_midi = p.midi
-        else:
-            midi = key.floating_to_midi(p, prev_midi, bass_median)
-            bass_pitches.append(MidiPitch(midi))
-            prev_midi = midi
+    # Outer voices: preserve original FloatingNote pitches (no conversion)
     soprano_mat: VoiceMaterial = VoiceMaterial(
         voice_index=0,
-        pitches=sop_pitches,
+        pitches=list(original_voices.soprano.pitches),
         durations=list(original_voices.soprano.durations),
     )
     materials: list[VoiceMaterial] = [soprano_mat]
@@ -928,7 +902,7 @@ def build_solved_voices(
         ))
     materials.append(VoiceMaterial(
         voice_index=voice_count - 1,
-        pitches=bass_pitches,
+        pitches=list(original_voices.bass.pitches),
         durations=list(original_voices.bass.durations),
     ))
     return ExpandedVoices(voices=materials)
