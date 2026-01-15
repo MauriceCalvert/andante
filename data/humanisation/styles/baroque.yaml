@@ -2,8 +2,8 @@
 # Restrained rubato, clear metric hierarchy, Notes Inegales enabled
 
 timing:
-  rubato_max_accel: 1.04
-  rubato_max_decel: 0.92
+  rubato_max_accel: 1.03
+  rubato_max_decel: 0.97
   rubato_cadence_start: 0.88
   agogic_downbeat_ms: 14.0
 
