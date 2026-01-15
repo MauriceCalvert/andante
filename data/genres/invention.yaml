@@ -11,13 +11,19 @@ treatment_constraints:
   end_with: statement
   second_phrase: imitation  # Bass answer
 sections:
+  # Koch-compliant tonal paths:
+  # - No I→I (§35)
+  # - No V→V in same key (§36)
+  # - V→I forbidden at start only (§37)
   - label: A
     repeat: false
-    tonal_path: [I, I, iii, V, V]
+    texture: baroque_invention
+    tonal_path: [I, V, iii, IV, V]
     final_cadence: half
     bars_per_phrase: 2
   - label: B
     repeat: false
-    tonal_path: [IV, vi, ii, ii, V, V, I]
+    texture: baroque_invention
+    tonal_path: [vi, ii, IV, vi, ii, V, I]
     final_cadence: authentic
     bars_per_phrase: 2

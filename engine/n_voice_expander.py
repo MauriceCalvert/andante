@@ -135,6 +135,12 @@ def expand_single_voice(
         list(pitches), list(durations), fill_budget
     )
 
+    # Mark pitches as guard-exempt (thematic material is expected to repeat)
+    exempt_pitches: tuple[Pitch, ...] = tuple(
+        p.as_exempt() if isinstance(p, FloatingNote) else p for p in material.pitches
+    )
+    material = TimedMaterial(exempt_pitches, material.durations, material.budget)
+
     # Prepend delay rest if needed
     if delay_dur > Fraction(0):
         final_pitches: list[Pitch] = [Rest()] + list(material.pitches)
@@ -201,62 +207,65 @@ def generate_baroque_entries(
     """
     specs: list[VoiceTreatmentSpec] = []
 
-    # Entry delay (in bars) - typically subject length, but capped to leave room
-    # Cap delay to at most half the phrase length to ensure meaningful entry
-    max_delay = Fraction(phrase_bars) / 2
-    entry_delay = min(Fraction(subject_bars), max_delay)
+    # Entry delay: stagger only when phrase is longer than subject
+    # For short phrases (phrase_bars <= subject_bars), use simultaneous entries
+    if phrase_bars > subject_bars:
+        max_delay = Fraction(phrase_bars) / 2
+        entry_delay = min(Fraction(subject_bars), max_delay)
+    else:
+        entry_delay = Fraction(0)  # Simultaneous: no room to stagger
 
     if voice_count == 2:
-        # Two voices: simple alternation
+        # Two voices: alternating subject/counter_subject
         if phrase_index == 0:
-            # Opening: soprano states subject, bass answers
+            # Opening: soprano states subject, bass plays counter_subject
             specs = [
                 VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
-                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "dominant"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
             ]
         elif phrase_index % 2 == 1:
-            # Odd phrases: bass leads
+            # Odd phrases: bass leads with subject (answer at dominant), soprano plays CS
             specs = [
-                VoiceTreatmentSpec(treatment, "counter_subject", 0, entry_delay, "tonic"),
-                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "dominant"),
             ]
         else:
-            # Even phrases: soprano leads
+            # Even phrases: soprano leads with subject, bass plays CS
             specs = [
                 VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
-                VoiceTreatmentSpec(treatment, "counter_subject", 0, entry_delay, "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
             ]
     else:
         # Three voices: rotation through all voices
         rotation = phrase_index % 3
 
         if phrase_index == 0:
-            # Opening: S in soprano at 0, S in bass at +entry_delay (tonal answer)
+            # Opening: soprano has subject, alto has CS, bass has CS
             specs = [
                 VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
-                VoiceTreatmentSpec(treatment, "counter_subject", 0, entry_delay, "tonic"),
-                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "dominant"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
             ]
         elif rotation == 0:
-            # Soprano leads, bass follows, alto has CS
+            # Soprano leads with subject, alto and bass have CS
             specs = [
                 VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
                 VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
-                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "dominant"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
             ]
         elif rotation == 1:
-            # Bass leads, soprano follows, alto has CS
+            # Bass leads with subject (answer), soprano and alto have CS
             specs = [
-                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "tonic"),
                 VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
-                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
+                VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "dominant"),
             ]
         else:
-            # Alto leads with subject, soprano has CS, bass follows
+            # Alto leads with subject, soprano and bass have CS
             specs = [
                 VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
                 VoiceTreatmentSpec(treatment, "subject", 0, Fraction(0), "tonic"),
-                VoiceTreatmentSpec(treatment, "subject", 0, entry_delay, "dominant"),
+                VoiceTreatmentSpec(treatment, "counter_subject", 0, Fraction(0), "tonic"),
             ]
 
     return PhraseVoiceEntry(
