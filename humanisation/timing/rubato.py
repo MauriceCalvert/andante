@@ -24,10 +24,11 @@ def _compute_tempo_multiplier(
     """Compute tempo multiplier for a position in phrase.
 
     Shape:
-    - Slight acceleration 0.0 -> peak_position (building energy)
-    - Peak tempo at peak_position
-    - Gradual deceleration peak_position -> cadence_start (relaxing)
-    - Ritardando cadence_start -> 1.0 (cadential)
+    - Steady tempo 0.0 -> cadence_start
+    - Gentle ritardando cadence_start -> 1.0 (cadential)
+
+    The early-acceleration model was removed because its cumulative
+    effect caused notes to arrive early overall, negating the ritardando.
 
     Args:
         position: Position in phrase (0.0 to 1.0)
@@ -36,27 +37,17 @@ def _compute_tempo_multiplier(
     Returns:
         Tempo multiplier (1.0 = no change)
     """
-    peak_pos = profile.rubato_peak_position
     cadence_start = profile.rubato_cadence_start
-    max_accel = profile.rubato_max_accel
     max_decel = profile.rubato_max_decel
 
-    if position < peak_pos:
-        # Rising phase: 1.0 -> max_accel
-        # Use smooth curve (sine-based)
-        t = position / peak_pos
-        # Ease-in curve
-        multiplier = 1.0 + (max_accel - 1.0) * math.sin(t * math.pi / 2)
-    elif position < cadence_start:
-        # Plateau/descending phase: max_accel -> 1.0
-        t = (position - peak_pos) / (cadence_start - peak_pos)
-        # Ease-out curve
-        multiplier = max_accel - (max_accel - 1.0) * math.sin(t * math.pi / 2)
+    if position < cadence_start:
+        # Steady tempo before cadence
+        multiplier = 1.0
     else:
         # Cadential ritardando: 1.0 -> max_decel
         t = (position - cadence_start) / (1.0 - cadence_start)
-        # Ease-in for gradual slowdown
-        multiplier = 1.0 - (1.0 - max_decel) * t
+        # Ease-in curve for gradual slowdown
+        multiplier = 1.0 - (1.0 - max_decel) * math.sin(t * math.pi / 2)
 
     return multiplier
 
