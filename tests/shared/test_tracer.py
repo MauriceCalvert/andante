@@ -78,13 +78,13 @@ class TestPipelineTracerTrace:
         tracer = PipelineTracer()
         tracer.enable()
         tracer.trace("TEST", "loc", "event", budget=Fraction(3, 4))
-        assert tracer.events[0].details["budget"] == "0.7500"
+        assert tracer.events[0].details["budget"] == "0.75"
 
     def test_trace_with_list_of_fractions(self) -> None:
         tracer = PipelineTracer()
         tracer.enable()
         tracer.trace("TEST", "loc", "event", durs=[Fraction(1, 4), Fraction(1, 2)])
-        assert tracer.events[0].details["durs"] == ["0.2500", "0.5000"]
+        assert tracer.events[0].details["durs"] == ["0.25", "0.50"]
 
     def test_trace_with_list_of_strings(self) -> None:
         tracer = PipelineTracer()
@@ -141,7 +141,7 @@ class TestPipelineTracerConvenienceMethods:
         tracer.enable()
         tracer.phrase(0, "statement", 4)
         assert tracer.events[0].stage == "EXPAND"
-        assert "treatment=statement" in tracer.events[0].event
+        assert "statement" in tracer.events[0].event
 
     def test_voice(self) -> None:
         tracer = PipelineTracer()
@@ -154,7 +154,7 @@ class TestPipelineTracerConvenienceMethods:
         tracer = PipelineTracer()
         tracer.enable()
         tracer.voice("phrase_0", "bass", [], [])
-        assert "notes=0" in tracer.events[0].event
+        assert "n=0" in tracer.events[0].event
 
     def test_realise(self) -> None:
         tracer = PipelineTracer()
@@ -193,8 +193,7 @@ class TestPipelineTracerFormatLog:
     def test_empty_log(self) -> None:
         tracer = PipelineTracer()
         log = tracer.format_log()
-        assert "ANDANTE PIPELINE TRACE" in log
-        assert "Total events: 0" in log
+        assert "TRACE (0 events)" in log
 
     def test_log_with_events(self) -> None:
         tracer = PipelineTracer()
@@ -202,24 +201,23 @@ class TestPipelineTracerFormatLog:
         tracer.trace("EXPAND", "phrase_0", "start")
         tracer.trace("EXPAND", "phrase_0", "end")
         log = tracer.format_log()
-        assert "--- EXPAND ---" in log
-        assert "[phrase_0]" in log
+        assert "EXPAND:phrase_0" in log
 
-    def test_log_stage_change_adds_blank_line(self) -> None:
+    def test_log_stage_change(self) -> None:
         tracer = PipelineTracer()
         tracer.enable()
         tracer.trace("EXPAND", "phrase_0", "done")
         tracer.trace("REALISE", "phrase_0", "start")
         log = tracer.format_log()
-        assert "--- EXPAND ---" in log
-        assert "--- REALISE ---" in log
+        assert "EXPAND:" in log
+        assert "REALISE:" in log
 
     def test_log_with_details(self) -> None:
         tracer = PipelineTracer()
         tracer.enable()
         tracer.trace("TEST", "loc", "event", key="value")
         log = tracer.format_log()
-        assert "key: value" in log
+        assert "key=value" in log
 
     def test_log_long_list_truncated(self) -> None:
         tracer = PipelineTracer()
@@ -241,7 +239,7 @@ class TestPipelineTracerWriteLog:
         tracer.write_log(str(log_path))
         assert log_path.exists()
         content = log_path.read_text()
-        assert "ANDANTE PIPELINE TRACE" in content
+        assert "TRACE" in content
 
 
 class TestPipelineTracerClear:

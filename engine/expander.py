@@ -19,7 +19,8 @@ from engine.guard_backtrack import (
     check_candidate_guards,
     reset_accumulated_midi,
 )
-from engine.inner_voice import add_inner_voices_cpsat, add_inner_voices_with_backtracking, validate_nvoice_guards
+from engine.diatonic_solver import add_inner_voices
+from engine.inner_voice import validate_nvoice_guards
 from engine.key import Key
 from engine.engine_types import ExpandedPhrase, PieceAST
 from engine.treatment_caps import allows
@@ -102,10 +103,14 @@ def expand_piece(piece: PieceAST) -> list[ExpandedPhrase]:
         if piece.voices > 2 and allows(exp.treatment, "inner_voice_gen") and not skip_inner_gen:
             subject_ast = subject_to_motif_ast(piece.subject)
             cs_ast = cs_to_motif_ast(piece.subject)
-            # Use CP-SAT solver with fallback to branch-and-bound
-            exp = add_inner_voices_cpsat(
-                exp, key, texture, voice_set, bar_dur, piece.metre, phrase_offset,
-                subject_ast, cs_ast, timeout_seconds=5.0
+            # Use unified diatonic solver (pure degree space, no MIDI conversion)
+            exp = add_inner_voices(
+                exp, key, texture, voice_set.count, piece.metre,
+                subject_pitches=subject_ast.pitches if subject_ast else None,
+                subject_durations=subject_ast.durations if subject_ast else None,
+                cs_pitches=cs_ast.pitches if cs_ast else None,
+                cs_durations=cs_ast.durations if cs_ast else None,
+                timeout=5.0,
             )
         expanded.append(exp)
         phrase_offset += sum(exp.soprano_durations, Fraction(0))

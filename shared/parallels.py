@@ -58,3 +58,57 @@ def is_parallel_octave(
 ) -> bool:
     """Check for parallel octaves/unisons between two consecutive slices."""
     return is_parallel_motion(prev_upper, prev_lower, curr_upper, curr_lower, 0)
+
+
+# =============================================================================
+# Diatonic parallel detection (degree space)
+# =============================================================================
+
+def is_parallel_motion_diatonic(
+    prev_upper: int,
+    prev_lower: int,
+    curr_upper: int,
+    curr_lower: int,
+    interval: int,
+) -> bool:
+    """Check for parallel motion at interval in degree space.
+
+    Args:
+        prev_upper: Previous upper voice degree (1-7)
+        prev_lower: Previous lower voice degree (1-7)
+        curr_upper: Current upper voice degree (1-7)
+        curr_lower: Current lower voice degree (1-7)
+        interval: Target interval in degrees mod 7 (4=fifth, 0=octave/unison)
+
+    Returns:
+        True if parallel motion at the specified interval is detected.
+    """
+    prev_interval: int = (prev_upper - prev_lower) % 7
+    curr_interval: int = (curr_upper - curr_lower) % 7
+    if prev_interval != interval or curr_interval != interval:
+        return False
+    upper_motion: int = curr_upper - prev_upper
+    lower_motion: int = curr_lower - prev_lower
+    if upper_motion == 0 or lower_motion == 0:
+        return False
+    return (upper_motion > 0) == (lower_motion > 0)
+
+
+def is_parallel_fifth_diatonic(
+    prev_upper: int,
+    prev_lower: int,
+    curr_upper: int,
+    curr_lower: int,
+) -> bool:
+    """Check for parallel fifths in degree space (interval of 4 degrees)."""
+    return is_parallel_motion_diatonic(prev_upper, prev_lower, curr_upper, curr_lower, 4)
+
+
+def is_parallel_octave_diatonic(
+    prev_upper: int,
+    prev_lower: int,
+    curr_upper: int,
+    curr_lower: int,
+) -> bool:
+    """Check for parallel octaves/unisons in degree space (interval of 0 mod 7)."""
+    return is_parallel_motion_diatonic(prev_upper, prev_lower, curr_upper, curr_lower, 0)

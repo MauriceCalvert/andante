@@ -116,6 +116,9 @@ class Key:
     def midi_to_degree(self, midi: int) -> int:
         """Convert MIDI pitch to scale degree (1-7).
 
+        FOR EXTERNAL MIDI INPUT ONLY (e.g., figured bass, MIDI file import).
+        Internal solvers should work in degree space directly.
+
         Finds the closest diatonic scale degree for the given MIDI pitch.
         Chromatic pitches are mapped to the nearest diatonic degree.
         """
@@ -137,5 +140,9 @@ class Key:
         return best_degree
 
     def midi_to_floating(self, midi: int) -> FloatingNote:
-        """Convert MIDI pitch to FloatingNote."""
+        """Convert MIDI pitch to FloatingNote.
+
+        FOR EXTERNAL MIDI INPUT ONLY (e.g., figured bass, MIDI file import).
+        Internal solvers should work in degree space directly.
+        """
         return FloatingNote(self.midi_to_degree(midi))
