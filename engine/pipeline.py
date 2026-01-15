@@ -83,6 +83,7 @@ def execute_and_export(
         upbeat=upbeat,
         annotations=annotations,
         midi_only=humanise_output,  # Skip MusicXML for humanised output (fractional durations)
+        midi_instrument=instrument if humanise_output else None,
     )
     tracer.write_log(f"{output_path}.trace")
     return midi_notes

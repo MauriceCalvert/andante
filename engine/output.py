@@ -4,7 +4,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from music21 import clef, expressions, key, meter, note, stream, tempo
+from music21 import clef, expressions, instrument, key, meter, note, stream, tempo
 
 from engine.note import Note
 
@@ -38,6 +38,13 @@ class OutputWriter(ABC):
 class Music21Writer(OutputWriter):
     """Export to MIDI and MusicXML via music21."""
 
+    # MIDI program numbers for keyboard instruments
+    INSTRUMENT_PROGRAMS: dict[str, int] = {
+        "piano": 0,        # Acoustic Grand Piano
+        "harpsichord": 6,  # Harpsichord
+        "clavichord": 7,   # Clavichord
+    }
+
     def _build_stream(
         self,
         notes: list[Note],
@@ -48,6 +55,7 @@ class Music21Writer(OutputWriter):
         bpm: int,
         upbeat: Fraction,
         annotations: tuple["Annotation", ...] = (),
+        midi_instrument: str | None = None,
     ) -> stream.Score:
         """Build music21 Score from notes with optional annotations."""
         score: stream.Score = stream.Score()
@@ -57,6 +65,12 @@ class Music21Writer(OutputWriter):
         for track_num in sorted(tracks.keys()):
             part: stream.Part = stream.Part()
             part.id = f"Part{track_num + 1}"
+            # Set instrument if specified
+            if midi_instrument and midi_instrument in self.INSTRUMENT_PROGRAMS:
+                inst = instrument.Instrument()
+                inst.midiProgram = self.INSTRUMENT_PROGRAMS[midi_instrument]
+                inst.instrumentName = midi_instrument.capitalize()
+                part.insert(0, inst)
             ts: meter.TimeSignature = meter.TimeSignature(f"{timenum}/{timeden}")
             part.insert(0, ts)
             ky: key.Key = key.Key(tonic, mode)
@@ -106,15 +120,17 @@ class Music21Writer(OutputWriter):
         upbeat: Fraction = Fraction(0),
         annotations: tuple["Annotation", ...] = (),
         midi_only: bool = False,
+        midi_instrument: str | None = None,
     ) -> None:
         """Write MIDI and MusicXML files with optional annotations.
 
         Args:
             midi_only: If True, skip MusicXML export (for humanised output
                        with fractional durations that MusicXML can't handle)
+            midi_instrument: Instrument name for MIDI program (piano, harpsichord, clavichord)
         """
         score: stream.Score = self._build_stream(
-            notes, timenum, timeden, tonic, mode, bpm, upbeat, annotations
+            notes, timenum, timeden, tonic, mode, bpm, upbeat, annotations, midi_instrument
         )
         base: Path = Path(path)
         midi_path: Path = base.with_suffix(".midi")
