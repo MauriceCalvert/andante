@@ -131,6 +131,8 @@ class RealisedPhrase:
     """Phrase with concrete MIDI pitches for N voices."""
     index: int
     voices: list[RealisedVoice]
+    treatment: str | None = None
+    texture: str | None = None
 
     @property
     def soprano(self) -> tuple[RealisedNote, ...]:

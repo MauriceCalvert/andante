@@ -33,3 +33,9 @@ sequence_duplication:
   severity: major
   scope: piece
   description: Repeated pitch sequence
+
+metrical_stress:
+  id: koch_001
+  severity: major
+  scope: piece
+  description: Bass fails to maintain metrical stress during soprano rest (Koch's rule 13-14)

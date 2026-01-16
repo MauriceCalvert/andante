@@ -98,6 +98,8 @@ def parse_section(data: dict) -> SectionAST:
 
 def parse_yaml(yaml_str: str) -> PieceAST:
     """Parse YAML string to PieceAST."""
+    # YAML doesn't allow tabs for indentation - convert to spaces
+    yaml_str = yaml_str.replace("\t", "  ")
     data: dict = yaml.safe_load(yaml_str)
     validate_yaml(data)
     frame: dict = data["frame"]

@@ -309,3 +309,105 @@ def check_voice_pair(
     violations.extend(check_parallel_fifths_pair(upper, lower, upper_index, lower_index))
     violations.extend(check_parallel_octaves_pair(upper, lower, upper_index, lower_index))
     return violations
+
+
+def check_cadence_fifth(
+    soprano: list[tuple[Fraction, int]],
+    tonic_pitch_class: int,
+    cadence_type: str | None,
+) -> list[Violation]:
+    """Check that fifth scale degree doesn't appear in soprano at final cadence.
+
+    CPE Bach §36: "In a final cadence the fifth must never appear in the upper voice."
+
+    Args:
+        soprano: Soprano notes as (offset, pitch) tuples
+        tonic_pitch_class: MIDI pitch class of tonic (0-11, where C=0)
+        cadence_type: Type of cadence ("authentic", "half", etc.) or None
+
+    Returns:
+        List of violations if soprano ends on fifth at authentic cadence
+    """
+    violations: list[Violation] = []
+
+    # Only check authentic (final) cadences
+    if cadence_type != "authentic" or not soprano:
+        return violations
+
+    # Fifth scale degree is 7 semitones above tonic
+    fifth_pitch_class: int = (tonic_pitch_class + 7) % 12
+
+    # Check final soprano note
+    final_offset, final_pitch = soprano[-1]
+    if final_pitch % 12 == fifth_pitch_class:
+        violations.append(
+            Violation(
+                type="cadence_fifth",
+                offset=final_offset,
+                soprano_pitch=final_pitch,
+                bass_pitch=0,
+            )
+        )
+
+    return violations
+
+
+def check_metrical_stress(
+    soprano: list[tuple[Fraction, int]],
+    bass: list[tuple[Fraction, int]],
+    bar_duration: Fraction,
+    max_tied_subdivisions: int = 2,
+) -> list[Violation]:
+    """Check that accompaniment maintains metrical stress when melody rests.
+
+    Koch sections 13-14: When melody has tied notes or rests, the accompanying
+    voice must maintain metrical motion. Maximum 2 consecutive subdivisions
+    can be tied before accompaniment is required.
+
+    Args:
+        soprano: Soprano notes as (offset, pitch) tuples
+        bass: Bass notes as (offset, pitch) tuples
+        bar_duration: Duration of one bar
+        max_tied_subdivisions: Maximum silent span before bass required
+
+    Returns:
+        List of violations where bass fails to provide metrical support
+    """
+    violations: list[Violation] = []
+
+    if not soprano or not bass:
+        return violations
+
+    # Sort by offset
+    soprano_sorted = sorted(soprano, key=lambda x: x[0])
+    bass_sorted = sorted(bass, key=lambda x: x[0])
+
+    # Build bass attack times for quick lookup
+    bass_attacks: set[Fraction] = {off for off, _ in bass_sorted}
+
+    # Subdivision is typically 1/8 or 1/4 of a beat (use 1/8 of bar as proxy)
+    subdivision: Fraction = bar_duration / Fraction(8)
+    max_gap: Fraction = subdivision * max_tied_subdivisions
+
+    # Find gaps in soprano attacks and check if bass fills them
+    for i in range(len(soprano_sorted) - 1):
+        curr_off: Fraction = soprano_sorted[i][0]
+        next_off: Fraction = soprano_sorted[i + 1][0]
+        gap: Fraction = next_off - curr_off
+
+        if gap > max_gap:
+            # Check if bass has any attack in this span
+            bass_in_span: bool = any(
+                curr_off < off < next_off for off in bass_attacks
+            )
+            if not bass_in_span:
+                violations.append(
+                    Violation(
+                        type="metrical_stress",
+                        offset=curr_off,
+                        soprano_pitch=soprano_sorted[i][1],
+                        bass_pitch=0,
+                    )
+                )
+
+    return violations

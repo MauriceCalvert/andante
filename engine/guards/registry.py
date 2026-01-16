@@ -13,6 +13,7 @@ from engine.voice_checks import (
     check_parallel_rhythm,
     check_sequence_duplication,
     check_endless_trill,
+    check_metrical_stress,
     Violation,
 )
 
@@ -38,6 +39,7 @@ CHECK_FUNCTIONS: dict[str, Callable] = {
     "parallel_rhythm": check_parallel_rhythm,
     "sequence_duplication": check_sequence_duplication,
     "endless_trill": check_endless_trill,
+    "metrical_stress": check_metrical_stress,
 }
 
 
@@ -171,4 +173,15 @@ def run_piece_guards(
                         location="piece",
                     )
                     diagnostics.append(diag)
+        elif guard.name == "metrical_stress":
+            violations: list[Violation] = guard.check(soprano, bass, bar_duration)
+            for v in violations:
+                bar_num: int = int(v.offset / bar_duration) + 1
+                diag: Diagnostic = Diagnostic(
+                    guard_id=guard.id,
+                    severity=guard.severity,
+                    message=f"{guard.description} at bar {bar_num}",
+                    location="piece",
+                )
+                diagnostics.append(diag)
     return diagnostics

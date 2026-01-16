@@ -30,6 +30,9 @@ VALID_TONAL_TARGETS: set[str] = {"I", "II", "III", "IV", "V", "VI", "VII",
                                   "i", "ii", "iii", "iv", "v", "vi", "vii"}
 VALID_SECTION_CADENCES: set[str] = {"authentic", "half", "deceptive", "plagal", "phrygian"}
 
+# Fields that belong in frame, not brief
+FRAME_FIELDS: set[str] = {"key", "mode", "metre", "tempo", "voices", "upbeat", "form"}
+
 
 class ValidationError(Exception):
     """Raised when YAML validation fails."""
@@ -201,12 +204,148 @@ def validate_yaml(data: dict) -> None:
     assert "material" in data, _err("root", "missing 'material' section")
     assert "structure" in data, _err("root", "missing 'structure' section")
     validate_frame(data["frame"])
-    validate_subject(data["material"]["subject"], data["frame"]["metre"])
+    validate_material(data["material"], data["frame"]["metre"])
     validate_structure(data["structure"])
 
 
 def validate_file(path: Path) -> None:
     """Validate a YAML file. Raises ValidationError on failure."""
     with open(path, encoding="utf-8") as f:
-        data: dict = yaml.safe_load(f.read())
+        content: str = f.read()
+    # YAML doesn't allow tabs for indentation - convert to spaces
+    content = content.replace("\t", "  ")
+    data: dict = yaml.safe_load(content)
     validate_yaml(data)
+
+
+def validate_brief_yaml(data: dict) -> None:
+    """Validate brief YAML structure before parsing.
+
+    Checks:
+    1. 'brief:' section must exist at root
+    2. Frame fields must not appear under brief
+    3. Either brief.bars XOR structure with fully specified bars (not both, not neither)
+    """
+    # Rule 1: brief section required
+    if "brief" not in data:
+        raise ValidationError(
+            "root: missing 'brief:' section. The file must start with 'brief:' header."
+        )
+
+    brief_data: dict = data.get("brief", {})
+
+    # Rule 2: Frame fields must not be under brief
+    misplaced: list[str] = [f for f in FRAME_FIELDS if f in brief_data]
+    if misplaced:
+        raise ValidationError(
+            f"Frame fields found under 'brief:' section: {misplaced}. "
+            f"These belong under 'frame:' section. Add 'frame:' before {misplaced[0]}:"
+        )
+
+    # Rule 3: bars in brief XOR fully specified in structure
+    has_brief_bars: bool = "bars" in brief_data
+    has_structure: bool = "structure" in data
+
+    if has_structure:
+        # Check if structure has all bars specified
+        structure: dict = data["structure"]
+        sections: list = structure.get("sections", [])
+        structure_bars_specified: bool = _structure_has_all_bars(sections)
+
+        if has_brief_bars and structure_bars_specified:
+            raise ValidationError(
+                "brief.bars and structure bars are mutually exclusive. "
+                "Either specify bars in brief (planner allocates) OR specify bars on all phrases in structure, not both."
+            )
+        if not has_brief_bars and not structure_bars_specified:
+            raise ValidationError(
+                "Must specify bars either in brief.bars OR on all phrases in structure. "
+                "Neither was found."
+            )
+    else:
+        # No structure means we need brief.bars for planner
+        if not has_brief_bars:
+            raise ValidationError(
+                "brief: missing 'bars'. When structure is not provided, brief.bars is required."
+            )
+
+
+def _structure_has_all_bars(sections: list) -> bool:
+    """Check if all phrases in structure have explicit bars."""
+    if not sections:
+        return False
+    for section in sections:
+        for episode in section.get("episodes", []):
+            for phrase in episode.get("phrases", []):
+                if "bars" not in phrase:
+                    return False
+    return True
+
+
+def validate_material(material: dict, metre: str) -> None:
+    """Validate material section with file reference support.
+
+    Subject can be inline (degrees/durations/bars) or from file.
+    If subject is from file, counter_subject must also be from file or omitted.
+    """
+    ctx: str = "material"
+    if "subject" not in material:
+        raise _err(ctx, "missing 'subject'")
+
+    subject: dict = material["subject"]
+    subject_from_file: bool = "file" in subject
+
+    # Validate subject
+    if subject_from_file:
+        _validate_file_reference(subject, f"{ctx}.subject")
+    else:
+        validate_subject(subject, metre)
+
+    # Validate counter_subject if present
+    if "counter_subject" in material:
+        cs: dict = material["counter_subject"]
+        cs_from_file: bool = "file" in cs
+
+        if subject_from_file and not cs_from_file:
+            raise ValidationError(
+                f"{ctx}: when subject uses 'file:', counter_subject must also use 'file:' or be omitted"
+            )
+
+        if cs_from_file:
+            _validate_file_reference(cs, f"{ctx}.counter_subject")
+        else:
+            _validate_counter_subject(cs, metre)
+
+
+def _validate_file_reference(motif: dict, ctx: str) -> None:
+    """Validate a motif that uses file reference."""
+    inline_fields: set[str] = {"degrees", "durations", "bars"}
+    conflicting: list[str] = [f for f in inline_fields if f in motif]
+    if conflicting:
+        raise ValidationError(
+            f"{ctx}: 'file:' is mutually exclusive with {conflicting}. "
+            f"Use either file reference OR inline degrees/durations/bars, not both."
+        )
+    file_path: str = motif.get("file", "")
+    if not file_path:
+        raise ValidationError(f"{ctx}: 'file:' cannot be empty")
+
+
+def _validate_counter_subject(cs: dict, metre: str) -> None:
+    """Validate inline counter_subject."""
+    ctx: str = "material.counter_subject"
+    if "degrees" not in cs:
+        raise _err(ctx, "missing 'degrees'")
+    if "durations" not in cs:
+        raise _err(ctx, "missing 'durations'")
+    if "bars" not in cs:
+        raise _err(ctx, "missing 'bars'")
+    degrees: list = cs["degrees"]
+    durations: list = cs["durations"]
+    bars: int = cs["bars"]
+    if len(degrees) != len(durations):
+        raise _err(ctx, f"degrees ({len(degrees)}) and durations ({len(durations)}) must have same length")
+    if len(degrees) < 2:
+        raise _err(ctx, "counter_subject must have at least 2 notes")
+    if bars < 1:
+        raise _err(ctx, f"bars must be >= 1, got {bars}")
