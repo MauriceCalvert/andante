@@ -7,10 +7,32 @@ L012: No quantization - patterns must use valid durations from the start
 from fractions import Fraction
 from typing import Tuple
 
+from pathlib import Path
+
+import yaml
+
 from shared.pitch import wrap_degree
 from shared.music_math import VALID_DURATIONS
 from planner.subject import Subject
 from planner.plannertypes import DerivedMotif, Frame, Material, Motif
+
+DATA_DIR: Path = Path(__file__).parent.parent / "data"
+
+
+def _genre_needs_cs(genre: str) -> bool:
+    """Check if genre requires counter-subject generation.
+
+    Returns True only if genre explicitly has bass_source: counter_subject.
+    Default is False - CS is the exception (invention, fugue), not the rule.
+    """
+    if not genre:
+        return False
+    genre_path = DATA_DIR / "genres" / f"{genre}.yaml"
+    if not genre_path.exists():
+        return False
+    with open(genre_path, encoding="utf-8") as f:
+        genre_data = yaml.safe_load(f)
+    return genre_data.get("bass_source") == "counter_subject"
 
 
 # Fallback motifs for when affect-driven generation is not available
@@ -211,14 +233,17 @@ def acquire_material(
         # Use fallback template
         motif = generate_motif(frame)
 
-    # Use provided counter-subject or generate one
-    cs: Motif
+    # Use provided counter-subject or generate one (only if genre needs it)
+    cs: Motif | None
     if user_cs is not None:
         cs = user_cs
-    else:
+    elif _genre_needs_cs(genre):
         # Generate counter-subject using CP-SAT solver
         subj: Subject = Subject(motif.degrees, motif.durations, motif.bars, frame.mode, genre)
         cs = subj.counter_subject
+    else:
+        # Genre uses accompaniment bass - no CS needed
+        cs = None
 
     # Compute derived motifs
     derived: tuple[DerivedMotif, ...] = compute_derived_motifs(motif, cs)

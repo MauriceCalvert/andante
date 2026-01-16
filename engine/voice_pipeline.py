@@ -123,7 +123,7 @@ def _extend_to_budget(
     durations: tuple[Fraction, ...],
     budget: Fraction,
 ) -> TimedMaterial:
-    """Extend material to budget by cycling (no pitch shifts)."""
+    """Extend material to budget by simple cycling."""
     total: Fraction = sum(durations, Fraction(0))
     if total <= Fraction(0):
         return TimedMaterial(pitches, durations, budget)
@@ -174,9 +174,8 @@ def expand_voice(
         pitches, durations = get_source_material(spec, subject, counter_subject)
         material: TimedMaterial = _extend_to_budget(pitches, durations, fill_budget)
         return apply_voice_delay(material, effective_delay, budget)
-    # Direct mode: cycle source material in sync (preserves CS alignment)
-    # CRITICAL: For counter_subject, both voices must cycle together.
-    # Using bar treatment cycling for "development" breaks CS alignment.
+    # Direct mode: first statement literal, then sequence for remainder
+    # This preserves CS alignment while adding variation
     if spec.direct:
         pitches, durations = get_source_material(spec, subject, counter_subject)
         source_duration: Fraction = sum(durations, Fraction(0))
@@ -186,14 +185,41 @@ def expand_voice(
             spec.transform,
             spec.transform_params,
         )
-        # Mark as guard-exempt (direct material is intentionally repetitive)
-        exempt_pitches = tuple(
-            p.as_exempt() if isinstance(p, FloatingNote) else p
-            for p in transformed.pitches
-        )
-        # Always use simple cycling to preserve CS alignment
-        # When both voices use direct mode, they cycle in sync
-        material = _extend_to_budget(exempt_pitches, transformed.durations, fill_budget)
+        transformed_duration: Fraction = sum(transformed.durations, Fraction(0))
+
+        if fill_budget <= transformed_duration:
+            # Budget fits within one statement - use verbatim
+            material = _extend_to_budget(transformed.pitches, transformed.durations, fill_budget)
+        else:
+            # Budget exceeds source - first statement literal, then sequence
+            from engine.sequence import build_sequence
+
+            # First part: verbatim statement
+            direct_part = TimedMaterial(
+                transformed.pitches, transformed.durations, transformed_duration
+            )
+
+            # Remainder: descending sequence using same material
+            remainder_budget: Fraction = fill_budget - transformed_duration
+            seq_pitches, seq_durations = build_sequence(
+                transformed.pitches,
+                transformed.durations,
+                remainder_budget,
+                reps=4,      # Up to 4 sequence repetitions
+                step=-1,     # Descending by step
+                start=0,
+                phrase_seed=phrase_index,
+                vary=False,  # Don't vary rhythm, just transpose
+            )
+            seq_part = TimedMaterial(seq_pitches, seq_durations, remainder_budget)
+
+            # Combine: literal statement + sequence development
+            material = TimedMaterial(
+                direct_part.pitches + seq_part.pitches,
+                direct_part.durations + seq_part.durations,
+                fill_budget,
+            )
+
         # Apply derivation if specified
         if spec.derivation == "imitation":
             interval: int = spec.derivation_params.get("interval", 4)
