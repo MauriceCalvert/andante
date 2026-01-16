@@ -95,7 +95,7 @@ andante/
 │   ├── generate_subjects.py # Subject generation
 │   └── generate_heads.py   # Head enumeration
 │
-├── composed/exercises/     # Test YAML files
+├── briefs/exercises/     # Test YAML files
 ├── output/                 # Generated MIDI/MusicXML
 ├── tests/                  # Pytest suites (2700+ tests)
 └── docs/                   # Architecture and guides
