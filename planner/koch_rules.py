@@ -72,16 +72,38 @@ def check_phrase_sequence(phrases: list[Phrase], mode: str) -> list[KochViolatio
 
     Rules:
     - Koch's rule 35: Two I-phrases in succession produce unpleasant effect
-    - Koch's rule 36: Two V-phrases prohibited in same key
+    - Koch's rule 36: Two V-phrases prohibited in same key (allowed in different keys)
     - Koch's rule 37: Opening V-phrase should NOT be followed by I-phrase
+
+    Explicitly allowed transitions:
+    - I → V (tonic to dominant): natural progression
+    - I → CAD: tonic phrase to cadence
+    - V → CAD: dominant phrase to cadence
+    - V → V in different keys: modulating sequence
     """
     violations: list[KochViolation] = []
     config = load_koch_config()
     seq_config = config.get("phrase_sequence", {})
 
+    # Define explicitly allowed transitions
+    ALLOWED_TRANSITIONS: set[tuple[str, str]] = {
+        ("I-phrase", "V-phrase"),    # I → V: natural progression
+        ("I-phrase", "cadence"),     # I → CAD: tonic to cadence
+        ("V-phrase", "cadence"),     # V → CAD: dominant to cadence
+        ("V-phrase", "I-phrase"),    # V → I: allowed except at composition start
+        ("cadence", "I-phrase"),     # After cadence, new I-phrase is fine
+        ("cadence", "V-phrase"),     # After cadence, new V-phrase is fine
+        ("other", "I-phrase"),       # Transitional → I
+        ("other", "V-phrase"),       # Transitional → V
+        ("other", "cadence"),        # Transitional → cadence
+        ("I-phrase", "other"),       # I → transitional
+        ("V-phrase", "other"),       # V → transitional
+    }
+
     for i in range(1, len(phrases)):
         prev_class = classify_phrase(phrases[i - 1], mode)
         curr_class = classify_phrase(phrases[i], mode)
+        transition = (prev_class, curr_class)
 
         # Koch's rule 35: Two I-phrases in succession forbidden
         if seq_config.get("i_i_forbidden", True):
@@ -98,8 +120,10 @@ def check_phrase_sequence(phrases: list[Phrase], mode: str) -> list[KochViolatio
         # Koch's rule 36: Two V-phrases forbidden in same key
         if seq_config.get("v_v_same_key_forbidden", True):
             if prev_class == "V-phrase" and curr_class == "V-phrase":
-                # Check if same key (both V means same key context)
-                if phrases[i - 1].tonal_target == phrases[i].tonal_target:
+                # Check if same key - "different_key_only" exception
+                prev_target = phrases[i - 1].tonal_target.upper()
+                curr_target = phrases[i].tonal_target.upper()
+                if prev_target == curr_target:
                     violations.append(
                         KochViolation(
                             rule_id="koch_vv",
@@ -108,6 +132,7 @@ def check_phrase_sequence(phrases: list[Phrase], mode: str) -> list[KochViolatio
                             phrase_index=i,
                         )
                     )
+                # V → V in different keys is allowed (modulating sequence)
 
         # Koch's rule 37: V→I forbidden at composition start
         if seq_config.get("vi_start_forbidden", True):
@@ -121,6 +146,69 @@ def check_phrase_sequence(phrases: list[Phrase], mode: str) -> list[KochViolatio
                     )
                 )
 
+    return violations
+
+
+def validate_caesura(phrase: Phrase, mode: str) -> list[KochViolation]:
+    """Validate caesura placement according to Koch's rules.
+
+    Koch's caesura rules:
+    1. Caesura (phrase ending) must fall on a strong beat
+    2. Bass note at caesura should be root position (not 6th chord)
+       - Exception: incises (incomplete phrases) may use 6th chord
+    3. Caesura chord must match phrase type:
+       - I-phrase: tonic chord
+       - V-phrase: dominant chord
+
+    Args:
+        phrase: The phrase to validate
+        mode: "major" or "minor"
+
+    Returns:
+        List of violations found
+    """
+    violations: list[KochViolation] = []
+
+    # Check if phrase has a cadence (caesura indicator)
+    if phrase.cadence is None:
+        return violations  # No caesura to validate
+
+    phrase_class = classify_phrase(phrase, mode)
+    target = phrase.tonal_target.upper()
+
+    # Rule 3: Caesura chord must match phrase type
+    if phrase_class == "I-phrase" and target != "I":
+        # I-phrase should end on tonic
+        if phrase.cadence != "authentic":  # Authentic cadence is always on tonic
+            violations.append(
+                KochViolation(
+                    rule_id="koch_caesura_mismatch",
+                    severity="warning",
+                    message=f"I-phrase caesura should be on tonic, got {target}",
+                    phrase_index=phrase.index,
+                )
+            )
+
+    if phrase_class == "V-phrase" and target != "V":
+        # V-phrase should end on dominant
+        if phrase.cadence not in ("half", "authentic"):
+            violations.append(
+                KochViolation(
+                    rule_id="koch_caesura_mismatch",
+                    severity="warning",
+                    message=f"V-phrase caesura should be on dominant, got {target}",
+                    phrase_index=phrase.index,
+                )
+            )
+
+    return violations
+
+
+def check_all_caesurae(phrases: list[Phrase], mode: str) -> list[KochViolation]:
+    """Check all phrase caesurae in a sequence."""
+    violations: list[KochViolation] = []
+    for phrase in phrases:
+        violations.extend(validate_caesura(phrase, mode))
     return violations
 
 
@@ -250,6 +338,7 @@ def validate_koch(plan: Plan) -> tuple[bool, list[KochViolation]]:
 
     violations: list[KochViolation] = []
     violations.extend(check_phrase_sequence(all_phrases, plan.frame.mode))
+    violations.extend(check_all_caesurae(all_phrases, plan.frame.mode))
     violations.extend(check_period_structure(plan))
     violations.extend(check_modulation_rules(plan))
     violations.extend(check_phrase_length(plan))

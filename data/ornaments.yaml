@@ -24,3 +24,50 @@ turn:
     position: any
     min_duration: 1/4
     interval_down: true
+
+# Appoggiatura: accented ornamental note resolving to principal
+# Duration depends on meter (duple vs triple)
+appoggiatura_duple:
+  steps: [1, 0]  # Upper appoggiatura (step above principal)
+  durations: [1/2, 1/2]  # Duple time: 1/2 of principal note
+  trigger:
+    position: strong_beat
+    min_duration: 1/4
+    meter: duple
+  dynamics: accent_first  # Appoggiatura is louder than resolution
+
+appoggiatura_triple:
+  steps: [1, 0]  # Upper appoggiatura
+  durations: [2/3, 1/3]  # Triple time: 2/3 of principal note
+  trigger:
+    position: strong_beat
+    min_duration: 1/4
+    meter: triple
+  dynamics: accent_first
+
+appoggiatura_lower_duple:
+  steps: [-1, 0]  # Lower appoggiatura (step below principal)
+  durations: [1/2, 1/2]
+  trigger:
+    position: strong_beat
+    min_duration: 1/4
+    meter: duple
+  dynamics: accent_first
+
+appoggiatura_lower_triple:
+  steps: [-1, 0]  # Lower appoggiatura
+  durations: [2/3, 1/3]
+  trigger:
+    position: strong_beat
+    min_duration: 1/4
+    meter: triple
+  dynamics: accent_first
+
+# Trill with cadential suffix (termination/nachschlag)
+trill_cadential:
+  steps: [1, 0, 1, 0, 1, 0, -1, 0]  # Trill body + turn suffix
+  durations: [1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8]
+  trigger:
+    position: cadence
+    min_duration: 1/2
+  suffix: turn  # Cadential suffix at trill speed

@@ -87,18 +87,18 @@ ponte:
   dominant: true
 
 indugio:
-  description: Pre-cadential delay; prolongs 4 before resolving to 5
-  bass_degrees: [4, 4, 4, 5]
+  description: Pre-cadential delay; prolongs 4 before resolving to #4-5
+  bass_degrees: [4, 4, {degree: 4, alter: 1}, 5]  # Last 4 is raised (#4)
   durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [2, 4, 6, 7]  # TODO: 4th bass should be #4 (chromatic)
+  soprano_degrees: [2, 4, 6, 7]
   bars: 1
   pre_cadential: true
 
 quiescenza:
-  description: Tonic pedal with chromatic neighbor motion (ending/framing schema)
+  description: Tonic pedal with chromatic neighbor motion (b7-6-#7-1)
   bass_degrees: [1, 1, 1, 1]
   durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [7, 6, 7, 1]  # TODO: should be b7, 6, #7, 1 (chromatic)
+  soprano_degrees: [{degree: 7, alter: -1}, 6, {degree: 7, alter: 1}, 1]  # b7, 6, #7, 1
   bars: 1
   pedal: true
   framing: true

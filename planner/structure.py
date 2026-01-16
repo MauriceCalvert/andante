@@ -191,3 +191,214 @@ def plan_structure(brief: Brief, frame: Frame, material: Material) -> Structure:
         )
         sections.append(section)
     return Structure(sections=tuple(sections), arc=arc_name)
+
+
+# =============================================================================
+# Phase 4: Period Structure Generation (baroque_plan.md item 4.4)
+# =============================================================================
+
+def generate_period(
+    mode: str,
+    bars_per_phrase: int = 4,
+    first_half_modulation: str | None = None,
+) -> Structure:
+    """Generate a standard 8+8 bar period structure.
+
+    Koch's rule 22: Standard periods are 16 measures organized as:
+    - First half (8 bars): 2 phrases, modulates to dominant (major) or relative (minor)
+    - Second half (8 bars): 2 phrases, returns to tonic
+
+    Args:
+        mode: "major" or "minor"
+        bars_per_phrase: Bars per phrase (default 4)
+        first_half_modulation: Override modulation target for first half
+
+    Returns:
+        Structure with 8+8 bar period organization
+    """
+    # Determine modulation targets
+    if first_half_modulation:
+        half1_target = first_half_modulation
+    elif mode == "major":
+        half1_target = "V"  # Dominant
+    else:
+        half1_target = "III"  # Relative major (or "v" for minor dominant)
+
+    # First half: I-phrase/V-phrase + Cadence in modulation target
+    phrase_1 = Phrase(
+        index=0,
+        bars=bars_per_phrase,
+        tonal_target="I",
+        cadence=None,  # No cadence yet
+        treatment="statement",
+        surprise=None,
+        is_climax=False,
+        energy="low",
+    )
+    phrase_2 = Phrase(
+        index=1,
+        bars=bars_per_phrase,
+        tonal_target=half1_target,
+        cadence="half",  # Half cadence in new key
+        treatment="continuation",
+        surprise=None,
+        is_climax=False,
+        energy="medium",
+    )
+
+    # Second half: Development/modulation + Cadence in tonic
+    phrase_3 = Phrase(
+        index=2,
+        bars=bars_per_phrase,
+        tonal_target=half1_target,  # Continue in secondary key
+        cadence=None,
+        treatment="development",
+        surprise=None,
+        is_climax=True,  # Climax typically in development
+        energy="high",
+    )
+    phrase_4 = Phrase(
+        index=3,
+        bars=bars_per_phrase,
+        tonal_target="I",  # Return to tonic
+        cadence="authentic",  # Final authentic cadence
+        treatment="closing",
+        surprise=None,
+        is_climax=False,
+        energy="medium",
+    )
+
+    # Create episodes for each phrase
+    episode_1 = Episode(
+        type="opening",
+        bars=bars_per_phrase,
+        texture="polyphonic",
+        phrases=(phrase_1,),
+    )
+    episode_2 = Episode(
+        type="modulating",
+        bars=bars_per_phrase,
+        texture="polyphonic",
+        phrases=(phrase_2,),
+    )
+    episode_3 = Episode(
+        type="development",
+        bars=bars_per_phrase,
+        texture="polyphonic",
+        phrases=(phrase_3,),
+    )
+    episode_4 = Episode(
+        type="closing",
+        bars=bars_per_phrase,
+        texture="polyphonic",
+        phrases=(phrase_4,),
+    )
+
+    # Create sections for each half
+    first_half = Section(
+        label="antecedent",
+        tonal_path=("I", half1_target),
+        final_cadence="half",
+        episodes=(episode_1, episode_2),
+    )
+    second_half = Section(
+        label="consequent",
+        tonal_path=(half1_target, "I"),
+        final_cadence="authentic",
+        episodes=(episode_3, episode_4),
+    )
+
+    return Structure(
+        sections=(first_half, second_half),
+        arc="period",
+    )
+
+
+def generate_sentence(
+    mode: str,
+    bars: int = 8,
+) -> Structure:
+    """Generate a sentence structure (presentation + continuation).
+
+    Alternative to period: the sentence has:
+    - Presentation (4 bars): statement + response (often sequential)
+    - Continuation (4 bars): fragmentation + cadence
+
+    Args:
+        mode: "major" or "minor"
+        bars: Total bars (default 8)
+
+    Returns:
+        Structure with sentence organization
+    """
+    half_bars = bars // 2
+    quarter_bars = bars // 4
+
+    # Presentation: statement + response
+    statement = Phrase(
+        index=0,
+        bars=quarter_bars,
+        tonal_target="I",
+        cadence=None,
+        treatment="statement",
+        surprise=None,
+        is_climax=False,
+        energy="low",
+    )
+    response = Phrase(
+        index=1,
+        bars=quarter_bars,
+        tonal_target="I",
+        cadence=None,
+        treatment="response",  # Often sequential repetition
+        surprise=None,
+        is_climax=False,
+        energy="low",
+    )
+
+    # Continuation: fragmentation + cadence
+    fragmentation = Phrase(
+        index=2,
+        bars=quarter_bars,
+        tonal_target="V",
+        cadence=None,
+        treatment="fragmentation",
+        surprise=None,
+        is_climax=True,
+        energy="high",
+    )
+    cadential = Phrase(
+        index=3,
+        bars=quarter_bars,
+        tonal_target="I",
+        cadence="authentic",
+        treatment="closing",
+        surprise=None,
+        is_climax=False,
+        energy="medium",
+    )
+
+    presentation = Episode(
+        type="presentation",
+        bars=half_bars,
+        texture="polyphonic",
+        phrases=(statement, response),
+    )
+    continuation = Episode(
+        type="continuation",
+        bars=half_bars,
+        texture="polyphonic",
+        phrases=(fragmentation, cadential),
+    )
+
+    section = Section(
+        label="sentence",
+        tonal_path=("I", "I", "V", "I"),
+        final_cadence="authentic",
+        episodes=(presentation, continuation),
+    )
+
+    return Structure(
+        sections=(section,),
+        arc="sentence",
+    )

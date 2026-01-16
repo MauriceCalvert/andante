@@ -5,20 +5,45 @@ from typing import Union
 
 @dataclass(frozen=True)
 class FloatingNote:
-    """Scale degree without octave. Realiser chooses placement."""
+    """Scale degree without octave. Realiser chooses placement.
+
+    Supports chromatic alterations via the `alter` field:
+    - alter=0: diatonic (default)
+    - alter=-1: lowered (flat)
+    - alter=+1: raised (sharp)
+
+    Examples:
+    - FloatingNote(7) = diatonic 7th (leading tone in major)
+    - FloatingNote(7, alter=-1) = lowered 7th (b7)
+    - FloatingNote(7, alter=+1) = raised 7th (#7, rare)
+    """
     degree: int  # 1-7
     exempt: bool = False  # When True, guards skip this note (e.g., subject material)
+    alter: int = 0  # Chromatic alteration: -1=flat, 0=natural, +1=sharp
 
     def __post_init__(self) -> None:
         assert 1 <= self.degree <= 7, f"degree must be 1-7, got {self.degree}"
+        assert -2 <= self.alter <= 2, f"alter must be -2 to +2, got {self.alter}"
 
     def shift(self, interval: int) -> "FloatingNote":
         """Shift by interval, wrapping to 1-7."""
-        return FloatingNote(wrap_degree(self.degree + interval), self.exempt)
+        return FloatingNote(wrap_degree(self.degree + interval), self.exempt, self.alter)
 
     def as_exempt(self) -> "FloatingNote":
         """Return copy marked as guard-exempt."""
-        return FloatingNote(self.degree, exempt=True)
+        return FloatingNote(self.degree, exempt=True, alter=self.alter)
+
+    def with_alter(self, alter: int) -> "FloatingNote":
+        """Return copy with specified chromatic alteration."""
+        return FloatingNote(self.degree, self.exempt, alter)
+
+    def flatten(self) -> "FloatingNote":
+        """Return copy lowered by a semitone."""
+        return FloatingNote(self.degree, self.exempt, self.alter - 1)
+
+    def sharpen(self) -> "FloatingNote":
+        """Return copy raised by a semitone."""
+        return FloatingNote(self.degree, self.exempt, self.alter + 1)
 
 
 @dataclass(frozen=True)

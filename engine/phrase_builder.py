@@ -293,3 +293,131 @@ def build_voices(
         soprano_treatments=soprano_treatments
     )
     return soprano, bass
+
+
+# =============================================================================
+# Phase 9: Rhythmic Complement (baroque_plan.md item 9.2)
+# =============================================================================
+
+# Duration thresholds for rhythm classification
+LONG_DURATION_THRESHOLD: Fraction = Fraction(1, 2)  # Half note or longer = long
+SHORT_DURATION_THRESHOLD: Fraction = Fraction(1, 8)  # Eighth or shorter = short
+
+
+@dataclass(frozen=True)
+class RhythmicProfile:
+    """Classification of a voice's rhythmic character at a time point."""
+    duration: Fraction
+    is_long: bool  # Held note (>= half note)
+    is_short: bool  # Active note (<= eighth)
+    is_rest: bool  # Silence
+
+
+def classify_duration(dur: Fraction) -> RhythmicProfile:
+    """Classify a duration for rhythmic complement calculation."""
+    is_long = dur >= LONG_DURATION_THRESHOLD
+    is_short = dur <= SHORT_DURATION_THRESHOLD
+    return RhythmicProfile(dur, is_long, is_short, is_rest=False)
+
+
+def complement_rhythm(
+    melody_durations: tuple[Fraction, ...],
+    budget: Fraction,
+    subdivision: Fraction = Fraction(1, 8),
+) -> tuple[Fraction, ...]:
+    """Generate complementary rhythm for accompaniment.
+
+    baroque_plan.md item 9.2:
+    - Long melody notes → short accompaniment values (activity)
+    - Melody rests → fill with activity
+    - Fast melody → accompaniment may rest/hold
+
+    The principle is that one voice provides rhythmic activity while
+    the other sustains, creating continuous forward motion.
+
+    Args:
+        melody_durations: Durations of the melody voice
+        budget: Total time budget to fill
+        subdivision: Minimum rhythmic unit (default eighth note)
+
+    Returns:
+        Complementary durations for accompaniment voice
+    """
+    if not melody_durations:
+        return ()
+
+    result: list[Fraction] = []
+    melody_idx: int = 0
+    melody_offset: Fraction = Fraction(0)
+    current_melody_dur: Fraction = melody_durations[0]
+    time: Fraction = Fraction(0)
+
+    while time < budget:
+        # Advance melody index if needed
+        while melody_offset >= current_melody_dur and melody_idx < len(melody_durations) - 1:
+            melody_offset -= current_melody_dur
+            melody_idx += 1
+            current_melody_dur = melody_durations[melody_idx]
+
+        # Classify current melody duration
+        profile = classify_duration(current_melody_dur)
+
+        # Determine accompaniment duration based on complement principle
+        if profile.is_long:
+            # Long melody note → short accompaniment values (provide activity)
+            acc_dur = subdivision
+        elif profile.is_short:
+            # Fast melody → accompaniment may hold longer
+            acc_dur = min(current_melody_dur * 2, Fraction(1, 4))
+        else:
+            # Medium melody → medium accompaniment
+            acc_dur = current_melody_dur
+
+        # Ensure we don't exceed budget
+        remaining = budget - time
+        if acc_dur > remaining:
+            acc_dur = remaining
+
+        # Ensure minimum duration
+        if acc_dur < subdivision and remaining >= subdivision:
+            acc_dur = subdivision
+        elif acc_dur < subdivision:
+            acc_dur = remaining
+
+        if acc_dur > Fraction(0):
+            result.append(acc_dur)
+            time += acc_dur
+            melody_offset += acc_dur
+
+    return tuple(result)
+
+
+def apply_rhythmic_complement(
+    soprano: TimedMaterial,
+    bass_pitches: tuple[Pitch, ...],
+    budget: Fraction,
+) -> TimedMaterial:
+    """Apply rhythmic complement to bass voice based on soprano rhythm.
+
+    Creates a bass line where:
+    - Long soprano notes get active bass (shorter values)
+    - Fast soprano passages get sustained bass (longer values)
+
+    Args:
+        soprano: The soprano TimedMaterial
+        bass_pitches: Source pitches for bass
+        budget: Time budget to fill
+
+    Returns:
+        TimedMaterial for bass with complementary rhythm
+    """
+    # Generate complementary durations
+    comp_durs = complement_rhythm(soprano.durations, budget)
+
+    # Match pitches to durations by cycling
+    result_pitches: list[Pitch] = []
+    for i in range(len(comp_durs)):
+        pitch_idx = i % len(bass_pitches)
+        result_pitches.append(bass_pitches[pitch_idx])
+
+    return TimedMaterial(tuple(result_pitches), comp_durs, budget)

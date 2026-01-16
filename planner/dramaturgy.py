@@ -4,7 +4,12 @@ Maps affects to dramaturgical archetypes and computes:
 - Rhetorical structure (exordium, narratio, confutatio, confirmatio, peroratio)
 - Tension curves (per-bar tension levels)
 - Climax positioning
+
+Phase 10 (baroque_plan.md item 10.1):
+- Expression and affect parameter selection
+- Map affect → (tempo, mode, key suggestions)
 """
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -322,3 +327,183 @@ def get_key_scheme(
             }
 
     return scheme
+
+
+# =============================================================================
+# Phase 10: Expression and Affect (baroque_plan.md item 10.1)
+# =============================================================================
+
+@dataclass(frozen=True)
+class CompositionParams:
+    """Parameters for composition derived from affect.
+
+    Provides all the high-level decisions that follow from the chosen affect:
+    tempo, mode, key suggestions, and musical characteristics.
+    """
+    affect: str
+    mode: str  # "major" or "minor"
+    tempo: str  # Tempo marking (adagio, andante, allegro, presto)
+    tempo_bpm_range: Tuple[int, int]  # BPM range
+    key_suggestions: Tuple[str, ...]  # Suggested keys (pitch classes)
+    key_character: str  # "bright" or "dark"
+    interval_profile: str  # "stepwise", "leaps", "mixed"
+    contour: str  # "ascending", "descending", "arch", "wave"
+    rhythm_density: str  # "sparse", "moderate", "dense"
+    chromaticism: str  # "none", "light", "heavy"
+    archetype: str  # Dramaturgical archetype
+
+
+# Tempo to BPM mappings (baroque conventions)
+TEMPO_BPM_RANGES: Dict[str, Tuple[int, int]] = {
+    "grave": (25, 45),
+    "largo": (40, 60),
+    "lento": (45, 60),
+    "adagio": (55, 75),
+    "andante": (73, 100),
+    "moderato": (86, 108),
+    "allegretto": (100, 128),
+    "allegro": (120, 156),
+    "vivace": (140, 176),
+    "presto": (168, 200),
+    "prestissimo": (188, 220),
+}
+
+
+# Key suggestions by affect character
+# Based on baroque key character theory (Mattheson, Charpentier)
+KEY_SUGGESTIONS: Dict[str, Dict[str, Tuple[str, ...]]] = {
+    "bright_major": ("D", "A", "G", "Bb"),  # Bright, joyful keys
+    "dark_major": ("Eb", "Ab", "E"),  # More serious major keys
+    "bright_minor": ("E", "A", "D"),  # Plaintive but clear minor keys
+    "dark_minor": ("C", "G", "F", "B"),  # Deeper, more sorrowful minor keys
+}
+
+
+def select_parameters(affect: str) -> CompositionParams:
+    """Select composition parameters based on affect.
+
+    baroque_plan.md item 10.1: Map affect → (tempo, mode, key suggestions)
+
+    Uses affects.yaml data to derive all composition parameters
+    that follow from the chosen affect.
+
+    Args:
+        affect: Name of the affect (e.g., "Sehnsucht", "Freudigkeit")
+
+    Returns:
+        CompositionParams with all derived parameters
+    """
+    affects = load_affects()
+
+    # Get affect data with defaults
+    if affect in affects:
+        affect_data = affects[affect]
+    else:
+        # Default to a neutral affect
+        affect_data = {
+            "mode": "major",
+            "tempo": "andante",
+            "key_character": "bright",
+            "archetype": DEFAULT_ARCHETYPE,
+            "interval_profile": "mixed",
+            "contour": "arch",
+            "rhythm_density": "moderate",
+            "chromaticism": "none",
+        }
+
+    # Extract parameters
+    mode = affect_data.get("mode", "major")
+    tempo = affect_data.get("tempo", "andante")
+    key_character = affect_data.get("key_character", "bright")
+    archetype = affect_data.get("archetype", DEFAULT_ARCHETYPE)
+    interval_profile = affect_data.get("interval_profile", "mixed")
+    contour = affect_data.get("contour", "arch")
+    rhythm_density = affect_data.get("rhythm_density", "moderate")
+    chromaticism = affect_data.get("chromaticism", "none")
+
+    # Get tempo BPM range
+    tempo_bpm_range = TEMPO_BPM_RANGES.get(tempo, (80, 120))
+
+    # Select appropriate keys based on mode and character
+    key_category = f"{key_character}_{mode}"
+    key_suggestions = KEY_SUGGESTIONS.get(key_category, ("C", "G", "F"))
+
+    return CompositionParams(
+        affect=affect,
+        mode=mode,
+        tempo=tempo,
+        tempo_bpm_range=tempo_bpm_range,
+        key_suggestions=key_suggestions,
+        key_character=key_character,
+        interval_profile=interval_profile,
+        contour=contour,
+        rhythm_density=rhythm_density,
+        chromaticism=chromaticism,
+        archetype=archetype,
+    )
+
+
+def get_affect_characteristics(affect: str) -> Dict[str, str]:
+    """Get musical characteristics for an affect.
+
+    Returns a dict with:
+    - interval_profile: "stepwise", "leaps", or "mixed"
+    - contour: "ascending", "descending", "arch", or "wave"
+    - rhythm_density: "sparse", "moderate", or "dense"
+    - chromaticism: "none", "light", or "heavy"
+
+    These inform melodic generation to match the affect.
+    """
+    params = select_parameters(affect)
+    return {
+        "interval_profile": params.interval_profile,
+        "contour": params.contour,
+        "rhythm_density": params.rhythm_density,
+        "chromaticism": params.chromaticism,
+    }
+
+
+def get_suggested_key(affect: str, preference: int = 0) -> str:
+    """Get a suggested key for the affect.
+
+    Args:
+        affect: Name of the affect
+        preference: Index into key suggestions (0 = first choice)
+
+    Returns:
+        Key as pitch class string (e.g., "D", "Eb")
+    """
+    params = select_parameters(affect)
+    suggestions = params.key_suggestions
+
+    if preference < len(suggestions):
+        return suggestions[preference]
+    return suggestions[0] if suggestions else "C"
+
+
+def get_tempo_marking(affect: str) -> str:
+    """Get the appropriate tempo marking for an affect."""
+    params = select_parameters(affect)
+    return params.tempo
+
+
+def get_tempo_bpm(affect: str, variation: float = 0.0) -> int:
+    """Get a BPM value for an affect.
+
+    Args:
+        affect: Name of the affect
+        variation: Value from -1.0 to 1.0 to vary within the tempo range
+                   (-1.0 = min, 0.0 = middle, 1.0 = max)
+
+    Returns:
+        Integer BPM value
+    """
+    params = select_parameters(affect)
+    min_bpm, max_bpm = params.tempo_bpm_range
+
+    # Calculate BPM from variation
+    mid_bpm = (min_bpm + max_bpm) / 2
+    range_half = (max_bpm - min_bpm) / 2
+
+    bpm = mid_bpm + (variation * range_half)
+    return int(round(max(min_bpm, min(max_bpm, bpm))))

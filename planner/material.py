@@ -224,3 +224,212 @@ def acquire_material(
     derived: tuple[DerivedMotif, ...] = compute_derived_motifs(motif, cs)
 
     return Material(subject=motif, counter_subject=cs, derived_motifs=derived)
+
+
+# =============================================================================
+# Phase 4: Phrase Extension Methods (baroque_plan.md item 4.3)
+# =============================================================================
+
+def extend_by_repetition(
+    motif: Motif,
+    varied: bool = False,
+    seed: int | None = None,
+) -> Motif:
+    """Extend a motif by repeating it (with optional variation).
+
+    Koch's extension method: repeat a segment to extend a phrase.
+    If two incomplete incises are present, both must be repeated.
+
+    Args:
+        motif: The motif to extend
+        varied: If True, apply slight variation to the repetition
+        seed: Random seed for variation
+
+    Returns:
+        Extended motif with repetition
+    """
+    import random
+
+    degrees = motif.degrees
+    durations = motif.durations
+
+    if varied and seed is not None:
+        rng = random.Random(seed)
+        # Apply slight variation: transpose by step, or invert direction of one note
+        variation_type = rng.choice(["transpose", "neighbor", "none"])
+        if variation_type == "transpose":
+            # Transpose entire repetition by a step
+            offset = rng.choice([-1, 1])
+            repeated_degrees = tuple(wrap_degree(d + offset) for d in degrees)
+        elif variation_type == "neighbor":
+            # Change one note to neighbor tone
+            idx = rng.randint(0, len(degrees) - 1)
+            repeated_degrees = tuple(
+                wrap_degree(d + rng.choice([-1, 1])) if i == idx else d
+                for i, d in enumerate(degrees)
+            )
+        else:
+            repeated_degrees = degrees
+        repeated_durations = durations
+    else:
+        repeated_degrees = degrees
+        repeated_durations = durations
+
+    return Motif(
+        degrees=degrees + repeated_degrees,
+        durations=durations + repeated_durations,
+        bars=motif.bars * 2,
+    )
+
+
+def extend_by_sequence(
+    motif: Motif,
+    steps: int,
+    direction: int = -1,
+) -> Motif:
+    """Extend a motif by sequential repetition at different pitch levels.
+
+    Koch's extension method: repeat a segment on different scale degrees.
+    CRITICAL: segment equality must be maintained throughout.
+
+    Args:
+        motif: The motif to sequence
+        steps: Number of sequential repetitions (total segments = steps + 1)
+        direction: -1 for descending sequence, +1 for ascending
+
+    Returns:
+        Extended motif with sequential repetitions
+    """
+    all_degrees: list[int] = list(motif.degrees)
+    all_durations: list[Fraction] = list(motif.durations)
+
+    for step in range(1, steps + 1):
+        transposition = direction * step
+        transposed = tuple(wrap_degree(d + transposition) for d in motif.degrees)
+        all_degrees.extend(transposed)
+        all_durations.extend(motif.durations)
+
+    return Motif(
+        degrees=tuple(all_degrees),
+        durations=tuple(all_durations),
+        bars=motif.bars * (steps + 1),
+    )
+
+
+def extend_by_appendix(
+    motif: Motif,
+    appendix_degrees: tuple[int, ...],
+    appendix_durations: tuple[Fraction, ...],
+) -> Motif:
+    """Add a clarifying appendix segment after a phrase ending.
+
+    Koch's extension method: appendix adds clarification without changing
+    the rhythmic value of the original phrase. The appendix is typically
+    a short cadential figure or confirmation.
+
+    Args:
+        motif: The original motif
+        appendix_degrees: Scale degrees for the appendix
+        appendix_durations: Durations for the appendix
+
+    Returns:
+        Motif with appended clarifying segment
+    """
+    # Calculate appendix bars
+    appendix_total = sum(appendix_durations)
+    # Assume 4/4 time (1 bar = 1 whole note)
+    appendix_bars = int(appendix_total) if appendix_total >= 1 else 1
+
+    return Motif(
+        degrees=motif.degrees + appendix_degrees,
+        durations=motif.durations + appendix_durations,
+        bars=motif.bars + appendix_bars,
+    )
+
+
+def extend_by_parenthesis(
+    motif: Motif,
+    insert_position: int,
+    insert_degrees: tuple[int, ...],
+    insert_durations: tuple[Fraction, ...],
+) -> Motif:
+    """Insert parenthetical material within a phrase.
+
+    Koch's extension method: parenthesis inserts material that temporarily
+    departs from the main thought, then returns. Often used for
+    developmental or modulatory passages.
+
+    Args:
+        motif: The original motif
+        insert_position: Index at which to insert the parenthesis
+        insert_degrees: Scale degrees for the inserted material
+        insert_durations: Durations for the inserted material
+
+    Returns:
+        Motif with parenthetical insertion
+    """
+    # Split original motif at insertion point
+    before_degrees = motif.degrees[:insert_position]
+    after_degrees = motif.degrees[insert_position:]
+    before_durations = motif.durations[:insert_position]
+    after_durations = motif.durations[insert_position:]
+
+    # Calculate parenthesis bars
+    insert_total = sum(insert_durations)
+    insert_bars = int(insert_total) if insert_total >= 1 else 1
+
+    return Motif(
+        degrees=before_degrees + insert_degrees + after_degrees,
+        durations=before_durations + insert_durations + after_durations,
+        bars=motif.bars + insert_bars,
+    )
+
+
+def validate_segment_equality(motif: Motif, segment_size: int) -> bool:
+    """Validate that all segments in a sequential motif are equal.
+
+    For sequences, each segment must have the same rhythmic and
+    intervallic structure (transposed). This is Koch's requirement
+    for well-formed sequences.
+
+    Args:
+        motif: The motif to validate
+        segment_size: Number of notes per segment
+
+    Returns:
+        True if all segments are equal (allowing transposition)
+    """
+    if len(motif.degrees) % segment_size != 0:
+        return False
+
+    num_segments = len(motif.degrees) // segment_size
+
+    # Get first segment as reference
+    ref_degrees = motif.degrees[:segment_size]
+    ref_durations = motif.durations[:segment_size]
+
+    # Calculate intervals within reference segment
+    ref_intervals = tuple(
+        ref_degrees[i + 1] - ref_degrees[i]
+        for i in range(len(ref_degrees) - 1)
+    )
+
+    for seg_idx in range(1, num_segments):
+        start = seg_idx * segment_size
+        end = start + segment_size
+        seg_degrees = motif.degrees[start:end]
+        seg_durations = motif.durations[start:end]
+
+        # Check durations match exactly
+        if seg_durations != ref_durations:
+            return False
+
+        # Check intervals match (allowing transposition)
+        seg_intervals = tuple(
+            seg_degrees[i + 1] - seg_degrees[i]
+            for i in range(len(seg_degrees) - 1)
+        )
+        if seg_intervals != ref_intervals:
+            return False
+
+    return True
