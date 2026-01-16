@@ -1,0 +1,15 @@
+offset,midi,duration,track,length,bar,beat,pitch,lyric
+# Little Fugue in G minor BWV 578 - Subject
+# Key: G minor, Time: 4/4
+# Melody extracted by analysis
+# Fugue subject (bars 1-2) - clean melodic skeleton
+0,67,0.25,1,,1,1.0,G4
+0.25,74,0.25,1,,1,2.0,D5
+0.5,70,0.5,1,,1,3.0,Bb4
+1,67,0.125,1,,2,1.0,G4
+1.125,70,0.125,1,,2,1.5,Bb4
+1.25,69,0.125,1,,2,2.0,A4
+1.375,67,0.125,1,,2,2.5,G4
+1.5,66,0.125,1,,2,3.0,F#4
+1.625,69,0.125,1,,2,3.5,A4
+1.75,62,0.25,1,,2,4.0,D4
