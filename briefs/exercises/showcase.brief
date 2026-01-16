@@ -1,0 +1,89 @@
+brief:
+  affect: Freude
+  genre: invention
+  forces: keyboard
+frame:
+  key: C
+  mode: major
+  metre: 4/4
+  tempo: allegro
+  voices: 2
+material:
+  subject:
+    degrees: [1, 2, 3, 4, 5]
+    durations: ["1/2", "1/4", "1/4", "1/2", "1/2"]
+    bars: 2
+  counter_subject:
+    degrees: [5, 4, 3, 2, 1]
+    durations: ["1/2", "1/4", "1/4", "1/2", "1/2"]
+    bars: 2
+structure:
+  arc: simple
+  sections:
+    # SECTION A: Core treatments (16 bars)
+    - label: A_treatments
+      repeat: false
+      tonal_path: [I, V, I]
+      final_cadence: half
+      episodes:
+        - type: statement
+          bars: 16
+          texture: polyphonic
+          phrases:
+            - {index: 0, bars: 2, tonal_target: I, treatment: statement}
+            - {index: 1, bars: 2, tonal_target: V, treatment: imitation}
+            - {index: 2, bars: 2, tonal_target: I, treatment: inversion}
+            - {index: 3, bars: 2, tonal_target: V, treatment: retrograde}
+            - {index: 4, bars: 2, tonal_target: I, treatment: augmentation}
+            - {index: 5, bars: 2, tonal_target: V, treatment: diminution}
+            - {index: 6, bars: 2, tonal_target: I, treatment: fragmentation}
+            - {index: 7, bars: 2, tonal_target: I, treatment: stretto, cadence: half}
+
+    # SECTION B: More treatments (12 bars)
+    - label: B_more_treatments
+      repeat: false
+      tonal_path: [vi, IV, I]
+      final_cadence: half
+      episodes:
+        - type: continuation
+          bars: 12
+          texture: polyphonic
+          phrases:
+            - {index: 8, bars: 2, tonal_target: vi, treatment: sequence}
+            - {index: 9, bars: 2, tonal_target: IV, treatment: head_sequence}
+            - {index: 10, bars: 2, tonal_target: I, treatment: tail_development}
+            - {index: 11, bars: 2, tonal_target: vi, treatment: dialogue}
+            - {index: 12, bars: 2, tonal_target: IV, treatment: repose}
+            - {index: 13, bars: 2, tonal_target: I, treatment: melody_accompaniment, cadence: half}
+
+    # SECTION C: Bass treatments + textures (12 bars)
+    - label: C_bass_and_textures
+      repeat: false
+      tonal_path: [I, V, I]
+      final_cadence: authentic
+      episodes:
+        - type: statement
+          bars: 12
+          texture: polyphonic
+          phrases:
+            - {index: 14, bars: 2, tonal_target: I, treatment: bass_statement}
+            - {index: 15, bars: 2, tonal_target: V, treatment: bass_sequence}
+            - {index: 16, bars: 2, tonal_target: I, treatment: statement, texture: canon}
+            - {index: 17, bars: 2, tonal_target: V, treatment: statement, texture: hocket}
+            - {index: 18, bars: 2, tonal_target: I, treatment: imitation}
+            - {index: 19, bars: 2, tonal_target: I, treatment: statement, cadence: authentic}
+
+    # SECTION D: Pedal treatments (8 bars)
+    - label: D_pedal
+      repeat: false
+      tonal_path: [I, V, I]
+      final_cadence: authentic
+      episodes:
+        - type: statement
+          bars: 8
+          texture: polyphonic
+          phrases:
+            - {index: 20, bars: 2, tonal_target: I, treatment: pedal_tonic}
+            - {index: 21, bars: 2, tonal_target: V, treatment: pedal_dominant}
+            - {index: 22, bars: 2, tonal_target: I, treatment: hold}
+            - {index: 23, bars: 2, tonal_target: I, treatment: statement, cadence: authentic}

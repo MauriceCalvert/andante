@@ -2,7 +2,6 @@ brief:
   affect: giocoso
   genre: invention
   forces: keyboard
-  bars: 32
 frame:
   key: G
   mode: major

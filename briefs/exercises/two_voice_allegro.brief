@@ -18,15 +18,12 @@ structure:
       final_cadence: authentic
       episodes:
         - type: statement
-          bars: 8
           texture: polyphonic
           phrases:
             - index: 0
-              bars: 4
               tonal_target: I
               treatment: statement
             - index: 1
-              bars: 4
               tonal_target: I
               cadence: authentic
               treatment: imitation_cs
