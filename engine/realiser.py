@@ -245,8 +245,18 @@ def realise_phrases(
     home_key: Key,
     bar_duration: Fraction,
     metre: str,
+    strict: bool = True,
 ) -> list[RealisedPhrase]:
-    """Realise all phrases and run guards for N voices."""
+    """Realise all phrases and run guards for N voices.
+
+    Args:
+        phrases: Expanded phrases to realise
+        home_key: Home key of the piece
+        bar_duration: Duration of one bar
+        metre: Time signature string
+        strict: If True, raise on blocker-level guard violations.
+                If False, only print warnings (for diagnostic tools).
+    """
     tracer = get_tracer()
     realised: list[RealisedPhrase] = []
     offset: Fraction = Fraction(0)
@@ -274,7 +284,8 @@ def realise_phrases(
     if blockers:
         for b in blockers:
             print(f"BLOCKER: {b.guard_id} - {b.message} ({b.location})")
-        raise ValueError(f"Guard check failed: {len(blockers)} blocker(s)")
+        if strict:
+            raise ValueError(f"Guard check failed: {len(blockers)} blocker(s)")
     for d in diagnostics:
         if d.severity == "major":
             print(f"WARNING: {d.guard_id} - {d.message} ({d.location})")

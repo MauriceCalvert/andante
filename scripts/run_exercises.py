@@ -11,6 +11,10 @@ from planner.plannertypes import Brief, Frame, Motif
 from planner.motif_loader import load_motif, load_motif_from_file
 from engine.pipeline import execute_and_export
 from engine.key import Key
+from engine.bob import diagnose
+from engine.plan_parser import parse_yaml as parse_plan_yaml
+from engine.expander import expand_piece, bar_duration
+from engine.realiser import realise_phrases
 from engine.pitch import FloatingNote
 from engine.note import Note
 from engine.output import Music21Writer
@@ -200,7 +204,7 @@ def inject_material(data: dict) -> dict:
     brief = data.get("brief", {})
     genre = brief.get("genre", "invention")
     affect = brief.get("affect")
-    seed = brief.get("seed", 42)
+    seed = brief.get("seed")  # None = random
 
     # Generate subject using head+tail system with affect-aware figurae
     generated = generate_subject(mode=mode, metre=metre, seed=seed, affect=affect)
@@ -242,6 +246,18 @@ def inject_material(data: dict) -> dict:
     return data
 
 
+def run_bob_diagnostic(yaml_str: str) -> None:
+    """Run Bob diagnostic on a piece and print the report."""
+    piece = parse_plan_yaml(yaml_str)
+    expanded = expand_piece(piece)
+    bar_dur = bar_duration(piece.metre)
+    key = Key(tonic=piece.key, mode=piece.mode)
+    # Use strict=False to get diagnostics even with violations
+    realised = realise_phrases(expanded, key, bar_dur, piece.metre, strict=False)
+    report = diagnose(realised, bar_duration=bar_dur, key=key)
+    print(report.to_clipboard())
+
+
 def run_exercise(brief_path: Path, humanise: bool = False) -> None:
     """Generate one exercise from brief or composed file."""
     name: str = brief_path.stem
@@ -267,13 +283,14 @@ def run_exercise(brief_path: Path, humanise: bool = False) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(yaml_str)
         output_path: Path = EXERCISES_OUT / name
-        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise)
+        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise, strict=False)
         bars: int = get_total_bars(data)
         print(f"{len(notes)} notes, {bars} bars (generated material){' [humanised]' if humanise else ''}")
         # Export subject MIDI - parse plan to get material
         from engine.plan_parser import parse_yaml
         plan = parse_yaml(yaml_str)
         export_subject_midi(plan, EXERCISES_OUT / f"{name}_subject")
+        run_bob_diagnostic(yaml_str)
 
     # Case 2: Complete plan with material -> execute directly
     elif has_structure(data) and has_material(data):
@@ -283,13 +300,14 @@ def run_exercise(brief_path: Path, humanise: bool = False) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(yaml_str)
         output_path: Path = EXERCISES_OUT / name
-        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise)
+        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise, strict=False)
         bars: int = get_total_bars(data)
         print(f"{len(notes)} notes, {bars} bars (composed){' [humanised]' if humanise else ''}")
         # Export subject MIDI - parse plan to get material
         from engine.plan_parser import parse_yaml
         plan = parse_yaml(yaml_str)
         export_subject_midi(plan, EXERCISES_OUT / f"{name}_subject")
+        run_bob_diagnostic(yaml_str)
     else:
         brief_data = data.get("brief", data)
         brief: Brief = Brief(
@@ -330,9 +348,10 @@ def run_exercise(brief_path: Path, humanise: bool = False) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(yaml_str)
         output_path: Path = EXERCISES_OUT / name
-        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise)
+        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise, strict=False)
         print(f"{len(notes)} notes, {plan.actual_bars} bars{' [humanised]' if humanise else ''}")
         export_subject_midi(plan, EXERCISES_OUT / f"{name}_subject")
+        run_bob_diagnostic(yaml_str)
 
 
 def main() -> None:

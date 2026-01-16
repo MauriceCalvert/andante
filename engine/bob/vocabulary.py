@@ -1,0 +1,36 @@
+"""Bob's perceptual vocabulary - no theoretical terms."""
+
+# === REFUSES ===
+PARALLEL_FIFTH = "Two notes a fifth apart, then both move to another fifth"
+PARALLEL_OCTAVE = "Two notes an octave apart, then both move to another octave"
+PARALLEL_UNISON = "Same note in both voices, then both move to same note again"
+DIRECT_FIFTH = "Both voices leap to a fifth apart"
+DIRECT_OCTAVE = "Both voices leap to an octave apart"
+UNPREPARED = "That note clashes without warning"
+UNRESOLVED = "That clash just hangs there"
+RESOLVED_UP = "The clashing note went up instead of down"
+VOICE_OVERLAP = "Upper voice went below the lower one"
+VOICE_CROSSING = "Voices crossed for too long"
+
+# === COMPLAINS ===
+LEAP_UNCOMP = "Large jump {direction} ({semitones} semitones) not stepped back"
+CONSECUTIVE_LEAPS = "Two big jumps same direction"
+TRITONE_OUTLINE = "Four notes outline an awkward gap"
+AUGMENTED_INTERVAL = "Awkward stretched interval ({semitones} semitones)"
+SEVENTH_LEAP = "Very large jump ({semitones} semitones)"
+BEYOND_OCTAVE = "Jump wider than an octave ({semitones} semitones)"
+SPACING_WIDE_UPPER = "Gap too wide between upper voices ({semitones} semitones)"
+SPACING_WIDE_OUTER = "Gap too wide between outer voices ({semitones} semitones)"
+MONOTONOUS_RHYTHM = "Same rhythm {bars} bars in a row"
+STATIC_VOICE = "Stayed on same note for {beats} beats"
+STATIC_HARMONY = "Harmony stuck for {bars} bars"
+ENDLESS_ALTERNATION = "Back and forth too many times"
+BAR_DUPLICATION = "This bar is identical to the previous"
+SEQUENCE_TOO_LONG = "Same pattern repeated too many times"
+
+# === NOTES ===
+RESOLVES_NICELY = "That resolves nicely"
+FEELS_CONCLUSIVE = "The ending feels conclusive"
+FEELS_HALF_STOP = "Feels like a half-stop, wants to continue"
+SAME_PATTERN = "Same pattern as bar {source_bar}, but {direction}"
+REACHES_PEAK = "This is the high point"

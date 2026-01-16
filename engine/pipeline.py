@@ -21,13 +21,19 @@ validate_or_raise()  # Fail fast on typos in treatments.yaml interdictions
 ANNOTATION_GRANULARITY: str = "phrase"
 
 
-def execute(yaml_str: str) -> tuple[list[Note], PieceAST]:
-    """Execute YAML plan to produce notes."""
+def execute(yaml_str: str, strict: bool = True) -> tuple[list[Note], PieceAST]:
+    """Execute YAML plan to produce notes.
+
+    Args:
+        yaml_str: YAML plan string
+        strict: If True, raise on blocker-level guard violations.
+                If False, only print warnings (for diagnostic tools).
+    """
     piece: PieceAST = parse_yaml(yaml_str)
     expanded = expand_piece(piece)
     bar_dur: Fraction = bar_duration(piece.metre)
     key: Key = Key(tonic=piece.key, mode=piece.mode)
-    realised: list[RealisedPhrase] = realise_phrases(expanded, key, bar_dur, piece.metre)
+    realised: list[RealisedPhrase] = realise_phrases(expanded, key, bar_dur, piece.metre, strict=strict)
     notes: list[Note] = format_notes(realised, piece.metre)
     return (notes, piece)
 
@@ -39,6 +45,7 @@ def execute_and_export(
     humanise_output: bool = False,
     instrument: str = "harpsichord",
     style: str = "baroque",
+    strict: bool = True,
 ) -> list[Note]:
     """Execute plan and export to .mid, .note, .musicxml, and .trace files.
 
@@ -49,12 +56,14 @@ def execute_and_export(
         humanise_output: If True, apply humanisation for expressive timing/dynamics
         instrument: Instrument profile for humanisation (harpsichord, piano, clavichord)
         style: Style profile for humanisation (baroque)
+        strict: If True, raise on blocker-level guard violations.
+                If False, only print warnings and continue.
 
     Returns:
         List of Note objects (humanised if humanise_output=True)
     """
     tracer = get_tracer()
-    midi_notes, piece = execute(yaml_str)
+    midi_notes, piece = execute(yaml_str, strict=strict)
     tempo: int = tempo_from_name(piece.tempo)
     num_str, den_str = piece.metre.split("/")
     timenum: int = int(num_str)

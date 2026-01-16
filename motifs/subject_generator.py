@@ -66,6 +66,82 @@ def _intervals(degrees: tuple[int, ...]) -> list[int]:
     return [degrees[i + 1] - degrees[i] for i in range(len(degrees) - 1)]
 
 
+def _midi_intervals(midi_pitches: tuple[int, ...]) -> list[int]:
+    """Compute semitone intervals between adjacent MIDI pitches."""
+    return [midi_pitches[i + 1] - midi_pitches[i] for i in range(len(midi_pitches) - 1)]
+
+
+def _has_seventh_leap(midi_pitches: tuple[int, ...]) -> bool:
+    """Check if sequence has any 7th leap (10-11 semitones)."""
+    for iv in _midi_intervals(midi_pitches):
+        if abs(iv) in (10, 11):
+            return True
+    return False
+
+
+def _has_tritone_leap(midi_pitches: tuple[int, ...]) -> bool:
+    """Check if sequence has any tritone leap (6 semitones)."""
+    for iv in _midi_intervals(midi_pitches):
+        if abs(iv) == 6:
+            return True
+    return False
+
+
+def _has_tritone_outline(midi_pitches: tuple[int, ...]) -> bool:
+    """Check if any 4-note span outlines a tritone (6 semitones)."""
+    if len(midi_pitches) < 4:
+        return False
+    for i in range(len(midi_pitches) - 3):
+        span = abs(midi_pitches[i + 3] - midi_pitches[i])
+        if span == 6:
+            return True
+    return False
+
+
+def _has_consecutive_leaps_same_direction(midi_pitches: tuple[int, ...]) -> bool:
+    """Check if sequence has two consecutive leaps (>2 semitones) in same direction."""
+    intervals = _midi_intervals(midi_pitches)
+    for i in range(len(intervals) - 1):
+        iv1, iv2 = intervals[i], intervals[i + 1]
+        # Both must be leaps (> 2 semitones)
+        if abs(iv1) > 2 and abs(iv2) > 2:
+            # Same direction
+            if (iv1 > 0 and iv2 > 0) or (iv1 < 0 and iv2 < 0):
+                return True
+    return False
+
+
+def _has_unresolved_leading_tone(scale_indices: tuple[int, ...]) -> bool:
+    """Check if any leading tone (degree 7 / index 6) fails to resolve to tonic.
+
+    The leading tone creates tension that must resolve upward to the tonic.
+    Degree 7 (scale index 6) must be followed by degree 1 (scale index 0 or 7).
+    """
+    for i in range(len(scale_indices) - 1):
+        idx = scale_indices[i] % 7  # Normalize to 0-6
+        next_idx = scale_indices[i + 1] % 7
+        # If this is scale degree 7 (index 6), next must be tonic (index 0)
+        if idx == 6 and next_idx != 0:
+            return True
+    return False
+
+
+def _is_melodically_valid(midi_pitches: tuple[int, ...], scale_indices: tuple[int, ...] | None = None) -> bool:
+    """Check if MIDI pitch sequence passes all melodic validation."""
+    if _has_seventh_leap(midi_pitches):
+        return False
+    if _has_tritone_leap(midi_pitches):
+        return False
+    if _has_tritone_outline(midi_pitches):
+        return False
+    if _has_consecutive_leaps_same_direction(midi_pitches):
+        return False
+    # Check leading tone resolution if scale indices provided
+    if scale_indices is not None and _has_unresolved_leading_tone(scale_indices):
+        return False
+    return True
+
+
 def _largest_leap_position(intervals: list[int]) -> int:
     """Return 0-indexed position of largest leap, or -1 if no leap."""
     if not intervals:
@@ -277,6 +353,10 @@ def generate_subject(
 
             midi_pitches = degrees_to_midi(degrees, tonic_midi, mode)
 
+            # Validate melodic content (pass scale indices for leading tone check)
+            if not _is_melodically_valid(midi_pitches, degrees):
+                continue
+
             # Combined score: base + figurae + affect profile
             total_score = 1.0 + fig_score + affect_score
 
@@ -371,8 +451,13 @@ def generate_subject_batch(
             if len(set(rhythm)) < 2:
                 continue
 
-            seen_degrees.add(degrees)
             midi_pitches = degrees_to_midi(degrees, tonic_midi, mode)
+
+            # Validate melodic content (pass scale indices for leading tone check)
+            if not _is_melodically_valid(midi_pitches, degrees):
+                continue
+
+            seen_degrees.add(degrees)
 
             subject = GeneratedSubject(
                 scale_indices=degrees,

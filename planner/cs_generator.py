@@ -288,6 +288,12 @@ def generate_countersubject(
         model, cs_degrees, active, subject, max_cs_notes, penalties
     )
 
+    # === LEADING TONE RESOLUTION ===
+
+    _add_leading_tone_resolution(
+        model, cs_degrees, active, max_cs_notes, penalties
+    )
+
     # === MOTIVIC CONSTRAINTS ===
 
     _add_motivic_constraints(
@@ -467,6 +473,12 @@ def _add_vertical_constraints(
     # Parallel fifths/octaves: check consecutive subject notes
     _add_parallel_fifth_constraints(model, cs_degrees, active, subject, penalties)
 
+    # Strong beat consonance: CS attacks on strong beats must be consonant
+    _add_strong_beat_consonance(
+        model, cs_degrees, cs_attacks, active,
+        subject, subj_attacks_scaled, target_scaled, penalties
+    )
+
 
 def _add_parallel_fifth_constraints(
     model,
@@ -475,20 +487,27 @@ def _add_parallel_fifth_constraints(
     subject: Subject,
     penalties: list,
 ) -> None:
-    """Forbid parallel perfect fifths and octaves."""
+    """Forbid parallel perfect fifths/octaves, penalize direct (hidden) perfects.
+
+    Parallel: Both voices move in same direction, both intervals are perfect.
+              This is FORBIDDEN (hard constraint).
+    Direct/Hidden: Both voices move in same direction to a perfect interval,
+                   and the upper voice (subject) leaps.
+                   This is heavily PENALIZED (soft constraint).
+    """
     scale = subject.scale
     max_cs = len(cs_degrees)
 
-    # Check consecutive CS notes for parallel motion to perfect intervals
+    # Heavy penalty for direct/hidden fifths (but not impossible)
+    DIRECT_FIFTH_PENALTY = 300
+
+    # Check consecutive CS notes for parallel/direct motion to perfect intervals
     for i in range(1, max_cs):
         for prev_d in range(1, 8):
             for curr_d in range(1, 8):
                 prev_semi = _degree_to_semitone(prev_d, scale)
                 curr_semi = _degree_to_semitone(curr_d, scale)
                 cs_motion = curr_semi - prev_semi
-
-                if cs_motion == 0:
-                    continue
 
                 # For each pair of consecutive subject notes
                 for si in range(1, len(subject.degrees)):
@@ -499,32 +518,138 @@ def _add_parallel_fifth_constraints(
                     subj_curr_semi = _degree_to_semitone(subj_curr, scale)
                     subj_motion = subj_curr_semi - subj_prev_semi
 
-                    if subj_motion == 0:
+                    # Skip if both voices static
+                    if cs_motion == 0 and subj_motion == 0:
                         continue
 
-                    # Check if both move in same direction
-                    same_direction = (cs_motion > 0) == (subj_motion > 0)
+                    # Check if both move in same direction (or one is static)
+                    same_direction = (cs_motion >= 0 and subj_motion >= 0) or \
+                                    (cs_motion <= 0 and subj_motion <= 0)
 
-                    # Check if both intervals are perfect
+                    # If truly parallel (both moving same non-zero direction)
+                    truly_parallel = (cs_motion > 0 and subj_motion > 0) or \
+                                    (cs_motion < 0 and subj_motion < 0)
+
+                    # Interval classes
                     ic_prev = _interval_class(subj_prev, prev_d, scale)
                     ic_curr = _interval_class(subj_curr, curr_d, scale)
 
-                    if same_direction and ic_prev in {0, 7} and ic_curr in {0, 7}:
-                        # Parallel perfect: forbid this assignment
-                        is_prev = model.NewBoolVar(f"pp_prev_{i}_{si}_{prev_d}")
-                        is_curr = model.NewBoolVar(f"pp_curr_{i}_{si}_{curr_d}")
+                    # Check for parallel perfects (both intervals perfect, same direction)
+                    is_parallel_perfect = truly_parallel and ic_prev in {0, 7} and ic_curr in {0, 7}
+
+                    # Check for direct/hidden perfects:
+                    # - Moving to a perfect interval
+                    # - Same direction movement
+                    # - Upper voice (subject) leaps (> 2 semitones)
+                    subj_leaps = abs(subj_motion) > 2
+                    is_direct_perfect = same_direction and ic_curr in {0, 7} and subj_leaps and \
+                                       (cs_motion != 0 or subj_motion != 0) and not is_parallel_perfect
+
+                    if is_parallel_perfect or is_direct_perfect:
+                        # Create indicators
+                        is_prev = model.NewBoolVar(f"pf_prev_{i}_{si}_{prev_d}")
+                        is_curr = model.NewBoolVar(f"pf_curr_{i}_{si}_{curr_d}")
 
                         model.Add(cs_degrees[i - 1] == prev_d).OnlyEnforceIf(is_prev)
                         model.Add(cs_degrees[i - 1] != prev_d).OnlyEnforceIf(is_prev.Not())
                         model.Add(cs_degrees[i] == curr_d).OnlyEnforceIf(is_curr)
                         model.Add(cs_degrees[i] != curr_d).OnlyEnforceIf(is_curr.Not())
 
-                        both_active = model.NewBoolVar(f"pp_ba_{i}_{si}")
+                        both_active = model.NewBoolVar(f"pf_ba_{i}_{si}")
                         model.AddBoolAnd([active[i - 1], active[i]]).OnlyEnforceIf(both_active)
                         model.AddBoolOr([active[i - 1].Not(), active[i].Not()]).OnlyEnforceIf(both_active.Not())
 
-                        # Forbid: NOT (is_prev AND is_curr AND both_active)
-                        model.AddBoolOr([is_prev.Not(), is_curr.Not(), both_active.Not()])
+                        # Create violation indicator
+                        violation = model.NewBoolVar(f"pf_viol_{i}_{si}_{prev_d}_{curr_d}")
+                        model.AddBoolAnd([is_prev, is_curr, both_active]).OnlyEnforceIf(violation)
+                        model.AddBoolOr([is_prev.Not(), is_curr.Not(), both_active.Not()]).OnlyEnforceIf(violation.Not())
+
+                        if is_parallel_perfect:
+                            # HARD: Forbid parallel perfect fifths/octaves
+                            model.Add(violation == 0)
+                        else:
+                            # SOFT: Penalize direct/hidden fifths
+                            penalties.append(violation * DIRECT_FIFTH_PENALTY)
+
+
+def _add_strong_beat_consonance(
+    model,
+    cs_degrees: list,
+    cs_attacks: list,
+    active: list,
+    subject: Subject,
+    subj_attacks_scaled: list[int],
+    target_scaled: int,
+    penalties: list,
+) -> None:
+    """Penalize dissonance when CS attacks on strong beats.
+
+    Dissonances on strong beats require preparation (suspension/tie from previous beat).
+    Since we don't model suspensions, we heavily penalize dissonances on strong beats.
+    This addresses Fux II.1 (dissonance on strong beat without preparation).
+    """
+    scale = subject.scale
+    max_cs = len(cs_degrees)
+    n_subj = len(subject.degrees)
+
+    # Strong beat positions (scaled): beat 1 and beat 3 of each bar
+    bar_scaled = DURATION_SCALE  # One bar = 32 units
+    strong_positions: set[int] = set()
+    pos = 0
+    while pos < target_scaled:
+        strong_positions.add(pos)  # Beat 1
+        strong_positions.add(pos + bar_scaled // 2)  # Beat 3
+        pos += bar_scaled
+
+    # High penalty for strong beat dissonance (but not impossible)
+    STRONG_BEAT_DISSONANCE_PENALTY = 500
+
+    # For each strong beat position
+    for strong_pos in strong_positions:
+        if strong_pos >= target_scaled:
+            continue
+
+        # Find which subject note is sounding at this position
+        subj_deg_at_pos = None
+        for si in range(n_subj):
+            subj_start = subj_attacks_scaled[si]
+            subj_end = subj_attacks_scaled[si + 1] if si + 1 < n_subj else target_scaled
+            if subj_start <= strong_pos < subj_end:
+                subj_deg_at_pos = subject.degrees[si]
+                break
+
+        if subj_deg_at_pos is None:
+            continue
+
+        # For each CS note, check if it attacks at this strong beat
+        for ci in range(max_cs):
+            # Create indicator: CS note ci attacks exactly at strong_pos
+            cs_at_pos = model.NewBoolVar(f"cs_pos_{strong_pos}_{ci}")
+            model.Add(cs_attacks[ci] == strong_pos).OnlyEnforceIf(cs_at_pos)
+            model.Add(cs_attacks[ci] != strong_pos).OnlyEnforceIf(cs_at_pos.Not())
+
+            # attacks_here = active AND cs_at_pos
+            attacks_here = model.NewBoolVar(f"sb_atk_{strong_pos}_{ci}")
+            model.AddBoolAnd([active[ci], cs_at_pos]).OnlyEnforceIf(attacks_here)
+            model.AddBoolOr([active[ci].Not(), cs_at_pos.Not()]).OnlyEnforceIf(attacks_here.Not())
+
+            # When attacking at strong beat, penalize dissonance
+            for cs_d in range(1, 8):
+                ic = _interval_class(subj_deg_at_pos, cs_d, scale)
+
+                if ic not in ALL_CONSONANCES:
+                    # Dissonance on strong beat: heavily penalize
+                    is_this_deg = model.NewBoolVar(f"sb_deg_{strong_pos}_{ci}_{cs_d}")
+                    model.Add(cs_degrees[ci] == cs_d).OnlyEnforceIf(is_this_deg)
+                    model.Add(cs_degrees[ci] != cs_d).OnlyEnforceIf(is_this_deg.Not())
+
+                    # Create combined indicator for violation
+                    violation = model.NewBoolVar(f"sb_viol_{strong_pos}_{ci}_{cs_d}")
+                    model.AddBoolAnd([attacks_here, is_this_deg]).OnlyEnforceIf(violation)
+                    model.AddBoolOr([attacks_here.Not(), is_this_deg.Not()]).OnlyEnforceIf(violation.Not())
+
+                    # Add heavy penalty
+                    penalties.append(violation * STRONG_BEAT_DISSONANCE_PENALTY)
 
 
 def _add_melodic_constraints(
@@ -565,14 +690,183 @@ def _add_melodic_constraints(
                 if prev_d == curr_d:
                     penalties.append(is_move * 20)
 
-                # Penalize large leaps (> 5 semitones)
-                if motion > 5:
-                    penalty = 30 if motion <= 7 else 150
-                    penalties.append(is_move * penalty)
+                # HARD: Forbid seventh leaps (10-11 semitones) entirely
+                if motion in (10, 11):
+                    model.Add(is_move == 0)
+
+                # HARD: Forbid leaps beyond octave
+                if motion > 12:
+                    model.Add(is_move == 0)
+
+                # HARD: Forbid tritone leaps (6 semitones)
+                if motion == 6:
+                    model.Add(is_move == 0)
+
+                # Penalize large leaps (> 5 semitones) - still allowed but discouraged
+                elif motion > 5:
+                    penalties.append(is_move * 50)
 
                 # Penalize non-stepwise motion (encourage 70% stepwise)
                 if motion > 2:
                     penalties.append(is_move * 10)
+
+    # Add leap compensation constraint: after a leap, prefer step in opposite direction
+    _add_leap_compensation_constraints(model, cs_degrees, active, subject, max_cs, penalties)
+
+    # Add tritone outline constraint: forbid 4-note spans that outline tritone
+    _add_tritone_outline_constraints(model, cs_degrees, active, subject, max_cs, penalties)
+
+    # Add consecutive leap constraint: forbid two leaps in same direction
+    _add_consecutive_leap_constraints(model, cs_degrees, active, subject, max_cs, penalties)
+
+
+def _add_leap_compensation_constraints(
+    model,
+    cs_degrees: list,
+    active: list,
+    subject: Subject,
+    max_cs: int,
+    penalties: list,
+) -> None:
+    """Add leap compensation constraints: after a leap, prefer step in opposite direction."""
+    scale = subject.scale
+
+    for i in range(2, max_cs):
+        # Check if notes i-2, i-1, i are all active
+        all_active = model.NewBoolVar(f"lc_active_{i}")
+        model.AddBoolAnd([active[i - 2], active[i - 1], active[i]]).OnlyEnforceIf(all_active)
+        model.AddBoolOr([active[i - 2].Not(), active[i - 1].Not(), active[i].Not()]).OnlyEnforceIf(all_active.Not())
+
+        for d1 in range(1, 8):
+            for d2 in range(1, 8):
+                for d3 in range(1, 8):
+                    s1 = _degree_to_semitone(d1, scale)
+                    s2 = _degree_to_semitone(d2, scale)
+                    s3 = _degree_to_semitone(d3, scale)
+
+                    leap = s2 - s1  # First interval (signed)
+                    step = s3 - s2  # Second interval (signed)
+
+                    # Only check if first interval is a leap (> 2 semitones)
+                    if abs(leap) <= 2:
+                        continue
+
+                    # Check if compensation is missing:
+                    # - Step should be in opposite direction
+                    # - Step should be small (<= 2 semitones)
+                    is_compensated = (leap > 0 and step < 0 and abs(step) <= 2) or \
+                                     (leap < 0 and step > 0 and abs(step) <= 2)
+
+                    if not is_compensated:
+                        # Create constraint variables
+                        is_d1 = model.NewBoolVar(f"lc_d1_{i}_{d1}")
+                        is_d2 = model.NewBoolVar(f"lc_d2_{i}_{d2}")
+                        is_d3 = model.NewBoolVar(f"lc_d3_{i}_{d3}")
+
+                        model.Add(cs_degrees[i - 2] == d1).OnlyEnforceIf(is_d1)
+                        model.Add(cs_degrees[i - 2] != d1).OnlyEnforceIf(is_d1.Not())
+                        model.Add(cs_degrees[i - 1] == d2).OnlyEnforceIf(is_d2)
+                        model.Add(cs_degrees[i - 1] != d2).OnlyEnforceIf(is_d2.Not())
+                        model.Add(cs_degrees[i] == d3).OnlyEnforceIf(is_d3)
+                        model.Add(cs_degrees[i] != d3).OnlyEnforceIf(is_d3.Not())
+
+                        all_match = model.NewBoolVar(f"lc_match_{i}_{d1}_{d2}_{d3}")
+                        model.AddBoolAnd([all_active, is_d1, is_d2, is_d3]).OnlyEnforceIf(all_match)
+                        model.AddBoolOr([all_active.Not(), is_d1.Not(), is_d2.Not(), is_d3.Not()]).OnlyEnforceIf(all_match.Not())
+
+                        # Penalize uncompensated leaps
+                        penalties.append(all_match * 40)
+
+
+def _add_tritone_outline_constraints(
+    model,
+    cs_degrees: list,
+    active: list,
+    subject: Subject,
+    max_cs: int,
+    penalties: list,
+) -> None:
+    """Forbid 4-note melodic spans that outline a tritone."""
+    scale = subject.scale
+
+    for i in range(3, max_cs):
+        # Check if all 4 notes are active
+        all_active = model.NewBoolVar(f"to_active_{i}")
+        model.AddBoolAnd([active[i - 3], active[i - 2], active[i - 1], active[i]]).OnlyEnforceIf(all_active)
+        model.AddBoolOr([active[i - 3].Not(), active[i - 2].Not(), active[i - 1].Not(), active[i].Not()]).OnlyEnforceIf(all_active.Not())
+
+        for d1 in range(1, 8):
+            for d4 in range(1, 8):
+                s1 = _degree_to_semitone(d1, scale)
+                s4 = _degree_to_semitone(d4, scale)
+
+                # Check if outer interval is tritone (6 semitones)
+                if abs(s4 - s1) % 12 == 6:
+                    is_d1 = model.NewBoolVar(f"to_d1_{i}_{d1}")
+                    is_d4 = model.NewBoolVar(f"to_d4_{i}_{d4}")
+
+                    model.Add(cs_degrees[i - 3] == d1).OnlyEnforceIf(is_d1)
+                    model.Add(cs_degrees[i - 3] != d1).OnlyEnforceIf(is_d1.Not())
+                    model.Add(cs_degrees[i] == d4).OnlyEnforceIf(is_d4)
+                    model.Add(cs_degrees[i] != d4).OnlyEnforceIf(is_d4.Not())
+
+                    tritone_outline = model.NewBoolVar(f"to_match_{i}_{d1}_{d4}")
+                    model.AddBoolAnd([all_active, is_d1, is_d4]).OnlyEnforceIf(tritone_outline)
+                    model.AddBoolOr([all_active.Not(), is_d1.Not(), is_d4.Not()]).OnlyEnforceIf(tritone_outline.Not())
+
+                    # HARD: Forbid tritone outlines
+                    model.Add(tritone_outline == 0)
+
+
+def _add_consecutive_leap_constraints(
+    model,
+    cs_degrees: list,
+    active: list,
+    subject: Subject,
+    max_cs: int,
+    penalties: list,
+) -> None:
+    """Forbid two consecutive leaps in the same direction."""
+    scale = subject.scale
+
+    for i in range(2, max_cs):
+        # Check if notes i-2, i-1, i are all active
+        all_active = model.NewBoolVar(f"cl_active_{i}")
+        model.AddBoolAnd([active[i - 2], active[i - 1], active[i]]).OnlyEnforceIf(all_active)
+        model.AddBoolOr([active[i - 2].Not(), active[i - 1].Not(), active[i].Not()]).OnlyEnforceIf(all_active.Not())
+
+        for d1 in range(1, 8):
+            for d2 in range(1, 8):
+                for d3 in range(1, 8):
+                    s1 = _degree_to_semitone(d1, scale)
+                    s2 = _degree_to_semitone(d2, scale)
+                    s3 = _degree_to_semitone(d3, scale)
+
+                    leap1 = s2 - s1  # First interval (signed)
+                    leap2 = s3 - s2  # Second interval (signed)
+
+                    # Check if both are leaps (> 2 semitones) in same direction
+                    both_leaps = abs(leap1) > 2 and abs(leap2) > 2
+                    same_direction = (leap1 > 0 and leap2 > 0) or (leap1 < 0 and leap2 < 0)
+
+                    if both_leaps and same_direction:
+                        is_d1 = model.NewBoolVar(f"cl_d1_{i}_{d1}")
+                        is_d2 = model.NewBoolVar(f"cl_d2_{i}_{d2}")
+                        is_d3 = model.NewBoolVar(f"cl_d3_{i}_{d3}")
+
+                        model.Add(cs_degrees[i - 2] == d1).OnlyEnforceIf(is_d1)
+                        model.Add(cs_degrees[i - 2] != d1).OnlyEnforceIf(is_d1.Not())
+                        model.Add(cs_degrees[i - 1] == d2).OnlyEnforceIf(is_d2)
+                        model.Add(cs_degrees[i - 1] != d2).OnlyEnforceIf(is_d2.Not())
+                        model.Add(cs_degrees[i] == d3).OnlyEnforceIf(is_d3)
+                        model.Add(cs_degrees[i] != d3).OnlyEnforceIf(is_d3.Not())
+
+                        consec_leaps = model.NewBoolVar(f"cl_match_{i}_{d1}_{d2}_{d3}")
+                        model.AddBoolAnd([all_active, is_d1, is_d2, is_d3]).OnlyEnforceIf(consec_leaps)
+                        model.AddBoolOr([all_active.Not(), is_d1.Not(), is_d2.Not(), is_d3.Not()]).OnlyEnforceIf(consec_leaps.Not())
+
+                        # HARD: Forbid consecutive leaps in same direction
+                        model.Add(consec_leaps == 0)
 
 
 def _add_rhythmic_constraints(
@@ -700,6 +994,49 @@ def _add_cadential_constraints(
                         model.AddBoolOr([is_final.Not(), is_p.Not(), is_f.Not()]).OnlyEnforceIf(all_three.Not())
 
                         penalties.append(all_three * 40)
+
+
+def _add_leading_tone_resolution(
+    model,
+    cs_degrees: list,
+    active: list,
+    max_cs: int,
+    penalties: list,
+) -> None:
+    """Add leading tone resolution constraint: degree 7 must resolve to degree 1.
+
+    This is a fundamental rule in tonal counterpoint (Fux III.2).
+    The leading tone creates tension that must resolve upward to the tonic.
+
+    Note: In major mode, degree 7 is forbidden entirely (H4 constraint),
+    so this constraint only applies to minor mode.
+    """
+    # Heavy penalty for unresolved leading tone
+    LEADING_TONE_PENALTY = 400
+
+    for i in range(max_cs - 1):
+        # Check if notes i and i+1 are both active
+        both_active = model.NewBoolVar(f"lt_ba_{i}")
+        model.AddBoolAnd([active[i], active[i + 1]]).OnlyEnforceIf(both_active)
+        model.AddBoolOr([active[i].Not(), active[i + 1].Not()]).OnlyEnforceIf(both_active.Not())
+
+        # Check if note i is degree 7 (leading tone)
+        is_leading = model.NewBoolVar(f"lt_is7_{i}")
+        model.Add(cs_degrees[i] == 7).OnlyEnforceIf(is_leading)
+        model.Add(cs_degrees[i] != 7).OnlyEnforceIf(is_leading.Not())
+
+        # Check if note i+1 is NOT degree 1 (failure to resolve)
+        not_tonic = model.NewBoolVar(f"lt_not1_{i}")
+        model.Add(cs_degrees[i + 1] != 1).OnlyEnforceIf(not_tonic)
+        model.Add(cs_degrees[i + 1] == 1).OnlyEnforceIf(not_tonic.Not())
+
+        # If active AND is_leading AND not_tonic, this is a violation
+        violation = model.NewBoolVar(f"lt_viol_{i}")
+        model.AddBoolAnd([both_active, is_leading, not_tonic]).OnlyEnforceIf(violation)
+        model.AddBoolOr([both_active.Not(), is_leading.Not(), not_tonic.Not()]).OnlyEnforceIf(violation.Not())
+
+        # Heavy penalty for unresolved leading tone (soft constraint)
+        penalties.append(violation * LEADING_TONE_PENALTY)
 
 
 def _add_motivic_constraints(

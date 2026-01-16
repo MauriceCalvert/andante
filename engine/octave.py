@@ -90,7 +90,8 @@ def best_octave_contrapuntal(
     def score(m: int) -> float:
         interval: float = abs(m - prev_midi)
         register_dist: float = abs(m - median) * 0.5
-        consonance_penalty: float = 0.0 if is_consonant(m) else 100.0
+        # Consonance is critical - dissonance must be avoided
+        consonance_penalty: float = 0.0 if is_consonant(m) else 1000.0
         return consonance_penalty + interval + register_dist
     return min(candidates, key=score)
 
@@ -153,7 +154,8 @@ def best_octave_against(
     def score(m: int) -> float:
         parallels: int = parallel_count(m)
         parallel_penalty: float = 0.0 if skip_parallels else parallels * 200.0
-        consonance_penalty: float = 0.0 if is_consonant(m) else 50.0
+        # Consonance is critical - dissonance must be avoided at all costs
+        consonance_penalty: float = 0.0 if is_consonant(m) else 1000.0
         interval: float = abs(m - prev_midi)
         # For imitative textures (skip_parallels), reduce register weight
         # so melodic contour is prioritized over register drift
@@ -222,7 +224,8 @@ def best_octave_interleaved(
 
     def score(m: int) -> float:
         parallel_penalty: float = 200.0 if has_parallel(m) else 0.0
-        consonance_penalty: float = 0.0 if is_consonant(m) else 50.0
+        # Consonance is critical - dissonance must be avoided
+        consonance_penalty: float = 0.0 if is_consonant(m) else 1000.0
         interval: float = abs(m - prev_midi)
         register_dist: float = abs(m - median) * 0.5  # Lighter pull - allow crossing
         # REWARD crossing (negative penalty) - encourages Goldberg-style weaving
