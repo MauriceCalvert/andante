@@ -231,6 +231,9 @@ def generate_consonant_bass(
     note at that beat. This creates a simple, supportive bass line that
     avoids the complexity of note-by-note consonance checking.
 
+    Also avoids hidden fifths by checking voice motion before committing
+    to a bass note.
+
     Args:
         soprano_pitches: Soprano melody as FloatingNotes
         soprano_durations: Durations for each soprano note
@@ -264,6 +267,7 @@ def generate_consonant_bass(
     bass_durations: list[Fraction] = []
     num_bars: int = max(1, int(budget / bar_duration))
     prev_bass: int | None = None
+    prev_soprano: int | None = None
 
     for bar_idx in range(num_bars):
         bar_start: Fraction = bar_duration * bar_idx

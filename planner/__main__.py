@@ -13,10 +13,15 @@ from engine.validate import validate_brief_yaml
 def main() -> None:
     """Run planner CLI."""
     if len(sys.argv) < 2:
-        print("Usage: python -m planner <brief.yaml>", file=sys.stderr)
+        print("Usage: python -m planner <brief.yaml> [--seed N]", file=sys.stderr)
         print("       Reads brief, outputs plan YAML to stdout", file=sys.stderr)
         sys.exit(1)
     brief_path: Path = Path(sys.argv[1])
+    seed: int | None = None
+    if "--seed" in sys.argv:
+        seed_idx: int = sys.argv.index("--seed")
+        if seed_idx + 1 < len(sys.argv):
+            seed = int(sys.argv[seed_idx + 1])
     if not brief_path.exists():
         print(f"Error: File not found: {brief_path}", file=sys.stderr)
         sys.exit(1)
@@ -34,7 +39,7 @@ def main() -> None:
         bars=brief_data["bars"],
         virtuosic=brief_data.get("virtuosic", False),
     )
-    plan = build_plan(brief)
+    plan = build_plan(brief, seed=seed)
     yaml_str: str = serialize_plan(plan)
     print(yaml_str)
 
