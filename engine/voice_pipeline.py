@@ -38,7 +38,12 @@ def voice_spec_from_treatment(treatment: dict, voice: str) -> VoiceSpec:
     in voice_expander.py when counter_subject is used.
     """
     prefix: str = f"{voice}_"
-    source: str = treatment.get(f"{prefix}source", "subject")
+    # Bass defaults to counter_subject for proper counterpoint
+    if voice == "bass":
+        default_source = "counter_subject"
+    else:
+        default_source = "subject"
+    source: str = treatment.get(f"{prefix}source", default_source)
     direct: bool = treatment.get(f"{prefix}direct", False)
 
     return VoiceSpec(
@@ -169,7 +174,9 @@ def expand_voice(
         pitches, durations = get_source_material(spec, subject, counter_subject)
         material: TimedMaterial = _extend_to_budget(pitches, durations, fill_budget)
         return apply_voice_delay(material, effective_delay, budget)
-    # Direct mode: present source material clearly
+    # Direct mode: cycle source material in sync (preserves CS alignment)
+    # CRITICAL: For counter_subject, both voices must cycle together.
+    # Using bar treatment cycling for "development" breaks CS alignment.
     if spec.direct:
         pitches, durations = get_source_material(spec, subject, counter_subject)
         source_duration: Fraction = sum(durations, Fraction(0))
@@ -179,37 +186,14 @@ def expand_voice(
             spec.transform,
             spec.transform_params,
         )
-        transformed_duration: Fraction = sum(transformed.durations, Fraction(0))
-        if fill_budget <= transformed_duration:
-            # Budget fits within one statement - use verbatim
-            material = _extend_to_budget(transformed.pitches, transformed.durations, fill_budget)
-        else:
-            # Budget exceeds source - state once, then develop remainder
-            # First part: verbatim statement (mark as guard-exempt)
-            direct_pitches = tuple(
-                p.as_exempt() if isinstance(p, FloatingNote) else p
-                for p in transformed.pitches
-            )
-            direct_part = TimedMaterial(direct_pitches, transformed.durations, transformed_duration)
-            # Remainder: use bar treatment cycling for development
-            remainder_budget: Fraction = fill_budget - transformed_duration
-            use_cs: bool = spec.source == "counter_subject"
-            if voice == "soprano":
-                dev_part = build_phrase_soprano(
-                    subject, counter_subject, remainder_budget, phrase_index + 1,
-                    spec.transform, use_cs
-                )
-            else:
-                dev_part = build_phrase_bass(
-                    subject, counter_subject, remainder_budget, phrase_index + 1,
-                    spec.transform, use_cs
-                )
-            # Combine: direct statement + developed remainder
-            material = TimedMaterial(
-                direct_part.pitches + dev_part.pitches,
-                direct_part.durations + dev_part.durations,
-                fill_budget,
-            )
+        # Mark as guard-exempt (direct material is intentionally repetitive)
+        exempt_pitches = tuple(
+            p.as_exempt() if isinstance(p, FloatingNote) else p
+            for p in transformed.pitches
+        )
+        # Always use simple cycling to preserve CS alignment
+        # When both voices use direct mode, they cycle in sync
+        material = _extend_to_budget(exempt_pitches, transformed.durations, fill_budget)
         # Apply derivation if specified
         if spec.derivation == "imitation":
             interval: int = spec.derivation_params.get("interval", 4)

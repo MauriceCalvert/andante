@@ -87,7 +87,7 @@ def _enforce_direct_for_cs(treatment_name: str, treatment: dict) -> None:
     Modifies treatment dict in-place.
     """
     soprano_source = treatment.get("soprano_source", "subject")
-    bass_source = treatment.get("bass_source", "subject")
+    bass_source = treatment.get("bass_source", "counter_subject")
     uses_cs = soprano_source == "counter_subject" or bass_source == "counter_subject"
 
     if not uses_cs:

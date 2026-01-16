@@ -490,11 +490,32 @@ def validate_nvoice_guards(
         upper = [(n.offset, n.pitch) for n in realised.voices[pair.upper_index].notes]
         lower = [(n.offset, n.pitch) for n in realised.voices[pair.lower_index].notes]
         location: str = f"phrase {phrase.index} voices {pair.upper_index}-{pair.lower_index}"
-        diags = run_guards(guards, upper, lower, location, bar_dur, metre)
+        diags = run_guards(guards, upper, lower, location, bar_dur, metre, key.tonic_pc)
         # Exclude final offset for cadence phrases
         if phrase.cadence is not None and upper:
             final_offset: Fraction = upper[-1][0]
             diags = [d for d in diags if d.offset != final_offset]
+        # =================================================================
+        # BACH-PRACTICAL GUARD FILTERING
+        # Fux-strict rules become warnings in non-cadential contexts.
+        # They remain blockers only at tonic-resolving cadences.
+        # =================================================================
+        tonic_cadences = {"authentic", "plagal", "deceptive"}
+        fux_strict_guards = {
+            # Leading tone (Fux III.2): Bach allows free melodic 7
+            "cad_001", "cad_002",
+            # Dissonance (Fux II.1-3): Bach uses appoggiaturas, escape tones
+            "diss_001", "diss_002", "diss_003", "diss_004",
+            # Hidden motion (Fux I.15): Bach uses hidden 5ths/8ves in keyboard
+            "vl_003", "vl_004",
+        }
+        if phrase.cadence not in tonic_cadences:
+            # Downgrade Fux-strict blockers to warnings (won't be returned as violations)
+            diags = [
+                d if d.guard_id not in fux_strict_guards or d.severity != "blocker"
+                else type(d)(d.guard_id, "warning", d.message, d.location, d.offset)
+                for d in diags
+            ]
         violations.extend([d for d in diags if d.severity == "blocker"])
 
     return violations

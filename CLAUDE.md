@@ -55,7 +55,7 @@ When i ask you to run it, update overage.md and show the final %.
 ## Running Python Scripts
 
 ```bash
-cd /d/projects/Barok/barok && source .venv/Scripts/activate && cd source/andante && python <script>
+cd /d/projects/Barok/barok && source .venv/Scripts/activate && cd source/andante && PYTHONPATH=. python <script>
 ```
 
 Key paths:

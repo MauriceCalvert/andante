@@ -313,4 +313,114 @@ So `imitation_cs` (soprano=CS, bass=subject) is consonant IF both use direct mod
 
 ---
 
+## Leading Tone Resolution
+
+### Fux vs Bach
+
+**Fux III.2 (strict)**: The leading tone (degree 7) must resolve upward by step to the tonic. Every occurrence.
+
+**Bach (practical)**: Leading tone resolution is mandatory at **cadences**. In melodic/sequential contexts, degree 7 moves freely like any other scale degree.
+
+Examples of Bach-acceptable patterns:
+- `7 -> 5 -> 3 -> 1` (scalar descent through leading tone)
+- `7 -> 6 -> 5` (stepwise descent, no immediate tonic)
+- `1 -> 7 -> 5` (neighbor motion, resolves later)
+
+### Why cad_001 Must Be Cadence-Scoped
+
+The original cad_001 guard checked ALL leading tones in the soprano. This caused false positives:
+
+1. Subject with `[7, 5, 3, 1]` would flag the 7->5 as unresolved
+2. Cycling subject material created more "violations"
+3. Baroque melodies legitimately use 7 as passing tone
+
+**Fix**: Only validate leading tone resolution for tonic-resolving cadences (authentic, plagal, deceptive). Half cadences end on V, not I, so leading tone resolution doesn't apply there. Non-cadential phrases allow free melodic motion through degree 7.
+
+### Guard Context Requirements
+
+Key context must flow to guards for accurate leading-tone detection:
+
+1. `check_guards()` receives `key: Key` parameter
+2. Passes `key.tonic_pc` to `run_guards()`
+3. Leading tone check uses actual tonic, not hardcoded C major
+
+Without key context, the guard would look for B (pitch class 11) in all keys, causing wrong-key false positives.
+
+### diss_003 Leading Tone Detection Bug
+
+The original `validate_dissonance` check for "resolved upward" used:
+```python
+if soprano_motion > 0 and interval != 11:  # WRONG
+```
+
+This checked if the interval between soprano and bass was 11 semitones. But a leading tone is defined by the soprano pitch class, not the interval above bass.
+
+**Fix**: The wrapper `_check_dissonance_resolved_up` now filters using:
+```python
+leading_tone_pc = (tonic_pc + 11) % 12
+if soprano_pitch % 12 == leading_tone_pc:
+    continue  # Leading tone may resolve up
+```
+
+### Hidden Fifth/Octave Tolerance (vl_003/vl_004)
+
+Fux I.15 forbids hidden fifths/octaves when soprano leaps (> 2 semitones). But Bach frequently used them with small leaps.
+
+**Original check**: `soprano_motion > 2` (anything beyond a step)
+**Fixed check**: `soprano_motion > 4` (anything beyond a third)
+
+Baroque keyboard music commonly has hidden motion with soprano moving by third. Only larger leaps (fourths+) are flagged.
+
+---
+
+## Bach-Practical Guard Filtering
+
+### Fux vs Bach Philosophy
+
+**Fux (Species Counterpoint)**: Strict rules for pedagogical exercises. Every dissonance prepared, every leading tone resolved, every motion controlled.
+
+**Bach (Baroque Practice)**: Musical expressivity over strict rules. Appoggiaturas, escape tones, free melodic motion, unprepared dissonances for affect.
+
+### Guard Scoping Strategy
+
+Rather than disabling strict rules globally, we **downgrade them to warnings** in non-cadential contexts. They remain **blockers at tonic-resolving cadences** (authentic, plagal, deceptive).
+
+This maintains strict voice-leading at structural boundaries while allowing baroque freedom elsewhere, and preserves visibility of the issues.
+
+```python
+tonic_cadences = {"authentic", "plagal", "deceptive"}
+fux_strict_guards = {
+    "cad_001", "cad_002",              # Leading tone rules
+    "diss_001", "diss_002", "diss_004", # Dissonance treatment
+    "vl_003", "vl_004",                # Hidden motion
+}
+if phrase.cadence not in tonic_cadences:
+    # Downgrade Fux-strict blockers to warnings
+    diagnostics[i] = Diagnostic(..., severity="warning", ...)
+```
+
+### Guard Reference: Fux-Strict vs Always-Active
+
+| Guard | Rule | Behavior | Note |
+|-------|------|----------|------|
+| cad_001 | Leading tone unresolved | Warning (non-cad) | Bach allows melodic 7 freely |
+| cad_002 | Leading tone down | Warning (non-cad) | Bach allows 7→6 motion |
+| diss_001 | Unprepared dissonance | Warning (non-cad) | Bach uses appoggiaturas |
+| diss_002 | Unresolved dissonance | Warning (non-cad) | Bach uses free resolution |
+| diss_003 | Dissonance up | Wrapper-filtered | Allows actual leading tones |
+| diss_004 | Invalid weak-beat diss | Warning (non-cad) | Bach uses escape tones |
+| vl_003 | Hidden fifth | Warning (non-cad) | Bach uses in keyboard music |
+| vl_004 | Hidden octave | Warning (non-cad) | Bach uses in keyboard music |
+| tex_001 | Parallel fifths | Always blocker | Universal prohibition |
+| tex_002 | Parallel octaves | Always blocker | Universal prohibition |
+
+### Files Implementing Bach-Practical Filtering
+
+- `engine/realiser_guards.py`: Downgrades Fux-strict to warnings post-realisation
+- `engine/inner_voice.py`: Downgrades for N-voice backtracking
+- `engine/guards/registry.py`: diss_003 wrapper with leading-tone pitch-class filter
+- `engine/voice_checks.py`: Hidden motion threshold relaxed to 4 semitones (major third)
+
+---
+
 *Last updated: 2026-01-16*

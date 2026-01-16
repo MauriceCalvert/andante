@@ -14,16 +14,18 @@ from engine.bob.checker import diagnose
 from engine.bob.formatter import Report
 from engine.engine_types import RealisedNote, RealisedPhrase, RealisedVoice
 from engine.expander import bar_duration, expand_piece
+from engine.guards.registry import Diagnostic
 from engine.key import Key
 from engine.plan_parser import parse_yaml
-from engine.realiser import realise_phrases
+from engine.realiser import realise_phrases_with_diagnostics
 
 
-def _load_note_file(path: Path) -> tuple[list[RealisedPhrase], Fraction, Key]:
+def _load_note_file(path: Path) -> tuple[list[RealisedPhrase], Fraction, Key, list[Diagnostic]]:
     """Load .note file and reconstruct basic RealisedPhrases.
 
     Note files don't preserve phrase boundaries, so we create a single
     pseudo-phrase containing all notes grouped by voice.
+    Returns empty diagnostics since .note files don't have guard context.
     """
     lines = path.read_text().strip().split("\n")
     if not lines or lines[0].startswith("Offset"):
@@ -62,19 +64,22 @@ def _load_note_file(path: Path) -> tuple[list[RealisedPhrase], Fraction, Key]:
     phrase = RealisedPhrase(index=0, voices=realised_voices)
 
     # Default to 4/4 and C major (metadata not preserved in .note)
-    return [phrase], Fraction(4), Key(tonic="c", mode="major")
+    # No guard diagnostics available for .note files
+    return [phrase], Fraction(4), Key(tonic="c", mode="major"), []
 
 
-def _load_yaml_file(path: Path) -> tuple[list[RealisedPhrase], Fraction, Key]:
-    """Load .yaml file and realise to get RealisedPhrases."""
+def _load_yaml_file(path: Path) -> tuple[list[RealisedPhrase], Fraction, Key, list[Diagnostic]]:
+    """Load .yaml file and realise to get RealisedPhrases and diagnostics."""
     yaml_str = path.read_text()
     piece = parse_yaml(yaml_str)
     expanded = expand_piece(piece)
     bar_dur = bar_duration(piece.metre)
     key = Key(tonic=piece.key, mode=piece.mode)
     # Use strict=False to allow diagnosis even when blockers are found
-    realised = realise_phrases(expanded, key, bar_dur, piece.metre, strict=False)
-    return realised, bar_dur, key
+    realised, diagnostics = realise_phrases_with_diagnostics(
+        expanded, key, bar_dur, piece.metre, strict=False
+    )
+    return realised, bar_dur, key, diagnostics
 
 
 def main() -> None:
@@ -90,15 +95,21 @@ def main() -> None:
 
     suffix = path.suffix.lower()
     if suffix == ".yaml" or suffix == ".yml":
-        phrases, bar_dur, key = _load_yaml_file(path)
+        phrases, bar_dur, key, diagnostics = _load_yaml_file(path)
     elif suffix == ".note":
-        phrases, bar_dur, key = _load_note_file(path)
+        phrases, bar_dur, key, diagnostics = _load_note_file(path)
     else:
         print(f"Unsupported file type: {suffix}", file=sys.stderr)
         print("Supported: .yaml, .yml, .note", file=sys.stderr)
         sys.exit(1)
 
-    report: Report = diagnose(phrases, bar_duration=bar_dur, key=key)
+    # Pass guard diagnostics to use Bach-practical filtering
+    report: Report = diagnose(
+        phrases,
+        bar_duration=bar_dur,
+        key=key,
+        guard_diagnostics=diagnostics if diagnostics else None,
+    )
     print(report.to_clipboard())
 
 

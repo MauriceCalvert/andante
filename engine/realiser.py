@@ -257,6 +257,26 @@ def realise_phrases(
         strict: If True, raise on blocker-level guard violations.
                 If False, only print warnings (for diagnostic tools).
     """
+    realised, _ = realise_phrases_with_diagnostics(phrases, home_key, bar_duration, metre, strict)
+    return realised
+
+
+def realise_phrases_with_diagnostics(
+    phrases: list[ExpandedPhrase],
+    home_key: Key,
+    bar_duration: Fraction,
+    metre: str,
+    strict: bool = True,
+) -> tuple[list[RealisedPhrase], list[Diagnostic]]:
+    """Realise all phrases and run guards, returning diagnostics.
+
+    Same as realise_phrases but also returns guard diagnostics for use by
+    diagnostic tools like Bob. The diagnostics have Bach-practical filtering
+    already applied.
+
+    Returns:
+        Tuple of (realised phrases, guard diagnostics)
+    """
     tracer = get_tracer()
     realised: list[RealisedPhrase] = []
     offset: Fraction = Fraction(0)
@@ -287,7 +307,7 @@ def realise_phrases(
         if strict:
             raise ValueError(f"Guard check failed: {len(blockers)} blocker(s)")
     for d in diagnostics:
-        if d.severity == "major":
+        if d.severity == "warning":
             print(f"WARNING: {d.guard_id} - {d.message} ({d.location})")
     metrics = compute_metrics(phrases, bar_duration)
     tracer.trace("METRICS", "piece", "proportions",
@@ -296,4 +316,4 @@ def realise_phrases(
                  free=metrics.free_bars, thematic_ratio=f"{metrics.thematic_ratio:.1%}")
     if metrics.thematic_ratio < 0.5:
         print(f"WARNING: Low thematic ratio {metrics.thematic_ratio:.1%} (target: 50-70%)")
-    return realised
+    return realised, diagnostics

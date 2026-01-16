@@ -32,11 +32,17 @@ DATA_DIR = Path(__file__).parent.parent.parent / "data"
 # Module-level bar_duration set by run_guards before calling checks
 # This allows time-signature-aware checks without changing all signatures
 _current_bar_duration: Fraction = Fraction(1)
+_current_tonic_pc: int = 0  # Tonic pitch class (0-11), set by run_guards
 
 
 def _get_bar_duration() -> Fraction:
     """Get current bar duration for checks that need it."""
     return _current_bar_duration
+
+
+def _get_tonic_pc() -> int:
+    """Get current tonic pitch class for key-aware checks."""
+    return _current_tonic_pc
 
 
 # === Wrapper functions to adapt check signatures ===
@@ -97,9 +103,22 @@ def _check_dissonance_resolved_up(
     soprano: list[tuple[Fraction, int]],
     bass: list[tuple[Fraction, int]],
 ) -> list[Violation]:
-    """Wrapper for dissonance resolved upward."""
-    return [v for v in validate_dissonance(soprano, bass, _get_bar_duration())
-            if v.type == "dissonance_resolved_up"]
+    """Wrapper for dissonance resolved upward.
+
+    Filters out leading tones which MAY resolve upward per Fux II.3.
+    The original check incorrectly uses interval=11, but leading tone
+    is determined by soprano pitch class matching (tonic_pc + 11) % 12.
+    """
+    leading_tone_pc: int = (_get_tonic_pc() + 11) % 12
+    violations: list[Violation] = []
+    for v in validate_dissonance(soprano, bass, _get_bar_duration()):
+        if v.type != "dissonance_resolved_up":
+            continue
+        # Skip if soprano is actually the leading tone (allowed to resolve up)
+        if v.soprano_pitch % 12 == leading_tone_pc:
+            continue
+        violations.append(v)
+    return violations
 
 
 def _check_dissonance_by_leap(
@@ -174,8 +193,8 @@ def _check_leading_tone_unresolved(
     soprano: list[tuple[Fraction, int]],
     bass: list[tuple[Fraction, int]],
 ) -> list[Violation]:
-    """Wrapper for unresolved leading tone (assumes C major)."""
-    return [v for v in validate_leading_tone_resolution(soprano, 0)
+    """Wrapper for unresolved leading tone."""
+    return [v for v in validate_leading_tone_resolution(soprano, _get_tonic_pc())
             if v.type == "leading_tone_unresolved"]
 
 
@@ -184,7 +203,7 @@ def _check_leading_tone_resolved_down(
     bass: list[tuple[Fraction, int]],
 ) -> list[Violation]:
     """Wrapper for leading tone resolved down."""
-    return [v for v in validate_leading_tone_resolution(soprano, 0)
+    return [v for v in validate_leading_tone_resolution(soprano, _get_tonic_pc())
             if v.type == "leading_tone_resolved_down"]
 
 
@@ -304,10 +323,13 @@ def run_guards(
     location: str,
     bar_duration: Fraction,
     metre: str,
+    tonic_pc: int = 0,
 ) -> list[Diagnostic]:
     """Run phrase-scoped guards and collect diagnostics."""
-    global _current_bar_duration
+    global _current_bar_duration, _current_tonic_pc
+    assert 0 <= tonic_pc <= 11, f"Invalid tonic_pc: {tonic_pc}, must be 0-11"
     _current_bar_duration = bar_duration
+    _current_tonic_pc = tonic_pc
     diagnostics: list[Diagnostic] = []
     for guard in guards.values():
         if guard.scope != "phrase":

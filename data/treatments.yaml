@@ -36,8 +36,13 @@
 
 augmentation:
   # Augmentation: double note values (slower)
+  # Both voices augmented to preserve CS consonance alignment
+  # Direct mode required for transforms to apply correctly
   soprano_transform: augment
+  soprano_direct: true
   bass_source: counter_subject
+  bass_transform: augment
+  bass_direct: true
   interdictions: [ornaments]  # preserve augmented durations
 
 bass_development:
@@ -68,19 +73,32 @@ dialogue_invert:
 
 diminution:
   # Diminution: halve note values (faster)
+  # Both voices diminished to preserve CS consonance alignment
   soprano_transform: diminish
   soprano_transform_params: { min_duration: 1/16 }
+  soprano_direct: true
   bass_source: counter_subject
+  bass_transform: diminish
+  bass_transform_params: { min_duration: 1/16 }
+  bass_direct: true
   interdictions: [ornaments]  # preserve diminished durations
 
 fragmentation:
+  # Fragmentation: head motif with bass imitation (not CS - delay breaks alignment)
   soprano_transform: head
   soprano_transform_params: { size: 4 }
+  bass_source: subject
+  bass_transform: head
+  bass_transform_params: { size: 4 }
   bass_delay: 1/8
 
 head_sequence:
+  # Head sequence: head motif with bass imitation
   soprano_transform: head
   soprano_transform_params: { size: 4 }
+  bass_source: subject
+  bass_transform: head
+  bass_transform_params: { size: 4 }
   bass_delay: 1/8
 
 imitation:
@@ -107,8 +125,11 @@ melody_accompaniment:
   bass_source: accompaniment
 
 repose:
+  # Repose: slower augmented melody over sustained bass
+  # Sustained bass avoids CS alignment issues with augmentation
   soprano_transform: augment
-  bass_delay: 1/2
+  soprano_direct: true
+  bass_source: sustained
 
 retrograde:
   # Retrograde: subject played backwards
@@ -120,12 +141,17 @@ schema:
   bass_source: schema
 
 sequence:
+  # Sequence: augmented bass imitation (not CS - delay breaks alignment)
+  bass_source: subject
   bass_transform: augment
   bass_delay: 1/4
 
 statement:
-  # Statement: subject in soprano, bass determined by genre
+  # Statement: subject in soprano, CS in bass
+  # Both use direct mode to preserve CS consonance alignment
   soprano_direct: true
+  bass_source: counter_subject
+  bass_direct: true
   interdictions: [inner_voice_gen]
 
 stretto:
@@ -143,8 +169,12 @@ voice_exchange:
   swap_at: 1/2
 
 tail_development:
+  # Tail development: tail motif with bass imitation (not CS - delay breaks alignment)
   soprano_transform: tail
   soprano_transform_params: { size: 4 }
+  bass_source: subject
+  bass_transform: tail
+  bass_transform_params: { size: 4 }
   bass_delay: 1/8
 
 hold:

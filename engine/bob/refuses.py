@@ -330,11 +330,26 @@ def check_verbatim_repetition_refuses(
     return issues
 
 
+def collect_refuses_non_guard(
+    phrases: list[RealisedPhrase],
+    bar_duration: Fraction,
+) -> list[Issue]:
+    """Collect REFUSES issues that aren't covered by the guard system.
+
+    These are Bob-specific checks like voice crossing duration and verbatim repetition.
+    The guard system handles parallels, direct motion, and dissonance.
+    """
+    issues: list[Issue] = []
+    issues.extend(check_voice_crossing_refuses(phrases, bar_duration))
+    issues.extend(check_verbatim_repetition_refuses(phrases, bar_duration))
+    return issues
+
+
 def collect_refuses(
     phrases: list[RealisedPhrase],
     bar_duration: Fraction,
 ) -> list[Issue]:
-    """Collect all REFUSES issues."""
+    """Collect all REFUSES issues (legacy, for when guard diagnostics not available)."""
     issues: list[Issue] = []
     issues.extend(check_parallel_fifths_refuses(phrases, bar_duration))
     issues.extend(check_parallel_octaves_refuses(phrases, bar_duration))

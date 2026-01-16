@@ -475,10 +475,11 @@ def detect_direct_perfect(
         if not is_similar_motion(prev_sop, prev_bass, curr_sop, curr_bass):
             continue
 
-        # Check if soprano leaps (> 2 semitones)
+        # Check if soprano leaps significantly (> 4 semitones = beyond major third)
+        # Fux allows stepwise motion; Bach also allows leaps by third
         soprano_motion: int = abs(curr_sop - prev_sop)
-        if soprano_motion <= 2:
-            continue  # Stepwise motion is allowed (Fux exception)
+        if soprano_motion <= 4:
+            continue  # Step or third is allowed (baroque practice)
 
         # Determine violation type
         violation_type: str = "direct_fifth" if arriving_interval == 7 else "direct_octave"
@@ -519,8 +520,9 @@ def detect_direct_perfect_pair(
         if not is_similar_motion(prev_upper, prev_lower, curr_upper, curr_lower):
             continue
 
+        # Allow step or third (baroque practice)
         upper_motion: int = abs(curr_upper - prev_upper)
-        if upper_motion <= 2:
+        if upper_motion <= 4:
             continue
 
         violation_type: str = "direct_fifth" if arriving_interval == 7 else "direct_octave"
