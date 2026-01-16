@@ -763,11 +763,15 @@ def _add_strong_beat_consonance(
     target_scaled: int,
     penalties: list,
 ) -> None:
-    """FORBID dissonance when CS attacks on strong beats (HARD constraint).
+    """FORBID dissonance and fifths when CS attacks on strong beats (HARD constraint).
 
     Dissonances on strong beats require preparation (suspension/tie from previous beat).
     Since we don't model suspensions, we FORBID dissonances on strong beats entirely.
     This addresses Fux II.1 (dissonance on strong beat without preparation).
+
+    Fifths are also forbidden on strong beats for invertibility:
+    When voices are exchanged, 5ths become 4ths (dissonant against bass).
+    Bach's practice was to avoid 5ths on strong beats in invertible counterpoint.
     """
     scale = subject.scale
     max_cs = len(cs_degrees)
@@ -811,12 +815,13 @@ def _add_strong_beat_consonance(
             model.AddBoolAnd([active[ci], cs_at_pos]).OnlyEnforceIf(attacks_here)
             model.AddBoolOr([active[ci].Not(), cs_at_pos.Not()]).OnlyEnforceIf(attacks_here.Not())
 
-            # When attacking at strong beat, FORBID dissonance (HARD constraint)
+            # When attacking at strong beat, FORBID dissonance AND fifths (HARD constraint)
             for cs_d in range(1, 8):
                 ic = _interval_class(subj_deg_at_pos, cs_d, scale)
 
-                if ic not in ALL_CONSONANCES:
-                    # Dissonance on strong beat: FORBID entirely
+                # Forbid dissonances AND fifths on strong beats
+                # Fifths (ic=7) become 4ths when inverted, breaking invertibility
+                if ic not in ALL_CONSONANCES or ic == 7:
                     is_this_deg = model.NewBoolVar(f"sb_deg_{strong_pos}_{ci}_{cs_d}")
                     model.Add(cs_degrees[ci] == cs_d).OnlyEnforceIf(is_this_deg)
                     model.Add(cs_degrees[ci] != cs_d).OnlyEnforceIf(is_this_deg.Not())
@@ -826,7 +831,7 @@ def _add_strong_beat_consonance(
                     model.AddBoolAnd([attacks_here, is_this_deg]).OnlyEnforceIf(violation)
                     model.AddBoolOr([attacks_here.Not(), is_this_deg.Not()]).OnlyEnforceIf(violation.Not())
 
-                    # HARD: Forbid dissonance on strong beat
+                    # HARD: Forbid dissonance/fifth on strong beat
                     model.Add(violation == 0)
 
 
