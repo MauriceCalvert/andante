@@ -242,7 +242,7 @@ def inject_material(data: dict) -> dict:
     return data
 
 
-def run_exercise(brief_path: Path) -> None:
+def run_exercise(brief_path: Path, humanise: bool = False) -> None:
     """Generate one exercise from brief or composed file."""
     name: str = brief_path.stem
     print(f"  {name}...", end=" ", flush=True)
@@ -267,9 +267,9 @@ def run_exercise(brief_path: Path) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(yaml_str)
         output_path: Path = EXERCISES_OUT / name
-        notes = execute_and_export(yaml_str, str(output_path))
+        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise)
         bars: int = get_total_bars(data)
-        print(f"{len(notes)} notes, {bars} bars (generated material)")
+        print(f"{len(notes)} notes, {bars} bars (generated material){' [humanised]' if humanise else ''}")
         # Export subject MIDI - parse plan to get material
         from engine.plan_parser import parse_yaml
         plan = parse_yaml(yaml_str)
@@ -283,9 +283,9 @@ def run_exercise(brief_path: Path) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(yaml_str)
         output_path: Path = EXERCISES_OUT / name
-        notes = execute_and_export(yaml_str, str(output_path))
+        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise)
         bars: int = get_total_bars(data)
-        print(f"{len(notes)} notes, {bars} bars (composed)")
+        print(f"{len(notes)} notes, {bars} bars (composed){' [humanised]' if humanise else ''}")
         # Export subject MIDI - parse plan to get material
         from engine.plan_parser import parse_yaml
         plan = parse_yaml(yaml_str)
@@ -330,37 +330,43 @@ def run_exercise(brief_path: Path) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(yaml_str)
         output_path: Path = EXERCISES_OUT / name
-        notes = execute_and_export(yaml_str, str(output_path))
-        print(f"{len(notes)} notes, {plan.actual_bars} bars")
+        notes = execute_and_export(yaml_str, str(output_path), humanise_output=humanise)
+        print(f"{len(notes)} notes, {plan.actual_bars} bars{' [humanised]' if humanise else ''}")
         export_subject_midi(plan, EXERCISES_OUT / f"{name}_subject")
 
 
 def main() -> None:
     """Generate exercises. Accepts path to .brief file or filter name."""
-    EXERCISES_OUT.mkdir(parents=True, exist_ok=True)
-    arg: str | None = sys.argv[1] if len(sys.argv) > 1 else None
+    import argparse
 
-    # Check if arg is a path to a .brief file
-    if arg and (arg.endswith(".brief") or Path(arg).exists()):
-        brief_path = Path(arg)
+    parser = argparse.ArgumentParser(description="Generate exercises from brief files")
+    parser.add_argument("target", nargs="?", help="Path to .brief file or filter name")
+    parser.add_argument("--humanise", action="store_true", help="Apply humanisation for expressive timing/dynamics")
+    args = parser.parse_args()
+
+    EXERCISES_OUT.mkdir(parents=True, exist_ok=True)
+
+    # Check if target is a path to a .brief file
+    if args.target and (args.target.endswith(".brief") or Path(args.target).exists()):
+        brief_path = Path(args.target)
         if not brief_path.exists():
             print(f"Brief file not found: {brief_path}")
             return
         print(f"Running single brief: {brief_path}\n")
-        run_exercise(brief_path)
+        run_exercise(brief_path, humanise=args.humanise)
         print(f"\nGenerated 1 exercise in {EXERCISES_OUT}")
         return
 
     # Otherwise treat as filter name for exercises in EXERCISES_SRC
     briefs: list[Path] = sorted(EXERCISES_SRC.glob("*.brief"))
-    if arg:
-        briefs = [b for b in briefs if arg in b.stem]
+    if args.target:
+        briefs = [b for b in briefs if args.target in b.stem]
     if not briefs:
         print(f"No brief files found in {EXERCISES_SRC}")
         return
     print(f"Found {len(briefs)} exercises in {EXERCISES_SRC}\n")
     for brief_path in briefs:
-        run_exercise(brief_path)
+        run_exercise(brief_path, humanise=args.humanise)
     print(f"\nGenerated {len(briefs)} exercises in {EXERCISES_OUT}")
 
 
