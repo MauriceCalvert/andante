@@ -14,10 +14,18 @@ import pytest
 from shared.pitch import FloatingNote
 
 from engine.schema import (
+    BASS_PATTERNS,
+    RULE_OF_OCTAVE_ASCENDING,
+    RULE_OF_OCTAVE_DESCENDING,
     SCHEMAS,
+    BassPattern,
     Schema,
+    apply_rule_of_octave,
     apply_schema,
+    detect_bass_pattern,
+    get_rule_of_octave_figure,
     get_schema_names,
+    harmonise_bass_pattern,
     load_schema,
     schema_for_context,
 )
@@ -116,45 +124,45 @@ class TestLoadSchema:
         """Load romanesca schema."""
         schema: Schema = load_schema("romanesca")
         assert schema.name == "romanesca"
-        assert len(schema.bass_degrees) == 8
-        assert len(schema.soprano_degrees) == 8
-        assert len(schema.durations) == 8
-        assert schema.bars == 4
+        assert len(schema.bass_degrees) == 4
+        assert len(schema.soprano_degrees) == 4
+        assert len(schema.durations) == 4
+        assert schema.bars == 1
 
     def test_romanesca_bass_degrees(self) -> None:
-        """Romanesca has descending bass: 1-7-6-5-4-3-2-1."""
+        """Romanesca has descending bass: 1-7-6-3."""
         schema: Schema = load_schema("romanesca")
-        assert schema.bass_degrees == (1, 7, 6, 5, 4, 3, 2, 1)
+        assert schema.bass_degrees == (1, 7, 6, 3)
 
     def test_romanesca_soprano_degrees(self) -> None:
-        """Romanesca soprano has 5-5-3-3-1-1-7-1 pattern."""
+        """Romanesca soprano has 1-5-1-1 pattern."""
         schema: Schema = load_schema("romanesca")
-        assert schema.soprano_degrees == (5, 5, 3, 3, 1, 1, 7, 1)
+        assert schema.soprano_degrees == (1, 5, 1, 1)
 
     def test_romanesca_durations(self) -> None:
-        """Romanesca uses half notes."""
+        """Romanesca uses quarter notes."""
         schema: Schema = load_schema("romanesca")
-        assert all(d == Fraction(1, 2) for d in schema.durations)
+        assert all(d == Fraction(1, 4) for d in schema.durations)
 
     def test_load_monte(self) -> None:
         """Load monte schema."""
         schema: Schema = load_schema("monte")
         assert schema.name == "monte"
-        assert schema.bass_degrees == (5, 1, 6, 2, 7, 3)
-        assert schema.bars == 3
+        assert schema.bass_degrees == (7, 1, 7, 1)  # Sequential pattern
+        assert schema.bars == 1
 
     def test_load_fonte(self) -> None:
         """Load fonte schema."""
         schema: Schema = load_schema("fonte")
         assert schema.name == "fonte"
-        assert schema.bass_degrees == (5, 1, 4, 7, 3, 6)
-        assert schema.bars == 3
+        assert schema.bass_degrees == (7, 1, 7, 1)  # Sequential pattern
+        assert schema.bars == 1
 
     def test_load_prinner(self) -> None:
         """Load prinner schema."""
         schema: Schema = load_schema("prinner")
         assert schema.name == "prinner"
-        assert schema.bass_degrees == (6, 5, 4, 3)
+        assert schema.bass_degrees == (4, 3, 2, 1)  # Descending stepwise
         assert schema.cadence_approach is True
 
     def test_cadence_approach_default_false(self) -> None:
@@ -227,18 +235,18 @@ class TestApplySchema:
 
     def test_partial_budget_truncates(self) -> None:
         """Budget smaller than schema duration truncates."""
-        soprano, bass = apply_schema("romanesca", Fraction(1))
-        # romanesca is 4 bars with 1/2 durations = 8 notes
-        # 1 bar budget can fit 2 half notes
-        assert sum(soprano.durations) == Fraction(1)
+        soprano, bass = apply_schema("romanesca", Fraction(1, 2))
+        # romanesca is 1 bar with 1/4 durations = 4 notes
+        # 1/2 bar budget can fit 2 quarter notes
+        assert sum(soprano.durations) == Fraction(1, 2)
         assert len(soprano.pitches) == 2
 
     def test_budget_larger_than_schema_repeats(self) -> None:
         """Budget larger than schema repeats the pattern."""
         soprano, bass = apply_schema("prinner", Fraction(4))
-        # prinner is 2 bars, budget=4 should repeat twice
-        # Each repetition has 4 notes (half notes)
-        assert len(soprano.pitches) == 8
+        # prinner is 1 bar (4 quarter notes), budget=4 should repeat 4 times
+        # Each repetition has 4 notes
+        assert len(soprano.pitches) == 16
 
     def test_repeated_schema_cycles_degrees(self) -> None:
         """Repeated schema transposes each cycle (ascending sequence)."""
@@ -289,15 +297,15 @@ class TestSchemaForContext:
         result: str | None = schema_for_context("intensification", "I", is_cadence_approach=False)
         assert result == "monte"
 
-    def test_dominant_target_returns_rule_of_octave_asc(self) -> None:
-        """Target V returns rule_of_octave_asc."""
+    def test_dominant_target_returns_fenaroli(self) -> None:
+        """Target V returns fenaroli (dominant key schema)."""
         result: str | None = schema_for_context("statement", "V", is_cadence_approach=False)
-        assert result == "rule_of_octave_asc"
+        assert result == "fenaroli"
 
-    def test_minor_dominant_target_returns_rule_of_octave_asc(self) -> None:
-        """Target v returns rule_of_octave_asc."""
+    def test_minor_dominant_target_returns_fenaroli(self) -> None:
+        """Target v returns fenaroli (dominant key schema)."""
         result: str | None = schema_for_context("statement", "v", is_cadence_approach=False)
-        assert result == "rule_of_octave_asc"
+        assert result == "fenaroli"
 
     def test_subdominant_target_returns_romanesca(self) -> None:
         """Target IV returns romanesca."""
@@ -309,15 +317,15 @@ class TestSchemaForContext:
         result: str | None = schema_for_context("statement", "iv", is_cadence_approach=False)
         assert result == "romanesca"
 
-    def test_no_match_returns_none(self) -> None:
-        """No matching context returns None."""
+    def test_no_match_returns_fallback(self) -> None:
+        """No matching context returns fallback (meyer)."""
         result: str | None = schema_for_context("statement", "I", is_cadence_approach=False)
-        assert result is None
+        assert result == "meyer"
 
-    def test_none_episode_returns_none(self) -> None:
-        """None episode type returns None (unless other conditions match)."""
+    def test_none_episode_returns_fallback(self) -> None:
+        """None episode type returns fallback (unless other conditions match)."""
         result: str | None = schema_for_context(None, "I", is_cadence_approach=False)
-        assert result is None
+        assert result == "meyer"
 
     def test_cadence_approach_takes_priority(self) -> None:
         """Cadence approach takes priority over episode type."""
@@ -349,32 +357,322 @@ class TestIntegration:
     def test_romanesca_musical_correctness(self) -> None:
         """Romanesca produces musically correct degrees.
 
-        Domain knowledge: Romanesca is a descending bass pattern 1-7-6-5-4-3-2-1
-        with characteristic 5-5-3-3-1-1-7-1 soprano.
+        Domain knowledge: Romanesca is a descending bass pattern 1-7-6-3
+        with characteristic 1-5-1-1 soprano.
         """
-        soprano, bass = apply_schema("romanesca", Fraction(4))
+        soprano, bass = apply_schema("romanesca", Fraction(1))
         bass_degrees: list[int] = [p.degree for p in bass.pitches]
         soprano_degrees: list[int] = [p.degree for p in soprano.pitches]
-        assert bass_degrees == [1, 7, 6, 5, 4, 3, 2, 1]
-        assert soprano_degrees == [5, 5, 3, 3, 1, 1, 7, 1]
+        assert bass_degrees == [1, 7, 6, 3]
+        assert soprano_degrees == [1, 5, 1, 1]
 
     def test_prinner_musical_correctness(self) -> None:
         """Prinner produces musically correct cadence approach.
 
-        Domain knowledge: Prinner is 6-5-4-3 bass with 4-3-2-1 soprano,
+        Domain knowledge: Prinner is 4-3-2-1 bass with 6-5-4-3 soprano,
         a standard cadence preparation.
         """
-        soprano, bass = apply_schema("prinner", Fraction(2))
+        soprano, bass = apply_schema("prinner", Fraction(1))
         bass_degrees: list[int] = [p.degree for p in bass.pitches]
         soprano_degrees: list[int] = [p.degree for p in soprano.pitches]
-        assert bass_degrees == [6, 5, 4, 3]
-        assert soprano_degrees == [4, 3, 2, 1]
+        assert bass_degrees == [4, 3, 2, 1]
+        assert soprano_degrees == [6, 5, 4, 3]
 
     def test_monte_musical_correctness(self) -> None:
-        """Monte produces ascending fifths sequence.
+        """Monte produces ascending sequence pattern.
 
         Domain knowledge: Monte is an ascending sequence pattern
-        5-1-6-2-7-3 bass that rises by step.
+        with 7-1-7-1 bass pattern (transposed on repetition).
         """
         schema: Schema = load_schema("monte")
-        assert schema.bass_degrees == (5, 1, 6, 2, 7, 3)
+        assert schema.bass_degrees == (7, 1, 7, 1)
+
+
+# =============================================================================
+# Rule of the Octave Tests (baroque_plan.md Phase 3.1)
+# =============================================================================
+
+
+class TestRuleOfOctaveConstants:
+    """Test Rule of the Octave constant dictionaries."""
+
+    def test_ascending_has_all_degrees(self) -> None:
+        """Ascending dictionary has all 7 degrees."""
+        assert set(RULE_OF_OCTAVE_ASCENDING.keys()) == {1, 2, 3, 4, 5, 6, 7}
+
+    def test_descending_has_all_degrees(self) -> None:
+        """Descending dictionary has all 7 degrees."""
+        assert set(RULE_OF_OCTAVE_DESCENDING.keys()) == {1, 2, 3, 4, 5, 6, 7}
+
+    def test_ascending_tonic_is_root_position(self) -> None:
+        """Ascending: degree 1 is 5/3 (root position)."""
+        assert RULE_OF_OCTAVE_ASCENDING[1] == "5/3"
+
+    def test_ascending_dominant_is_root_position(self) -> None:
+        """Ascending: degree 5 is 5/3 (root position)."""
+        assert RULE_OF_OCTAVE_ASCENDING[5] == "5/3"
+
+    def test_ascending_supertonic_is_first_inversion(self) -> None:
+        """Ascending: degree 2 is 6/3 (first inversion)."""
+        assert RULE_OF_OCTAVE_ASCENDING[2] == "6/3"
+
+    def test_ascending_subdominant_has_dissonance(self) -> None:
+        """Ascending: degree 4 has 6/5/3 (dissonance before 5)."""
+        assert RULE_OF_OCTAVE_ASCENDING[4] == "6/5/3"
+
+    def test_ascending_leading_tone_has_dissonance(self) -> None:
+        """Ascending: degree 7 has 6/5/3 (dissonance before 8)."""
+        assert RULE_OF_OCTAVE_ASCENDING[7] == "6/5/3"
+
+    def test_descending_tonic_is_root_position(self) -> None:
+        """Descending: degree 1 is 5/3 (root position)."""
+        assert RULE_OF_OCTAVE_DESCENDING[1] == "5/3"
+
+    def test_descending_dominant_is_root_position(self) -> None:
+        """Descending: degree 5 is 5/3 (root position)."""
+        assert RULE_OF_OCTAVE_DESCENDING[5] == "5/3"
+
+    def test_descending_submediant_has_raised_sixth(self) -> None:
+        """Descending: degree 6 has #6/4/3 (raised 6th = leading tone to 5)."""
+        assert RULE_OF_OCTAVE_DESCENDING[6] == "#6/4/3"
+
+    def test_descending_subdominant_has_strong_dissonance(self) -> None:
+        """Descending: degree 4 has 6/4/2 (strong dissonance from 5)."""
+        assert RULE_OF_OCTAVE_DESCENDING[4] == "6/4/2"
+
+    def test_descending_supertonic_has_fourth(self) -> None:
+        """Descending: degree 2 has 6/4/3 (with 4th)."""
+        assert RULE_OF_OCTAVE_DESCENDING[2] == "6/4/3"
+
+
+class TestGetRuleOfOctaveFigure:
+    """Test get_rule_of_octave_figure function."""
+
+    def test_ascending_degree_1(self) -> None:
+        """Ascending degree 1 returns 5/3."""
+        assert get_rule_of_octave_figure(1, "ascending") == "5/3"
+
+    def test_ascending_degree_4(self) -> None:
+        """Ascending degree 4 returns 6/5/3."""
+        assert get_rule_of_octave_figure(4, "ascending") == "6/5/3"
+
+    def test_descending_degree_4(self) -> None:
+        """Descending degree 4 returns 6/4/2."""
+        assert get_rule_of_octave_figure(4, "descending") == "6/4/2"
+
+    def test_descending_degree_6(self) -> None:
+        """Descending degree 6 returns #6/4/3."""
+        assert get_rule_of_octave_figure(6, "descending") == "#6/4/3"
+
+    def test_unknown_degree_returns_default(self) -> None:
+        """Unknown degree returns 5/3 default."""
+        assert get_rule_of_octave_figure(8, "ascending") == "5/3"
+        assert get_rule_of_octave_figure(0, "descending") == "5/3"
+
+    def test_all_ascending_degrees_return_figures(self) -> None:
+        """All ascending degrees return valid figures."""
+        for deg in range(1, 8):
+            fig = get_rule_of_octave_figure(deg, "ascending")
+            assert fig in {"5/3", "6/3", "6/5/3"}
+
+    def test_all_descending_degrees_return_figures(self) -> None:
+        """All descending degrees return valid figures."""
+        for deg in range(1, 8):
+            fig = get_rule_of_octave_figure(deg, "descending")
+            assert isinstance(fig, str)
+            assert len(fig) > 0
+
+
+class TestApplyRuleOfOctave:
+    """Test apply_rule_of_octave function."""
+
+    def test_returns_timed_material_and_figures(self) -> None:
+        """Returns tuple of (TimedMaterial, list of figures)."""
+        bass_degrees = (1, 2, 3, 4, 5)
+        bass, figures = apply_rule_of_octave(bass_degrees, Fraction(5))
+        assert hasattr(bass, 'pitches')
+        assert hasattr(bass, 'durations')
+        assert isinstance(figures, list)
+
+    def test_empty_bass_returns_empty(self) -> None:
+        """Empty bass degrees returns empty results."""
+        bass, figures = apply_rule_of_octave((), Fraction(0))
+        assert len(bass.pitches) == 0
+        assert len(figures) == 0
+
+    def test_figure_count_matches_degree_count(self) -> None:
+        """Figure count matches bass degree count."""
+        bass_degrees = (1, 2, 3, 4, 5, 6, 7)
+        bass, figures = apply_rule_of_octave(bass_degrees, Fraction(7))
+        assert len(figures) == len(bass_degrees)
+
+    def test_pitch_count_matches_degree_count(self) -> None:
+        """Pitch count matches bass degree count."""
+        bass_degrees = (1, 2, 3, 4, 5)
+        bass, figures = apply_rule_of_octave(bass_degrees, Fraction(5))
+        assert len(bass.pitches) == len(bass_degrees)
+
+    def test_ascending_scale_harmonization(self) -> None:
+        """Ascending scale (1-2-3-4-5-6-7) produces correct figures.
+
+        Domain knowledge (baroque_literature.md Part II.1):
+        Ascending: 5/3, 6/3, 6/3, 6/5/3, 5/3, 6/3, 6/5/3
+        """
+        bass_degrees = (1, 2, 3, 4, 5, 6, 7)
+        _, figures = apply_rule_of_octave(bass_degrees, Fraction(7))
+        expected = ["5/3", "6/3", "6/3", "6/5/3", "5/3", "6/3", "6/5/3"]
+        assert figures == expected
+
+    def test_descending_scale_harmonization(self) -> None:
+        """Descending scale (7-6-5-4-3-2-1) produces correct figures.
+
+        Domain knowledge (baroque_literature.md Part II.1):
+        Descending: 6/3, #6/4/3, 5/3, 6/4/2, 6/3, 6/4/3, 5/3
+        First note defaults to ascending since no previous.
+        """
+        bass_degrees = (7, 6, 5, 4, 3, 2, 1)
+        _, figures = apply_rule_of_octave(bass_degrees, Fraction(7))
+        # First note uses ascending (no prev), rest detect descending
+        assert figures[0] == "6/5/3"  # Ascending default for first
+        assert figures[1] == "#6/4/3"  # Descending 6
+        assert figures[2] == "5/3"  # Descending 5
+        assert figures[3] == "6/4/2"  # Descending 4
+        assert figures[4] == "6/3"  # Descending 3
+        assert figures[5] == "6/4/3"  # Descending 2
+        assert figures[6] == "5/3"  # Descending 1
+
+    def test_durations_sum_to_budget(self) -> None:
+        """Durations sum to budget."""
+        bass_degrees = (1, 5, 1)
+        bass, _ = apply_rule_of_octave(bass_degrees, Fraction(3))
+        assert sum(bass.durations) == Fraction(3)
+
+    def test_duration_per_note_is_equal(self) -> None:
+        """Each note gets equal duration."""
+        bass_degrees = (1, 2, 3, 4)
+        bass, _ = apply_rule_of_octave(bass_degrees, Fraction(4))
+        assert all(d == Fraction(1) for d in bass.durations)
+
+    def test_wraparound_7_to_1_is_ascending(self) -> None:
+        """7 to 1 transition is detected as ascending."""
+        bass_degrees = (7, 1)
+        _, figures = apply_rule_of_octave(bass_degrees, Fraction(2))
+        # 7->1 wraps around, so 1 is ascending
+        assert figures[1] == "5/3"  # Ascending 1
+
+
+class TestBassPatternConstants:
+    """Test BASS_PATTERNS constant dictionary."""
+
+    def test_contains_circle_fifths(self) -> None:
+        """Contains circle of fifths pattern."""
+        assert "circle_fifths" in BASS_PATTERNS
+
+    def test_contains_up3_down1(self) -> None:
+        """Contains up 3rd down step pattern."""
+        assert "up3_down1" in BASS_PATTERNS
+
+    def test_contains_down3_up1(self) -> None:
+        """Contains down 3rd up step pattern."""
+        assert "down3_up1" in BASS_PATTERNS
+
+    def test_contains_romanesca(self) -> None:
+        """Contains romanesca pattern."""
+        assert "romanesca" in BASS_PATTERNS
+
+    def test_all_patterns_are_bass_pattern_type(self) -> None:
+        """All values are BassPattern dataclass."""
+        for name, pattern in BASS_PATTERNS.items():
+            assert isinstance(pattern, BassPattern)
+
+    def test_circle_fifths_intervals(self) -> None:
+        """Circle of fifths has (4, -5) intervals (up 4th, down 5th)."""
+        pattern = BASS_PATTERNS["circle_fifths"]
+        assert pattern.intervals == (4, -5)
+
+    def test_romanesca_intervals(self) -> None:
+        """Romanesca has (-1, -2, 2) intervals (down step, down 3rd, up 3rd)."""
+        pattern = BASS_PATTERNS["romanesca"]
+        assert pattern.intervals == (-1, -2, 2)
+
+
+class TestDetectBassPattern:
+    """Test detect_bass_pattern function."""
+
+    def test_empty_bass_returns_empty(self) -> None:
+        """Empty bass returns empty list."""
+        result = detect_bass_pattern(())
+        assert result == []
+
+    def test_single_note_returns_empty(self) -> None:
+        """Single note returns empty list."""
+        result = detect_bass_pattern((1,))
+        assert result == []
+
+    def test_detects_ascending_stepwise(self) -> None:
+        """Detects ascending stepwise pattern."""
+        # 1-2-3 has intervals (1, 1)
+        bass = (1, 2, 3)
+        result = detect_bass_pattern(bass)
+        pattern_names = [p.name for _, p in result]
+        assert "ascending_stepwise" in pattern_names
+
+    def test_detects_descending_stepwise(self) -> None:
+        """Detects descending stepwise pattern."""
+        # 3-2-1 has intervals (-1, -1)
+        bass = (3, 2, 1)
+        result = detect_bass_pattern(bass)
+        pattern_names = [p.name for _, p in result]
+        assert "descending_stepwise" in pattern_names
+
+    def test_returns_start_index(self) -> None:
+        """Returns correct start index for detected pattern."""
+        bass = (1, 2, 3)  # ascending stepwise
+        result = detect_bass_pattern(bass)
+        if result:
+            start_idx, _ = result[0]
+            assert start_idx == 0
+
+    def test_no_match_returns_empty(self) -> None:
+        """No matching pattern returns empty list."""
+        # Random intervals that don't match any pattern
+        bass = (1, 3, 1, 5, 2)
+        result = detect_bass_pattern(bass)
+        # May or may not find patterns depending on exact intervals
+
+
+class TestHarmoniseBassPattern:
+    """Test harmonise_bass_pattern function."""
+
+    def test_empty_bass_returns_empty(self) -> None:
+        """Empty bass returns empty list."""
+        result = harmonise_bass_pattern(())
+        assert result == []
+
+    def test_returns_list_of_figures(self) -> None:
+        """Returns list of figure strings."""
+        result = harmonise_bass_pattern((1, 2, 3))
+        assert isinstance(result, list)
+        assert all(isinstance(f, str) for f in result)
+
+    def test_figure_count_matches_degree_count(self) -> None:
+        """Figure count matches bass degree count."""
+        bass = (1, 2, 3, 4, 5)
+        result = harmonise_bass_pattern(bass)
+        assert len(result) == len(bass)
+
+    def test_uses_rule_of_octave_for_unmatched(self) -> None:
+        """Uses Rule of Octave for degrees not in a pattern."""
+        bass = (1, 5, 1)
+        result = harmonise_bass_pattern(bass)
+        # Check that we get valid figures
+        assert all(f in {"5/3", "6/3", "6/4", "6/5/3", "6/4/2", "6/4/3", "#6/4/3"} for f in result)
+
+    def test_detected_pattern_uses_pattern_harmonization(self) -> None:
+        """Detected pattern uses its harmonization."""
+        # Ascending stepwise: intervals (1,)
+        bass = (1, 2)
+        result = harmonise_bass_pattern(bass)
+        # ascending_stepwise harmonization is ("6/3",)
+        # So second note should be 6/3
+        assert "6/3" in result

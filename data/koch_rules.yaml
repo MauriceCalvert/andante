@@ -25,3 +25,9 @@ modulation:
 # Metrical stress (post-realisation guard)
 metrical:
   max_tied_subdivisions: 2     # Koch's rule 14: Max consecutive tied subdivisions before bass required
+
+# Caesura placement rules (Koch section 61-65)
+caesura:
+  authentic_on_downbeat: true  # Koch's rule 61: Authentic cadences must complete on downbeat
+  half_on_strong: true         # Koch's rule 62: Half cadences on beat 1 or 3 (semi-strong)
+  incise_relaxed: true         # Koch's rule 63: Incises (incomplete phrases) may use weaker beats

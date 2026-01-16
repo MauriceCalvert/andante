@@ -660,3 +660,171 @@ class TestEdgeCases:
         cs = generate_countersubject(subj)
         assert cs is not None
         assert cs.total_duration == subj.total_duration
+
+
+# =============================================================================
+# Invertible Counterpoint Tests (baroque_plan.md item 8.1 validation)
+# =============================================================================
+
+
+class TestInvertibleCounterpoint:
+    """Test invertibility at the octave.
+
+    Domain knowledge: In invertible counterpoint at the octave, the two
+    voices can be swapped (inverted). When inverted, intervals transform:
+    - Unisons (0) become octaves (7) - OK
+    - Thirds (3/4) become sixths (8/9) - OK
+    - Fifths (7) become fourths (5) - DISSONANT against bass
+    - Sixths (8/9) become thirds (3/4) - OK
+
+    The counter-subject should avoid perfect 5ths in strong metric positions
+    to ensure the inversion produces consonant results.
+    """
+
+    def test_avoids_fifths_on_strong_beats(self) -> None:
+        """CS avoids 5ths on strong beats for invertibility."""
+        subj = Subject(
+            degrees=(1, 2, 3, 4, 5, 4, 3, 2, 1),
+            durations=(Fraction(1, 4), Fraction(1, 8), Fraction(1, 8),
+                      Fraction(1, 4), Fraction(1, 8), Fraction(1, 8),
+                      Fraction(1, 4), Fraction(1, 8), Fraction(1, 8)),
+            mode="major",
+        )
+        cs = generate_countersubject(subj)
+        assert cs is not None
+
+        # Check vertical intervals at strong beats
+        fifths_on_strong = 0
+        position = Fraction(0)
+        for i in range(min(len(subj.degrees), len(cs.degrees))):
+            ic = _interval_class(subj.degrees[i], cs.degrees[i], MAJOR_SCALE)
+            if _is_strong_beat(position) and ic == 7:  # Perfect 5th
+                fifths_on_strong += 1
+            position += subj.durations[i] if i < len(subj.durations) else Fraction(1, 8)
+
+        # Should have very few or no 5ths on strong beats
+        assert fifths_on_strong <= 1, f"Too many 5ths on strong beats: {fifths_on_strong}"
+
+    def test_inverted_intervals_are_consonant(self) -> None:
+        """When subject and CS are inverted, result is largely consonant.
+
+        Interval inversion: new_interval = 12 - old_interval (in semitones)
+        For invertible counterpoint at the octave, 5ths become 4ths (dissonant).
+        """
+        subj = Subject(
+            degrees=(1, 3, 5, 3, 1),
+            durations=(Fraction(1, 4),) * 5,
+            mode="major",
+        )
+        cs = generate_countersubject(subj)
+        assert cs is not None
+
+        # Calculate inverted intervals and check consonance
+        inverted_dissonances = 0
+        for i in range(min(len(subj.degrees), len(cs.degrees))):
+            subj_semi = _degree_to_semitone(subj.degrees[i], MAJOR_SCALE)
+            cs_semi = _degree_to_semitone(cs.degrees[i], MAJOR_SCALE)
+            original_ic = abs(cs_semi - subj_semi) % 12
+
+            # Inverted interval (CS becomes bass)
+            inverted_ic = (12 - original_ic) % 12
+
+            # 4ths (5 semitones) are dissonant against bass
+            if inverted_ic == 5:
+                inverted_dissonances += 1
+
+        # Most notes should remain consonant when inverted
+        total = min(len(subj.degrees), len(cs.degrees))
+        assert inverted_dissonances <= total // 2, (
+            f"Too many dissonances when inverted: {inverted_dissonances}/{total}"
+        )
+
+    def test_imperfect_consonances_preferred(self) -> None:
+        """CS prefers imperfect consonances (3rds, 6ths) for invertibility."""
+        subj = Subject(
+            degrees=(1, 2, 3, 4, 5, 4, 3, 2, 1),
+            durations=(Fraction(1, 8),) * 9,
+            mode="major",
+        )
+        cs = generate_countersubject(subj)
+        assert cs is not None
+
+        imperfect_count = 0
+        perfect_count = 0
+
+        for i in range(min(len(subj.degrees), len(cs.degrees))):
+            ic = _interval_class(subj.degrees[i], cs.degrees[i], MAJOR_SCALE)
+            if ic in IMPERFECT_CONSONANCES:
+                imperfect_count += 1
+            elif ic in PERFECT_CONSONANCES:
+                perfect_count += 1
+
+        # Imperfect consonances should be majority
+        total = imperfect_count + perfect_count
+        if total > 0:
+            imperfect_ratio = imperfect_count / total
+            assert imperfect_ratio >= 0.5, (
+                f"Insufficient imperfect consonances: {imperfect_ratio:.2%}"
+            )
+
+    def test_no_consecutive_fifths_for_inversion(self) -> None:
+        """Consecutive 5ths would become consecutive 4ths when inverted."""
+        subj = Subject(
+            degrees=(1, 2, 3, 2, 1, 2, 3),
+            durations=(Fraction(1, 8),) * 7,
+            mode="major",
+        )
+        cs = generate_countersubject(subj)
+        assert cs is not None
+
+        consecutive_fifths = 0
+        prev_ic = None
+        for i in range(min(len(subj.degrees), len(cs.degrees))):
+            ic = _interval_class(subj.degrees[i], cs.degrees[i], MAJOR_SCALE)
+            if prev_ic == 7 and ic == 7:  # Two consecutive 5ths
+                consecutive_fifths += 1
+            prev_ic = ic
+
+        assert consecutive_fifths == 0, (
+            f"Consecutive 5ths detected: {consecutive_fifths}"
+        )
+
+    def test_double_counterpoint_viability(self) -> None:
+        """Generated CS could serve as bass line when inverted.
+
+        Domain knowledge: In Bach's inventions, the counter-subject must
+        work both above and below the subject. This requires avoiding
+        intervals that become dissonant when inverted.
+        """
+        subj = Subject(
+            degrees=(5, 4, 3, 4, 5, 5, 5, 4, 3, 2, 1),
+            durations=(Fraction(1, 8), Fraction(1, 8), Fraction(1, 8), Fraction(1, 8),
+                      Fraction(1, 4), Fraction(1, 4), Fraction(1, 8), Fraction(1, 8),
+                      Fraction(1, 8), Fraction(1, 8), Fraction(1, 4)),
+            mode="major",
+        )
+        cs = generate_countersubject(subj)
+        assert cs is not None
+
+        # When inverted: CS below subject
+        # Check that critical strong-beat intervals are invertible
+        strong_beat_invertible = 0
+        strong_beat_total = 0
+        position = Fraction(0)
+
+        for i in range(min(len(subj.degrees), len(cs.degrees))):
+            if _is_strong_beat(position):
+                strong_beat_total += 1
+                ic = _interval_class(subj.degrees[i], cs.degrees[i], MAJOR_SCALE)
+                # Invertible intervals: unisons, 3rds, 6ths (become 8ths, 6ths, 3rds)
+                # Avoid 5ths (become 4ths = dissonant)
+                if ic != 7:  # Not a 5th
+                    strong_beat_invertible += 1
+            position += subj.durations[i] if i < len(subj.durations) else Fraction(1, 8)
+
+        # All strong beats should have invertible intervals
+        if strong_beat_total > 0:
+            ratio = strong_beat_invertible / strong_beat_total
+            assert ratio >= 0.8, (
+                f"Insufficient invertibility: {ratio:.2%} ({strong_beat_invertible}/{strong_beat_total})"
+            )

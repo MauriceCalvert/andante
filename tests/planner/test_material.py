@@ -20,6 +20,11 @@ from planner.material import (
     generate_motif,
 )
 from planner.plannertypes import DerivedMotif, Frame, Material, Motif
+from motifs.affect_loader import (
+    AffectProfile,
+    get_affect_profile,
+    score_subject_affect,
+)
 
 
 def make_frame(metre: str = "4/4", mode: str = "major") -> Frame:
@@ -317,3 +322,164 @@ class TestIntegration:
         material: Material = acquire_material(frame)
         assert all(1 <= d <= 7 for d in material.subject.degrees)
         assert all(1 <= d <= 7 for d in material.counter_subject.degrees)
+
+
+# =============================================================================
+# Affect-to-Melodic Validation Tests (baroque_plan.md Phase 10 validation)
+# =============================================================================
+
+
+class TestAffectProfileLoading:
+    """Test affect profile loading from affects.yaml."""
+
+    def test_klage_profile_exists(self) -> None:
+        """Klage (lament) affect profile exists."""
+        profile = get_affect_profile("Klage")
+        assert profile is not None
+
+    def test_zorn_profile_exists(self) -> None:
+        """Zorn (anger) affect profile exists."""
+        profile = get_affect_profile("Zorn")
+        assert profile is not None
+
+    def test_freudigkeit_profile_exists(self) -> None:
+        """Freudigkeit (joy) affect profile exists."""
+        profile = get_affect_profile("Freudigkeit")
+        assert profile is not None
+
+    def test_klage_is_minor_mode(self) -> None:
+        """Klage affect is minor mode."""
+        profile = get_affect_profile("Klage")
+        assert profile.mode == "minor"
+
+    def test_freudigkeit_is_major_mode(self) -> None:
+        """Freudigkeit affect is major mode."""
+        profile = get_affect_profile("Freudigkeit")
+        assert profile.mode == "major"
+
+    def test_klage_has_descending_contour(self) -> None:
+        """Klage affect specifies descending contour (lament)."""
+        profile = get_affect_profile("Klage")
+        assert profile.contour == "descending"
+
+    def test_klage_has_stepwise_intervals(self) -> None:
+        """Klage affect specifies stepwise intervals (sighing seconds)."""
+        profile = get_affect_profile("Klage")
+        assert profile.interval_profile == "stepwise"
+
+    def test_zorn_has_leaps(self) -> None:
+        """Zorn affect specifies leaps (violent, jagged)."""
+        profile = get_affect_profile("Zorn")
+        assert profile.interval_profile == "leaps"
+
+    def test_zorn_has_dense_rhythm(self) -> None:
+        """Zorn affect specifies dense rhythm (rapid, furious)."""
+        profile = get_affect_profile("Zorn")
+        assert profile.rhythm_density == "dense"
+
+    def test_sehnsucht_has_ascending_contour(self) -> None:
+        """Sehnsucht (yearning) affect has ascending contour."""
+        profile = get_affect_profile("Sehnsucht")
+        assert profile.contour == "ascending"
+
+
+class TestAffectScoring:
+    """Test affect scoring produces expected results.
+
+    Domain knowledge: The scoring function should rate subjects that
+    match the affect's characteristics higher than those that don't.
+    """
+
+    def test_descending_melody_scores_high_for_klage(self) -> None:
+        """Descending stepwise melody scores high for Klage (lament)."""
+        profile = get_affect_profile("Klage")
+        # Descending stepwise: 5-4-3-2-1
+        descending_degrees = (5, 4, 3, 2, 1)
+        sparse_durations = (0.5, 0.5, 0.5, 0.25, 0.25)
+        score = score_subject_affect(descending_degrees, sparse_durations, profile)
+        assert score > 0.5, f"Descending melody should score well for Klage, got {score}"
+
+    def test_ascending_melody_scores_low_for_klage(self) -> None:
+        """Ascending leapy melody scores lower for Klage."""
+        profile = get_affect_profile("Klage")
+        # Ascending leaps: 1-3-5-7
+        ascending_degrees = (1, 3, 5, 7)
+        dense_durations = (0.125, 0.125, 0.125, 0.125)
+        score = score_subject_affect(ascending_degrees, dense_durations, profile)
+        # Should score lower than descending stepwise
+        assert score < 0.7, f"Ascending leaps should score poorly for Klage, got {score}"
+
+    def test_ascending_melody_scores_high_for_sehnsucht(self) -> None:
+        """Ascending melody scores high for Sehnsucht (yearning)."""
+        profile = get_affect_profile("Sehnsucht")
+        # Ascending with leaps: 1-3-5-6-7
+        ascending_degrees = (1, 3, 5, 6, 7)
+        sparse_durations = (0.5, 0.25, 0.25, 0.25, 0.25)
+        score = score_subject_affect(ascending_degrees, sparse_durations, profile)
+        assert score > 0.4, f"Ascending melody should score well for Sehnsucht, got {score}"
+
+    def test_dense_rhythm_scores_high_for_zorn(self) -> None:
+        """Dense rhythm with leaps scores high for Zorn (anger)."""
+        profile = get_affect_profile("Zorn")
+        # Leaps with wave contour
+        leapy_degrees = (1, 5, 2, 6, 3)
+        dense_durations = (0.125, 0.125, 0.125, 0.125, 0.125)
+        score = score_subject_affect(leapy_degrees, dense_durations, profile)
+        assert score > 0.4, f"Dense rhythm with leaps should score well for Zorn, got {score}"
+
+    def test_sparse_rhythm_scores_low_for_zorn(self) -> None:
+        """Sparse stepwise melody scores lower for Zorn."""
+        profile = get_affect_profile("Zorn")
+        # Slow stepwise: opposite of Zorn
+        stepwise_degrees = (1, 2, 3, 2, 1)
+        sparse_durations = (0.5, 0.5, 0.5, 0.5, 0.5)
+        score = score_subject_affect(stepwise_degrees, sparse_durations, profile)
+        # Should be noticeably lower
+        assert score < 0.6, f"Sparse stepwise should score poorly for Zorn, got {score}"
+
+    def test_arch_contour_scores_high_for_freudigkeit(self) -> None:
+        """Arch contour (up then down) scores for Freudigkeit (joy)."""
+        profile = get_affect_profile("Freudigkeit")
+        # Arch contour: rise then fall
+        arch_degrees = (1, 3, 5, 4, 2)
+        moderate_durations = (0.25, 0.25, 0.25, 0.125, 0.125)
+        score = score_subject_affect(arch_degrees, moderate_durations, profile)
+        assert score > 0.4, f"Arch contour should score for Freudigkeit, got {score}"
+
+
+class TestAffectMelodicIntegration:
+    """Integration tests verifying affect influences melodic output."""
+
+    def test_all_affects_have_valid_profiles(self) -> None:
+        """All standard affects have valid profiles loaded."""
+        affects = [
+            "Sehnsucht", "Klage", "Freudigkeit", "Majestaet",
+            "Zaertlichkeit", "Zorn", "Verwunderung", "Entschlossenheit"
+        ]
+        for affect in affects:
+            profile = get_affect_profile(affect)
+            assert profile is not None, f"Missing profile for {affect}"
+            assert profile.mode in ("major", "minor")
+            assert profile.interval_profile in ("stepwise", "leaps", "mixed")
+            assert profile.contour in ("ascending", "descending", "arch", "wave")
+
+    def test_opposite_affects_produce_different_scores(self) -> None:
+        """Opposite affects (Klage vs Freudigkeit) score subjects differently."""
+        klage = get_affect_profile("Klage")
+        freudigkeit = get_affect_profile("Freudigkeit")
+        # A descending stepwise melody
+        descending = (5, 4, 3, 2, 1)
+        durations = (0.25, 0.25, 0.25, 0.25, 0.25)
+        klage_score = score_subject_affect(descending, durations, klage)
+        freudigkeit_score = score_subject_affect(descending, durations, freudigkeit)
+        # Should differ based on contour preferences
+        assert klage_score != freudigkeit_score, "Opposite affects should rate same melody differently"
+
+    def test_scoring_is_deterministic(self) -> None:
+        """Scoring the same subject twice produces same result."""
+        profile = get_affect_profile("Klage")
+        degrees = (5, 4, 3, 2, 1)
+        durations = (0.25, 0.25, 0.25, 0.25, 0.25)
+        score1 = score_subject_affect(degrees, durations, profile)
+        score2 = score_subject_affect(degrees, durations, profile)
+        assert score1 == score2
