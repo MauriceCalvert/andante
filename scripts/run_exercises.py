@@ -7,13 +7,14 @@ import yaml
 
 from planner.planner import build_plan
 from planner.serializer import serialize_plan
-from planner.plannertypes import Brief
-from planner.motif_loader import load_motif
+from planner.plannertypes import Brief, Frame, Motif
+from planner.motif_loader import load_motif, load_motif_from_file
 from engine.pipeline import execute_and_export
 from engine.key import Key
 from engine.pitch import FloatingNote
 from engine.note import Note
 from engine.output import Music21Writer
+from engine.validate import validate_brief_yaml
 
 EXERCISES_SRC = Path(__file__).parent.parent / "briefs" / "exercises"
 EXERCISES_OUT = Path(__file__).parent.parent / "output" / "exercises"
@@ -77,9 +78,112 @@ def has_material(data: dict) -> bool:
     return "subject" in data["material"]
 
 
+def expand_file_material(data: dict) -> dict:
+    """Expand file references in material section to inline degrees/durations/bars.
+
+    If material.subject has 'file:', load it and replace with inline data.
+    Same for counter_subject.
+
+    File references can specify source mode:
+        file: path/to/file.note
+        mode: minor  # optional, defaults to frame mode
+    """
+    if "material" not in data:
+        return data
+
+    material = data["material"]
+    frame_mode = data.get("frame", {}).get("mode", "minor")
+
+    # Expand subject if it's a file reference
+    if "subject" in material and "file" in material["subject"]:
+        file_path = material["subject"]["file"]
+        # Use source mode if specified, otherwise frame mode
+        source_mode = material["subject"].get("mode", frame_mode)
+        motif = load_motif_from_file(file_path, source_mode)
+        material["subject"] = {
+            "degrees": list(motif.degrees),
+            "durations": [str(d) for d in motif.durations],
+            "bars": motif.bars,
+        }
+
+    # Expand counter_subject if it's a file reference
+    if "counter_subject" in material and "file" in material["counter_subject"]:
+        file_path = material["counter_subject"]["file"]
+        source_mode = material["counter_subject"].get("mode", frame_mode)
+        motif = load_motif_from_file(file_path, source_mode)
+        material["counter_subject"] = {
+            "degrees": list(motif.degrees),
+            "durations": [str(d) for d in motif.durations],
+            "bars": motif.bars,
+        }
+
+    return data
+
+
+def parse_frame(frame_data: dict) -> Frame:
+    """Parse Frame from YAML data."""
+    return Frame(
+        key=frame_data["key"],
+        mode=frame_data["mode"],
+        metre=frame_data.get("metre", "4/4"),
+        tempo=frame_data.get("tempo", "allegro"),
+        voices=frame_data.get("voices", 2),
+        upbeat=Fraction(frame_data.get("upbeat", 0)),
+        form=frame_data.get("form", "through_composed"),
+    )
+
+
 def has_structure(data: dict) -> bool:
     """Check if YAML has frame and structure (composed exercise)."""
     return "frame" in data and "structure" in data
+
+
+def get_total_bars(data: dict) -> int:
+    """Get total bars from brief.bars or sum from structure phrases."""
+    if "bars" in data.get("brief", {}):
+        return data["brief"]["bars"]
+    # Sum bars from structure
+    total: int = 0
+    for section in data.get("structure", {}).get("sections", []):
+        for episode in section.get("episodes", []):
+            for phrase in episode.get("phrases", []):
+                total += phrase.get("bars", 0)
+    return total
+
+
+def allocate_structure_bars(data: dict) -> dict:
+    """Distribute brief.bars across structure phrases when not explicitly set."""
+    brief_bars: int = data.get("brief", {}).get("bars")
+    if not brief_bars:
+        return data
+
+    # Collect all phrases needing bars
+    sections = data["structure"]["sections"]
+    phrases_needing_bars: list[dict] = []
+    for sec in sections:
+        for ep in sec.get("episodes", []):
+            for phrase in ep.get("phrases", []):
+                if "bars" not in phrase:
+                    phrases_needing_bars.append(phrase)
+
+    if not phrases_needing_bars:
+        return data
+
+    # Distribute evenly, last phrase gets remainder
+    phrase_count = len(phrases_needing_bars)
+    base_bars = brief_bars // phrase_count
+    remainder = brief_bars % phrase_count
+
+    for i, phrase in enumerate(phrases_needing_bars):
+        phrase["bars"] = base_bars + (remainder if i == phrase_count - 1 else 0)
+
+    # Set episode bars as sum of phrase bars
+    for section in sections:
+        for episode in section.get("episodes", []):
+            if "bars" not in episode:
+                episode["bars"] = sum(p.get("bars", 0) for p in episode.get("phrases", []))
+
+    return data
 
 
 def inject_material(data: dict) -> dict:
@@ -143,10 +247,20 @@ def run_exercise(brief_path: Path) -> None:
     name: str = brief_path.stem
     print(f"  {name}...", end=" ", flush=True)
     with open(brief_path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        content = f.read()
+    # YAML doesn't allow tabs for indentation - convert to spaces
+    content = content.replace("\t", "  ")
+    data = yaml.safe_load(content)
 
-    # Case 1: Has frame + structure but no material -> inject material
+    # Validate YAML structure (catches frame fields under brief)
+    validate_brief_yaml(data)
+
+    # Expand file references in material section
+    data = expand_file_material(data)
+
+    # Case 1: Has frame + structure but no material -> allocate bars, inject material
     if has_structure(data) and not has_material(data):
+        data = allocate_structure_bars(data)
         data = inject_material(data)
         yaml_str = yaml.dump(data, default_flow_style=None, sort_keys=False, allow_unicode=True)
         plan_path: Path = EXERCISES_OUT / f"{name}_full.yaml"
@@ -154,7 +268,7 @@ def run_exercise(brief_path: Path) -> None:
             f.write(yaml_str)
         output_path: Path = EXERCISES_OUT / name
         notes = execute_and_export(yaml_str, str(output_path))
-        bars: int = data["brief"]["bars"]
+        bars: int = get_total_bars(data)
         print(f"{len(notes)} notes, {bars} bars (generated material)")
         # Export subject MIDI - parse plan to get material
         from engine.plan_parser import parse_yaml
@@ -170,7 +284,7 @@ def run_exercise(brief_path: Path) -> None:
             f.write(yaml_str)
         output_path: Path = EXERCISES_OUT / name
         notes = execute_and_export(yaml_str, str(output_path))
-        bars: int = data["brief"]["bars"]
+        bars: int = get_total_bars(data)
         print(f"{len(notes)} notes, {bars} bars (composed)")
         # Export subject MIDI - parse plan to get material
         from engine.plan_parser import parse_yaml
@@ -185,11 +299,32 @@ def run_exercise(brief_path: Path) -> None:
             bars=brief_data["bars"],
             motif_source=brief_data.get("motif_source"),
         )
-        # Load user motif if specified
+        # Load user motif: from material section (file or inline) or motif_source
         user_motif = None
-        if brief.motif_source:
+        user_cs = None
+        if has_material(data):
+            # Material already provided (expanded from file or inline)
+            subj = data["material"]["subject"]
+            user_motif = Motif(
+                degrees=tuple(subj["degrees"]),
+                durations=tuple(Fraction(d) for d in subj["durations"]),
+                bars=subj["bars"],
+            )
+            # Also load counter_subject if provided
+            if "counter_subject" in data["material"]:
+                cs = data["material"]["counter_subject"]
+                user_cs = Motif(
+                    degrees=tuple(cs["degrees"]),
+                    durations=tuple(Fraction(d) for d in cs["durations"]),
+                    bars=cs["bars"],
+                )
+        elif brief.motif_source:
             user_motif = load_motif(brief.motif_source)
-        plan = build_plan(brief, user_motif=user_motif)
+        # Parse explicit frame if provided
+        user_frame = None
+        if "frame" in data:
+            user_frame = parse_frame(data["frame"])
+        plan = build_plan(brief, user_motif=user_motif, user_frame=user_frame, user_cs=user_cs)
         yaml_str: str = serialize_plan(plan)
         plan_path: Path = EXERCISES_OUT / f"{name}_full.yaml"
         with open(plan_path, "w", encoding="utf-8") as f:
