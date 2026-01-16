@@ -104,12 +104,15 @@ def check_voice_leading(
 ) -> list[Violation]:
     """Check all voice-leading rules.
 
+    Includes parallel fifths/octaves and hidden (direct) fifths/octaves.
+
     Returns:
         List of all violations (empty if clean)
     """
     violations: list[Violation] = []
     violations.extend(check_parallel_fifths(soprano, bass))
     violations.extend(check_parallel_octaves(soprano, bass))
+    violations.extend(detect_direct_perfect(soprano, bass))
     return violations
 
 
