@@ -17,3 +17,9 @@ nul
 # Test artifacts at root
 test.*
 test832.*
+
+# PDFs (large binary files)
+*.pdf
+
+# Temp output
+pyout.txt
