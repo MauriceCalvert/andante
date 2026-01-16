@@ -231,13 +231,24 @@ def build_phrase_soprano(
     budget: Fraction,
     phrase_seed: int,
     primary_transform: str = "none",
+    use_counter_subject: bool = False,
 ) -> TimedMaterial:
-    """Build soprano - wrapper for backward compatibility."""
-    material, _ = build_voice(
-        subject.pitches, subject.durations, budget, phrase_seed,
-        pitch_shift=0, primary_transform=primary_transform
-    )
-    return material
+    """Build soprano - wrapper for backward compatibility.
+
+    When use_counter_subject=True, the counter_subject is used directly
+    without pitch shifts or bar treatments (it's already designed).
+    """
+    if use_counter_subject and counter_subject is not None:
+        # Use counter_subject directly - it was designed by CP-SAT
+        source_p: tuple[Pitch, ...] = counter_subject.pitches
+        source_d: tuple[Fraction, ...] = counter_subject.durations
+        return _extend_material_to_budget(source_p, source_d, budget)
+    else:
+        material, _ = build_voice(
+            subject.pitches, subject.durations, budget, phrase_seed,
+            pitch_shift=0, primary_transform=primary_transform
+        )
+        return material
 
 
 def build_phrase_bass(
@@ -248,18 +259,54 @@ def build_phrase_bass(
     primary_transform: str = "none",
     use_counter_subject: bool = False,
 ) -> TimedMaterial:
-    """Build bass - wrapper for backward compatibility."""
+    """Build bass - wrapper for backward compatibility.
+
+    When use_counter_subject=True, the counter_subject is used directly
+    without pitch shifts or bar treatments (it's already designed for bass).
+    """
     if use_counter_subject and counter_subject is not None:
+        # Use counter_subject directly - it was designed by CP-SAT to be consonant
+        # Don't apply pitch_shift or bar treatments, just cycle to fill budget
         source_p: tuple[Pitch, ...] = counter_subject.pitches
         source_d: tuple[Fraction, ...] = counter_subject.durations
+        return _extend_material_to_budget(source_p, source_d, budget)
     else:
         source_p = subject.pitches
         source_d = subject.durations
-    material, _ = build_voice(
-        source_p, source_d, budget, phrase_seed,
-        pitch_shift=-7, primary_transform=primary_transform
-    )
-    return material
+        material, _ = build_voice(
+            source_p, source_d, budget, phrase_seed,
+            pitch_shift=-7, primary_transform=primary_transform
+        )
+        return material
+
+
+def _extend_material_to_budget(
+    pitches: tuple[Pitch, ...],
+    durations: tuple[Fraction, ...],
+    budget: Fraction,
+) -> TimedMaterial:
+    """Extend material to budget by cycling (no pitch shifts or treatments)."""
+    total: Fraction = sum(durations, Fraction(0))
+    if total <= Fraction(0):
+        return TimedMaterial(pitches, durations, budget)
+    result_p: list[Pitch] = []
+    result_d: list[Fraction] = []
+    remaining: Fraction = budget
+    idx: int = 0
+    n: int = len(pitches)
+    while remaining > Fraction(0) and idx < 1000:
+        p: Pitch = pitches[idx % n]
+        d: Fraction = durations[idx % len(durations)]
+        if d <= remaining:
+            result_p.append(p)
+            result_d.append(d)
+            remaining -= d
+        else:
+            result_p.append(p)
+            result_d.append(remaining)
+            remaining = Fraction(0)
+        idx += 1
+    return TimedMaterial(tuple(result_p), tuple(result_d), budget)
 
 
 def build_voices(

@@ -32,16 +32,23 @@ class VoiceSpec:
 
 
 def voice_spec_from_treatment(treatment: dict, voice: str) -> VoiceSpec:
-    """Extract VoiceSpec for soprano or bass from treatment dict."""
+    """Extract VoiceSpec for soprano or bass from treatment dict.
+
+    Note: direct mode is enforced at a higher level by _enforce_direct_for_cs
+    in voice_expander.py when counter_subject is used.
+    """
     prefix: str = f"{voice}_"
+    source: str = treatment.get(f"{prefix}source", "subject")
+    direct: bool = treatment.get(f"{prefix}direct", False)
+
     return VoiceSpec(
-        source=treatment.get(f"{prefix}source", "subject"),
+        source=source,
         transform=treatment.get(f"{prefix}transform", "none"),
         transform_params=treatment.get(f"{prefix}transform_params", {}),
         derivation=treatment.get(f"{prefix}derivation"),
         derivation_params=treatment.get(f"{prefix}derivation_params", {}),
         delay=Fraction(treatment.get(f"{prefix}delay", "0")),
-        direct=treatment.get(f"{prefix}direct", False),
+        direct=direct,
     )
 
 
@@ -175,7 +182,7 @@ def expand_voice(
     use_cs: bool = spec.source == "counter_subject"
     if voice == "soprano":
         material = build_phrase_soprano(
-            subject, counter_subject, fill_budget, phrase_index, spec.transform
+            subject, counter_subject, fill_budget, phrase_index, spec.transform, use_cs
         )
     else:
         material = build_phrase_bass(

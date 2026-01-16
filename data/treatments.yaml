@@ -38,7 +38,6 @@ augmentation:
   # Augmentation: double note values (slower)
   soprano_transform: augment
   bass_source: counter_subject
-  bass_delay: 1/2
   interdictions: [ornaments]  # preserve augmented durations
 
 bass_development:
@@ -72,7 +71,6 @@ diminution:
   soprano_transform: diminish
   soprano_transform_params: { min_duration: 1/16 }
   bass_source: counter_subject
-  bass_delay: 1/8
   interdictions: [ornaments]  # preserve diminished durations
 
 fragmentation:
@@ -95,15 +93,14 @@ imitation:
   bass_delay: 1
 
 imitation_cs:
+  # Soprano plays counter_subject, bass plays subject
   soprano_source: counter_subject
   bass_source: subject
-  bass_delay: 1/2
 
 inversion:
   # Inversion: soprano inverts subject, bass plays counter_subject
   soprano_transform: invert
   bass_source: counter_subject
-  bass_delay: 1/4
 
 melody_accompaniment:
   soprano_source: subject
@@ -117,7 +114,6 @@ retrograde:
   # Retrograde: subject played backwards
   soprano_transform: retrograde
   bass_source: counter_subject
-  bass_delay: 1/4
 
 schema:
   soprano_source: schema

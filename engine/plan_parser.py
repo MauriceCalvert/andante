@@ -11,6 +11,11 @@ import yaml
 from engine.engine_types import EpisodeAST, PhraseAST, PieceAST, SectionAST
 from engine.validate import validate_yaml
 from planner.subject import Subject
+from planner.cs_generator import (
+    Subject as CSSubject,
+    CounterSubject,
+    find_valid_delays,
+)
 
 
 def parse_fraction(value: str) -> Fraction:
@@ -38,6 +43,10 @@ def parse_subject(material: dict, mode: str, voice_count: int, genre: str = "") 
         cs_durations: tuple[Fraction, ...] = tuple(parse_fraction(d) for d in cs_data["durations"])
         subj._cs_degrees = cs_degrees
         subj._cs_durations = cs_durations
+        # Calculate valid delays for this subject/CS pair
+        cs_subj = CSSubject(degrees=degrees, durations=durations, mode=mode)
+        cs_obj = CounterSubject(degrees=cs_degrees, durations=cs_durations)
+        subj._cs_valid_delays = find_valid_delays(cs_subj, cs_obj)
     return subj
 
 

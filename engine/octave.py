@@ -6,6 +6,9 @@ import yaml
 
 from shared.parallels import is_parallel_fifth, is_parallel_octave
 
+# Perfect intervals that trigger direct motion rules (semitones mod 12)
+PERFECT_INTERVALS: frozenset[int] = frozenset({0, 7})  # 0=unison/octave, 7=fifth
+
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
 with open(DATA_DIR / "predicates.yaml", encoding="utf-8") as _f:
     _P: dict = yaml.safe_load(_f)
@@ -96,6 +99,46 @@ def best_octave_contrapuntal(
     return min(candidates, key=score)
 
 
+def _is_direct_perfect(
+    prev_upper: int,
+    prev_lower: int,
+    curr_upper: int,
+    curr_lower: int,
+) -> bool:
+    """Check if motion creates direct (hidden) fifth or octave.
+
+    Fux I.15: Direct motion to a perfect interval (fifth, octave, unison)
+    where the upper voice leaps is forbidden.
+
+    Args:
+        prev_upper: Previous upper voice pitch
+        prev_lower: Previous lower voice pitch
+        curr_upper: Current upper voice pitch
+        curr_lower: Current lower voice pitch
+
+    Returns:
+        True if direct motion to perfect interval is detected.
+    """
+    # Check if arriving at a perfect interval
+    arriving_interval: int = abs(curr_upper - curr_lower) % 12
+    if arriving_interval not in PERFECT_INTERVALS:
+        return False
+
+    # Check for similar motion (both voices moving same direction)
+    upper_motion: int = curr_upper - prev_upper
+    lower_motion: int = curr_lower - prev_lower
+    if upper_motion == 0 or lower_motion == 0:
+        return False  # Oblique motion is fine
+    if (upper_motion > 0) != (lower_motion > 0):
+        return False  # Contrary motion is fine
+
+    # Check if upper voice leaps (> 2 semitones)
+    if abs(upper_motion) <= 2:
+        return False  # Stepwise motion in upper voice is allowed
+
+    return True
+
+
 def best_octave_against(
     midi: int,
     prev_midi: int,
@@ -106,7 +149,7 @@ def best_octave_against(
     voice_range: tuple[int, int] | None = None,
     skip_parallels: bool = False,
 ) -> int:
-    """Choose octave avoiding parallels with all reference voices.
+    """Choose octave avoiding parallels and direct motion with all reference voices.
 
     Args:
         midi: Target pitch class (pre-octave)
@@ -120,10 +163,11 @@ def best_octave_against(
 
     Selection priorities:
     1. Avoid parallel fifths/octaves with all reference voices (unless skip_parallels)
-    2. Consonance with highest reference voice (soprano)
-    3. Stay within voice range
-    4. Minimize interval from previous pitch
-    5. Bias toward median (stronger pull to prevent register drift)
+    2. Avoid direct fifths/octaves (hidden parallels) with soprano (unless skip_parallels)
+    3. Consonance with highest reference voice (soprano)
+    4. Stay within voice range
+    5. Minimize interval from previous pitch
+    6. Bias toward median (stronger pull to prevent register drift)
     """
     candidates: list[int] = [midi, midi + octave, midi - octave]
 
@@ -142,6 +186,20 @@ def best_octave_against(
                 count += 1
         return count
 
+    def direct_count(m: int) -> int:
+        """Count direct (hidden) fifths/octaves with reference voices."""
+        count: int = 0
+        for ref_prev, ref_curr in ref_pitches:
+            if ref_prev is None or ref_curr is None:
+                continue
+            # Check direct motion where soprano is upper voice
+            if _is_direct_perfect(ref_prev, prev_midi, ref_curr, m):
+                count += 1
+            # Check direct motion where bass is upper voice (after crossing)
+            if _is_direct_perfect(prev_midi, ref_prev, m, ref_curr):
+                count += 1
+        return count
+
     def is_consonant(m: int) -> bool:
         if not ref_pitches:
             return True
@@ -154,6 +212,9 @@ def best_octave_against(
     def score(m: int) -> float:
         parallels: int = parallel_count(m)
         parallel_penalty: float = 0.0 if skip_parallels else parallels * 200.0
+        # Direct fifths/octaves are also forbidden (Fux I.15)
+        directs: int = direct_count(m)
+        direct_penalty: float = 0.0 if skip_parallels else directs * 150.0
         # Consonance is critical - dissonance must be avoided at all costs
         consonance_penalty: float = 0.0 if is_consonant(m) else 1000.0
         interval: float = abs(m - prev_midi)
@@ -165,8 +226,9 @@ def best_octave_against(
         crossing_penalty: float = 0.0
         if ref_pitches:
             soprano_curr: int | None = ref_pitches[0][1]
-            if soprano_curr is not None and m > soprano_curr:
-                crossing_penalty = 100.0  # Strong penalty for crossing
+            if soprano_curr is not None and m >= soprano_curr:
+                # Very strong penalty - crossing is a REFUSES violation
+                crossing_penalty = 500.0
         # Penalize out-of-range pitches
         range_penalty: float = 0.0
         if voice_range is not None:
@@ -174,7 +236,7 @@ def best_octave_against(
                 range_penalty = (voice_range[0] - m) * 10
             elif m > voice_range[1]:
                 range_penalty = (m - voice_range[1]) * 10
-        return parallel_penalty + consonance_penalty + interval + register_dist + crossing_penalty + range_penalty
+        return parallel_penalty + direct_penalty + consonance_penalty + interval + register_dist + crossing_penalty + range_penalty
 
     return min(candidates, key=score)
 

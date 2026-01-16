@@ -58,6 +58,11 @@ PERFECT_CONSONANCES: frozenset[int] = frozenset({0, 7})  # Unison, fifth
 IMPERFECT_CONSONANCES: frozenset[int] = frozenset({3, 4, 8, 9})  # 3rds, 6ths
 ALL_CONSONANCES: frozenset[int] = PERFECT_CONSONANCES | IMPERFECT_CONSONANCES
 
+# Invertible consonances: 3rds and 6ths only (Bach's practice)
+# 5ths become 4ths when inverted (dissonant against bass)
+# Unisons reduce voice independence
+INVERTIBLE_CONSONANCES: frozenset[int] = IMPERFECT_CONSONANCES  # {3, 4, 8, 9}
+
 # Strong beats in common time (positions where collisions are OK)
 # Expressed as fractions of a bar
 STRONG_BEATS: frozenset[Fraction] = frozenset({
@@ -71,6 +76,7 @@ class CounterSubject:
     """A counter-subject with degrees and rhythm."""
     degrees: tuple[int, ...]
     durations: tuple[Fraction, ...]
+    valid_delays: tuple[Fraction, ...] = ()  # Tested delays that maintain consonance
 
     @property
     def total_duration(self) -> Fraction:
@@ -78,6 +84,10 @@ class CounterSubject:
 
     def __post_init__(self) -> None:
         assert len(self.degrees) == len(self.durations), "Degrees and durations must match"
+
+    def with_valid_delays(self, delays: tuple[Fraction, ...]) -> "CounterSubject":
+        """Return a new CounterSubject with valid_delays set."""
+        return CounterSubject(self.degrees, self.durations, delays)
 
 
 @dataclass(frozen=True)
@@ -129,6 +139,96 @@ def _interval_class(deg1: int, deg2: int, scale: tuple[int, ...]) -> int:
     s1 = _degree_to_semitone(deg1, scale)
     s2 = _degree_to_semitone(deg2, scale)
     return abs(s2 - s1) % 12
+
+
+# Standard delays to test (Bach commonly used these)
+CANDIDATE_DELAYS: tuple[Fraction, ...] = (
+    Fraction(0),      # No delay (primary alignment)
+    Fraction(1, 4),   # Quarter note delay
+    Fraction(1, 2),   # Half note delay
+    Fraction(3, 4),   # Dotted half delay
+    Fraction(1),      # Whole note delay
+)
+
+
+def test_delay_consonance(
+    subject: Subject,
+    cs: CounterSubject,
+    delay: Fraction,
+) -> bool:
+    """Test if a specific delay produces consonant intervals throughout.
+
+    Simulates bass playing subject starting at time 0, soprano playing CS
+    starting at time `delay`. Checks all vertical alignment points.
+
+    Returns True if all simultaneous intervals are consonant.
+    """
+    scale = subject.scale
+    total = subject.total_duration
+
+    # Build time-pitch maps for both voices
+    # Subject (bass): starts at 0
+    subj_events: list[tuple[Fraction, Fraction, int]] = []  # (start, end, degree)
+    pos = Fraction(0)
+    for deg, dur in zip(subject.degrees, subject.durations):
+        subj_events.append((pos, pos + dur, deg))
+        pos += dur
+
+    # CS (soprano): starts at delay
+    cs_events: list[tuple[Fraction, Fraction, int]] = []
+    pos = delay
+    for deg, dur in zip(cs.degrees, cs.durations):
+        if pos >= total:
+            break
+        end = min(pos + dur, total)
+        cs_events.append((pos, end, deg))
+        pos += dur
+
+    # Check all attack points for consonance
+    # Collect all attack times where both voices are sounding
+    attack_times: set[Fraction] = set()
+    for start, _, _ in subj_events:
+        attack_times.add(start)
+    for start, _, _ in cs_events:
+        attack_times.add(start)
+
+    for t in sorted(attack_times):
+        if t >= total:
+            continue
+
+        # Find which notes are sounding at time t
+        subj_deg = None
+        for start, end, deg in subj_events:
+            if start <= t < end:
+                subj_deg = deg
+                break
+
+        cs_deg = None
+        for start, end, deg in cs_events:
+            if start <= t < end:
+                cs_deg = deg
+                break
+
+        # If both voices are sounding, check consonance
+        if subj_deg is not None and cs_deg is not None:
+            ic = _interval_class(subj_deg, cs_deg, scale)
+            if ic not in ALL_CONSONANCES:
+                return False
+
+    return True
+
+
+def find_valid_delays(subject: Subject, cs: CounterSubject) -> tuple[Fraction, ...]:
+    """Test candidate delays and return those that maintain consonance.
+
+    This is Bach's empirical approach: generate CS for primary alignment,
+    then test which delays also work.
+    """
+    valid: list[Fraction] = []
+    for delay in CANDIDATE_DELAYS:
+        if test_delay_consonance(subject, cs, delay):
+            valid.append(delay)
+    return tuple(valid)
 
 
 def _is_strong_beat(position: Fraction) -> bool:
@@ -335,10 +435,15 @@ def generate_countersubject(
             dur_scaled = solver.Value(cs_durations[i])
             result_durations.append(Fraction(dur_scaled, DURATION_SCALE))
 
-    return CounterSubject(
+    cs = CounterSubject(
         degrees=tuple(result_degrees),
         durations=tuple(result_durations),
     )
+
+    # Test which delays maintain consonance (Bach's empirical approach)
+    valid_delays = find_valid_delays(subject, cs)
+
+    return cs.with_valid_delays(valid_delays)
 
 
 def _compute_allowed_durations(subject: Subject, baroque: bool = False) -> list[Fraction]:
@@ -463,21 +568,97 @@ def _add_vertical_constraints(
                 if ic not in ALL_CONSONANCES:
                     # Dissonance: forbid
                     model.Add(both == 0)
-                elif ic in PERFECT_CONSONANCES and ic != 0:
-                    # Perfect fifth: penalize heavily (invertibility)
+                elif ic == 7:
+                    # Perfect fifth: penalize (becomes 4th when inverted)
                     penalties.append(both * 80)
                 elif ic == 0 and si > 0 and si < n_subj - 1:
-                    # Interior unison: penalize
-                    penalties.append(both * 120)
+                    # Interior unison: penalize (reduces independence)
+                    penalties.append(both * 50)
 
     # Parallel fifths/octaves: check consecutive subject notes
     _add_parallel_fifth_constraints(model, cs_degrees, active, subject, penalties)
+
+    # Consonance at subject attack times (HARD constraint)
+    _add_attack_consonance(
+        model, cs_degrees, cs_attacks, cs_durations, active,
+        subject, subj_attacks_scaled, target_scaled
+    )
 
     # Strong beat consonance: CS attacks on strong beats must be consonant
     _add_strong_beat_consonance(
         model, cs_degrees, cs_attacks, active,
         subject, subj_attacks_scaled, target_scaled, penalties
     )
+
+
+def _add_attack_consonance(
+    model,
+    cs_degrees: list,
+    cs_attacks: list,
+    cs_durations: list,
+    active: list,
+    subject: Subject,
+    subj_attacks_scaled: list[int],
+    target_scaled: int,
+) -> None:
+    """FORBID dissonance at subject attack times (HARD constraint).
+
+    At every point where the subject starts a new note, the CS note sounding
+    at that time must form a consonant interval. This is checked regardless
+    of whether the CS also attacks at that time.
+
+    This ensures consonance at ALL vertical alignment points, which is what
+    Bob's diagnostic checks.
+    """
+    scale = subject.scale
+    max_cs = len(cs_degrees)
+    n_subj = len(subject.degrees)
+
+    # For each subject attack time
+    for si in range(n_subj):
+        subj_pos = subj_attacks_scaled[si]
+        subj_deg = subject.degrees[si]
+
+        # For each CS note, check if it's sounding at this subject attack time
+        for ci in range(max_cs):
+            # CS note ci sounds from cs_attacks[ci] to cs_attacks[ci] + cs_durations[ci]
+            # It's sounding at subj_pos if: cs_attacks[ci] <= subj_pos < cs_attacks[ci] + cs_durations[ci]
+
+            cs_end = model.NewIntVar(0, target_scaled * 2, f"ac_end_{si}_{ci}")
+            model.Add(cs_end == cs_attacks[ci] + cs_durations[ci])
+
+            # starts_at_or_before = cs_attacks[ci] <= subj_pos
+            starts_at_or_before = model.NewBoolVar(f"ac_sab_{si}_{ci}")
+            model.Add(cs_attacks[ci] <= subj_pos).OnlyEnforceIf(starts_at_or_before)
+            model.Add(cs_attacks[ci] > subj_pos).OnlyEnforceIf(starts_at_or_before.Not())
+
+            # ends_after = cs_end > subj_pos
+            ends_after = model.NewBoolVar(f"ac_ea_{si}_{ci}")
+            model.Add(cs_end > subj_pos).OnlyEnforceIf(ends_after)
+            model.Add(cs_end <= subj_pos).OnlyEnforceIf(ends_after.Not())
+
+            # sounding = active AND starts_at_or_before AND ends_after
+            sounding = model.NewBoolVar(f"ac_snd_{si}_{ci}")
+            model.AddBoolAnd([active[ci], starts_at_or_before, ends_after]).OnlyEnforceIf(sounding)
+            model.AddBoolOr([active[ci].Not(), starts_at_or_before.Not(), ends_after.Not()]).OnlyEnforceIf(sounding.Not())
+
+            # When CS is sounding at subject attack, FORBID dissonance
+            for cs_d in range(1, 8):
+                ic = _interval_class(subj_deg, cs_d, scale)
+
+                if ic not in ALL_CONSONANCES:
+                    # Dissonance: FORBID
+                    is_this_deg = model.NewBoolVar(f"ac_deg_{si}_{ci}_{cs_d}")
+                    model.Add(cs_degrees[ci] == cs_d).OnlyEnforceIf(is_this_deg)
+                    model.Add(cs_degrees[ci] != cs_d).OnlyEnforceIf(is_this_deg.Not())
+
+                    # violation = sounding AND is_this_deg
+                    violation = model.NewBoolVar(f"ac_viol_{si}_{ci}_{cs_d}")
+                    model.AddBoolAnd([sounding, is_this_deg]).OnlyEnforceIf(violation)
+                    model.AddBoolOr([sounding.Not(), is_this_deg.Not()]).OnlyEnforceIf(violation.Not())
+
+                    # HARD: Forbid this combination
+                    model.Add(violation == 0)
 
 
 def _add_parallel_fifth_constraints(
@@ -582,10 +763,10 @@ def _add_strong_beat_consonance(
     target_scaled: int,
     penalties: list,
 ) -> None:
-    """Penalize dissonance when CS attacks on strong beats.
+    """FORBID dissonance when CS attacks on strong beats (HARD constraint).
 
     Dissonances on strong beats require preparation (suspension/tie from previous beat).
-    Since we don't model suspensions, we heavily penalize dissonances on strong beats.
+    Since we don't model suspensions, we FORBID dissonances on strong beats entirely.
     This addresses Fux II.1 (dissonance on strong beat without preparation).
     """
     scale = subject.scale
@@ -600,9 +781,6 @@ def _add_strong_beat_consonance(
         strong_positions.add(pos)  # Beat 1
         strong_positions.add(pos + bar_scaled // 2)  # Beat 3
         pos += bar_scaled
-
-    # High penalty for strong beat dissonance (but not impossible)
-    STRONG_BEAT_DISSONANCE_PENALTY = 500
 
     # For each strong beat position
     for strong_pos in strong_positions:
@@ -633,12 +811,12 @@ def _add_strong_beat_consonance(
             model.AddBoolAnd([active[ci], cs_at_pos]).OnlyEnforceIf(attacks_here)
             model.AddBoolOr([active[ci].Not(), cs_at_pos.Not()]).OnlyEnforceIf(attacks_here.Not())
 
-            # When attacking at strong beat, penalize dissonance
+            # When attacking at strong beat, FORBID dissonance (HARD constraint)
             for cs_d in range(1, 8):
                 ic = _interval_class(subj_deg_at_pos, cs_d, scale)
 
                 if ic not in ALL_CONSONANCES:
-                    # Dissonance on strong beat: heavily penalize
+                    # Dissonance on strong beat: FORBID entirely
                     is_this_deg = model.NewBoolVar(f"sb_deg_{strong_pos}_{ci}_{cs_d}")
                     model.Add(cs_degrees[ci] == cs_d).OnlyEnforceIf(is_this_deg)
                     model.Add(cs_degrees[ci] != cs_d).OnlyEnforceIf(is_this_deg.Not())
@@ -648,8 +826,8 @@ def _add_strong_beat_consonance(
                     model.AddBoolAnd([attacks_here, is_this_deg]).OnlyEnforceIf(violation)
                     model.AddBoolOr([attacks_here.Not(), is_this_deg.Not()]).OnlyEnforceIf(violation.Not())
 
-                    # Add heavy penalty
-                    penalties.append(violation * STRONG_BEAT_DISSONANCE_PENALTY)
+                    # HARD: Forbid dissonance on strong beat
+                    model.Add(violation == 0)
 
 
 def _add_melodic_constraints(

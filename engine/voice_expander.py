@@ -44,6 +44,61 @@ def expand_n_voices(
     return result
 
 
+class InvalidDelayError(ValueError):
+    """Raised when a treatment specifies a delay not in CS valid_delays."""
+    pass
+
+
+def _validate_delay(treatment_name: str, treatment: dict, subj: Subject) -> None:
+    """Validate that bass_delay is not used with counter_subject treatments.
+
+    Bass delays with CS are forbidden because the CS is designed for a specific
+    alignment (delay=0). Arbitrary delays create dissonances.
+    """
+    bass_delay_str = treatment.get("bass_delay")
+    if bass_delay_str is None:
+        return
+
+    bass_delay = Fraction(bass_delay_str)
+    if bass_delay == Fraction(0):
+        return  # Zero delay is fine
+
+    # Check if treatment uses counter_subject
+    bass_source = treatment.get("bass_source", "subject")
+    soprano_source = treatment.get("soprano_source", "subject")
+    uses_cs = bass_source == "counter_subject" or soprano_source == "counter_subject"
+
+    if uses_cs:
+        raise InvalidDelayError(
+            f"Treatment '{treatment_name}' uses counter_subject with bass_delay={bass_delay}. "
+            f"This is forbidden: counter-subjects are designed for delay=0 alignment. "
+            f"Remove bass_delay from this treatment in treatments.yaml."
+        )
+
+
+def _enforce_direct_for_cs(treatment_name: str, treatment: dict) -> None:
+    """Force direct mode for ALL voices when ANY voice uses counter_subject.
+
+    When counter_subject is used, both voices must use direct cycling to
+    preserve the CS-designed alignment. Bar treatments would break alignment.
+    See docs/learnings.md for detailed explanation.
+
+    Modifies treatment dict in-place.
+    """
+    soprano_source = treatment.get("soprano_source", "subject")
+    bass_source = treatment.get("bass_source", "subject")
+    uses_cs = soprano_source == "counter_subject" or bass_source == "counter_subject"
+
+    if not uses_cs:
+        return
+
+    # Auto-set direct mode for both voices to preserve CS alignment
+    if treatment.get("soprano_direct") is None:
+        treatment["soprano_direct"] = True
+    if treatment.get("bass_direct") is None:
+        treatment["bass_direct"] = True
+
+
 def expand_voices(
     treatment_name: str,
     subj: Subject,
@@ -63,6 +118,14 @@ def expand_voices(
     if voice_assignments is not None and len(voice_assignments) == voice_count:
         return tuple(expand_n_voices(subj, voice_assignments, budget, voice_count))
     treatment: dict = TREATMENTS.get(treatment_name, {})
+
+    # Validate that any specified delay is compatible with CS
+    _validate_delay(treatment_name, treatment, subj)
+
+    # Auto-set direct mode for ALL voices when ANY voice uses counter_subject
+    # This preserves the CS-designed alignment between voices
+    _enforce_direct_for_cs(treatment_name, treatment)
+
     if treatment_name == "counterpoint":
         ext_subj, ext_cs = subj.extend_to(budget)
         sop_pitches: tuple[Pitch, ...] = tuple(FloatingNote(d) for d in ext_subj.degrees)

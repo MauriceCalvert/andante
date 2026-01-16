@@ -36,6 +36,7 @@ class Subject:
         self._motifs: dict[str, Motif] = {}
         self._cs_degrees: tuple[int, ...] | None = None
         self._cs_durations: tuple[Fraction, ...] | None = None
+        self._cs_valid_delays: tuple[Fraction, ...] = ()
 
     @property
     def degrees(self) -> tuple[int, ...]:
@@ -59,6 +60,13 @@ class Subject:
             self._generate_counter_subject()
         return Motif(degrees=self._cs_degrees, durations=self._cs_durations, bars=self._bars)
 
+    @property
+    def cs_valid_delays(self) -> tuple[Fraction, ...]:
+        """Delays that maintain consonance between subject and counter-subject."""
+        if self._cs_degrees is None:
+            self._generate_counter_subject()
+        return self._cs_valid_delays
+
     def _generate_counter_subject(self) -> None:
         """Generate counter-subject using the gold-plated joint pitch+rhythm solver.
 
@@ -79,6 +87,7 @@ class Subject:
             raise ValueError(f"No valid counter-subject for degrees {self._degrees} in {self._mode}")
         self._cs_degrees = cs_result.degrees
         self._cs_durations = cs_result.durations
+        self._cs_valid_delays = cs_result.valid_delays
 
     def extend_to(self, budget: Fraction) -> tuple[Motif, Motif]:
         """Extend subject and counter-subject to fill budget, preserving rhythm invariant.
