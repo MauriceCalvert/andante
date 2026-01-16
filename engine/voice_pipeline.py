@@ -64,6 +64,13 @@ def get_source_material(
         return counter_subject.pitches, counter_subject.durations
     elif spec.source == "sustained":
         return (FloatingNote(1), FloatingNote(5)), (Fraction(1), Fraction(1))
+    elif spec.source == "accompaniment":
+        # Simple dance accompaniment: root-fifth-root pattern with quarter notes
+        # This provides harmonic support without melodic competition
+        return (
+            (FloatingNote(1), FloatingNote(5), FloatingNote(1)),
+            (Fraction(1, 4), Fraction(1, 4), Fraction(1, 2)),
+        )
     else:
         return subject.pitches, subject.durations
 
@@ -148,8 +155,10 @@ def expand_voice(
 
     Pipeline: source → concatenate (with transform) → derivation → delay
 
-    When spec.direct is True, bypasses bar treatment cycling and uses source
-    material directly (with only the plan-level transform applied).
+    When spec.direct is True:
+    - If budget <= source_duration: use source verbatim
+    - If budget > source_duration: present source once, then use bar treatment
+      cycling for remainder (baroque practice: state then develop)
     """
     # Cap delay to leave room for at least one sixteenth note of content
     max_delay: Fraction = budget - Fraction(1, 16)
@@ -160,18 +169,47 @@ def expand_voice(
         pitches, durations = get_source_material(spec, subject, counter_subject)
         material: TimedMaterial = _extend_to_budget(pitches, durations, fill_budget)
         return apply_voice_delay(material, effective_delay, budget)
-    # Direct mode: use source material directly without bar treatment cycling
+    # Direct mode: present source material clearly
     if spec.direct:
         pitches, durations = get_source_material(spec, subject, counter_subject)
-        # Mark pitches as guard-exempt (subject material is expected to repeat)
-        pitches = tuple(
-            p.as_exempt() if isinstance(p, FloatingNote) else p for p in pitches
+        source_duration: Fraction = sum(durations, Fraction(0))
+        # Apply plan-level transform to source
+        transformed = apply_transform(
+            TimedMaterial(pitches, durations, source_duration),
+            spec.transform,
+            spec.transform_params,
         )
-        material = TimedMaterial(pitches, durations, sum(durations, Fraction(0)))
-        # Apply plan-level transform
-        material = apply_transform(material, spec.transform, spec.transform_params)
-        # Extend to budget by cycling
-        material = _extend_to_budget(material.pitches, material.durations, fill_budget)
+        transformed_duration: Fraction = sum(transformed.durations, Fraction(0))
+        if fill_budget <= transformed_duration:
+            # Budget fits within one statement - use verbatim
+            material = _extend_to_budget(transformed.pitches, transformed.durations, fill_budget)
+        else:
+            # Budget exceeds source - state once, then develop remainder
+            # First part: verbatim statement (mark as guard-exempt)
+            direct_pitches = tuple(
+                p.as_exempt() if isinstance(p, FloatingNote) else p
+                for p in transformed.pitches
+            )
+            direct_part = TimedMaterial(direct_pitches, transformed.durations, transformed_duration)
+            # Remainder: use bar treatment cycling for development
+            remainder_budget: Fraction = fill_budget - transformed_duration
+            use_cs: bool = spec.source == "counter_subject"
+            if voice == "soprano":
+                dev_part = build_phrase_soprano(
+                    subject, counter_subject, remainder_budget, phrase_index + 1,
+                    spec.transform, use_cs
+                )
+            else:
+                dev_part = build_phrase_bass(
+                    subject, counter_subject, remainder_budget, phrase_index + 1,
+                    spec.transform, use_cs
+                )
+            # Combine: direct statement + developed remainder
+            material = TimedMaterial(
+                direct_part.pitches + dev_part.pitches,
+                direct_part.durations + dev_part.durations,
+                fill_budget,
+            )
         # Apply derivation if specified
         if spec.derivation == "imitation":
             interval: int = spec.derivation_params.get("interval", 4)

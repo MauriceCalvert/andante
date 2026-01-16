@@ -4,6 +4,7 @@ from fractions import Fraction
 from shared.pitch import FloatingNote, Pitch
 from engine.expander_util import TONAL_ROOTS, TREATMENTS, subject_to_motif_ast, cs_to_motif_ast
 from engine.figured_bass import realise_figured_bass, generate_figures_for_bass
+from engine.harmonic_context import generate_consonant_bass
 from engine.key import Key
 from engine.pedal import generate_pedal_bass, get_pedal_type
 from engine.schema import apply_schema
@@ -113,11 +114,21 @@ def expand_voices(
     bar_dur: Fraction = Fraction(1, 1),
     voice_assignments: tuple[str, ...] | None = None,
     voice_count: int = 2,
+    genre_bass_source: str | None = None,
 ) -> tuple[TimedMaterial, ...]:
-    """Expand voices using treatment pipeline."""
+    """Expand voices using treatment pipeline.
+
+    Args:
+        genre_bass_source: If provided, overrides treatment's bass_source.
+            This allows genre-specific bass behavior (e.g., dances use
+            'accompaniment', inventions use 'counter_subject').
+    """
     if voice_assignments is not None and len(voice_assignments) == voice_count:
         return tuple(expand_n_voices(subj, voice_assignments, budget, voice_count))
-    treatment: dict = TREATMENTS.get(treatment_name, {})
+    treatment: dict = dict(TREATMENTS.get(treatment_name, {}))  # Copy to avoid mutation
+    # Genre bass_source overrides treatment's bass_source
+    if genre_bass_source is not None:
+        treatment["bass_source"] = genre_bass_source
 
     # Validate that any specified delay is compatible with CS
     _validate_delay(treatment_name, treatment, subj)
@@ -169,6 +180,17 @@ def expand_voices(
     soprano = expand_voice(
         sop_spec, subject, counter_subject, budget, seed, "soprano"
     )
+    # Consonant bass generation for accompaniment texture
+    if genre_bass_source == "accompaniment" and key is not None:
+        bass_p, bass_d = generate_consonant_bass(
+            soprano.pitches,
+            soprano.durations,
+            tonal_target,
+            key,
+            budget,
+        )
+        bass = TimedMaterial(bass_p, bass_d, budget)
+        return soprano, bass
     bass_spec: VoiceSpec = voice_spec_from_treatment(treatment, "bass")
     if bass_elaboration is not None and bass_elaboration in WALKING_PATTERNS:
         root: int = TONAL_ROOTS.get(tonal_target, 1)

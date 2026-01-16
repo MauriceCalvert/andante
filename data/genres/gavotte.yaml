@@ -4,6 +4,7 @@ upbeat: 1/2
 form: binary
 arc: dance_contrast
 min_cs_duration: 1/8
+bass_source: accompaniment
 sections:
   - label: A
     tonal_path: [I, V]

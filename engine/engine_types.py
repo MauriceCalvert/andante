@@ -70,6 +70,7 @@ class PieceAST:
     upbeat: Fraction = Fraction(0)
     form: str = "through_composed"
     virtuosic: bool = False
+    bass_source: str = "subject"  # Genre-specific: accompaniment, counter_subject, etc.
 
 
 @dataclass(frozen=True)

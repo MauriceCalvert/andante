@@ -5,6 +5,7 @@ form: through_composed
 arc: invention
 min_cs_duration: 1/16
 final_cadence_type: invention
+bass_source: counter_subject
 treatment_constraints:
   must_include: [imitation, stretto]
   start_with: statement

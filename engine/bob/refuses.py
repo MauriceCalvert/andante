@@ -256,6 +256,80 @@ def check_voice_crossing_refuses(
     return issues
 
 
+def check_verbatim_repetition_refuses(
+    phrases: list[RealisedPhrase],
+    bar_duration: Fraction,
+    threshold: int = 3,
+) -> list[Issue]:
+    """Check for verbatim repetition (3+ consecutive identical bars).
+
+    This catches the subject being repeated verbatim without variation.
+    """
+    issues: list[Issue] = []
+
+    for phrase in phrases:
+        voice_count = len(phrase.voices)
+        for v_idx, voice in enumerate(phrase.voices):
+            notes = _notes_to_tuples(tuple(voice.notes))
+
+            # Group pitches by bar
+            bars: dict[int, tuple[int, ...]] = {}
+            for offset, pitch in notes:
+                bar_num = int(offset // bar_duration)
+                if bar_num not in bars:
+                    bars[bar_num] = ()
+                bars[bar_num] = bars[bar_num] + (pitch,)
+
+            sorted_bars = sorted(bars.keys())
+            if len(sorted_bars) < threshold + 1:
+                continue
+
+            # Find runs of identical consecutive bars
+            run_start = 0
+            for i in range(1, len(sorted_bars)):
+                prev_bar = sorted_bars[i - 1]
+                curr_bar = sorted_bars[i]
+                is_consecutive = (curr_bar == prev_bar + 1)
+                is_identical = (bars[curr_bar] == bars[sorted_bars[run_start]])
+
+                if is_consecutive and is_identical:
+                    continue
+                else:
+                    run_len = i - run_start
+                    if run_len >= threshold:
+                        bar, beat = offset_to_bar_beat(
+                            Fraction(sorted_bars[run_start]) * bar_duration,
+                            bar_duration,
+                        )
+                        voice_name = _voice_names_for_count(voice_count)[v_idx]
+                        issues.append(Issue(
+                            category="REFUSES",
+                            bar=bar,
+                            beat=beat,
+                            voices=voice_name,
+                            message=vocab.VERBATIM_REPETITION.format(bars=run_len + 1),
+                        ))
+                    run_start = i
+
+            # Check final run
+            run_len = len(sorted_bars) - run_start
+            if run_len >= threshold:
+                bar, beat = offset_to_bar_beat(
+                    Fraction(sorted_bars[run_start]) * bar_duration,
+                    bar_duration,
+                )
+                voice_name = _voice_names_for_count(voice_count)[v_idx]
+                issues.append(Issue(
+                    category="REFUSES",
+                    bar=bar,
+                    beat=beat,
+                    voices=voice_name,
+                    message=vocab.VERBATIM_REPETITION.format(bars=run_len + 1),
+                ))
+
+    return issues
+
+
 def collect_refuses(
     phrases: list[RealisedPhrase],
     bar_duration: Fraction,
@@ -269,4 +343,5 @@ def collect_refuses(
     issues.extend(check_dissonance_refuses(phrases, bar_duration))
     issues.extend(check_voice_overlap_refuses(phrases, bar_duration))
     issues.extend(check_voice_crossing_refuses(phrases, bar_duration))
+    issues.extend(check_verbatim_repetition_refuses(phrases, bar_duration))
     return issues

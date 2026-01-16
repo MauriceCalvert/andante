@@ -124,9 +124,8 @@ sequence:
   bass_delay: 1/4
 
 statement:
-  # Statement: subject in soprano, counter_subject in bass
+  # Statement: subject in soprano, bass determined by genre
   soprano_direct: true
-  bass_source: counter_subject
   interdictions: [inner_voice_gen]
 
 stretto:

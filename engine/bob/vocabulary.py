@@ -11,6 +11,7 @@ UNRESOLVED = "That clash just hangs there"
 RESOLVED_UP = "The clashing note went up instead of down"
 VOICE_OVERLAP = "Upper voice went below the lower one"
 VOICE_CROSSING = "Voices crossed for too long"
+VERBATIM_REPETITION = "Same material repeated {bars} bars in a row"
 
 # === COMPLAINS ===
 LEAP_UNCOMP = "Large jump {direction} ({semitones} semitones) not stepped back"

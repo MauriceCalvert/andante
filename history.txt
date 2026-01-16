@@ -1,0 +1,35 @@
+e14fbc8 Fix bar_duration handling for all time signatures
+acfe65f Add code review validation tests and caesura validation
+212cf1a Implement baroque_plan.md phases 1-7, 9-10
+3d5b9ca Add PDFs and pyout.txt to .gitignore
+4328fec Add OCR text extracts and utility script
+d064e29 Add reference documentation and humanisation guide
+4bf189b Add run_showcase.py script
+839d130 Add Little Fugue subject and counter-subject motifs
+8c89a07 Add Koch and CPE Bach rule definitions
+c338f7a Docs: Remove obsolete files, update summary
+13bce0a Planner improvements: motif loading and validation
+715dab8 Add Koch metrical stress check and validation improvements
+6913d28 Update exercise briefs
+7a9da22 Fix: Add --humanise option to run_exercises.py
+fd75aeb Fix: Ensure bass provides metrical support (Koch rules 13-14)
+96fce49 Fix: Allocate brief.bars to structure phrases automatically
+fe4cfa5 Fix: Rubato now applies cadential ritardando only
+948d940 Fix: Reduce baroque rubato to 3% (was 8%)
+7701200 Fix: Set MIDI instrument program for humanised output
+583542f Fix: Melodic lead now shifts non-melody voices later instead of keeping them at 0
+1c39c4c Add humanisation engine for expressive MIDI output
+a4b6fc4 Fix: Stretto uses correct octave selection for imitative entries
+cfd73c1 Fix: Stretto uses real answer, diminution applies to subject
+40937f2 Fix: Augmentation preserves durations, stretto implements overlapping entries
+c0c5f68 Fix: Parse base treatment name to apply transforms
+56158cd Fix: Baroque invention counterpoint - bass now plays subject
+160dcf1 Remove greedy solver - CP-SAT only
+6d97455 Add unified diatonic inner voice solver
+6715e9a Fix: Keep pipeline diatonic - convert solver MIDI back to degrees
+7cbcfc6 Add baroque_invention texture with rotating subject entries
+0520dbc Rewrite schemas.yaml with canonical Gjerdingen schemas
+2df6f5c Add Do-Re-Mi schema from Gjerdingen
+b58c701 Add Quiescenza schema from Gjerdingen
+555867e Add git workflow instructions to CLAUDE.md
+f358199 Initial commit

@@ -69,6 +69,7 @@ def expand_piece(piece: PieceAST) -> list[ExpandedPhrase]:
                 phrase, piece.subject, piece.metre, is_final,
                 episode_type, texture, piece.virtuosic,
                 seed, key, total_phrases, piece.voices,
+                genre_bass_source=piece.bass_source,
             )
             violations: list = validate_nvoice_guards(
                 exp, key, bar_dur, piece.metre, phrase_offset

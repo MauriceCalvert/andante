@@ -162,6 +162,7 @@ def expand_phrase(
     key: Key | None = None,
     total_phrases: int = 1,
     voice_count: int = 2,
+    genre_bass_source: str | None = None,
 ) -> ExpandedPhrase:
     """Expand a single phrase to bar-level pitches.
 
@@ -169,6 +170,9 @@ def expand_phrase(
 
     Treatment transforms the melodic material (invert, fragment, etc.)
     Texture arranges voices (polyphonic, interleaved, canon, etc.)
+
+    Args:
+        genre_bass_source: Bass source from genre (overrides treatment's bass_source)
     """
     tracer = get_tracer()
     treatment_name, rhythm, cadence = resolve_overrides(phrase, episode_type)
@@ -377,12 +381,14 @@ def expand_phrase(
         voice_mats = expand_voices(
             treatment_name, subj, phrase.tonal_target, main_budget, seed,
             is_opening, is_cadential, episode_texture, key, None, bar_dur,
+            genre_bass_source=genre_bass_source,
         )
         bass_p, bass_d = voice_mats[-1].pitches, voice_mats[-1].durations
     else:
         voice_mats = expand_voices(
             treatment_name, subj, phrase.tonal_target, main_budget, seed,
             is_opening, is_cadential, episode_texture, key, None, bar_dur,
+            genre_bass_source=genre_bass_source,
         )
         sop_p, sop_d = voice_mats[0].pitches, voice_mats[0].durations
         bass_p, bass_d = voice_mats[-1].pitches, voice_mats[-1].durations

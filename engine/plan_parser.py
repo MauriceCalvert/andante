@@ -17,6 +17,20 @@ from planner.cs_generator import (
     find_valid_delays,
 )
 
+DATA_DIR: Path = Path(__file__).parent.parent / "data"
+
+
+def _load_genre_bass_source(genre: str) -> str:
+    """Load bass_source from genre file, defaulting to 'subject'."""
+    if not genre:
+        return "subject"
+    genre_path = DATA_DIR / "genres" / f"{genre}.yaml"
+    if not genre_path.exists():
+        return "subject"
+    with open(genre_path, encoding="utf-8") as f:
+        genre_data = yaml.safe_load(f)
+    return genre_data.get("bass_source", "subject")
+
 
 def parse_fraction(value: str) -> Fraction:
     """Parse fraction string like '1/4' to Fraction."""
@@ -123,6 +137,7 @@ def parse_yaml(yaml_str: str) -> PieceAST:
     genre: str = brief.get("genre", "")
     subject: Subject = parse_subject(material, mode, voice_count, genre)
     virtuosic: bool = brief.get("virtuosic", False)
+    bass_source: str = _load_genre_bass_source(genre)
     return PieceAST(
         key=frame["key"],
         mode=mode,
@@ -135,6 +150,7 @@ def parse_yaml(yaml_str: str) -> PieceAST:
         upbeat=upbeat,
         form=form,
         virtuosic=virtuosic,
+        bass_source=bass_source,
     )
 
 

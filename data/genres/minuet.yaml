@@ -4,12 +4,13 @@ upbeat: 0
 form: binary
 arc: dance_stately
 min_cs_duration: 1/8
+bass_source: accompaniment
 sections:
   - label: A
     tonal_path: [I, V]
     final_cadence: half
     bars_per_phrase: 4
   - label: B
-    tonal_path: [V, I]
+    tonal_path: [IV, I]
     final_cadence: authentic
     bars_per_phrase: 4
