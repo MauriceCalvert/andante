@@ -40,6 +40,116 @@ def _get_effective_texture(phrase_texture: str | None, episode_texture: str) -> 
     return phrase_texture if phrase_texture is not None else episode_texture
 
 
+def ensure_metrical_stress(
+    bass_p: tuple[int, ...],
+    bass_d: tuple[Fraction, ...],
+    sop_d: tuple[Fraction, ...],
+    bar_dur: Fraction,
+) -> tuple[tuple[int, ...], tuple[Fraction, ...]]:
+    """Ensure bass attacks during long soprano notes (Koch rules 13-14).
+
+    When soprano has notes longer than max_gap, split bass notes to provide
+    metrical support. Also ensures bass attacks on bar downbeats to cover
+    phrase boundary transitions. Returns adjusted bass pitches and durations.
+    """
+    # Match voice_checks.py calculation
+    subdivision: Fraction = bar_dur / Fraction(8)
+    max_gap: Fraction = subdivision * 2
+
+    # Calculate phrase duration and critical attack points
+    phrase_dur: Fraction = sum(sop_d, Fraction(0))
+    # Bar downbeats for metrical stability
+    downbeats: set[Fraction] = {bar_dur * i for i in range(int(phrase_dur / bar_dur) + 1)}
+    # Add attack point near phrase end to cover cross-phrase gaps
+    last_attack_point = phrase_dur - subdivision
+    if last_attack_point > Fraction(0):
+        downbeats.add(last_attack_point)
+    # Add first subdivision to cover gap from previous phrase
+    downbeats.add(subdivision)
+
+    # Build soprano attack times
+    sop_attacks: list[Fraction] = []
+    offset = Fraction(0)
+    for dur in sop_d:
+        sop_attacks.append(offset)
+        offset += dur
+
+    # Find soprano gaps needing bass support
+    gaps_needing_attack: list[tuple[Fraction, Fraction]] = []
+    for i in range(len(sop_attacks) - 1):
+        gap_start = sop_attacks[i]
+        gap_end = sop_attacks[i + 1]
+        if gap_end - gap_start > max_gap:
+            gaps_needing_attack.append((gap_start, gap_end))
+
+    # Build bass attack times
+    bass_attacks: list[Fraction] = []
+    offset = Fraction(0)
+    for dur in bass_d:
+        bass_attacks.append(offset)
+        offset += dur
+    bass_attack_set: set[Fraction] = set(bass_attacks)
+
+    # Collect all required attack points
+    required_attacks: set[Fraction] = set()
+
+    # Add attacks for soprano gaps
+    for gap_start, gap_end in gaps_needing_attack:
+        # Check if bass already attacks in this gap
+        if not any(gap_start < att < gap_end for att in bass_attack_set):
+            # Find midpoint as split target
+            midpoint = gap_start + (gap_end - gap_start) / 2
+            # Quantize to subdivision
+            midpoint = (midpoint // subdivision) * subdivision
+            if midpoint <= gap_start:
+                midpoint = gap_start + subdivision
+            if midpoint < gap_end:
+                required_attacks.add(midpoint)
+
+    # Add downbeats not already covered
+    for db in downbeats:
+        if db not in bass_attack_set and Fraction(0) < db < phrase_dur:
+            required_attacks.add(db)
+
+
+    if not required_attacks:
+        return bass_p, bass_d
+
+    # Split bass notes at required attack points (skip rests - can't add attacks there)
+    from shared.pitch import is_rest as pitch_is_rest
+    new_bass_p: list[int] = []
+    new_bass_d: list[Fraction] = []
+
+    for i, (pitch, dur) in enumerate(zip(bass_p, bass_d)):
+        note_start = bass_attacks[i]
+        note_end = note_start + dur
+
+        # Skip splitting rests - splitting a rest just creates more rests
+        if pitch_is_rest(pitch):
+            new_bass_p.append(pitch)
+            new_bass_d.append(dur)
+            continue
+
+        # Find split points within this note
+        split_points = sorted(sp for sp in required_attacks if note_start < sp < note_end)
+
+        if not split_points:
+            new_bass_p.append(pitch)
+            new_bass_d.append(dur)
+        else:
+            # Split note at each point
+            prev = note_start
+            for sp in split_points:
+                new_bass_p.append(pitch)
+                new_bass_d.append(sp - prev)
+                prev = sp
+            # Remaining duration
+            new_bass_p.append(pitch)
+            new_bass_d.append(note_end - prev)
+
+    return tuple(new_bass_p), tuple(new_bass_d)
+
+
 def expand_phrase(
     phrase: PhraseAST,
     subj: Subject,
@@ -168,56 +278,95 @@ def expand_phrase(
             treatment=treatment_name,
         )
 
-    if texture.name == "interleaved" and voice_count == 3:
-        # Use texture system for interleaved 3-voice
+    # Textures with specific implementations: interleaved, canon, hocket
+    if texture.name in ("interleaved", "canon", "hocket"):
         cs_material = TimedMaterial(cs_ast.pitches, cs_ast.durations, sum(cs_ast.durations, Fraction(0)))
         voice_mats = apply_texture(
             treated_soprano, cs_material, texture, main_budget, voice_count,
             phrase.tonal_target, bar_dur
         )
-        v1_p, v1_d = voice_mats[0].pitches, voice_mats[0].durations
-        v2_p, v2_d = voice_mats[1].pitches, voice_mats[1].durations
-        bass_p, bass_d = voice_mats[2].pitches, voice_mats[2].durations
 
-        # Apply cadence to all voices if needed
-        if use_final_cadence:
-            v1_p, v1_d, bass_p, bass_d = apply_final_cadence(
-                v1_p, v1_d, bass_p, bass_d, bar_dur, phrase_budget, phrase.tonal_target
+        if voice_count == 2:
+            v1_p, v1_d = list(voice_mats[0].pitches), list(voice_mats[0].durations)
+            bass_p, bass_d = list(voice_mats[1].pitches), list(voice_mats[1].durations)
+
+            # Apply cadence
+            if use_final_cadence:
+                v1_p, v1_d, bass_p, bass_d = apply_final_cadence(
+                    tuple(v1_p), tuple(v1_d), tuple(bass_p), tuple(bass_d),
+                    bar_dur, phrase_budget, phrase.tonal_target
+                )
+                v1_p, v1_d, bass_p, bass_d = list(v1_p), list(v1_d), list(bass_p), list(bass_d)
+            elif has_cadence:
+                cad_sop, cad_bass = get_cadence_material(cadence, CADENCE_BUDGET, phrase.tonal_target)
+                v1_p = v1_p + list(cad_sop.pitches)
+                v1_d = v1_d + list(cad_sop.durations)
+                bass_p = bass_p + list(cad_bass.pitches)
+                bass_d = bass_d + list(cad_bass.durations)
+
+            tracer.voice(f"phrase_{phrase.index}", "voice_1", v1_p, v1_d)
+            tracer.voice(f"phrase_{phrase.index}", "voice_2", bass_p, bass_d)
+
+            v1_total: Fraction = sum(v1_d, Fraction(0))
+            bass_total: Fraction = sum(bass_d, Fraction(0))
+            assert v1_total == phrase_budget, f"Phrase {phrase.index} voice_1 {v1_total} != {phrase_budget}"
+            assert bass_total == phrase_budget, f"Phrase {phrase.index} voice_2 {bass_total} != {phrase_budget}"
+
+            voices = ExpandedVoices.from_two_voices(v1_p, v1_d, bass_p, bass_d)
+            return ExpandedPhrase(
+                index=phrase.index, bars=phrase.bars, voices=voices, cadence=phrase.cadence,
+                tonal_target=phrase.tonal_target, is_climax=phrase.is_climax,
+                articulation=phrase.articulation, gesture=phrase.gesture,
+                energy=energy, surprise=phrase.surprise, texture=texture_name, episode_type=episode_type,
+                treatment=treatment_name,
             )
-            v2_total = sum(v2_d, Fraction(0))
-            if v2_total < phrase_budget:
-                v2_p = v2_p + v1_p[-1:]
-                v2_d = v2_d + (phrase_budget - v2_total,)
-        elif has_cadence:
-            cad_sop, cad_bass = get_cadence_material(cadence, CADENCE_BUDGET, phrase.tonal_target)
-            v1_p = v1_p + cad_sop.pitches
-            v1_d = v1_d + cad_sop.durations
-            v2_p = v2_p + cad_sop.pitches
-            v2_d = v2_d + cad_sop.durations
-            bass_p = bass_p + cad_bass.pitches
-            bass_d = bass_d + cad_bass.durations
+        else:
+            # 3+ voices
+            v1_p, v1_d = list(voice_mats[0].pitches), list(voice_mats[0].durations)
+            v2_p, v2_d = list(voice_mats[1].pitches), list(voice_mats[1].durations)
+            bass_p, bass_d = list(voice_mats[2].pitches), list(voice_mats[2].durations)
 
-        tracer.voice(f"phrase_{phrase.index}", "voice_1", list(v1_p), list(v1_d))
-        tracer.voice(f"phrase_{phrase.index}", "voice_2", list(v2_p), list(v2_d))
-        tracer.voice(f"phrase_{phrase.index}", "bass", list(bass_p), list(bass_d))
+            # Apply cadence to all voices if needed
+            if use_final_cadence:
+                v1_p, v1_d, bass_p, bass_d = apply_final_cadence(
+                    tuple(v1_p), tuple(v1_d), tuple(bass_p), tuple(bass_d),
+                    bar_dur, phrase_budget, phrase.tonal_target
+                )
+                v1_p, v1_d, bass_p, bass_d = list(v1_p), list(v1_d), list(bass_p), list(bass_d)
+                v2_total = sum(v2_d, Fraction(0))
+                if v2_total < phrase_budget:
+                    v2_p = v2_p + [v1_p[-1]]
+                    v2_d = v2_d + [phrase_budget - v2_total]
+            elif has_cadence:
+                cad_sop, cad_bass = get_cadence_material(cadence, CADENCE_BUDGET, phrase.tonal_target)
+                v1_p = v1_p + list(cad_sop.pitches)
+                v1_d = v1_d + list(cad_sop.durations)
+                v2_p = v2_p + list(cad_sop.pitches)
+                v2_d = v2_d + list(cad_sop.durations)
+                bass_p = bass_p + list(cad_bass.pitches)
+                bass_d = bass_d + list(cad_bass.durations)
 
-        v1_total: Fraction = sum(v1_d, Fraction(0))
-        v2_total_final: Fraction = sum(v2_d, Fraction(0))
-        bass_total: Fraction = sum(bass_d, Fraction(0))
-        assert v1_total == phrase_budget, f"Phrase {phrase.index} voice_1 {v1_total} != {phrase_budget}"
-        assert v2_total_final == phrase_budget, f"Phrase {phrase.index} voice_2 {v2_total_final} != {phrase_budget}"
-        assert bass_total == phrase_budget, f"Phrase {phrase.index} bass {bass_total} != {phrase_budget}"
+            tracer.voice(f"phrase_{phrase.index}", "voice_1", v1_p, v1_d)
+            tracer.voice(f"phrase_{phrase.index}", "voice_2", v2_p, v2_d)
+            tracer.voice(f"phrase_{phrase.index}", "bass", bass_p, bass_d)
 
-        voices: ExpandedVoices = ExpandedVoices.from_three_voices(
-            list(v1_p), list(v1_d), list(v2_p), list(v2_d), list(bass_p), list(bass_d)
-        )
-        return ExpandedPhrase(
-            index=phrase.index, bars=phrase.bars, voices=voices, cadence=phrase.cadence,
-            tonal_target=phrase.tonal_target, is_climax=phrase.is_climax,
-            articulation=phrase.articulation, gesture=phrase.gesture,
-            energy=energy, surprise=phrase.surprise, texture=texture_name, episode_type=episode_type,
-            treatment=treatment_name,
-        )
+            v1_total: Fraction = sum(v1_d, Fraction(0))
+            v2_total_final: Fraction = sum(v2_d, Fraction(0))
+            bass_total: Fraction = sum(bass_d, Fraction(0))
+            assert v1_total == phrase_budget, f"Phrase {phrase.index} voice_1 {v1_total} != {phrase_budget}"
+            assert v2_total_final == phrase_budget, f"Phrase {phrase.index} voice_2 {v2_total_final} != {phrase_budget}"
+            assert bass_total == phrase_budget, f"Phrase {phrase.index} bass {bass_total} != {phrase_budget}"
+
+            voices: ExpandedVoices = ExpandedVoices.from_three_voices(
+                v1_p, v1_d, v2_p, v2_d, bass_p, bass_d
+            )
+            return ExpandedPhrase(
+                index=phrase.index, bars=phrase.bars, voices=voices, cadence=phrase.cadence,
+                tonal_target=phrase.tonal_target, is_climax=phrase.is_climax,
+                articulation=phrase.articulation, gesture=phrase.gesture,
+                energy=energy, surprise=phrase.surprise, texture=texture_name, episode_type=episode_type,
+                treatment=treatment_name,
+            )
 
     # Standard 2-voice expansion (uses existing voice_expander path for now)
     episode_soprano: TimedMaterial | None = generate_episode_soprano(
@@ -267,6 +416,8 @@ def expand_phrase(
         sop_d = sop_d + cad_sop.durations
         bass_p = bass_p + cad_bass.pitches
         bass_d = bass_d + cad_bass.durations
+    # Ensure bass attacks during long soprano notes (Koch rules 13-14)
+    bass_p, bass_d = ensure_metrical_stress(bass_p, bass_d, sop_d, bar_dur)
     tracer.voice(f"phrase_{phrase.index}", "soprano", list(sop_p), list(sop_d))
     tracer.voice(f"phrase_{phrase.index}", "bass", list(bass_p), list(bass_d))
     sop_total: Fraction = sum(sop_d, Fraction(0))

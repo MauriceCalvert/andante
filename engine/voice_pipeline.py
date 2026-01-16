@@ -65,17 +65,38 @@ def apply_voice_delay(
     material: TimedMaterial,
     delay: Fraction,
     budget: Fraction,
+    use_pedal: bool = True,
 ) -> TimedMaterial:
-    """Apply delay by prepending rest."""
+    """Apply delay by prepending pedal note or rest.
+
+    Args:
+        material: The voice material to delay
+        delay: Duration of delay
+        budget: Total phrase budget
+        use_pedal: If True, use first pitch as pedal during delay (provides
+                   metrical support per Koch rules 13-14). If False, use rest.
+    """
     if delay <= Fraction(0):
         return material
-    rest_pitch: tuple[Pitch, ...] = (Rest(),)
-    rest_dur: tuple[Fraction, ...] = (delay,)
-    return TimedMaterial(
-        rest_pitch + material.pitches,
-        rest_dur + material.durations,
-        budget,
-    )
+
+    if use_pedal and material.pitches:
+        # Use first pitch as pedal note for metrical support
+        pedal_pitch: tuple[Pitch, ...] = (material.pitches[0],)
+        pedal_dur: tuple[Fraction, ...] = (delay,)
+        return TimedMaterial(
+            pedal_pitch + material.pitches,
+            pedal_dur + material.durations,
+            budget,
+        )
+    else:
+        # Fall back to rest
+        rest_pitch: tuple[Pitch, ...] = (Rest(),)
+        rest_dur: tuple[Fraction, ...] = (delay,)
+        return TimedMaterial(
+            rest_pitch + material.pitches,
+            rest_dur + material.durations,
+            budget,
+        )
 
 
 def _extend_to_budget(
