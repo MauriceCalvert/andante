@@ -175,6 +175,7 @@ def compute_derived_motifs(subject: Motif, cs: Motif | None) -> tuple[DerivedMot
 def acquire_material(
     frame: Frame,
     user_motif: Motif | None = None,
+    user_cs: Motif | None = None,
     genre: str = "",
     affect: str | None = None,
     seed: int | None = None,
@@ -183,7 +184,8 @@ def acquire_material(
 
     Args:
         frame: Frame with key, mode, metre, etc.
-        user_motif: User-provided motif (takes priority)
+        user_motif: User-provided subject motif (takes priority)
+        user_cs: User-provided counter-subject (takes priority over generation)
         genre: Genre name for counter-subject constraints
         affect: Affect name for affect-driven generation
         seed: Optional random seed for reproducibility
@@ -209,9 +211,14 @@ def acquire_material(
         # Use fallback template
         motif = generate_motif(frame)
 
-    # Generate counter-subject using CP-SAT solver
-    subj: Subject = Subject(motif.degrees, motif.durations, motif.bars, frame.mode, genre)
-    cs: Motif = subj.counter_subject
+    # Use provided counter-subject or generate one
+    cs: Motif
+    if user_cs is not None:
+        cs = user_cs
+    else:
+        # Generate counter-subject using CP-SAT solver
+        subj: Subject = Subject(motif.degrees, motif.durations, motif.bars, frame.mode, genre)
+        cs = subj.counter_subject
 
     # Compute derived motifs
     derived: tuple[DerivedMotif, ...] = compute_derived_motifs(motif, cs)

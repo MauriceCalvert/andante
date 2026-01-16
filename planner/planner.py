@@ -16,7 +16,13 @@ from planner.validator import validate
 from shared.constraint_validator import validate_brief, validate_frame
 
 
-def build_plan(brief: Brief, user_motif: Motif | None = None, seed: int | None = None) -> Plan:
+def build_plan(
+    brief: Brief,
+    user_motif: Motif | None = None,
+    seed: int | None = None,
+    user_frame: Frame | None = None,
+    user_cs: Motif | None = None,
+) -> Plan:
     """Build complete plan from brief.
 
     This is the main entry point for the planner. It orchestrates:
@@ -32,6 +38,7 @@ def build_plan(brief: Brief, user_motif: Motif | None = None, seed: int | None =
         brief: Brief with affect, genre, forces, bars
         user_motif: Optional user-provided motif (takes priority over generation)
         seed: Optional random seed for affect-driven generation
+        user_frame: Optional explicit frame (overrides affect-derived frame)
 
     Returns:
         Complete plan with full dramaturgical structure
@@ -40,8 +47,8 @@ def build_plan(brief: Brief, user_motif: Motif | None = None, seed: int | None =
     valid, errors = validate_brief(brief.genre, brief.affect, brief.bars)
     assert valid, f"Brief validation failed: {errors}"
 
-    # Resolve frame
-    frame: Frame = resolve_frame(brief)
+    # Resolve frame (use explicit frame if provided)
+    frame: Frame = user_frame if user_frame else resolve_frame(brief)
     valid, errors = validate_frame(
         genre=brief.genre,
         affect=brief.affect,
@@ -63,6 +70,7 @@ def build_plan(brief: Brief, user_motif: Motif | None = None, seed: int | None =
     material: Material = acquire_material(
         frame=frame,
         user_motif=user_motif,
+        user_cs=user_cs,
         genre=brief.genre,
         affect=brief.affect,
         seed=seed,

@@ -1,6 +1,7 @@
 """Plan validator: structural and semantic checks."""
 from fractions import Fraction
 
+from planner.koch_rules import validate_koch
 from planner.material import bar_duration
 from planner.plannertypes import Plan
 
@@ -41,4 +42,12 @@ def validate(plan: Plan) -> tuple[bool, list[str]]:
     expected_indices: list[int] = list(range(len(indices)))
     if indices != expected_indices:
         errors.append(f"Phrase indices must be sequential from 0: got {indices}")
+
+    # Koch's mechanical rules for phrase sequences and structure
+    koch_valid, koch_violations = validate_koch(plan)
+    for v in koch_violations:
+        if v.severity == "blocker":
+            errors.append(f"[{v.rule_id}] {v.message}")
+        # Warnings are logged but don't fail validation
+
     return (len(errors) == 0, errors)

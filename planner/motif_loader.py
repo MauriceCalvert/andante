@@ -1,12 +1,14 @@
 """Load motifs from .note files and convert to Motif objects."""
 from fractions import Fraction
 from pathlib import Path
+import csv
 import re
 
 from planner.plannertypes import Motif
 from shared.constants import NOTE_NAME_MAP
 
 MOTIFS_DIR: Path = Path(__file__).parent.parent / "motifs"
+BASE_DIR: Path = Path(__file__).parent.parent
 
 # Note name to pitch class (0-11), handles sharps and flats
 NOTE_TO_PC: dict[str, int] = {
@@ -134,6 +136,74 @@ def load_motif(name: str, mode: str = "major") -> Motif:
     bars = int(total_dur)
     if bars < 1:
         raise ValueError(f"Motif in {note_path} has zero duration")
+
+    return Motif(
+        degrees=degrees,
+        durations=tuple(durations),
+        bars=bars,
+    )
+
+
+def load_motif_from_file(file_path: str, mode: str = "minor") -> Motif:
+    """Load motif from CSV-formatted .note file.
+
+    Supports the standard .note CSV format:
+        offset,midi,duration,track,length,bar,beat,pitch,lyric
+
+    Args:
+        file_path: Path relative to andante/ directory or absolute path
+        mode: Target mode for degree conversion (default minor for fugue subjects)
+
+    Returns:
+        Motif with degrees relative to inferred tonic
+    """
+    # Resolve path relative to andante/ if not absolute
+    path = Path(file_path)
+    if not path.is_absolute():
+        path = BASE_DIR / file_path
+
+    if not path.exists():
+        raise FileNotFoundError(f"Motif file not found: {path}")
+
+    midi_pitches: list[int] = []
+    durations: list[Fraction] = []
+
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            # Skip comments and header
+            if line.startswith("#") or line.startswith("offset,"):
+                continue
+            if not line:
+                continue
+
+            parts = line.split(",")
+            if len(parts) < 3:
+                continue
+
+            try:
+                midi = int(parts[1])
+                dur = Fraction(parts[2]).limit_denominator(64)
+            except (ValueError, IndexError):
+                continue
+
+            midi_pitches.append(midi)
+            durations.append(dur)
+
+    if not midi_pitches:
+        raise ValueError(f"No valid notes found in {path}")
+
+    # Infer tonic and convert to degrees
+    tonic_pc = infer_tonic(midi_pitches)
+    degrees = tuple(midi_to_degree(m, tonic_pc, mode) for m in midi_pitches)
+
+    # Calculate bar count from total duration
+    total_dur = sum(durations)
+    if total_dur == 0:
+        raise ValueError(f"Motif in {path} has zero duration")
+
+    # Round to nearest integer bars (CSV files may have slight rounding)
+    bars = max(1, round(float(total_dur)))
 
     return Motif(
         degrees=degrees,

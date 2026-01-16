@@ -7,6 +7,7 @@ import yaml
 from planner.planner import build_plan
 from planner.serializer import serialize_plan
 from planner.plannertypes import Brief
+from engine.validate import validate_brief_yaml
 
 
 def main() -> None:
@@ -20,7 +21,11 @@ def main() -> None:
         print(f"Error: File not found: {brief_path}", file=sys.stderr)
         sys.exit(1)
     with open(brief_path, encoding="utf-8") as f:
-        data: dict = yaml.safe_load(f)
+        content: str = f.read()
+    # YAML doesn't allow tabs for indentation - convert to spaces
+    content = content.replace("\t", "  ")
+    data: dict = yaml.safe_load(content)
+    validate_brief_yaml(data)
     brief_data: dict = data.get("brief", data)
     brief: Brief = Brief(
         affect=brief_data["affect"],

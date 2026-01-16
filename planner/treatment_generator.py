@@ -56,6 +56,15 @@ MAX_OCCURRENCES: dict[str, int] = {
     "diminution": 1,
 }
 
+# Koch's phrase type transitions (sections 34-37)
+# I-phrase = caesura on tonic, V-phrase = caesura on dominant
+# These guide tonal_target selection during structure generation
+TONAL_TRANSITIONS: dict[str, list[str]] = {
+    "I": ["V", "cadence"],      # I-phrase can go to V-phrase or cadence
+    "V": ["cadence"],           # V-phrase should go to cadence (not I at start)
+    "cadence": ["I", "V"],      # After cadence, new period can start either way
+}
+
 
 @dataclass
 class TreatmentProfile:
