@@ -6,6 +6,7 @@ from typing import Any, TextIO
 
 import yaml
 
+from builder.music_math import validate_duration
 from builder.tree import Node
 
 TRANSFORMS_PATH: Path = Path(__file__).parent / "data" / "transforms.yaml"
@@ -81,7 +82,7 @@ class Transform:
 
         if self.duration_op.startswith('multiply'):
             factor: Fraction = kwargs.get('factor', self._parse_arg(self.duration_op))
-            return tuple(d * factor for d in durations)
+            return tuple(validate_duration(d * factor) for d in durations)
 
         raise ValueError(f"Unknown duration op: {self.duration_op}")
 
@@ -98,7 +99,9 @@ class Transform:
 def notes_from_node(node: Node) -> Notes:
     """Extract Notes from a subject/motif node with degrees and durations."""
     pitches: tuple[int, ...] = tuple(c.value for c in node['degrees'].children)
-    durations: tuple[Fraction, ...] = tuple(Fraction(c.value) for c in node['durations'].children)
+    durations: tuple[Fraction, ...] = tuple(
+        validate_duration(Fraction(c.value)) for c in node['durations'].children
+    )
     return Notes(pitches, durations)
 
 
