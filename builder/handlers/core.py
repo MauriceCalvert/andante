@@ -47,35 +47,36 @@ def include(node: Node) -> Node | None:
     return None
 
 
-def elaborate(node: Node) -> Node:
-    """Elaborate node tree via handler dispatch.
+def _elaborate_child(child: Node) -> Node:
+    """Elaborate a single child node."""
+    handler: Callable[[Node], Node] | None
 
-    For each child:
-    1. Try (key, value) handler - exact match
-    2. Try (key, '*') handler - wildcard
-    3. Try include() - YAML resolution
-    4. Recurse into non-leaf nodes
-    5. Pass through leaf nodes
-    """
-    results: list[Node] = []
-    child: Node
-    for child in node.children:
-        if child.is_leaf() and child.value is not None:
-            handler: Callable[[Node], Node] | None = get_handler(child.key, child.value)
-            if handler:
-                results.append(handler(child))
-                continue
-            included: Node | None = include(child)
-            if included:
-                results.append(elaborate(included))
-                continue
-            results.append(child)
-        elif not child.is_leaf():
-            handler = get_handler(child.key, None)
-            if handler:
-                results.append(handler(child))
-            else:
-                results.append(elaborate(child))
-        else:
-            results.append(child)
-    return node.with_children(tuple(results))
+    # Non-leaf: try handler, else recurse
+    if not child.is_leaf():
+        handler = get_handler(child.key, None)
+        if handler:
+            return handler(child)
+        return elaborate(child)
+
+    # Leaf without value: passthrough
+    if child.value is None:
+        return child
+
+    # Leaf with value: try handler
+    handler = get_handler(child.key, child.value)
+    if handler:
+        return handler(child)
+
+    # Leaf with value: try YAML include
+    included: Node | None = include(child)
+    if included:
+        return elaborate(included)
+
+    # Leaf with value: passthrough
+    return child
+
+
+def elaborate(node: Node) -> Node:
+    """Elaborate node tree via handler dispatch."""
+    children: tuple[Node, ...] = tuple(_elaborate_child(c) for c in node.children)
+    return node.with_children(children)
