@@ -1,11 +1,12 @@
-"""Structure handlers for sections, episodes, phrases, bars, voices."""
+"""Structure handlers - only for nodes that create new structure."""
 from fractions import Fraction
+from typing import Any
 
 from builder.handlers.core import register, elaborate
 from builder.tree import Node, yaml_to_tree
 
 
-DIATONIC_DEFAULTS = {
+DIATONIC_DEFAULTS: dict[str, int] = {
     'soprano': 32,  # G4 (octave 4, degree 5)
     'bass': 21,     # C3 (octave 3, degree 1)
     'alto': 28,     # C4 (octave 4, degree 1)
@@ -13,28 +14,10 @@ DIATONIC_DEFAULTS = {
 }
 
 
-@register('sections', '*')
-def handle_sections(node: Node) -> Node:
-    """Elaborate each section in the list."""
-    results = []
-    for section in node.children:
-        results.append(elaborate(section))
-    return node.with_children(tuple(results))
-
-
-@register('episodes', '*')
-def handle_episodes(node: Node) -> Node:
-    """Elaborate each episode in the list."""
-    results = []
-    for episode in node.children:
-        results.append(elaborate(episode))
-    return node.with_children(tuple(results))
-
-
 @register('phrases', '*')
 def handle_phrases(node: Node) -> Node:
     """Elaborate each phrase by creating bars."""
-    results = []
+    results: list[Node] = []
     for phrase in node.children:
         results.append(_build_phrase(phrase, node))
     return node.with_children(tuple(results))
@@ -42,41 +25,31 @@ def handle_phrases(node: Node) -> Node:
 
 def _build_phrase(phrase: Node, parent: Node) -> Node:
     """Build a single phrase node by creating bars."""
-    bar_count = phrase['bars'].value if 'bars' in phrase else 1
-    voice_count = _get_voice_count(parent)
-    metre = _get_metre(parent)
+    bar_count: int = phrase['bars'].value if 'bars' in phrase else 1
+    voice_count: int = _get_voice_count(parent)
 
-    bars_data = []
+    bars_data: list[dict[str, Any]] = []
     for bar_idx in range(bar_count):
-        bar_data = {
+        bar_data: dict[str, Any] = {
             'bar_index': bar_idx,
             'voices': _create_voices_stub(voice_count),
         }
         bars_data.append(bar_data)
 
-    bars_node = yaml_to_tree(bars_data, key='bars', parent=phrase)
-    built_bars = elaborate(bars_node)
+    bars_node: Node = yaml_to_tree(bars_data, key='bars', parent=phrase)
+    built_bars: Node = elaborate(bars_node)
 
-    results = list(phrase.children) + [built_bars]
+    results: list[Node] = list(phrase.children) + [built_bars]
     return phrase.with_children(tuple(results))
-
-
-@register('bars', '*')
-def handle_bars(node: Node) -> Node:
-    """Elaborate each bar by creating voices."""
-    results = []
-    for bar in node.children:
-        results.append(elaborate(bar))
-    return node.with_children(tuple(results))
 
 
 @register('voices', '*')
 def handle_voices(node: Node) -> Node:
     """Generate notes for each voice."""
-    metre = _get_metre(node)
-    bar_duration = _parse_metre(metre)
+    metre: str = _get_metre(node)
+    bar_duration: Fraction = _parse_metre(metre)
 
-    results = []
+    results: list[Node] = []
     for voice in node.children:
         results.append(_build_voice(voice, bar_duration))
     return node.with_children(tuple(results))
@@ -84,16 +57,16 @@ def handle_voices(node: Node) -> Node:
 
 def _build_voice(voice: Node, bar_duration: Fraction) -> Node:
     """Build a single voice node by generating stub notes."""
-    role = voice['role'].value if 'role' in voice else 'soprano'
-    diatonic = DIATONIC_DEFAULTS.get(role, 28)
+    role: str = voice['role'].value if 'role' in voice else 'soprano'
+    diatonic: int = DIATONIC_DEFAULTS.get(role, 28)
 
-    notes_data = [
+    notes_data: list[dict[str, Any]] = [
         {'diatonic': diatonic, 'duration': str(bar_duration)}
     ]
 
-    notes_node = yaml_to_tree(notes_data, key='notes', parent=voice)
+    notes_node: Node = yaml_to_tree(notes_data, key='notes', parent=voice)
 
-    results = list(voice.children) + [notes_node]
+    results: list[Node] = list(voice.children) + [notes_node]
     return voice.with_children(tuple(results))
 
 
@@ -113,13 +86,15 @@ def _get_metre(node: Node) -> str:
         return '4/4'
 
 
-def _create_voices_stub(voice_count: int) -> list[dict]:
+def _create_voices_stub(voice_count: int) -> list[dict[str, str]]:
     """Create stub voice data."""
-    roles = ['soprano', 'bass', 'alto', 'tenor'][:voice_count]
+    roles: list[str] = ['soprano', 'bass', 'alto', 'tenor'][:voice_count]
     return [{'role': role} for role in roles]
 
 
 def _parse_metre(metre: str) -> Fraction:
     """Parse metre string to bar duration."""
+    num: str
+    den: str
     num, den = metre.split('/')
     return Fraction(int(num), int(den))

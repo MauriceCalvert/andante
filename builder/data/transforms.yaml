@@ -1,0 +1,35 @@
+# Melodic transforms
+# Missing pitch/duration keys default to unchanged
+
+statement: {}
+
+inversion:
+  pitch: negate
+
+retrograde:
+  pitch: reverse
+  duration: reverse
+
+augmentation:
+  duration: multiply(2)
+
+diminution:
+  duration: multiply(1/2)
+
+# Compound transforms
+inversion_augmented:
+  pitch: negate
+  duration: multiply(2)
+
+inversion_diminished:
+  pitch: negate
+  duration: multiply(1/2)
+
+retrograde_inversion:
+  pitch: negate
+  # Note: for true retrograde-inversion, apply retrograde then inversion
+  # This is a simplified version that just negates
+
+# Transposition (n provided at apply time)
+transposition:
+  pitch: transpose(0)

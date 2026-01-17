@@ -12,7 +12,7 @@ BUILDER_DATA_DIR: Path = Path(__file__).parent.parent / "data"
 HANDLERS: dict[tuple[str, str], Callable[[Node], Node]] = {}
 
 
-def register(key: str, value: str = '*') -> Callable:
+def register(key: str, value: str = '*') -> Callable[[Callable[[Node], Node]], Callable[[Node], Node]]:
     """Register handler for (key, value). Use '*' for any value."""
     def decorator(fn: Callable[[Node], Node]) -> Callable[[Node], Node]:
         HANDLERS[(key, value)] = fn
@@ -22,6 +22,7 @@ def register(key: str, value: str = '*') -> Callable:
 
 def get_handler(key: str, value: Any) -> Callable[[Node], Node] | None:
     """Look up handler, trying exact match then wildcard."""
+    handler: Callable[[Node], Node] | None
     if value is not None:
         handler = HANDLERS.get((key, str(value)))
         if handler:
@@ -35,12 +36,13 @@ def include(node: Node) -> Node | None:
     Given a node like {arc: dance_stately}, looks for data/arcs.yaml
     and returns a node with key 'arc' containing the dance_stately content.
     """
+    data_dir: Path
     for data_dir in (BUILDER_DATA_DIR, DATA_DIR):
         path: Path = data_dir / f"{node.key}s.yaml"
         if path.exists():
             root: Node = yaml_to_tree(yaml.safe_load(open(path, encoding="utf-8")))
             if node.value in root:
-                content = root.child(node.value)
+                content: Node = root.child(node.value)
                 return node.with_children(content.children)
     return None
 
@@ -56,13 +58,14 @@ def elaborate(node: Node) -> Node:
     5. Pass through leaf nodes
     """
     results: list[Node] = []
+    child: Node
     for child in node.children:
         if child.is_leaf() and child.value is not None:
-            handler = get_handler(child.key, child.value)
+            handler: Callable[[Node], Node] | None = get_handler(child.key, child.value)
             if handler:
                 results.append(handler(child))
                 continue
-            included = include(child)
+            included: Node | None = include(child)
             if included:
                 results.append(elaborate(included))
                 continue
