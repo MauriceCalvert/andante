@@ -91,12 +91,20 @@ class Node:
             yield node
             node = node._parent
 
+    def find_ancestor(self, predicate: Callable[['Node'], bool]) -> 'Node | None':
+        # phrase = bar.find_ancestor(lambda n: n.parent and n.parent.key == 'phrases')
+        for ancestor in self.ancestors():
+            if predicate(ancestor):
+                return ancestor
+        return None
+
     def child(self, key: str | int) -> 'Node':
         # frame = root.child('frame')
         for c in self._children:
             if c._key == key:
                 return c
-        raise KeyError(key)
+        available: list[str | int | None] = [c._key for c in self._children]
+        raise KeyError(f"'{key}' not found at {self.path_string()}. Available: {available}")
 
     def find(self, predicate: Callable[['Node'], bool]) -> Iterator['Node']:
         # for n in root.find(lambda n: n.key == 'cadence'): print(n.value)

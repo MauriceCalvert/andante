@@ -4,14 +4,7 @@ from typing import Any
 
 from builder.handlers.core import register, elaborate
 from builder.tree import Node, yaml_to_tree
-
-
-DIATONIC_DEFAULTS: dict[str, int] = {
-    'soprano': 32,  # G4 (octave 4, degree 5)
-    'bass': 21,     # C3 (octave 3, degree 1)
-    'alto': 28,     # C4 (octave 4, degree 1)
-    'tenor': 25,    # A3 (octave 3, degree 6)
-}
+from shared.constants import DIATONIC_DEFAULTS
 
 
 @register('phrases', '*')
@@ -25,7 +18,14 @@ def handle_phrases(node: Node) -> Node:
 
 def _build_phrase(phrase: Node, parent: Node) -> Node:
     """Build a single phrase node by creating bars."""
-    bar_count: int = phrase['bars'].value if 'bars' in phrase else 1
+    bar_count: int
+    if 'bars' in phrase:
+        bar_val: Any = phrase['bars'].value
+        assert isinstance(bar_val, int), f"bars must be int, got {type(bar_val).__name__} at {phrase.path_string()}"
+        assert bar_val > 0, f"bars must be positive, got {bar_val} at {phrase.path_string()}"
+        bar_count = bar_val
+    else:
+        bar_count = 1
     voice_count: int = _get_voice_count(parent)
 
     bars_data: list[dict[str, Any]] = []
@@ -36,7 +36,8 @@ def _build_phrase(phrase: Node, parent: Node) -> Node:
         }
         bars_data.append(bar_data)
 
-    bars_node: Node = yaml_to_tree(bars_data, key='bars', parent=phrase)
+    bars_node: Node | None = yaml_to_tree(bars_data, key='bars', parent=phrase)
+    assert bars_node is not None, "bars_data produced empty tree"
     built_bars: Node = elaborate(bars_node)
 
     results: list[Node] = list(phrase.children) + [built_bars]
@@ -51,7 +52,9 @@ def handle_voices(node: Node) -> Node:
 
     results: list[Node] = []
     for voice in node.children:
-        results.append(_build_voice(voice, bar_duration))
+        built: Node = _build_voice(voice, bar_duration)
+        elaborated: Node = elaborate(built)
+        results.append(elaborated)
     return node.with_children(tuple(results))
 
 
@@ -66,7 +69,8 @@ def _build_voice(voice: Node, bar_duration: Fraction) -> Node:
         {'diatonic': diatonic, 'duration': str(bar_duration)}
     ]
 
-    notes_node: Node = yaml_to_tree(notes_data, key='notes', parent=voice)
+    notes_node: Node | None = yaml_to_tree(notes_data, key='notes', parent=voice)
+    assert notes_node is not None, "notes_data produced empty tree"
 
     results: list[Node] = list(voice.children) + [notes_node]
     return voice.with_children(tuple(results))
@@ -77,7 +81,10 @@ def _get_voice_count(node: Node) -> int:
     root: Node = node.root
     assert 'frame' in root, "Tree missing required 'frame' node"
     assert 'voices' in root['frame'], "Frame missing required 'voices' key"
-    return root['frame']['voices'].value
+    val: Any = root['frame']['voices'].value
+    assert isinstance(val, int), f"voices must be int, got {type(val).__name__}"
+    assert val > 0, f"voices must be positive, got {val}"
+    return val
 
 
 def _get_metre(node: Node) -> str:
@@ -85,18 +92,25 @@ def _get_metre(node: Node) -> str:
     root: Node = node.root
     assert 'frame' in root, "Tree missing required 'frame' node"
     assert 'metre' in root['frame'], "Frame missing required 'metre' key"
-    return root['frame']['metre'].value
+    val: Any = root['frame']['metre'].value
+    assert isinstance(val, str), f"metre must be string, got {type(val).__name__}"
+    return val
 
 
 def _create_voices_stub(voice_count: int) -> list[dict[str, str]]:
     """Create stub voice data."""
+    assert 1 <= voice_count <= 4, f"voice_count must be 1-4, got {voice_count}"
     roles: list[str] = ['soprano', 'bass', 'alto', 'tenor'][:voice_count]
     return [{'role': role} for role in roles]
 
 
 def _parse_metre(metre: str) -> Fraction:
     """Parse metre string to bar duration."""
-    num: str
-    den: str
-    num, den = metre.split('/')
-    return Fraction(int(num), int(den))
+    assert '/' in metre, f"Invalid metre format: '{metre}'. Expected 'n/d' (e.g., '4/4')"
+    parts: list[str] = metre.split('/')
+    assert len(parts) == 2, f"Invalid metre format: '{metre}'. Expected 'n/d' (e.g., '4/4')"
+    num_str: str = parts[0]
+    den_str: str = parts[1]
+    assert num_str.isdigit(), f"Invalid metre numerator: '{num_str}' in '{metre}'"
+    assert den_str.isdigit(), f"Invalid metre denominator: '{den_str}' in '{metre}'"
+    return Fraction(int(num_str), int(den_str))

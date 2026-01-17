@@ -1,7 +1,17 @@
 # Melodic transforms
 # Missing pitch/duration keys default to unchanged
+# slice: head (first 4) or tail (last 3)
 
 statement: {}
+
+head:
+  slice: 4
+
+tail:
+  slice: -3
+
+invert:
+  pitch: negate
 
 inversion:
   pitch: negate

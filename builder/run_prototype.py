@@ -7,7 +7,7 @@ import yaml
 
 from builder.tree import Node, yaml_to_tree
 from builder.handlers import elaborate
-from builder.export import export_midi, collect_notes
+from builder.export import export_midi, export_note, collect_notes
 
 OUTPUT_DIR: Path = Path(__file__).parent.parent / "output"
 
@@ -23,6 +23,7 @@ def main() -> None:
 
     print("Converting to tree...")
     root: Node | None = yaml_to_tree(data)
+    assert root is not None, f"Empty or invalid YAML: {input_path}"
 
     print("Elaborating tree...")
     result: Node = elaborate(root)
@@ -52,9 +53,22 @@ def main() -> None:
     )
 
     if success:
-        print(f"SUCCESS: MIDI file written to {output_path}.mid")
+        print(f"SUCCESS: MIDI file written to {output_path}.midi")
     else:
         print("FAILED: Could not write MIDI file")
+
+    print(f"\n=== Exporting to {output_path}.note ===")
+    note_success: bool = export_note(
+        result,
+        str(output_path),
+        key_offset=0,
+        time_signature=(3, 4),
+    )
+
+    if note_success:
+        print(f"SUCCESS: Note file written to {output_path}.note")
+    else:
+        print("FAILED: Could not write note file")
 
 
 if __name__ == "__main__":

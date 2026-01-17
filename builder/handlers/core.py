@@ -35,15 +35,32 @@ def include(node: Node) -> Node | None:
 
     Given a node like {arc: dance_stately}, looks for data/arcs.yaml
     and returns a node with key 'arc' containing the dance_stately content.
+
+    Returns None only if:
+    - Key is not a string (e.g., integer list index)
+    - No matching YAML file exists
+    Throws if file exists but entry is missing.
     """
+    if node.key is None:
+        return None
+    if not isinstance(node.key, str):
+        return None  # Integer keys (list indices) can't be included
+    if node.value is None:
+        return None
+
     data_dir: Path
     for data_dir in (BUILDER_DATA_DIR, DATA_DIR):
         path: Path = data_dir / f"{node.key}s.yaml"
         if path.exists():
-            root: Node = yaml_to_tree(yaml.safe_load(open(path, encoding="utf-8")))
-            if node.value in root:
-                content: Node = root.child(node.value)
-                return node.with_children(content.children)
+            with open(path, encoding="utf-8") as f:
+                parsed: Node | None = yaml_to_tree(yaml.safe_load(f))
+            if parsed is None:
+                continue
+            # Only include if entry exists; otherwise treat as data value
+            if node.value not in parsed:
+                continue
+            content: Node = parsed.child(node.value)
+            return node.with_children(content.children)
     return None
 
 
@@ -58,21 +75,17 @@ def _elaborate_child(child: Node) -> Node:
             return handler(child)
         return elaborate(child)
 
-    # Leaf without value: passthrough
-    if child.value is None:
-        return child
-
-    # Leaf with value: try handler
+    # Leaf: try handler
     handler = get_handler(child.key, child.value)
     if handler:
         return handler(child)
 
-    # Leaf with value: try YAML include
+    # Leaf: try YAML include
     included: Node | None = include(child)
     if included:
         return elaborate(included)
 
-    # Leaf with value: passthrough
+    # Pass through unhandled leaf nodes (data values like 'description', 'key', etc.)
     return child
 
 
