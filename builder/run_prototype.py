@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 
 from builder.tree import yaml_to_tree
-from builder.builders import build
+from builder.handlers import elaborate
 from builder.export import export_midi, collect_notes
 
 OUTPUT_DIR = Path(__file__).parent.parent / "output"
@@ -21,8 +21,8 @@ def main() -> None:
     print("Converting to tree...")
     root = yaml_to_tree(data)
 
-    print("Building structure...")
-    result = build(root['structure'], context={})
+    print("Elaborating tree...")
+    result = elaborate(root)
 
     print("\n=== Result tree ===")
     result.print_tree()
