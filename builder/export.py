@@ -1,13 +1,12 @@
 """Export tree to MIDI."""
 from fractions import Fraction
-from pathlib import Path
 
 from builder.tree import Node
 from shared.midi_writer import SimpleNote, write_midi_notes
 
-C_MAJOR_OFFSETS = [0, 2, 4, 5, 7, 9, 11]
+C_MAJOR_OFFSETS: list[int] = [0, 2, 4, 5, 7, 9, 11]
 
-VOICE_TRACKS = {
+VOICE_TRACKS: dict[str, int] = {
     'soprano': 0,
     'alto': 1,
     'tenor': 2,
@@ -29,9 +28,9 @@ def diatonic_to_midi(diatonic: int, key_offset: int = 0) -> int:
     Returns:
         MIDI pitch number (0-127)
     """
-    octave = diatonic // 7
-    degree_idx = diatonic % 7
-    midi_base = (octave + 1) * 12
+    octave: int = diatonic // 7
+    degree_idx: int = diatonic % 7
+    midi_base: int = (octave + 1) * 12
     return midi_base + C_MAJOR_OFFSETS[degree_idx] + key_offset
 
 
@@ -41,7 +40,7 @@ def collect_notes(tree: Node) -> list[tuple[str, int, Fraction, Fraction]]:
     Returns:
         List of (role, diatonic, duration, offset) tuples
     """
-    notes = []
+    notes: list[tuple[str, int, Fraction, Fraction]] = []
     _collect_notes_recursive(tree, Fraction(0), notes)
     return notes
 
@@ -49,7 +48,7 @@ def collect_notes(tree: Node) -> list[tuple[str, int, Fraction, Fraction]]:
 def _collect_notes_recursive(
     node: Node,
     bar_offset: Fraction,
-    notes: list,
+    notes: list[tuple[str, int, Fraction, Fraction]],
     current_role: str | None = None
 ) -> Fraction:
     """Recursively collect notes from tree.
@@ -57,34 +56,39 @@ def _collect_notes_recursive(
     Returns the offset after processing this node's subtree.
     """
     if node.key == 'bars':
-        offset = bar_offset
+        offset: Fraction = bar_offset
+        bar_node: Node
         for bar_node in node.children:
             offset = _collect_notes_recursive(bar_node, offset, notes, current_role)
         return offset
 
     if isinstance(node.key, int) and 'voices' in node:
-        bar_duration = Fraction(0)
+        bar_duration: Fraction = Fraction(0)
+        voice_node: Node
         for voice_node in node['voices'].children:
             _collect_notes_recursive(voice_node, bar_offset, notes, current_role)
             if 'notes' in voice_node:
+                note_node: Node
                 for note_node in voice_node['notes'].children:
-                    dur_str = note_node['duration'].value
-                    dur = Fraction(dur_str) if isinstance(dur_str, str) else Fraction(dur_str)
+                    dur_str: str = note_node['duration'].value
+                    dur: Fraction = Fraction(dur_str) if isinstance(dur_str, str) else Fraction(dur_str)
                     bar_duration = max(bar_duration, dur)
         return bar_offset + bar_duration
 
     if isinstance(node.key, int) and 'role' in node:
-        role = node['role'].value
+        role: str = node['role'].value
         if 'notes' in node:
             offset = bar_offset
+            note_node: Node
             for note_node in node['notes'].children:
-                diatonic = note_node['diatonic'].value
-                dur_str = note_node['duration'].value
-                dur = Fraction(dur_str) if isinstance(dur_str, str) else Fraction(dur_str)
+                diatonic: int = note_node['diatonic'].value
+                dur_str: str = note_node['duration'].value
+                dur: Fraction = Fraction(dur_str) if isinstance(dur_str, str) else Fraction(dur_str)
                 notes.append((role, diatonic, dur, offset))
                 offset += dur
         return bar_offset
 
+    child: Node
     for child in node.children:
         bar_offset = _collect_notes_recursive(child, bar_offset, notes, current_role)
 
@@ -110,12 +114,16 @@ def export_midi(
     Returns:
         True if successful
     """
-    collected = collect_notes(tree)
+    collected: list[tuple[str, int, Fraction, Fraction]] = collect_notes(tree)
 
-    simple_notes = []
+    simple_notes: list[SimpleNote] = []
+    role: str
+    diatonic: int
+    duration: Fraction
+    offset: Fraction
     for role, diatonic, duration, offset in collected:
-        midi_pitch = diatonic_to_midi(diatonic, key_offset)
-        track = VOICE_TRACKS.get(role, 0)
+        midi_pitch: int = diatonic_to_midi(diatonic, key_offset)
+        track: int = VOICE_TRACKS.get(role, 0)
         simple_notes.append(SimpleNote(
             pitch=midi_pitch,
             offset=float(offset),

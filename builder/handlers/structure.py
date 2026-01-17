@@ -72,18 +72,18 @@ def _build_voice(voice: Node, bar_duration: Fraction) -> Node:
 
 def _get_voice_count(node: Node) -> int:
     """Get voice count from frame."""
-    try:
-        return node.lookup('frame', 'voices')
-    except KeyError:
-        return 2
+    root: Node = node.root
+    if 'frame' in root and 'voices' in root['frame']:
+        return root['frame']['voices'].value
+    return 2
 
 
 def _get_metre(node: Node) -> str:
     """Get metre from frame."""
-    try:
-        return node.lookup('frame', 'metre')
-    except KeyError:
-        return '4/4'
+    root: Node = node.root
+    if 'frame' in root and 'metre' in root['frame']:
+        return root['frame']['metre'].value
+    return '4/4'
 
 
 def _create_voices_stub(voice_count: int) -> list[dict[str, str]]:

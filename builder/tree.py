@@ -74,7 +74,7 @@ class Node:
     @property
     def root(self) -> 'Node':
         # brief = node.root.child('brief')
-        node = self
+        node: Node = self
         while node._parent is not None:
             node = node._parent
         return node
@@ -86,7 +86,7 @@ class Node:
 
     def ancestors(self) -> Iterator['Node']:
         # for a in node.ancestors(): print(a.key)
-        node = self._parent
+        node: Node | None = self._parent
         while node is not None:
             yield node
             node = node._parent
@@ -111,7 +111,7 @@ class Node:
 
     def lookup(self, *keys: str | int) -> Any:
         # affect = node.lookup('brief', 'affect')
-        node = self.root
+        node: Node = self.root
         for k in keys:
             node = node.child(k)
         return node.value
@@ -160,14 +160,14 @@ class Node:
 
     def with_children(self, children: tuple['Node', ...]) -> 'Node':
         # new_node = node.with_children((child1, child2))
-        node = Node(self._key, self._value, self._parent)
-        object.__setattr__(node, '_children', children)
-        return node
+        new_node: Node = Node(self._key, self._value, self._parent)
+        object.__setattr__(new_node, '_children', children)
+        return new_node
 
     def with_value(self, value: Any) -> 'Node':
         # new_node = node.with_value(42)
-        node = Node(self._key, value, self._parent, self._children)
-        return node
+        new_node: Node = Node(self._key, value, self._parent, self._children)
+        return new_node
 
 
 def yaml_to_tree(
@@ -178,6 +178,8 @@ def yaml_to_tree(
     # root = yaml_to_tree(yaml.safe_load(open('piece.yaml')))
     if data is None:
         return None
+    node: Node
+    children: tuple[Node, ...]
     if isinstance(data, dict):
         node = Node(key, data, parent)
         children = tuple(c for c in (yaml_to_tree(v, k, node) for k, v in data.items()) if c is not None)
