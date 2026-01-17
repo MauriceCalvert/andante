@@ -1,0 +1,23 @@
+soprano:
+  role: melody
+  range: [28, 42]        # C4 to B5 in diatonic
+  build_order: 0
+  default_diatonic: 32   # G4
+
+bass:
+  role: foundation
+  range: [14, 28]        # C2 to B3 in diatonic
+  build_order: 1
+  default_diatonic: 21   # C3
+
+alto:
+  role: inner
+  range: [24, 36]        # G3 to E5 in diatonic
+  build_order: 2
+  default_diatonic: 28   # C4
+
+tenor:
+  role: inner
+  range: [19, 32]        # E3 to G4 in diatonic
+  build_order: 3
+  default_diatonic: 25   # A3
