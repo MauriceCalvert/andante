@@ -137,7 +137,6 @@ class TestMaterial:
         material: Material = Material(subject=subject)
         assert material.subject == subject
         assert material.counter_subject is None
-        assert material.derived_motifs == ()
 
     def test_full_creation(self) -> None:
         """Material with subject, counter_subject, and derived motifs."""
@@ -150,9 +149,6 @@ class TestMaterial:
             source="subject",
             transforms=("head",),
         )
-        material: Material = Material(subject=subject, counter_subject=cs, derived_motifs=(dm,))
-        assert material.counter_subject == cs
-        assert len(material.derived_motifs) == 1
 
 
 class TestPhrase:

@@ -152,48 +152,6 @@ def _apply_duration_transform(durations: tuple[Fraction, ...], transform: str) -
     return durations
 
 
-def compute_derived_motifs(subject: Motif, cs: Motif | None) -> tuple[DerivedMotif, ...]:
-    """Pre-compute derived motifs from subject and counter-subject."""
-    derived: list[DerivedMotif] = []
-    head_size: int = min(4, len(subject.degrees))
-    tail_size: int = min(3, len(subject.degrees))
-    head_deg: tuple[int, ...] = subject.degrees[:head_size]
-    head_dur: tuple[Fraction, ...] = subject.durations[:head_size]
-    tail_deg: tuple[int, ...] = subject.degrees[-tail_size:]
-    tail_dur: tuple[Fraction, ...] = subject.durations[-tail_size:]
-    derived.append(DerivedMotif(
-        name="head_inverted",
-        degrees=_apply_motif_transform(head_deg, "invert"),
-        durations=head_dur,
-        source="subject",
-        transforms=("head", "invert"),
-    ))
-    derived.append(DerivedMotif(
-        name="tail_augmented",
-        degrees=tail_deg,
-        durations=_apply_duration_transform(tail_dur, "augment"),
-        source="subject",
-        transforms=("tail", "augment"),
-    ))
-    derived.append(DerivedMotif(
-        name="head_retrograde",
-        degrees=_apply_motif_transform(head_deg, "retrograde"),
-        durations=_apply_duration_transform(head_dur, "retrograde"),
-        source="subject",
-        transforms=("head", "retrograde"),
-    ))
-    if cs is not None:
-        cs_head_size: int = min(4, len(cs.degrees))
-        derived.append(DerivedMotif(
-            name="counter_head",
-            degrees=cs.degrees[:cs_head_size],
-            durations=cs.durations[:cs_head_size],
-            source="counter_subject",
-            transforms=("head",),
-        ))
-    return tuple(derived)
-
-
 def acquire_material(
     frame: Frame,
     user_motif: Motif | None = None,
@@ -245,10 +203,7 @@ def acquire_material(
         # Genre uses accompaniment bass - no CS needed
         cs = None
 
-    # Compute derived motifs
-    derived: tuple[DerivedMotif, ...] = compute_derived_motifs(motif, cs)
-
-    return Material(subject=motif, counter_subject=cs, derived_motifs=derived)
+    return Material(subject=motif, counter_subject=cs)
 
 
 # =============================================================================

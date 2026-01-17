@@ -45,6 +45,21 @@ Defer updates. Track what needs changing, execute only when explicitly told.
 
 ---
 
+## Coding
+
+Type hint everything.
+Try catch blocks are forbidden unless absolutely necessary.
+All of Tier1_Normative must always be respected.
+Code must be absolutely defensive, always assume that external data (like YAML) is faulty.
+Obvious defaults are good. If there's any doubt, throw. For example, assuming 4:4 time is forbidden.
+Do not say 'if ...: raise' use asserts.
+When you throw, the message must make the fix obvious.
+Avoid nested 'if' like the plague, use early returns. If you have to, with & finally.
+All constants must reside in shared\constants.
+Any function that 'fixes' things is illegal, fix at source.
+
+---
+
 ## Tests
 
 Do not run the full test suite yourself.

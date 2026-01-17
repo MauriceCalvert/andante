@@ -36,24 +36,11 @@ def _serialize_motif(motif: Motif) -> dict:
     }
 
 
-def _serialize_derived_motif(dm: DerivedMotif) -> dict:
-    """Serialize a DerivedMotif to dictionary."""
-    return {
-        "name": dm.name,
-        "degrees": InlineList(dm.degrees),
-        "durations": InlineList(str(d) for d in dm.durations),
-        "source": dm.source,
-        "transforms": InlineList(dm.transforms),
-    }
-
-
 def _serialize_material(material: Material) -> dict:
     """Serialize Material to dictionary."""
     result: dict = {"subject": _serialize_motif(material.subject)}
     if material.counter_subject is not None:
         result["counter_subject"] = _serialize_motif(material.counter_subject)
-    if material.derived_motifs:
-        result["derived_motifs"] = [_serialize_derived_motif(dm) for dm in material.derived_motifs]
     return result
 
 

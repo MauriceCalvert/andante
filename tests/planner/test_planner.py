@@ -222,12 +222,6 @@ class TestBuildPlanMaterial:
         result: Plan = build_plan(brief)
         assert result.material.counter_subject is not None
 
-    def test_derived_motifs_generated(self) -> None:
-        """Derived motifs are generated."""
-        brief: Brief = make_brief()
-        result: Plan = build_plan(brief)
-        assert len(result.material.derived_motifs) > 0
-
 
 class TestBuildPlanFrame:
     """Test frame properties of built plans."""

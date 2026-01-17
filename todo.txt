@@ -1,0 +1,33 @@
+i want to work through file:///D:/projects/Barok/barok/source/andante/docs/test_progression.md one by one.
+i have created \briefs\tests and \output\tests for this.
+i want the briefs to be as curt as possible to test that the planner makes correct implicit assumptions.
+the aim is to get the piece good enough that bob has no complaints.
+for each level you must write the brief, run run_exercises with the brief name parameter and show me the results.
+start with level 1.
+
+write make_subjects.py which creates numbered subjects in D:\projects\Barok\barok\source\andante\motifs\library
+in the same way as they are in D:\projects\Barok\barok\source\andante\motifs\library.
+the file name must include the seed (starts at 1) so that i can simply delete unpleasant subjects
+and subsequent runs generate subjects with higher seeds.
+one parameter, number of subjects to generate, default 20.
+
+Non-Goals (Future Work)
+- Beat-level chord progression in plan (could add later for more control)
+- Figured bass integration (already works separately)
+- Chromatic harmony (staying diatonic for now)
+
+_TONAL_ROOTS and TONAL_ROOTS are duplicate definitions in 3 different files. fix this and similar duplications of constants
+
+'key' (tonic and mode) and 'tonic' are mis-used. variables names etc called 'key' that refer to diatonic concepts should be 'tonic'
+
+when key is omitted, does the planner choose key according to mattheson (Part VIII: Affect and Expression 8.1 Affektenlehre in @file:///D:/projects/Barok/barok/source/andante/docs/Tier4_Reference/baroque_theory.md? if not, it must
+
+ensure_mterica_stress disabled. fix
+
+treatments.yaml. values like soprano_source: subject and bass_source: subject are specified repeatedly, they should default to sensible values
+
+would it make sense to merge bob into guards?
+
+rename diss_004 to dis_004
+
+fix_downbeat_dissonance, fix_parallel_violations the word 'fix' makes these smell

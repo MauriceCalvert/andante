@@ -9,85 +9,83 @@
 
 # Internal cadences (half-bar, used mid-piece)
 # Inner voices move stepwise to chord tones for proper voice leading
-internal:
-  authentic:
-    top: [7, 1]
-    inner_1: [2, 3]     # Re-Mi: stepwise resolution to mediant
-    inner_2: [5, 5]     # Sol-Sol: holds fifth
-    bottom: [5, 1]
-  half:
-    top: [1, 7]
-    inner_1: [5, 4]     # Sol-Fa: approaches leading tone area
-    inner_2: [3, 2]     # Mi-Re: descending step
-    bottom: [4, 5]
-  deceptive:
-    top: [7, 1]
-    inner_1: [2, 1]     # Re-Do: resolves down (vi chord has tonic)
-    inner_2: [5, 6]     # Sol-La: rises to submediant
-    bottom: [5, 6]
-  plagal:
-    top: [4, 3]
-    inner_1: [6, 5]     # La-Sol: subdominant to tonic fifth
-    inner_2: [1, 1]     # Do-Do: holds
-    bottom: [4, 1]
-  phrygian:
-    top: [3, 2]
-    inner_1: [6, 7]     # La-Ti: characteristic Phrygian half-step
-    inner_2: [4, 4]     # Fa stays (bass note becomes root)
-    bottom: [6, 5]
+authentic:
+  top: [7, 1]
+  inner_1: [2, 3]     # Re-Mi: stepwise resolution to mediant
+  inner_2: [5, 5]     # Sol-Sol: holds fifth
+  bottom: [5, 1]
+half:
+  top: [1, 7]
+  inner_1: [5, 4]     # Sol-Fa: approaches leading tone area
+  inner_2: [3, 2]     # Mi-Re: descending step
+  bottom: [4, 5]
+deceptive:
+  top: [7, 1]
+  inner_1: [2, 1]     # Re-Do: resolves down (vi chord has tonic)
+  inner_2: [5, 6]     # Sol-La: rises to submediant
+  bottom: [5, 6]
+plagal:
+  top: [4, 3]
+  inner_1: [6, 5]     # La-Sol: subdominant to tonic fifth
+  inner_2: [1, 1]     # Do-Do: holds
+  bottom: [4, 1]
+phrygian:
+  top: [3, 2]
+  inner_1: [6, 7]     # La-Ti: characteristic Phrygian half-step
+  inner_2: [4, 4]     # Fa stays (bass note becomes root)
+  bottom: [6, 5]
 
 # Final cadences (2-bar: approach + resolution)
 # Inner voices follow standard voice leading: stepwise motion, resolve dissonances
-final:
-  stepwise:
-    approach:
-      top: [3, 2]
-      inner_1: [1, 7]       # Do-Ti: stepwise descent to leading tone
-      inner_2: [5, 5]       # Sol-Sol: pedal fifth
-      bottom: [4, 5]
-      durations: [1/2, 1/2]
-    resolution:
-      top: [7, 1]
-      inner_1: [2, 3]       # Re-Mi: resolves up to mediant
-      inner_2: [5, 5]       # Sol-Sol: stays on fifth
-      bottom: [5, 1]
-      durations: [1/4, 3/4]
-  leap:
-    approach:
-      top: [5, 2]
-      inner_1: [1, 7]       # Do-Ti: same as stepwise
-      inner_2: [3, 5]       # Mi-Sol: rises to fifth
-      bottom: [3, 5]
-      durations: [1/2, 1/2]
-    resolution:
-      top: [7, 1]
-      inner_1: [2, 3]
-      inner_2: [5, 5]
-      bottom: [5, 1]
-      durations: [1/4, 3/4]
-  decorated:
-    approach:
-      top: [4, 3, 2]
-      inner_1: [6, 5, 7]    # La-Sol-Ti: passing through
-      inner_2: [1, 1, 5]    # Do-Do-Sol: holds then moves to V
-      bottom: [4, 4, 5]
-      durations: [1/4, 1/4, 1/2]
-    resolution:
-      top: [7, 1]
-      inner_1: [2, 3]
-      inner_2: [5, 5]
-      bottom: [5, 1]
-      durations: [1/4, 3/4]
-  invention:
-    approach:
-      top: [3, 2, 7, 1, 2]
-      inner_1: [1, 7, 5, 5, 7]      # Active inner voice
-      inner_2: [5, 5, 2, 3, 5]      # Stepwise motion
-      bottom: [1, 7, 5, 4, 5]
-      durations: [1/8, 1/8, 1/8, 1/8, 1/2]
-    resolution:
-      top: [7, 1]
-      inner_1: [2, 3]
-      inner_2: [5, 5]
-      bottom: [5, 1]
-      durations: [1/4, 3/4]
+stepwise:
+  approach:
+    top: [3, 2]
+    inner_1: [1, 7]       # Do-Ti: stepwise descent to leading tone
+    inner_2: [5, 5]       # Sol-Sol: pedal fifth
+    bottom: [4, 5]
+    durations: [1/2, 1/2]
+  resolution:
+    top: [7, 1]
+    inner_1: [2, 3]       # Re-Mi: resolves up to mediant
+    inner_2: [5, 5]       # Sol-Sol: stays on fifth
+    bottom: [5, 1]
+    durations: [1/4, 3/4]
+leap:
+  approach:
+    top: [5, 2]
+    inner_1: [1, 7]       # Do-Ti: same as stepwise
+    inner_2: [3, 5]       # Mi-Sol: rises to fifth
+    bottom: [3, 5]
+    durations: [1/2, 1/2]
+  resolution:
+    top: [7, 1]
+    inner_1: [2, 3]
+    inner_2: [5, 5]
+    bottom: [5, 1]
+    durations: [1/4, 3/4]
+decorated:
+  approach:
+    top: [4, 3, 2]
+    inner_1: [6, 5, 7]    # La-Sol-Ti: passing through
+    inner_2: [1, 1, 5]    # Do-Do-Sol: holds then moves to V
+    bottom: [4, 4, 5]
+    durations: [1/4, 1/4, 1/2]
+  resolution:
+    top: [7, 1]
+    inner_1: [2, 3]
+    inner_2: [5, 5]
+    bottom: [5, 1]
+    durations: [1/4, 3/4]
+invention:
+  approach:
+    top: [3, 2, 7, 1, 2]
+    inner_1: [1, 7, 5, 5, 7]      # Active inner voice
+    inner_2: [5, 5, 2, 3, 5]      # Stepwise motion
+    bottom: [1, 7, 5, 4, 5]
+    durations: [1/8, 1/8, 1/8, 1/8, 1/2]
+  resolution:
+    top: [7, 1]
+    inner_1: [2, 3]
+    inner_2: [5, 5]
+    bottom: [5, 1]
+    durations: [1/4, 3/4]

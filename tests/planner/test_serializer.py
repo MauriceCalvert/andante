@@ -13,7 +13,6 @@ import yaml
 
 from planner.serializer import (
     InlineList,
-    _serialize_derived_motif,
     _serialize_material,
     _serialize_motif,
     fraction_representer,
@@ -137,25 +136,6 @@ class TestSerializeMotif:
         assert "1/8" in result["durations"]
 
 
-class TestSerializeDerivedMotif:
-    """Test _serialize_derived_motif function."""
-
-    def test_has_all_fields(self) -> None:
-        """Serialized derived motif has all fields."""
-        dm: DerivedMotif = DerivedMotif(
-            name="head_inverted",
-            degrees=(5, 4, 3),
-            durations=(Fraction(1, 8),) * 3,
-            source="subject",
-            transforms=("head", "invert")
-        )
-        result: dict = _serialize_derived_motif(dm)
-        assert result["name"] == "head_inverted"
-        assert result["source"] == "subject"
-        assert "head" in result["transforms"]
-        assert "invert" in result["transforms"]
-
-
 class TestSerializeMaterial:
     """Test _serialize_material function."""
 
@@ -175,22 +155,6 @@ class TestSerializeMaterial:
         result: dict = _serialize_material(material)
         assert "subject" in result
         assert "counter_subject" in result
-
-    def test_with_derived_motifs(self) -> None:
-        """Material with derived motifs."""
-        subject: Motif = Motif(degrees=(1, 2, 3, 4), durations=(Fraction(1, 4),) * 4, bars=1)
-        dm: DerivedMotif = DerivedMotif(
-            name="head",
-            degrees=(1, 2),
-            durations=(Fraction(1, 4),) * 2,
-            source="subject",
-            transforms=("head",)
-        )
-        material: Material = Material(subject=subject, derived_motifs=(dm,))
-        result: dict = _serialize_material(material)
-        assert "derived_motifs" in result
-        assert len(result["derived_motifs"]) == 1
-
 
 class TestPlanToDict:
     """Test plan_to_dict function."""

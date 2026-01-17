@@ -49,7 +49,6 @@ class Material:
     """Thematic material for the piece."""
     subject: Motif
     counter_subject: Motif | None = None
-    derived_motifs: tuple[DerivedMotif, ...] = ()
 
 
 @dataclass(frozen=True)
