@@ -178,3 +178,46 @@ def build_offsets(start: Fraction, durations: list[Fraction]) -> list[Fraction]:
         offsets.append(current)
         current += dur
     return offsets
+
+
+# Augmentation lookup: duration -> doubled duration
+AUGMENTATION: dict[Fraction, Fraction] = {
+    Fraction(1, 32): Fraction(1, 16),
+    Fraction(1, 16): Fraction(1, 8),
+    Fraction(3, 32): Fraction(3, 16),
+    Fraction(1, 8): Fraction(1, 4),
+    Fraction(3, 16): Fraction(3, 8),
+    Fraction(1, 4): Fraction(1, 2),
+    Fraction(3, 8): Fraction(3, 4),
+    Fraction(1, 2): Fraction(1, 1),
+    Fraction(3, 4): Fraction(3, 2),
+    Fraction(1, 1): Fraction(2, 1),
+}
+
+# Diminution lookup: duration -> halved duration
+DIMINUTION: dict[Fraction, Fraction] = {
+    Fraction(2, 1): Fraction(1, 1),
+    Fraction(3, 2): Fraction(3, 4),
+    Fraction(1, 1): Fraction(1, 2),
+    Fraction(3, 4): Fraction(3, 8),
+    Fraction(1, 2): Fraction(1, 4),
+    Fraction(3, 8): Fraction(3, 16),
+    Fraction(1, 4): Fraction(1, 8),
+    Fraction(3, 16): Fraction(3, 32),
+    Fraction(1, 8): Fraction(1, 16),
+    Fraction(1, 16): Fraction(1, 32),
+}
+
+
+def augment_duration(duration: Fraction) -> Fraction:
+    """Double a duration via lookup. Raises if no valid mapping."""
+    if duration not in AUGMENTATION:
+        raise MusicMathError(f"Cannot augment duration: {duration}")
+    return AUGMENTATION[duration]
+
+
+def diminish_duration(duration: Fraction) -> Fraction:
+    """Halve a duration via lookup. Raises if no valid mapping."""
+    if duration not in DIMINUTION:
+        raise MusicMathError(f"Cannot diminish duration: {duration}")
+    return DIMINUTION[duration]

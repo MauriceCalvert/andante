@@ -11,19 +11,19 @@ retrograde:
   duration: reverse
 
 augmentation:
-  duration: multiply(2)
+  duration: augment
 
 diminution:
-  duration: multiply(1/2)
+  duration: diminish
 
 # Compound transforms
 inversion_augmented:
   pitch: negate
-  duration: multiply(2)
+  duration: augment
 
 inversion_diminished:
   pitch: negate
-  duration: multiply(1/2)
+  duration: diminish
 
 retrograde_inversion:
   pitch: negate

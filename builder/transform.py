@@ -6,7 +6,7 @@ from typing import Any, TextIO
 
 import yaml
 
-from builder.music_math import validate_duration
+from builder.music_math import augment_duration, diminish_duration, validate_duration
 from builder.tree import Node
 
 TRANSFORMS_PATH: Path = Path(__file__).parent / "data" / "transforms.yaml"
@@ -80,9 +80,11 @@ class Transform:
         if self.duration_op == 'reverse':
             return durations[::-1]
 
-        if self.duration_op.startswith('multiply'):
-            factor: Fraction = kwargs.get('factor', self._parse_arg(self.duration_op))
-            return tuple(validate_duration(d * factor) for d in durations)
+        if self.duration_op == 'augment':
+            return tuple(augment_duration(d) for d in durations)
+
+        if self.duration_op == 'diminish':
+            return tuple(diminish_duration(d) for d in durations)
 
         raise ValueError(f"Unknown duration op: {self.duration_op}")
 
