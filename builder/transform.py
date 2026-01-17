@@ -11,6 +11,10 @@ from builder.tree import Node
 
 TRANSFORMS_PATH: Path = Path(__file__).parent / "data" / "transforms.yaml"
 
+# Valid operations - validated at construction time
+VALID_PITCH_OPS: frozenset[str] = frozenset({'negate', 'reverse', 'transpose'})
+VALID_DURATION_OPS: frozenset[str] = frozenset({'reverse', 'augment', 'diminish'})
+
 
 @dataclass(frozen=True)
 class Notes:
@@ -36,6 +40,27 @@ class Transform:
         spec: dict[str, str] = self._load_spec(name)
         self.pitch_op: str | None = spec.get('pitch')
         self.duration_op: str | None = spec.get('duration')
+        self.transpose_n: int | None = None
+        self._validate_spec()
+
+    def _validate_spec(self) -> None:
+        """Validate operations at construction time. Fail fast on bad YAML."""
+        if self.pitch_op is not None:
+            op_name: str = self.pitch_op.split('(')[0]
+            if op_name not in VALID_PITCH_OPS:
+                raise ValueError(
+                    f"Transform '{self.name}': unknown pitch op '{self.pitch_op}'. "
+                    f"Valid: {sorted(VALID_PITCH_OPS)}"
+                )
+            if op_name == 'transpose':
+                self.transpose_n = int(self._parse_arg(self.pitch_op))
+
+        if self.duration_op is not None:
+            if self.duration_op not in VALID_DURATION_OPS:
+                raise ValueError(
+                    f"Transform '{self.name}': unknown duration op '{self.duration_op}'. "
+                    f"Valid: {sorted(VALID_DURATION_OPS)}"
+                )
 
     @classmethod
     def _load_spec(cls, name: str) -> dict[str, str]:
@@ -49,32 +74,57 @@ class Transform:
         return cls._cache[name] or {}
 
     def apply(self, notes: Notes, **kwargs: Any) -> Notes:
-        """Apply transform to notes."""
+        """Apply transform to notes.
+
+        Required kwargs by operation:
+        - negate: pivot (int) - the pitch to invert around
+        - transpose: n (int) - semitones to transpose (overrides YAML default)
+        """
         pitches: tuple[int, ...] = self._transform_pitch(notes.pitches, **kwargs)
-        durations: tuple[Fraction, ...] = self._transform_duration(notes.durations, **kwargs)
+        durations: tuple[Fraction, ...] = self._transform_duration(notes.durations)
         return Notes(pitches, durations)
 
     def _transform_pitch(self, pitches: tuple[int, ...], **kwargs: Any) -> tuple[int, ...]:
         """Apply pitch operation."""
-        if not self.pitch_op:
+        if self.pitch_op is None:
             return pitches
 
         if self.pitch_op == 'negate':
-            pivot: int = kwargs.get('pivot', pitches[0])
+            if 'pivot' not in kwargs:
+                raise ValueError(
+                    f"Transform '{self.name}': 'negate' requires 'pivot' kwarg"
+                )
+            pivot: int = kwargs['pivot']
+            if not isinstance(pivot, int):
+                raise TypeError(
+                    f"Transform '{self.name}': pivot must be int, got {type(pivot).__name__}"
+                )
             return tuple(2 * pivot - p for p in pitches)
 
         if self.pitch_op == 'reverse':
             return pitches[::-1]
 
         if self.pitch_op.startswith('transpose'):
-            n: int = int(kwargs.get('n', self._parse_arg(self.pitch_op)))
+            n: int
+            if 'n' in kwargs:
+                n = kwargs['n']
+                if not isinstance(n, int):
+                    raise TypeError(
+                        f"Transform '{self.name}': n must be int, got {type(n).__name__}"
+                    )
+            elif self.transpose_n is not None:
+                n = self.transpose_n
+            else:
+                raise ValueError(
+                    f"Transform '{self.name}': 'transpose' requires 'n' kwarg or YAML arg"
+                )
             return tuple(p + n for p in pitches)
 
         raise ValueError(f"Unknown pitch op: {self.pitch_op}")
 
-    def _transform_duration(self, durations: tuple[Fraction, ...], **kwargs: Any) -> tuple[Fraction, ...]:
+    def _transform_duration(self, durations: tuple[Fraction, ...]) -> tuple[Fraction, ...]:
         """Apply duration operation."""
-        if not self.duration_op:
+        if self.duration_op is None:
             return durations
 
         if self.duration_op == 'reverse':
@@ -90,7 +140,7 @@ class Transform:
 
     @staticmethod
     def _parse_arg(op: str) -> Fraction:
-        """Parse argument from operation string like 'multiply(2)' or 'transpose(3)'."""
+        """Parse argument from operation string like 'transpose(3)'."""
         start: int = op.find('(')
         end: int = op.find(')')
         if start == -1 or end == -1:

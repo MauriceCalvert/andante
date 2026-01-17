@@ -57,8 +57,10 @@ def handle_voices(node: Node) -> Node:
 
 def _build_voice(voice: Node, bar_duration: Fraction) -> Node:
     """Build a single voice node by generating stub notes."""
-    role: str = voice['role'].value if 'role' in voice else 'soprano'
-    diatonic: int = DIATONIC_DEFAULTS.get(role, 28)
+    assert 'role' in voice, "Voice node missing required 'role' key"
+    role: str = voice['role'].value
+    assert role in DIATONIC_DEFAULTS, f"Unknown voice role: '{role}'. Valid: {sorted(DIATONIC_DEFAULTS.keys())}"
+    diatonic: int = DIATONIC_DEFAULTS[role]
 
     notes_data: list[dict[str, Any]] = [
         {'diatonic': diatonic, 'duration': str(bar_duration)}
@@ -73,17 +75,17 @@ def _build_voice(voice: Node, bar_duration: Fraction) -> Node:
 def _get_voice_count(node: Node) -> int:
     """Get voice count from frame."""
     root: Node = node.root
-    if 'frame' in root and 'voices' in root['frame']:
-        return root['frame']['voices'].value
-    return 2
+    assert 'frame' in root, "Tree missing required 'frame' node"
+    assert 'voices' in root['frame'], "Frame missing required 'voices' key"
+    return root['frame']['voices'].value
 
 
 def _get_metre(node: Node) -> str:
     """Get metre from frame."""
     root: Node = node.root
-    if 'frame' in root and 'metre' in root['frame']:
-        return root['frame']['metre'].value
-    return '4/4'
+    assert 'frame' in root, "Tree missing required 'frame' node"
+    assert 'metre' in root['frame'], "Frame missing required 'metre' key"
+    return root['frame']['metre'].value
 
 
 def _create_voices_stub(voice_count: int) -> list[dict[str, str]]:

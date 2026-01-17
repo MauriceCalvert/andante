@@ -123,7 +123,8 @@ def export_midi(
     offset: Fraction
     for role, diatonic, duration, offset in collected:
         midi_pitch: int = diatonic_to_midi(diatonic, key_offset)
-        track: int = VOICE_TRACKS.get(role, 0)
+        assert role in VOICE_TRACKS, f"Unknown voice role: '{role}'. Valid: {sorted(VOICE_TRACKS.keys())}"
+        track: int = VOICE_TRACKS[role]
         simple_notes.append(SimpleNote(
             pitch=midi_pitch,
             offset=float(offset),

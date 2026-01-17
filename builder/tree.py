@@ -161,12 +161,31 @@ class Node:
     def with_children(self, children: tuple['Node', ...]) -> 'Node':
         # new_node = node.with_children((child1, child2))
         new_node: Node = Node(self._key, self._value, self._parent)
-        object.__setattr__(new_node, '_children', children)
+        # Reparent children to point to new_node
+        reparented: tuple[Node, ...] = tuple(
+            child._with_parent(new_node) for child in children
+        )
+        object.__setattr__(new_node, '_children', reparented)
+        return new_node
+
+    def _with_parent(self, parent: 'Node') -> 'Node':
+        """Create copy of this node with new parent, recursively reparenting children."""
+        new_node: Node = Node(self._key, self._value, parent)
+        if self._children:
+            reparented: tuple[Node, ...] = tuple(
+                child._with_parent(new_node) for child in self._children
+            )
+            object.__setattr__(new_node, '_children', reparented)
         return new_node
 
     def with_value(self, value: Any) -> 'Node':
         # new_node = node.with_value(42)
-        new_node: Node = Node(self._key, value, self._parent, self._children)
+        new_node: Node = Node(self._key, value, self._parent)
+        if self._children:
+            reparented: tuple[Node, ...] = tuple(
+                child._with_parent(new_node) for child in self._children
+            )
+            object.__setattr__(new_node, '_children', reparented)
         return new_node
 
 
