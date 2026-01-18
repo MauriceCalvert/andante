@@ -28,12 +28,21 @@ yaml.add_representer(InlineList, inline_list_representer)
 
 
 def _serialize_motif(motif: Motif) -> dict:
-    """Serialize a Motif to dictionary."""
-    return {
-        "degrees": InlineList(motif.degrees),
+    """Serialize a Motif to dictionary.
+
+    Outputs pitches (MIDI) if available, otherwise degrees.
+    """
+    result: dict = {
         "durations": InlineList(str(d) for d in motif.durations),
         "bars": motif.bars,
     }
+    if motif.pitches is not None:
+        result["pitches"] = InlineList(motif.pitches)
+        if motif.source_key is not None:
+            result["source_key"] = motif.source_key
+    elif motif.degrees is not None:
+        result["degrees"] = InlineList(motif.degrees)
+    return result
 
 
 def _serialize_material(material: Material) -> dict:
@@ -86,6 +95,7 @@ def plan_to_dict(plan: Plan) -> dict:
                                     "surprise": phrase.surprise,
                                     "is_climax": phrase.is_climax,
                                     "energy": phrase.energy,
+                                    "harmony": InlineList(phrase.harmony) if phrase.harmony else None,
                                 }
                                 for phrase in episode.phrases
                             ],

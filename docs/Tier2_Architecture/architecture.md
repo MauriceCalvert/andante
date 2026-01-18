@@ -22,9 +22,10 @@ P6 Devices     → Figurenlehre assignment
 P7 Coherence   → CoherencePlan (callbacks, surprises)
         ↓
       YAML ─────────────────────→ E1 Parse    → PieceAST
+                                  E2 Texture  → VoiceArrangement
                                   E3 Expand   → ExpandedPhrase
                                   E4 Realise  → RealisedPhrase
-                                  E6 Format   → Note → .midi/.musicxml
+                                  E5 Format   → Note → .midi/.musicxml
 ```
 
 Each layer boundary is a frozen dataclass. You can enter at any layer if you have the right type. You can exit at any layer for inspection.
@@ -41,14 +42,15 @@ Each layer boundary is a frozen dataclass. You can enter at any layer if you hav
 | P6 Devices | Structure, Material | (assignments) | Figurenlehre device placement |
 | P7 Coherence | all | CoherencePlan | callbacks, surprises, proportions |
 
-### Executor Layers (E1-E6)
+### Executor Layers (E1-E5)
 
 | Layer | Input | Output | Concern |
 |-------|-------|--------|---------|
 | E1 Parse | YAML | PieceAST | syntax, structural validation |
-| E3 Expand | PieceAST | ExpandedPhrase | phrases → bar-level pitches |
+| E2 Texture | PieceAST | VoiceArrangement | voice roles, timing relationships |
+| E3 Expand | VoiceArrangement | ExpandedPhrase | phrases → bar-level pitches |
 | E4 Realise | ExpandedPhrase | RealisedPhrase | degrees → MIDI pitches |
-| E6 Format | RealisedPhrase | Note | track/bar/beat → MIDI/MusicXML |
+| E5 Format | RealisedPhrase | Note | track/bar/beat → MIDI/MusicXML |
 
 ---
 
@@ -74,7 +76,7 @@ PIECE                           One complete composition
                     │           Has: type, bars, texture
                     │
                     └── PHRASE   Musical unit within episode
-                          │      Has: bars, treatment, cadence, energy
+                          │      Has: bars, treatment, texture, cadence, energy
                           │
                           └── BAR    Metric unit
                                 │
@@ -145,7 +147,7 @@ PIECE                           One complete composition
 |-------|------|------------|
 | type | str | see vocabulary/episodes |
 | bars | POS_INT | |
-| texture | str | polyphonic, homophonic, monophonic |
+| texture | str | polyphonic, homophonic, interleaved, etc. |
 | phrases | [Phrase] | non-empty |
 | is_transition | bool | |
 
@@ -158,6 +160,7 @@ PIECE                           One complete composition
 | tonal_target | str | see vocabulary/roman |
 | cadence | str? | see vocabulary/cadences |
 | treatment | str | see vocabulary/treatments |
+| texture | str | see vocabulary/textures |
 | surprise | str? | see vocabulary/surprises |
 | is_climax | bool | |
 | energy | str? | low, moderate, high, climactic |
@@ -189,24 +192,7 @@ class Rest:
 | MidiPitch | Direct MIDI value | Inner voices, post-resolution |
 | Rest | N/A | Silence marker |
 
-Type alias:
-- `Pitch = FloatingNote | MidiPitch | Rest`
-
-### Pipeline Type Flow
-
-```
-YAML (degrees) → FloatingNote (motif)
-                     ↓
-              Outer voice expansion → FloatingNote
-                     ↓
-              Slice solver → Note (inner voices)
-                     ↓
-              Realiser:
-                - FloatingNote → MIDI (heuristic)
-                - Note → MIDI (deterministic)
-                     ↓
-              MIDI int (guards, output)
-```
+Type alias: `Pitch = FloatingNote | MidiPitch | Rest`
 
 ### RealisedNote (output)
 
@@ -218,6 +204,66 @@ class RealisedNote:
     duration: Fraction # Length in semibreves
     voice: str         # "soprano", "alto", "tenor", "bass"
 ```
+
+---
+
+## Three-Way Split: Source × Treatment × Texture
+
+The executor separates three orthogonal concerns:
+
+| Layer | Question | Examples |
+|-------|----------|----------|
+| **Source** | Where does raw material come from? | subject, schema, figures |
+| **Treatment** | How is material transformed? | invert, fragment, augment |
+| **Texture** | How do voices relate? | polyphonic, canon, hocket |
+
+This enables clean combination:
+```yaml
+- {treatment: inversion, texture: interleaved}   # inverted subject, Goldberg-style voicing
+- {treatment: fragmentation, texture: canon}     # head motif in canon
+- {source: schema, texture: stratified}          # figured bass realisation
+```
+
+### Treatment (What Notes?)
+
+Melodic transformations applied to source material:
+
+| Treatment | Effect |
+|-----------|--------|
+| statement | Material unchanged |
+| inversion | Flip intervals around first note |
+| retrograde | Reverse order |
+| fragmentation | Head or tail portion |
+| augmentation | Double durations |
+| diminution | Halve durations |
+| sequence | Repeat at different pitch level |
+
+### Texture (How Do Voices Interact?)
+
+Voice relationships across time and pitch:
+
+| Texture | Time Relation | Pitch Relation | Use |
+|---------|---------------|----------------|-----|
+| polyphonic | independent | independent | Standard counterpoint |
+| homophonic | synchronized | harmonic | Chordal passages |
+| interleaved | offset | independent | Goldberg-style |
+| canon | offset | transposed | Imitative entries |
+| hocket | interlocking | independent | Rhythmic alternation |
+| stratified | independent | independent | Melody + accompaniment |
+
+### Voice Roles
+
+Textures assign abstract roles that map to concrete voices:
+
+| Role | Typical Behaviour |
+|------|-------------------|
+| leader | Primary melodic voice |
+| follower | Derives from leader |
+| dux | Canon leader (states theme first) |
+| comes | Canon follower (imitates dux) |
+| accompaniment | Harmonic support |
+| pedal | Sustained reference pitch |
+| filler | Completes harmonic texture |
 
 ---
 
@@ -236,44 +282,6 @@ The executor uses six orthogonal primitives to transform abstract material into 
 
 E3 primitives operate on abstract degrees. E4 primitives operate on concrete MIDI pitches.
 
-### E3 Primitives (Degrees)
-
-**transform**: Apply transformation to motif material.
-- `invert` — flip intervals around first note
-- `retrograde` — reverse order of degrees and durations
-- `shift` — transpose by parameter degrees
-- `fragment_head` — first N notes
-- `fragment_tail` — last N notes
-- `augment` — double all durations
-- `diminish` — halve all durations
-
-**sequence**: Create sequential repetition.
-- Maximum 2 repetitions (baroque convention)
-- `break_sequence` techniques: interrupt, vary, reverse, fragment
-
-### E4 Primitives (Pitches)
-
-**embellish**: Add ornamental notes.
-- `neighbor_oscillation` — oscillate to upper/lower neighbor
-- `passing` — fill leaps with stepwise motion
-- `turn` — upper-note-main-lower-main pattern
-- `mordent` — quick lower neighbor oscillation
-- `trill` — rapid alternation with upper neighbor
-
-**shape**: Ensure interval mix.
-- Check leap ratio (proportion of intervals ≥ minor 3rd)
-- Fix by inserting passing tones or adjusting contour
-
-**voice**: Check voice relationships (filter only, does not fix).
-- `check_parallels` — detect parallel fifths/octaves
-- `check_contrary_motion` — ensure voices don't move parallel too long
-- `check_density` — complementary rhythm (busy soprano = calm bass)
-
-**articulate**: Adjust timing.
-- `apply_phrase_gap` — shorten final note for breathing room
-- `apply_staccato` — reduce sounding duration
-- `insert_pause` — structural pause (max 2 per piece)
-
 ---
 
 ## Guards & Backtracking
@@ -284,7 +292,7 @@ Guards enforce rules from lessons.yaml at multiple levels:
 
 ```yaml
 piece:
-  guards: [tex_004, tex_011]  # universal - apply to all phrases
+  guards: [tex_004, tex_011]  # universal — apply to all phrases
 
 sections:
   A:
@@ -297,7 +305,7 @@ sections:
 
 ### Guard Scopes
 
-| Scope | When checked |
+| Scope | When Checked |
 |-------|--------------|
 | note | Every note (rare, expensive) |
 | bar | After each bar realised |
@@ -317,7 +325,7 @@ Voice checks (parallel fifths, etc.) run at **phrase end**, not continuously.
 
 ### Backtracking
 
-The system uses seed-based backtracking. If guards fail:
+Seed-based backtracking on guard failure:
 
 ```python
 seed: int = 0
@@ -336,80 +344,9 @@ Backtracking scope is **per-phrase**. If a phrase fails after exhausting choices
 
 ---
 
-## Two-Voice Path (Complete)
+## Voice Configuration
 
-The 2-voice path is mature with extensive musical intelligence.
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `engine/expander.py` | E3: Phrase expansion with treatments, schemas, pedals |
-| `engine/realiser.py` | E4: Degrees → MIDI pitches with ornaments |
-| `engine/voice_pipeline.py` | Voice-specific expansion from treatment specs |
-| `engine/melodic_bass.py` | Tuneful independent bass generation |
-| `engine/cadence.py` | Cadential approach and harmonic formulas |
-| `engine/schema.py` | Partimento-style harmonic schemas |
-| `engine/pedal.py` | Pedal point generation |
-| `engine/figured_bass.py` | Figured bass realisation |
-| `engine/walking_bass.py` | Walking bass elaboration |
-| `engine/hemiola.py` | Metric displacement in triple metre |
-
-### Treatment System
-
-Treatments are defined in `data/treatments.yaml`:
-
-```yaml
-statement:
-  soprano_source: subject
-  bass_source: counter_subject
-  bass_delay: 3/8
-
-imitation:
-  bass_derivation: imitation
-
-fragmentation:
-  soprano_transform: head
-  soprano_transform_params: { size: 4 }
-```
-
-### Musical Features
-
-- **Schemas**: romanesca, fonte, monte, prinner, rule_of_octave (ascending/descending)
-- **Pedal points**: tonic pedal, dominant pedal
-- **Rhythms**: straight, dotted, lombardic, running
-- **Cadences**: half, authentic, deceptive with proper soprano approach and bass motion
-- **Surprises**: evaded_cadence, early_return
-- **Ornaments**: trill, mordent, turn (sparse application)
-- **Devices**: stretto, augmentation, diminution
-
----
-
-## N-Voice Extension (In Progress)
-
-### Design Principle
-
-One system that handles any texture (homophonic, polyphonic, mixed) through a unified constraint-satisfaction approach. Texture becomes a parameter that influences candidate generation, not a code path selector.
-
-### Core Insight
-
-Every voice at every vertical slice needs a pitch. The problem is always the same:
-
-1. **Generate candidates** — What pitches could this voice sing here?
-2. **Filter by constraints** — Remove candidates that violate voice-leading rules
-3. **Select best** — Pick candidate with lowest voice-leading cost
-
-The only thing that varies by texture is **step 1** (candidate generation):
-
-| Texture | Inner Voice Candidates |
-|---------|----------------------|
-| Homophonic | Chord tones from outer voices |
-| Polyphonic with material | Thematic pitches from voice_entry |
-| Polyphonic without material | Consonant scale degrees |
-
-Steps 2-3 are identical regardless of texture.
-
-### Voice Configuration
+### Voice Roles
 
 ```python
 class VoiceRole(Enum):
@@ -426,199 +363,64 @@ class VoiceConfig:
     range_high: int         # MIDI ceiling
     median: int             # Default center pitch
     name: str               # "soprano", "alto", "tenor", "bass"
-
-@dataclass(frozen=True)
-class VoiceSet:
-    voices: list[VoiceConfig]
-
-    @staticmethod
-    def two_voice() -> "VoiceSet": ...
-    @staticmethod
-    def trio_sonata() -> "VoiceSet": ...
-    @staticmethod
-    def satb() -> "VoiceSet": ...
-```
-
-### Vertical Slice Model
-
-```python
-@dataclass(frozen=True)
-class VoiceSlice:
-    """One voice's state at a vertical slice."""
-    pitch: Pitch | None      # None = needs solving
-    duration: Fraction
-    source: str              # 'thematic', 'chordal', 'consonant', 'rest'
-
-@dataclass(frozen=True)  
-class VerticalSlice:
-    """All voices at one moment."""
-    offset: Fraction
-    voices: tuple[VoiceSlice, ...]
-    
-    def needs_solving(self) -> tuple[int, ...]:
-        """Return indices of voices that need pitch selection."""
-```
-
-### Hierarchical Solving
-
-Outer voices first, inner voices fill:
-
-```
-Pass 1: Realise voice[0] and voice[N-1] (outer pair)
-Pass 2: For each inner voice, realise constrained by outer solution
-```
-
-This matches baroque practice and reduces search space from O(k^N) to O(k²) + O(k^(N-2)).
-
-### Constraint Filtering
-
-```python
-def filter_candidates(
-    candidates: tuple[int, ...],
-    voice_index: int,
-    curr_slice: VerticalSlice,
-    prev_slice: VerticalSlice | None,
-    voice_count: int,
-) -> tuple[int, ...]:
-    """Remove candidates that violate constraints."""
-    # Check: parallel fifths/octaves, voice crossing, spacing
-```
-
-### Voice-Leading Selection
-
-```python
-def select_best_candidate(
-    candidates: tuple[int, ...],
-    prev_pitch: int | None,
-    other_voices: tuple[int, ...],
-    median: int,
-) -> int:
-    """Select candidate with lowest voice-leading cost."""
-    # Prefer: small intervals, contrary motion, near median
 ```
 
 ### Role-Based Constraint Relaxation
 
-| Role | Parallels with same | Parallels with melodic | Spacing rules |
+| Role | Parallels with Same | Parallels with Melodic | Spacing Rules |
 |------|---------------------|------------------------|---------------|
 | MELODIC | Forbidden | Forbidden | Strict |
 | HARMONIC | Allowed | Forbidden | Normal |
 | CONTINUO | N/A | Forbidden | Relaxed |
 | FILL | Allowed | Allowed (weak beat) | Relaxed |
 
-### Infrastructure Built
-
-| File | Purpose | Status |
-|------|---------|--------|
-| `engine/voice_config.py` | VoiceSet, VoiceConfig | ✓ |
-| `engine/voice_entry.py` | VoiceTreatmentSpec, PhraseVoiceEntry | ✓ |
-| `engine/voice_material.py` | VoiceMaterial, ExpandedVoices | ✓ |
-| `engine/voice_pair.py` | VoicePair, VoicePairSet for guard checking | ✓ |
-| `engine/subdivision.py` | VerticalSlice, SliceSequence alignment | ✓ |
-| `engine/voice_checks.py` | Parallel motion detection for all pairs | ✓ |
-| `engine/n_voice_expander.py` | Per-voice expansion from arc entries | ✓ |
-| `engine/inner_voice.py` | Branch-and-bound + CP-SAT inner voice solving | ✓ |
-| `engine/cpsat_slice_solver.py` | OR-Tools CP-SAT constraint solver | ✓ |
-| `engine/harmonic_context.py` | Chord inference from outer voices | ✓ |
-
-### Current Status
-
-The N-voice system is fully implemented with:
-- **CP-SAT solver** as primary inner voice resolution method
-- **Branch-and-bound fallback** when CP-SAT times out
-- **Harmonic context inference** from outer voices for chord-tone candidates
-- **Phrase-level scoring** across all slices for optimal combinations
-
 ---
 
-## Module Structure
+## Current Status
 
-```
-andante/
-├── planner/               # P1-P7: Brief → YAML
-│   ├── plannertypes.py    # Brief, Frame, Material, Structure, Plan
-│   ├── planner.py         # build_plan orchestrator (7 stages)
-│   ├── frame.py           # P1: resolve_frame
-│   ├── dramaturgy.py      # P2: rhetorical structure, tension curves
-│   ├── material.py        # P3: subject acquisition
-│   ├── subject.py         # Subject class with lazy counter-subject
-│   ├── cs_generator.py    # CP-SAT counter-subject solver
-│   ├── structure.py       # P4: plan_structure
-│   ├── section_planner.py # Macro-section → episodes
-│   ├── episode_generator.py # Episode sequence generation
-│   ├── harmony.py         # P5: harmonic architecture
-│   ├── devices.py         # P6: Figurenlehre assignment
-│   ├── coherence.py       # P7: callbacks, surprises, proportions
-│   ├── validator.py       # Plan validation
-│   └── serializer.py      # Plan → YAML
-│
-├── engine/                # E1-E6: YAML → MIDI/MusicXML
-│   ├── engine_types.py    # PieceAST, ExpandedPhrase, RealisedPhrase
-│   ├── pipeline.py        # E1-E6 orchestrator
-│   ├── plan_parser.py     # E1: YAML → PieceAST
-│   ├── expander.py        # E3: piece-level expansion
-│   ├── expand_phrase.py   # E3: single phrase expansion
-│   ├── voice_expander.py  # N-voice expansion
-│   ├── inner_voice.py     # Branch-and-bound inner voice search
-│   ├── cpsat_slice_solver.py # CP-SAT constraint solver
-│   ├── realiser.py        # E4: degrees → MIDI pitches
-│   ├── formatter.py       # E6: output formatting
-│   ├── output.py          # Export to MIDI/MusicXML/CSV
-│   ├── cadence.py         # Cadential formulas
-│   ├── schema.py          # Harmonic schemas
-│   ├── pedal.py           # Pedal points
-│   └── guards/            # Voice-leading constraint checkers
-│       ├── registry.py    # Guard orchestration
-│       └── spacing.py     # Spacing constraints
-│
-├── motifs/                # Subject generation
-│   ├── subject_generator.py # 2-bar subjects via head+tail
-│   ├── head_generator.py  # Leap + gap-fill heads
-│   ├── tail_generator.py  # Contrary-motion tails
-│   ├── figurae.py         # Baroque rhetorical figures
-│   └── melodic_features.py # Research-backed melody features
-│
-├── shared/                # Cross-cutting types and utilities
-│   ├── pitch.py           # FloatingNote, MidiPitch, Rest
-│   ├── types.py           # VoiceMaterial, ExpandedVoices
-│   ├── key.py             # Key class
-│   ├── timed_material.py  # Budget-first musical material
-│   ├── parallels.py       # Parallel fifth/octave detection
-│   ├── music_math.py      # Fractional duration arithmetic
-│   ├── constants.py       # Scales, note names, valid durations
-│   └── tracer.py          # Execution tracing
-│
-└── data/
-    ├── affects.yaml       # 8 Affektenlehre affects
-    ├── archetypes.yaml    # 6 dramaturgical archetypes
-    ├── figurae.yaml       # Baroque rhetorical figures
-    ├── arcs.yaml          # Tension curve templates
-    ├── treatments.yaml    # Voice expansion specs
-    ├── episodes.yaml      # Episode types
-    ├── cadences.yaml      # Cadential formulas
-    ├── schemas.yaml       # Partimento patterns
-    ├── counterpoint_rules.yaml # Hard/soft constraints
-    ├── predicates.yaml    # Intervals, registers, consonance
-    └── genres/*.yaml      # Genre templates
-```
+### Two-Voice Path (Complete)
+
+The 2-voice path is mature with extensive musical intelligence:
+
+| Feature | Implementation |
+|---------|----------------|
+| Schemas | romanesca, fonte, monte, prinner, rule_of_octave |
+| Pedal points | tonic pedal, dominant pedal |
+| Rhythms | straight, dotted, lombardic, running |
+| Cadences | half, authentic, deceptive with proper approach |
+| Surprises | evaded_cadence, early_return |
+| Ornaments | trill, mordent, turn (sparse) |
+| Devices | stretto, augmentation, diminution |
+
+### N-Voice Extension (Complete)
+
+Unified constraint-satisfaction approach for any texture:
+
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| VoiceConfig, VoiceSet | Voice role definitions | ✓ |
+| VerticalSlice, SliceSequence | Alignment model | ✓ |
+| CP-SAT solver | Primary inner voice resolution | ✓ |
+| Branch-and-bound fallback | When CP-SAT times out | ✓ |
+| Harmonic context inference | Chord tones from outer voices | ✓ |
 
 ---
 
 ## Principles
 
-1. **Single source of truth** — Each fact is defined in exactly one place
-2. **One way to do things** — No alternative mechanisms for the same outcome
+1. **Single source of truth** — Each fact defined in exactly one place
+2. **One way to do things** — No alternative mechanisms for same outcome
 3. **Simplify whenever possible** — Remove redundancy; prefer fewer concepts
 4. **Separation of concerns** — Planner decides *what*, Executor decides *how*
-5. **Data-driven** — All musical knowledge lives in YAML files; code is generic
-6. **Symbolic** — No magic numbers at design level; numeric values resolved via lookup
+5. **Data-driven** — Musical knowledge in YAML; code is generic
+6. **Symbolic** — No magic numbers; values resolved via lookup
 7. **Fractions for music, integers for counts** — Durations are Fraction; counts use POS_INT
 8. **Minimal** — Two choices at each decision point during development
 9. **Expandable** — New affects, genres, arcs added via data, not code
-10. **Vocabulary enforced** — Every term must be defined in vocabulary.md
-11. **Document consistency** — All docs must remain consistent; divergence is an error
-12. **Pitch type enforced** — Scale degrees must use `Pitch` (Degree|Rest), never raw `int`
-13. **No downstream fixes** — Anything identified as a 'fix' demonstrates an upstream design failure
+10. **Vocabulary enforced** — Every term defined in vocabulary.md
+11. **Document consistency** — All docs must remain consistent
+12. **Pitch type enforced** — Scale degrees use `Pitch`, never raw `int`
+13. **No downstream fixes** — 'Fix' indicates upstream design failure
 
 ---
 
@@ -626,12 +428,13 @@ andante/
 
 | Document | Purpose |
 |----------|---------|
+| structuring_strategy.md | Code organisation, size limits, naming conventions |
+| test_strategy.md | Testing approach, module categories, coverage |
 | vocabulary.md | Normative keyword/value definitions |
 | grammar.md | Formal BNF grammar, constraints |
 | lessons.md | Coding rules, design rules, anti-patterns |
-| walkthrough.md | Complete Brief → Plan example |
 
 ---
 
-*Document version: 3.0*
-*Last updated: 2026-01-14*
+*Document version: 4.0*
+*Last updated: 2026-01-18*

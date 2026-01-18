@@ -185,6 +185,7 @@ def assign_devices(
                     surprise=phrase.surprise,
                     is_climax=is_climax or phrase.is_climax,
                     energy=phrase.energy,
+                    harmony=phrase.harmony,
                 )
                 new_phrases.append(new_phrase)
                 current_bar += phrase.bars

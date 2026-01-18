@@ -28,10 +28,16 @@ class Frame:
 
 @dataclass(frozen=True)
 class Motif:
-    """Musical subject with degrees and durations."""
-    degrees: tuple[int, ...]
+    """Musical subject with pitches (MIDI) or degrees and durations.
+
+    Use pitches for subjects loaded from .note files (preserves contour).
+    Use degrees for programmatically generated subjects.
+    """
     durations: tuple[Fraction, ...]
     bars: int
+    pitches: tuple[int, ...] | None = None  # MIDI pitch values
+    degrees: tuple[int, ...] | None = None  # Scale degrees 1-7
+    source_key: str | None = None  # Key of pitches (e.g., "G" for G major)
 
 
 @dataclass(frozen=True)
@@ -62,6 +68,7 @@ class Phrase:
     surprise: str | None
     is_climax: bool = False
     energy: str | None = None
+    harmony: tuple[str, ...] | None = None  # one Roman numeral per bar
 
 
 @dataclass(frozen=True)

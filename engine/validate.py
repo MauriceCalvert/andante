@@ -17,7 +17,7 @@ EPISODES: set[str] = set(yaml.safe_load(open(DATA_DIR / "episodes.yaml")).keys()
 ENERGY_LEVELS: set[str] = set(yaml.safe_load(open(DATA_DIR / "energy.yaml"))["levels"].keys())
 SURPRISES: set[str] = set(yaml.safe_load(open(DATA_DIR / "surprises.yaml"))["types"].keys())
 _cad = yaml.safe_load(open(DATA_DIR / "cadences.yaml"))
-CADENCES: set[str] = set(_cad["internal"].keys())
+CADENCES: set[str] = {k for k, v in _cad.items() if "top" in v and "approach" not in v}
 
 # Valid values
 VALID_KEYS: set[str] = {"C", "D", "E", "F", "G", "A", "B",

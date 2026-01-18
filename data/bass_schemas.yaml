@@ -1,39 +1,40 @@
+# Superseded by
 # Bass schemas: harmonic foundation patterns (partimento style)
 # Degrees are scale degrees in current key
 # Each schema provides bass motion for a phrase
 
 # Tonic prolongation
-I_statement:
-  degrees: [1, 5, 1, 3, 4, 5, 5, 1]
-  durations: [1/4, 1/4, 1/4, 1/8, 1/8, 1/4, 1/8, 1/8]
-
-I_sequence:
-  degrees: [1, 7, 1, 2, 3, 4, 5, 1]
-  durations: [1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4, 1/4]
-
-# Dominant arrival
-V_statement:
-  degrees: [5, 2, 3, 4, 5, 7, 5]
-  durations: [1/4, 1/4, 1/8, 1/8, 1/4, 1/8, 3/8]
-
-V_sequence:
-  degrees: [5, 4, 3, 2, 1, 7, 2, 5]
-  durations: [1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4, 1/4]
-
-# Subdominant
-IV_statement:
-  degrees: [4, 1, 2, 3, 4, 5, 6, 4]
-  durations: [1/4, 1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4]
-
-IV_sequence:
-  degrees: [4, 3, 2, 1, 7, 1, 2, 4]
-  durations: [1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4, 1/4]
-
-# Relative minor
-vi_statement:
-  degrees: [6, 3, 4, 5, 6, 7, 1, 6]
-  durations: [1/4, 1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4]
-
-vi_sequence:
-  degrees: [6, 5, 4, 3, 2, 3, 4, 6]
-  durations: [1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4, 1/4]
+#I_statement:
+#  degrees: [1, 5, 1, 3, 4, 5, 5, 1]
+#  durations: [1/4, 1/4, 1/4, 1/8, 1/8, 1/4, 1/8, 1/8]
+#
+#I_sequence:
+#  degrees: [1, 7, 1, 2, 3, 4, 5, 1]
+#  durations: [1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4, 1/4]
+#
+## Dominant arrival
+#V_statement:
+#  degrees: [5, 2, 3, 4, 5, 7, 5]
+#  durations: [1/4, 1/4, 1/8, 1/8, 1/4, 1/8, 3/8]
+#
+#V_sequence:
+#  degrees: [5, 4, 3, 2, 1, 7, 2, 5]
+#  durations: [1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4, 1/4]
+#
+## Subdominant
+#IV_statement:
+#  degrees: [4, 1, 2, 3, 4, 5, 6, 4]
+#  durations: [1/4, 1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4]
+#
+#IV_sequence:
+#  degrees: [4, 3, 2, 1, 7, 1, 2, 4]
+#  durations: [1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4, 1/4]
+#
+## Relative minor
+#vi_statement:
+#  degrees: [6, 3, 4, 5, 6, 7, 1, 6]
+#  durations: [1/4, 1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4]
+#
+#vi_sequence:
+#  degrees: [6, 5, 4, 3, 2, 3, 4, 6]
+#  durations: [1/4, 1/8, 1/8, 1/4, 1/8, 1/8, 1/4, 1/4]

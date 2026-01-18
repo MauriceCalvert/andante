@@ -17,7 +17,7 @@ class Note:
 
     @staticmethod
     def csv_header() -> str:
-        return "Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric,velocity"
+        return "Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric"
 
 
 TEMPO_MAP: dict[str, int] = {

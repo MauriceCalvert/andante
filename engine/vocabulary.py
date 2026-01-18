@@ -122,7 +122,9 @@ def load_devices() -> dict[str, Device]:
 def load_bass_schemas() -> dict[str, BassSchema]:
     """Load bass schema definitions from YAML."""
     with open(DATA_DIR / "bass_schemas.yaml", encoding="utf-8") as f:
-        data: dict = yaml.safe_load(f)
+        data: dict | None = yaml.safe_load(f)
+    if not data:
+        return {}
     result: dict[str, BassSchema] = {}
     for name, defn in data.items():
         degrees: tuple[int, ...] = tuple(defn["degrees"])

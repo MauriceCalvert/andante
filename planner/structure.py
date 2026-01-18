@@ -5,6 +5,7 @@ import yaml
 
 from planner.arc import build_tension_curve, get_energy_for_bar
 from planner.macro_form import build_macro_form, uses_macro_form
+from planner.phrase_harmony import generate_phrase_harmony
 from planner.section_planner import plan_all_sections
 from planner.treatment_generator import generate_for_genre
 from planner.plannertypes import (
@@ -45,6 +46,7 @@ def plan_structure_from_macro(
     phrase_idx: int = 0
     current_bar: int = 0
     climax_section: str = macro_form.climax_section
+    prev_end_chord: str = "I"
     for sp_idx, sp in enumerate(section_plans):
         episodes: list[Episode] = []
         tonal_targets: list[str] = []
@@ -59,6 +61,9 @@ def plan_structure_from_macro(
                 cadence = "half"
             is_climax: bool = sp.label == climax_section and ep_spec.type in ("climax", "triumphant")
             energy: str = get_energy_for_bar(tension_curve, current_bar, total_bars)
+            harmony: tuple[str, ...] = generate_phrase_harmony(
+                ep_spec.bars, sp.key_area, cadence, prev_end_chord
+            )
             phrase: Phrase = Phrase(
                 index=phrase_idx,
                 bars=ep_spec.bars,
@@ -68,6 +73,7 @@ def plan_structure_from_macro(
                 surprise=None,
                 is_climax=is_climax,
                 energy=energy,
+                harmony=harmony,
             )
             episode: Episode = Episode(
                 type=ep_spec.type,
@@ -78,6 +84,7 @@ def plan_structure_from_macro(
             )
             episodes.append(episode)
             tonal_targets.append(sp.key_area)
+            prev_end_chord = harmony[-1] if harmony else sp.key_area
             phrase_idx += 1
             current_bar += ep_spec.bars
         final_cadence: str = "authentic" if sp_idx == len(section_plans) - 1 else "half"
@@ -135,6 +142,7 @@ def plan_structure(brief: Brief, frame: Frame, material: Material) -> Structure:
     sections: list[Section] = []
     phrase_idx: int = 0
     current_bar: int = 0
+    prev_end_chord: str = "I"
     for section_def in section_defs:
         bars_per_phrase: int = section_def["bars_per_phrase"]
         texture: str = section_def.get("texture", "polyphonic")
@@ -163,6 +171,9 @@ def plan_structure(brief: Brief, frame: Frame, material: Material) -> Structure:
                 cadence = "deceptive"
             is_climax: bool = phrase_idx == climax_idx
             energy: str = get_energy_for_bar(tension_curve, current_bar, total_bars)
+            harmony: tuple[str, ...] = generate_phrase_harmony(
+                bars_per_phrase, tonal_target, cadence, prev_end_chord
+            )
             phrase: Phrase = Phrase(
                 index=phrase_idx,
                 bars=bars_per_phrase,
@@ -172,6 +183,7 @@ def plan_structure(brief: Brief, frame: Frame, material: Material) -> Structure:
                 surprise=surprise,
                 is_climax=is_climax,
                 energy=energy,
+                harmony=harmony,
             )
             episode: Episode = Episode(
                 type=episode_type,
@@ -180,6 +192,7 @@ def plan_structure(brief: Brief, frame: Frame, material: Material) -> Structure:
                 phrases=(phrase,),
             )
             episodes.append(episode)
+            prev_end_chord = harmony[-1] if harmony else tonal_target
             phrase_idx += 1
             current_bar += bars_per_phrase
         tonal_path_out: tuple[str, ...] = tuple([key_area] * phrase_count) if episode_types else tuple(tonal_path_legacy)
@@ -225,6 +238,7 @@ def generate_period(
         half1_target = "III"  # Relative major (or "v" for minor dominant)
 
     # First half: I-phrase/V-phrase + Cadence in modulation target
+    harmony_1 = generate_phrase_harmony(bars_per_phrase, "I", None, "I")
     phrase_1 = Phrase(
         index=0,
         bars=bars_per_phrase,
@@ -234,7 +248,9 @@ def generate_period(
         surprise=None,
         is_climax=False,
         energy="low",
+        harmony=harmony_1,
     )
+    harmony_2 = generate_phrase_harmony(bars_per_phrase, half1_target, "half", harmony_1[-1])
     phrase_2 = Phrase(
         index=1,
         bars=bars_per_phrase,
@@ -244,9 +260,11 @@ def generate_period(
         surprise=None,
         is_climax=False,
         energy="medium",
+        harmony=harmony_2,
     )
 
     # Second half: Development/modulation + Cadence in tonic
+    harmony_3 = generate_phrase_harmony(bars_per_phrase, half1_target, None, harmony_2[-1])
     phrase_3 = Phrase(
         index=2,
         bars=bars_per_phrase,
@@ -256,7 +274,9 @@ def generate_period(
         surprise=None,
         is_climax=True,  # Climax typically in development
         energy="high",
+        harmony=harmony_3,
     )
+    harmony_4 = generate_phrase_harmony(bars_per_phrase, "I", "authentic", harmony_3[-1])
     phrase_4 = Phrase(
         index=3,
         bars=bars_per_phrase,
@@ -266,6 +286,7 @@ def generate_period(
         surprise=None,
         is_climax=False,
         energy="medium",
+        harmony=harmony_4,
     )
 
     # Create episodes for each phrase
@@ -335,6 +356,7 @@ def generate_sentence(
     quarter_bars = bars // 4
 
     # Presentation: statement + response
+    harmony_stmt = generate_phrase_harmony(quarter_bars, "I", None, "I")
     statement = Phrase(
         index=0,
         bars=quarter_bars,
@@ -344,7 +366,9 @@ def generate_sentence(
         surprise=None,
         is_climax=False,
         energy="low",
+        harmony=harmony_stmt,
     )
+    harmony_resp = generate_phrase_harmony(quarter_bars, "I", None, harmony_stmt[-1])
     response = Phrase(
         index=1,
         bars=quarter_bars,
@@ -354,9 +378,11 @@ def generate_sentence(
         surprise=None,
         is_climax=False,
         energy="low",
+        harmony=harmony_resp,
     )
 
     # Continuation: fragmentation + cadence
+    harmony_frag = generate_phrase_harmony(quarter_bars, "V", None, harmony_resp[-1])
     fragmentation = Phrase(
         index=2,
         bars=quarter_bars,
@@ -366,7 +392,9 @@ def generate_sentence(
         surprise=None,
         is_climax=True,
         energy="high",
+        harmony=harmony_frag,
     )
+    harmony_cad = generate_phrase_harmony(quarter_bars, "I", "authentic", harmony_frag[-1])
     cadential = Phrase(
         index=3,
         bars=quarter_bars,
@@ -376,6 +404,7 @@ def generate_sentence(
         surprise=None,
         is_climax=False,
         energy="medium",
+        harmony=harmony_cad,
     )
 
     presentation = Episode(

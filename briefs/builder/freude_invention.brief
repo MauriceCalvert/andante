@@ -12,8 +12,5 @@ frame:
   tempo: allegro
 material:
   subject:
-    file: motifs\memorable\littlefugue_subject.note
-    mode: minor
-  counter_subject:
-    file: motifs\memorable\littlefugue_countersubject.note
-    mode: minor
+    file: motifs/library/brandeburg.note
+    notes: 12

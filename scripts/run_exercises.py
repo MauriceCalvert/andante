@@ -20,8 +20,8 @@ from engine.note import Note
 from engine.output import Music21Writer
 from engine.validate import validate_brief_yaml
 
-EXERCISES_SRC = Path(__file__).parent.parent / "briefs" / "exercises"
-EXERCISES_OUT = Path(__file__).parent.parent / "output" / "exercises"
+EXERCISES_SRC = Path(__file__).parent.parent / "briefs" / "tests"
+EXERCISES_OUT = Path(__file__).parent.parent / "output" / "tests"
 
 
 def export_subject_midi(plan, output_path: Path) -> None:

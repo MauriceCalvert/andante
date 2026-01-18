@@ -195,12 +195,12 @@ def acquire_material(
     cs: Motif | None
     if user_cs is not None:
         cs = user_cs
-    elif _genre_needs_cs(genre):
-        # Generate counter-subject using CP-SAT solver
+    elif _genre_needs_cs(genre) and motif.degrees is not None:
+        # Generate counter-subject using CP-SAT solver (only works with degrees, not pitches)
         subj: Subject = Subject(motif.degrees, motif.durations, motif.bars, frame.mode, genre)
         cs = subj.counter_subject
     else:
-        # Genre uses accompaniment bass - no CS needed
+        # Genre uses accompaniment bass, or motif uses pitches - no CS generation
         cs = None
 
     return Material(subject=motif, counter_subject=cs)

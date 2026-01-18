@@ -27,8 +27,10 @@ def validate(plan: Plan) -> tuple[bool, list[str]]:
     if last_section and last_section.final_cadence != "authentic":
         errors.append("Last section must have authentic final_cadence")
     motif = plan.material.subject
-    if len(motif.degrees) != len(motif.durations):
-        errors.append("Motif degrees and durations must have same length")
+    # Validate pitch/degree count matches durations (supports both pitches and degrees)
+    pitch_count: int = len(motif.pitches) if motif.pitches else (len(motif.degrees) if motif.degrees else 0)
+    if pitch_count != len(motif.durations):
+        errors.append("Motif pitches/degrees and durations must have same length")
     bar_dur: Fraction = bar_duration(plan.frame.metre)
     expected_dur: Fraction = bar_dur * motif.bars
     actual_dur: Fraction = sum(motif.durations, Fraction(0))

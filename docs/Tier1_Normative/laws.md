@@ -43,6 +43,7 @@
 | A003 | Rules are data — YAML, not code |
 | A004 | Repeats are performance — composition produces the music once; repeats are a performer's choice |
 | A005 | RNG in planner, determinism in executor — randomness creates variety during planning; executor must be deterministic given a plan |
+| A006 | Ports/adapters pattern — domain logic must not depend on infrastructure (tree, YAML, MIDI); extract to domain objects first, operate on those; only adapters know about external representations |
 
 ## Variety Rules
 

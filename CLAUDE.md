@@ -3,9 +3,8 @@
 You **MUST** read 
 `docs/summary.md`
 `docs/Tier1_Normative/laws.md`
-`docs/test_strategy.md`
-`docs/bugs.md`
-now.
+`docs/Tier2_Architecture/*.md`
+now and keep them in the foreground for the whole chat.
 
 ---
 
@@ -57,6 +56,7 @@ When you throw, the message must make the fix obvious.
 Avoid nested 'if' like the plague, use early returns. If you have to, with & finally.
 All constants must reside in shared\constants.
 Any function that 'fixes' things is illegal, fix at source.
+manifest constants must be in shared\constants.py
 
 ---
 

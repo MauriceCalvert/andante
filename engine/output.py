@@ -153,7 +153,7 @@ class NoteFileWriter(OutputWriter):
         beat: str = f"{n.beat}" if n.beat and n.beat >= 1 else ""
         lyric: str = f"{n.lyric}" if n.lyric else ""
         return (f"{n.Offset:.6g},{n.midiNote},{n.Duration:.6g},{n.track},"
-                f"{length},{bar},{beat},{note_name},{lyric},{n.velocity}")
+                f"{length},{bar},{beat},{note_name},{lyric}")
 
     def write(self, path: str, notes: list[Note], **kwargs) -> None:
         """Write notes to .note file."""

@@ -200,7 +200,7 @@ def export_note(
         key=lambda x: (x[3], -x[1])  # (offset, -diatonic)
     )
 
-    lines: list[str] = ["Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric,velocity"]
+    lines: list[str] = ["Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric"]
 
     role: str
     diatonic: int
@@ -219,7 +219,7 @@ def export_note(
 
         line: str = (
             f"{float(offset):.6g},{midi_pitch},{float(duration):.6g},{track},"
-            f",{bar},{beat:.4g},{note_name},,80"
+            f",{bar},{beat:.4g},{note_name},"
         )
         lines.append(line)
 

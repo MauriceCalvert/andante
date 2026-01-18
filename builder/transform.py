@@ -160,14 +160,24 @@ class Transform:
 
 
 def notes_from_node(node: Node) -> Notes:
-    """Extract Notes from a subject/motif node with degrees and durations."""
-    assert 'degrees' in node, f"Node missing 'degrees' key at {node.path_string()}"
+    """Extract Notes from a subject/motif node with pitches or degrees and durations.
+
+    Supports both:
+    - pitches: MIDI pitch values (preserves contour)
+    - degrees: Scale degrees 1-7 (legacy format)
+    """
+    has_pitches: bool = 'pitches' in node
+    has_degrees: bool = 'degrees' in node
+    assert has_pitches or has_degrees, (
+        f"Node missing 'pitches' or 'degrees' key at {node.path_string()}"
+    )
     assert 'durations' in node, f"Node missing 'durations' key at {node.path_string()}"
 
     pitches: list[int] = []
-    for c in node['degrees'].children:
+    pitch_key: str = 'pitches' if has_pitches else 'degrees'
+    for c in node[pitch_key].children:
         assert isinstance(c.value, int), (
-            f"Degree must be int, got {type(c.value).__name__} at {c.path_string()}"
+            f"{pitch_key} value must be int, got {type(c.value).__name__} at {c.path_string()}"
         )
         pitches.append(c.value)
 

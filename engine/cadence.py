@@ -26,11 +26,18 @@ def load_cadences() -> dict:
         return yaml.safe_load(f)
 
 
+def _is_internal_cadence(formula: dict) -> bool:
+    """Check if formula is internal (has top/bottom) vs final (has approach/resolution)."""
+    return "top" in formula and "approach" not in formula
+
+
 def get_internal_cadence_formulas() -> dict[str, tuple[tuple[Pitch, ...], tuple[Pitch, ...]]]:
     """Get internal cadence formulas as (top_degrees, bottom_degrees)."""
     cadences: dict = load_cadences()
     formulas: dict[str, tuple[tuple[Pitch, ...], tuple[Pitch, ...]]] = {}
-    for name, formula in cadences["internal"].items():
+    for name, formula in cadences.items():
+        if not _is_internal_cadence(formula):
+            continue
         top: tuple[Pitch, ...] = tuple(FloatingNote(d) for d in formula["top"])
         bottom: tuple[Pitch, ...] = tuple(FloatingNote(d) for d in formula["bottom"])
         formulas[name] = (top, bottom)
@@ -41,7 +48,9 @@ def get_internal_cadence_all_voices() -> dict[str, dict[str, tuple[Pitch, ...]]]
     """Get internal cadence formulas with all voices by role (top, inner_1, inner_2, bottom)."""
     cadences: dict = load_cadences()
     formulas: dict[str, dict[str, tuple[Pitch, ...]]] = {}
-    for name, formula in cadences["internal"].items():
+    for name, formula in cadences.items():
+        if not _is_internal_cadence(formula):
+            continue
         voices: dict[str, tuple[Pitch, ...]] = {}
         for role in ["top", "inner_1", "inner_2", "bottom"]:
             if role in formula:
@@ -108,9 +117,9 @@ def get_cadence_material_full(
 
 
 def load_final_cadences() -> dict:
-    """Load final cadence formulas from YAML."""
+    """Load final cadence formulas from YAML (those with approach/resolution)."""
     cadences: dict = load_cadences()
-    return cadences["final"]
+    return {name: formula for name, formula in cadences.items() if "approach" in formula}
 
 
 def parse_fraction(s: str) -> Fraction:
