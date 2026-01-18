@@ -1,14 +1,13 @@
 """Handler-based dispatch for tree elaboration."""
-from builder.handlers.core import HANDLERS, register, get_handler, include, elaborate
+from builder.handlers.core import HANDLERS, elaborate, get_handler, include, register
 
 # Import handler modules to register handlers
-from builder.handlers import structure
-from builder.handlers import material
+from builder.handlers import material_handler, structure
 
 __all__ = [
-    'HANDLERS',
-    'register',
-    'get_handler',
-    'include',
-    'elaborate',
+    "HANDLERS",
+    "elaborate",
+    "get_handler",
+    "include",
+    "register",
 ]

@@ -54,6 +54,70 @@ Each layer boundary is a frozen dataclass. You can enter at any layer if you hav
 
 ---
 
+## Layered Architecture (Ports & Adapters)
+
+Andante follows the Ports and Adapters pattern (hexagonal architecture) to separate business logic from external systems.
+
+### Layer Structure
+
+```
+domain/         ← pure logic, no I/O, no external dependencies
+ports/          ← interfaces (Protocol classes)
+adapters/       ← implementations (YAML, MIDI, filesystem)
+application/    ← orchestration (planner, builder)
+```
+
+### Dependency Direction
+
+All dependencies point inward toward domain:
+
+```
+adapters → ports → application → domain
+                        ↓
+                     domain
+```
+
+- **Domain** depends on nothing
+- **Application** depends on domain only
+- **Ports** define interfaces domain needs
+- **Adapters** implement ports for specific technologies
+
+### Ports (Interfaces)
+
+```python
+class MidiWriter(Protocol):
+    def write(self, notes: Sequence[Note], path: Path) -> None: ...
+
+class YamlLoader(Protocol):
+    def load(self, path: Path) -> dict: ...
+
+class SubjectRepository(Protocol):
+    def get(self, name: str) -> Subject: ...
+```
+
+### Adapters (Implementations)
+
+```python
+class MidoMidiWriter:
+    """MIDI output using mido library."""
+    def write(self, notes: Sequence[Note], path: Path) -> None:
+        # mido-specific implementation
+
+class PyYamlLoader:
+    """YAML loading using PyYAML."""
+    def load(self, path: Path) -> dict:
+        # pyyaml-specific implementation
+```
+
+### Benefits
+
+- **Testability** — inject mock adapters for unit tests
+- **Swappability** — change MIDI library without touching domain
+- **Isolation** — external dependencies confined to adapters
+- **Clear boundaries** — explicit contracts between layers
+
+---
+
 ## Structural Hierarchy
 
 ```
@@ -97,6 +161,23 @@ PIECE                           One complete composition
 ---
 
 ## Types
+
+### Value Objects over Primitives
+
+Use domain types instead of raw primitives:
+
+```python
+# Instead of
+def transpose(pitch: int, interval: int) -> int
+
+# Use
+def transpose(pitch: Pitch, interval: Interval) -> Pitch
+```
+
+Benefits:
+- Catches type errors at boundaries
+- Self-documenting code
+- Impossible to confuse MIDI pitch with scale degree
 
 ### Brief (user input)
 
@@ -164,6 +245,7 @@ PIECE                           One complete composition
 | surprise | str? | see vocabulary/surprises |
 | is_climax | bool | |
 | energy | str? | low, moderate, high, climactic |
+| harmony | [str]? | one Roman numeral per bar |
 
 ### Pitch Types
 
@@ -376,6 +458,51 @@ class VoiceConfig:
 
 ---
 
+## Error Handling
+
+### Explicit Error Types
+
+Use domain-specific exceptions, not bare `assert` or generic `ValueError`:
+
+```python
+class AndanteError(Exception):
+    """Base for all Andante errors."""
+    pass
+
+class HarmonyError(AndanteError):
+    """Harmonic rule violation."""
+    pass
+
+class VoiceLeadingError(HarmonyError):
+    """Voice leading constraint violated."""
+    pass
+
+class ValidationError(AndanteError):
+    """Input validation failed."""
+    pass
+```
+
+### Fail Fast at Boundaries
+
+Validate all external input immediately on entry:
+
+```python
+def load_subject(path: Path) -> Subject:
+    """Load and validate subject from YAML."""
+    data = yaml.safe_load(path.read_text())
+    # Validate immediately
+    if 'degrees' not in data and 'pitches' not in data:
+        raise ValidationError(f"Subject missing degrees/pitches: {path}")
+    if 'durations' not in data:
+        raise ValidationError(f"Subject missing durations: {path}")
+    # Domain code assumes valid data from here
+    return Subject.from_dict(data)
+```
+
+Domain code should never encounter invalid data — all validation happens at adapter boundaries.
+
+---
+
 ## Current Status
 
 ### Two-Voice Path (Complete)
@@ -408,19 +535,50 @@ Unified constraint-satisfaction approach for any texture:
 
 ## Principles
 
+### Core Design
+
 1. **Single source of truth** — Each fact defined in exactly one place
 2. **One way to do things** — No alternative mechanisms for same outcome
 3. **Simplify whenever possible** — Remove redundancy; prefer fewer concepts
 4. **Separation of concerns** — Planner decides *what*, Executor decides *how*
 5. **Data-driven** — Musical knowledge in YAML; code is generic
 6. **Symbolic** — No magic numbers; values resolved via lookup
-7. **Fractions for music, integers for counts** — Durations are Fraction; counts use POS_INT
-8. **Minimal** — Two choices at each decision point during development
-9. **Expandable** — New affects, genres, arcs added via data, not code
-10. **Vocabulary enforced** — Every term defined in vocabulary.md
-11. **Document consistency** — All docs must remain consistent
-12. **Pitch type enforced** — Scale degrees use `Pitch`, never raw `int`
-13. **No downstream fixes** — 'Fix' indicates upstream design failure
+
+### Types & Data
+
+7. **Immutability** — Use `frozen=True` dataclasses; return `tuple` not `list`
+8. **Value objects over primitives** — `Pitch` not `int`, `Interval` not `int`
+9. **Fractions for music, integers for counts** — Durations are `Fraction`; counts use `int`
+10. **Pitch type enforced** — Scale degrees use `Pitch`, never raw `int`
+11. **No magic strings** — Use `Enum` for fixed vocabularies
+
+### Code Organisation
+
+12. **Dependency direction** — All dependencies point inward toward domain
+13. **Ports and adapters** — Interfaces in ports/, implementations in adapters/
+14. **Avoid circular imports** — Extract shared types if A imports B and B imports A
+15. **One class per file** — Methods sorted alphabetically
+16. **Fail fast at boundaries** — Validate external input on entry; domain assumes valid
+
+### Naming & Style
+
+17. **Consistent naming** — `_private`, `CONSTANT`, `verb_noun` for functions
+18. **Logging over print** — Use `logging` module; can filter by level/module
+19. **Docstrings where interface matters** — Essential for ports; skip obvious privates
+
+### Testing & Development
+
+20. **Tests next to code** — `bass.py` and `bass_test.py` in same directory
+21. **Small commits, often** — One logical change per commit
+22. **Vocabulary enforced** — Every term defined in vocabulary.md
+23. **Document consistency** — All docs must remain consistent
+24. **No downstream fixes** — 'Fix' indicates upstream design failure
+
+### Expandability
+
+25. **Minimal** — Two choices at each decision point during development
+26. **Expandable** — New affects, genres, arcs added via data, not code
+27. **Factory functions for construction** — Keep `__init__` simple; validation in `from_yaml`
 
 ---
 
@@ -436,5 +594,5 @@ Unified constraint-satisfaction approach for any texture:
 
 ---
 
-*Document version: 4.0*
+*Document version: 5.0*
 *Last updated: 2026-01-18*

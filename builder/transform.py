@@ -1,5 +1,11 @@
-"""Transform system for note sequences."""
-from dataclasses import dataclass
+"""Transform system for note sequences.
+
+This module provides backward compatibility by re-exporting types from
+the new architecture. The Transform class delegates to domain operations.
+
+Adapter functions (notes_from_node, notes_to_dicts) live here as they
+translate between Node infrastructure and domain types.
+"""
 from fractions import Fraction
 from pathlib import Path
 from typing import Any, TextIO
@@ -8,22 +14,10 @@ import yaml
 
 from builder.music_math import augment_duration, diminish_duration, validate_duration
 from builder.tree import Node
+from builder.types import Notes  # Re-export for backward compatibility
 from shared.constants import VALID_DURATION_OPS, VALID_PITCH_OPS
 
 TRANSFORMS_PATH: Path = Path(__file__).parent / "data" / "transforms.yaml"
-
-
-@dataclass(frozen=True)
-class Notes:
-    """Immutable sequence of notes with pitches and durations."""
-    pitches: tuple[int, ...]
-    durations: tuple[Fraction, ...]
-
-    def __post_init__(self) -> None:
-        assert len(self.pitches) == len(self.durations), (
-            f"pitches ({len(self.pitches)}) and durations ({len(self.durations)}) "
-            "must have same length"
-        )
 
 
 class Transform:
