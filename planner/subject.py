@@ -25,7 +25,7 @@ class Subject:
 
     def __init__(self, degrees: tuple[int, ...], durations: tuple[Fraction, ...], bars: int, mode: str = "major", genre: str = "", voice_count: int = 2) -> None:
         assert len(degrees) == len(durations), "Degrees and durations must match"
-        assert all(1 <= d <= 7 for d in degrees), "Degrees must be 1-7"
+        # Degrees can be outside 1-7 to encode octave: 8=octave above 1, 0=octave below 7
         assert voice_count >= 2, "Must have at least 2 voices"
         self._degrees: tuple[int, ...] = degrees
         self._durations: tuple[Fraction, ...] = durations

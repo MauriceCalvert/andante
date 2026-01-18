@@ -54,6 +54,8 @@ class BarContext:
     role: str
     harmony: tuple[str, ...] | None
     frame: FrameContext
+    energy: str = "moderate"
+    cadence: str | None = None
 
 
 @dataclass(frozen=True)
@@ -72,3 +74,11 @@ class BarTreatment:
     name: str
     transform: str
     shift: int
+
+
+@dataclass(frozen=True)
+class ParsedTreatment:
+    """Parsed treatment string with base transform and ornaments."""
+
+    base: str
+    ornaments: tuple[str, ...]

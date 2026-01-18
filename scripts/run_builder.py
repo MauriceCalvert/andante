@@ -28,50 +28,37 @@ BRIEFS_DIR: Path = Path(__file__).parent.parent / "briefs" / "builder"
 OUTPUT_DIR: Path = Path(__file__).parent.parent / "output" / "builder"
 
 
-def load_subject_from_note(file_path: Path, max_notes: int = 12) -> Motif:
-    """Load subject from .note file (CSV with MIDI pitches).
+def load_subject_from_subject_file(file_path: Path, max_notes: int = 12) -> Motif:
+    """Load subject from .subject file (YAML with diatonic degrees).
 
     Args:
-        file_path: Path to .note file
+        file_path: Path to .subject file
         max_notes: Maximum number of notes to extract (default 12)
 
     Returns:
-        Motif with MIDI pitches and source_key
+        Motif with diatonic degrees and source_key
     """
     assert file_path.exists(), f"Subject file not found: {file_path}"
 
-    pitches: list[int] = []
-    durations: list[Fraction] = []
-    source_key: str = "C"
-
     with open(file_path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            # Parse key from comment
-            if "# Key:" in line:
-                parts: list[str] = line.split(":")[1].strip().split()
-                source_key = parts[0]
-            # Skip headers and comments
-            elif line.startswith("#") or line.startswith("offset"):
-                continue
-            elif line:
-                cols: list[str] = line.split(",")
-                pitches.append(int(cols[1]))  # midi column
-                durations.append(Fraction(cols[2]))  # duration column
-                if len(pitches) >= max_notes:
-                    break
+        data: dict[str, Any] = yaml.safe_load(f)
 
-    assert pitches, f"No notes found in {file_path}"
-    assert len(pitches) == len(durations), (
-        f"Pitches ({len(pitches)}) and durations ({len(durations)}) mismatch"
+    assert "degrees" in data, f"Subject file missing 'degrees': {file_path}"
+    assert "durations" in data, f"Subject file missing 'durations': {file_path}"
+
+    degrees: list[int] = data["degrees"][:max_notes]
+    durations: list[Fraction] = [Fraction(d) for d in data["durations"][:max_notes]]
+    source_key: str = data.get("source_key", "C")
+
+    assert len(degrees) == len(durations), (
+        f"Degrees ({len(degrees)}) and durations ({len(durations)}) mismatch"
     )
 
-    # Calculate bars from total duration (assuming 4/4 = 1 whole note per bar)
     total_dur: Fraction = sum(durations, Fraction(0))
     bars: int = max(1, int(total_dur.limit_denominator(1)))
 
     return Motif(
-        pitches=tuple(pitches),
+        degrees=tuple(degrees),
         durations=tuple(durations),
         bars=bars,
         source_key=source_key,
@@ -158,11 +145,13 @@ def load_brief_and_plan(path: Path) -> tuple[dict[str, Any], str]:
     if "material" in data and "subject" in data["material"]:
         subj: dict[str, Any] = data["material"]["subject"]
         if "file" in subj:
-            # Load from .note file (preserves MIDI pitches and contour)
             file_rel: str = subj["file"].replace("\\", "/")
             file_path: Path = PROJECT_DIR / file_rel
             max_notes: int = subj.get("notes", 12)
-            user_motif = load_subject_from_note(file_path, max_notes)
+            assert file_path.suffix == ".subject", (
+                f"Subject file must be .subject, got: {file_path.suffix}"
+            )
+            user_motif = load_subject_from_subject_file(file_path, max_notes)
         elif "degrees" in subj:
             user_motif = Motif(
                 degrees=tuple(subj["degrees"]),

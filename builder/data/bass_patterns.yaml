@@ -147,6 +147,93 @@ imitative:
     - invention
     - contrapuntal
 
+# Walking bass patterns (for rising/peak energy)
+walking_bass:
+  description: Stepwise motion toward next chord
+  motion: stepwise
+  metres:
+    "4/4":
+      intervals: [0, 1, 2, 3]      # root, second, third, fourth
+      durations: [1/4, 1/4, 1/4, 1/4]
+    "3/4":
+      intervals: [0, 1, 2]         # root, second, third
+      durations: [1/4, 1/4, 1/4]
+    "2/4":
+      intervals: [0, 2]            # root, third
+      durations: [1/4, 1/4]
+    "6/8":
+      intervals: [0, 1, 2]         # root, second, third
+      durations: [1/4, 1/8, 1/4]
+    "2/2":
+      intervals: [0, 1, 2, 3]      # root, second, third, fourth
+      durations: [1/4, 1/4, 1/4, 1/4]
+  use_when:
+    - rising_energy
+    - peak_energy
+    - continuous_motion
+
+# Cadential bass patterns
+cadential:
+  description: Standard cadential bass progressions
+  authentic:
+    metres:
+      "4/4":
+        intervals: [4, 0]          # fifth to root (V-I motion)
+        durations: [1/2, 1/2]
+      "3/4":
+        intervals: [4, 0, 0]       # fifth to root, held
+        durations: [1/4, 1/4, 1/4]
+      "2/4":
+        intervals: [4, 0]
+        durations: [1/4, 1/4]
+      "6/8":
+        intervals: [4, 0]
+        durations: [3/8, 3/8]
+      "2/2":
+        intervals: [4, 0]
+        durations: [1/2, 1/2]
+  half:
+    metres:
+      "4/4":
+        intervals: [0, 4]          # root to fifth (moving to V)
+        durations: [1/2, 1/2]
+      "3/4":
+        intervals: [0, 4, 4]
+        durations: [1/4, 1/4, 1/4]
+      "2/4":
+        intervals: [0, 4]
+        durations: [1/4, 1/4]
+      "6/8":
+        intervals: [0, 4]
+        durations: [3/8, 3/8]
+      "2/2":
+        intervals: [0, 4]
+        durations: [1/2, 1/2]
+
+# Sustained bass pattern (for moderate energy)
+sustained:
+  description: Sustained root note
+  metres:
+    "4/4":
+      intervals: [0]
+      durations: [1/1]
+    "3/4":
+      intervals: [0]
+      durations: [3/4]
+    "2/4":
+      intervals: [0]
+      durations: [1/2]
+    "6/8":
+      intervals: [0]
+      durations: [3/4]
+    "2/2":
+      intervals: [0]
+      durations: [1/1]
+  use_when:
+    - moderate_energy
+    - low_energy
+    - sustained_harmony
+
 # Structural modifiers (apply to any pattern above)
 modifiers:
   ostinato:
@@ -154,7 +241,7 @@ modifiers:
     repeat_length: [2, 4, 8]   # bars
     variation_allowed: false   # strict repeat
     applies_to: [harmonic, arpeggiated, walking, chromatic]
-  
+
   sequence:
     description: Transpose pattern by interval
     intervals: [-2, -3, 2, 3]  # scale degrees, descending thirds common

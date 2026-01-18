@@ -12,5 +12,5 @@ frame:
   tempo: allegro
 material:
   subject:
-    file: motifs/library/brandeburg.note
+    file: motifs/library/bwv0772.subject
     notes: 12

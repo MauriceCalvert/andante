@@ -3,45 +3,57 @@ from fractions import Fraction
 from typing import Any
 
 from builder.handlers.core import register, elaborate
+from builder.handlers.phrase_handler import compute_phrase_melody
 from builder.tree import Node, yaml_to_tree
+from builder.types import Notes
 from shared.constants import DIATONIC_DEFAULTS
 
 
 @register('phrases', '*')
 def handle_phrases(node: Node) -> Node:
     """Elaborate each phrase by creating bars."""
+    metre: str = _get_metre(node)
+    bar_duration: Fraction = _parse_metre(metre)
+
     results: list[Node] = []
     for phrase in node.children:
-        results.append(_build_phrase(phrase, node))
+        results.append(_build_phrase(phrase, node, bar_duration))
     return node.with_children(tuple(results))
 
 
-def _build_phrase(phrase: Node, parent: Node) -> Node:
-    """Build a single phrase node by creating bars."""
-    bar_count: int
-    if 'bars' in phrase:
-        bar_val: Any = phrase['bars'].value
-        assert isinstance(bar_val, int), f"bars must be int, got {type(bar_val).__name__} at {phrase.path_string()}"
-        assert bar_val > 0, f"bars must be positive, got {bar_val} at {phrase.path_string()}"
-        bar_count = bar_val
-    else:
-        bar_count = 1
+def _build_phrase(phrase: Node, parent: Node, bar_duration: Fraction) -> Node:
+    """Build phrase: compute melody, derive bar count, create bars."""
+    root: Node = parent.root
     voice_count: int = _get_voice_count(parent)
+
+    # Compute phrase melody and bar count from subject + treatment
+    melody, bar_count = compute_phrase_melody(phrase, root, bar_duration)
+
+    # Store melody on phrase for bar handlers to access
+    melody_data: dict[str, Any] = {
+        "pitches": list(melody.pitches),
+        "durations": [str(d) for d in melody.durations],
+    }
+    melody_node: Node | None = yaml_to_tree(melody_data, key="melody", parent=phrase)
+
+    # Add melody to phrase BEFORE elaborating bars (bars need to access it)
+    phrase_with_melody: Node = phrase.with_children(
+        tuple(phrase.children) + (melody_node,)
+    )
 
     bars_data: list[dict[str, Any]] = []
     for bar_idx in range(bar_count):
-        bar_data: dict[str, Any] = {
+        bars_data.append({
             'bar_index': bar_idx,
             'voices': _create_voices_stub(voice_count),
-        }
-        bars_data.append(bar_data)
+        })
 
-    bars_node: Node | None = yaml_to_tree(bars_data, key='bars', parent=phrase)
+    bars_node: Node | None = yaml_to_tree(bars_data, key='bars', parent=phrase_with_melody)
     assert bars_node is not None, "bars_data produced empty tree"
     built_bars: Node = elaborate(bars_node)
 
-    results: list[Node] = list(phrase.children) + [built_bars]
-    return phrase.with_children(tuple(results))
+    results: list[Node] = list(phrase_with_melody.children) + [built_bars]
+    return phrase_with_melody.with_children(tuple(results))
 
 
 @register('voices', '*')

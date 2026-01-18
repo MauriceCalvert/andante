@@ -130,8 +130,13 @@ class Subject:
 
 
 def _degree_to_semitone(degree: int, scale: tuple[int, ...]) -> int:
-    """Convert scale degree (1-7) to semitone offset."""
-    return scale[degree - 1]
+    """Convert scale degree to semitone offset.
+
+    Handles degrees outside 1-7: degree 8 = octave above 1, etc.
+    """
+    octave: int = (degree - 1) // 7
+    degree_idx: int = (degree - 1) % 7
+    return octave * 12 + scale[degree_idx]
 
 
 def _interval_class(deg1: int, deg2: int, scale: tuple[int, ...]) -> int:

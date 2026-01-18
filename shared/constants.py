@@ -16,12 +16,12 @@ AUGMENTATION: dict[Fraction, Fraction] = {
     Fraction(1, 1): Fraction(2, 1),
 }
 
-# Default diatonic pitches per voice role
+# Default minimum diatonic pitches per voice role
 DIATONIC_DEFAULTS: dict[str, int] = {
-    'soprano': 32,  # G4 (octave 4, degree 5)
-    'bass': 21,     # C3 (octave 3, degree 1)
-    'alto': 28,     # C4 (octave 4, degree 1)
-    'tenor': 25,    # A3 (octave 3, degree 6)
+    'soprano': 28,  # C4 (octave 4, degree 0) - allows keyboard RH from middle C
+    'bass': 21,     # C3 (octave 3, degree 0)
+    'alto': 28,     # C4 (octave 4, degree 0)
+    'tenor': 25,    # A3 (octave 3, degree 5)
 }
 
 # Diminution lookup: duration -> halved duration

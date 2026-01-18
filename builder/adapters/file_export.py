@@ -101,7 +101,7 @@ def export_note_from_collected(
         note_name: str = compute_note_name(midi_pitch)
         line: str = (
             f"{float(offset):.6g},{midi_pitch},{float(duration):.6g},{track},"
-            f",{bar},{beat:.4g},{note_name},"
+            f",{bar},{beat:.4g},{note_name}"
         )
         lines.append(line)
 

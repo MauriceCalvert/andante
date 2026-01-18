@@ -89,6 +89,8 @@ def extract_bar_context(notes_node: Node) -> BarContext:
     phrase_treatment: str = "statement"
     phrase_idx: int = 0
     harmony: tuple[str, ...] | None = None
+    energy: str = "moderate"
+    cadence: str | None = None
 
     if phrase is not None:
         if "treatment" in phrase:
@@ -97,6 +99,10 @@ def extract_bar_context(notes_node: Node) -> BarContext:
             phrase_idx = phrase["index"].value
         if "harmony" in phrase:
             harmony = _extract_harmony(phrase["harmony"])
+        if "energy" in phrase:
+            energy = phrase["energy"].value
+        if "cadence" in phrase and phrase["cadence"].value is not None:
+            cadence = phrase["cadence"].value
 
     frame: FrameContext = extract_frame_context(notes_node.root)
 
@@ -107,6 +113,8 @@ def extract_bar_context(notes_node: Node) -> BarContext:
         role=role,
         harmony=harmony,
         frame=frame,
+        energy=energy,
+        cadence=cadence,
     )
 
 

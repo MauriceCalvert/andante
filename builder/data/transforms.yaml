@@ -5,10 +5,10 @@
 statement: {}
 
 head:
-  slice: 4
+  slice: 6
 
 tail:
-  slice: -3
+  slice: -6
 
 invert:
   pitch: negate
@@ -43,3 +43,12 @@ retrograde_inversion:
 # Transposition (n provided at apply time)
 transposition:
   pitch: transpose(0)
+
+# Stretto: compress by diminution (halved durations)
+stretto:
+  duration: diminish
+
+# Stretto with every-other-note (alternative)
+stretto_sparse:
+  slice: 6
+  duration: diminish
