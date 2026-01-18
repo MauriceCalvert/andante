@@ -1,13 +1,10 @@
 """Port interfaces for builder module.
-
 Protocols define the contracts that adapters must implement.
 Domain code can depend on these protocols without knowing implementations.
 """
 from fractions import Fraction
 from typing import Any, Protocol
-
 from builder.types import BarContext, FrameContext, Notes, Subject
-
 
 class ContextReader(Protocol):
     """Read musical context from infrastructure."""
@@ -24,14 +21,12 @@ class ContextReader(Protocol):
         """Extract subject material if present."""
         ...
 
-
 class NoteWriter(Protocol):
     """Write notes back to infrastructure."""
 
     def write_notes(self, notes: Notes, target: Any) -> Any:
         """Write notes to target location."""
         ...
-
 
 class NoteExporter(Protocol):
     """Export notes to file formats."""

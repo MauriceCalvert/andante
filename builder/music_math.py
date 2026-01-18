@@ -1,32 +1,25 @@
 """Musical arithmetic using exact fractions.
-
 All durations are Fraction objects internally. Floats only at I/O boundaries.
 All values must be valid musical note durations - no approximation.
 """
 from fractions import Fraction
-
 from shared.constants import (
     AUGMENTATION,
     DIMINUTION,
     VALID_DURATIONS,
     VALID_DURATIONS_SORTED,
 )
-
-
 # Convert tuple to frozenset for O(1) membership testing
 _VALID_DURATIONS_SET: frozenset[Fraction] = frozenset(VALID_DURATIONS)
-
 
 def is_valid_duration(duration: Fraction) -> bool:
     """Check if duration is a valid musical note value."""
     return duration in _VALID_DURATIONS_SET
 
-
 def validate_duration(duration: Fraction) -> Fraction:
     """Validate duration is in VALID_DURATIONS, raise if not."""
     assert duration in _VALID_DURATIONS_SET, f"Invalid duration: {duration}. Valid: {sorted(_VALID_DURATIONS_SET)}"
     return duration
-
 
 def bar_duration(time_num: int, time_den: int) -> Fraction:
     """Bar duration from time signature. E.g., 3/4 → Fraction(3, 4)."""
@@ -34,12 +27,10 @@ def bar_duration(time_num: int, time_den: int) -> Fraction:
     assert time_den > 0, f"time_den must be positive, got {time_den}"
     return Fraction(time_num, time_den)
 
-
 def beat_duration(time_den: int) -> Fraction:
     """Beat duration from denominator. E.g., 4 → Fraction(1, 4)."""
     assert time_den > 0, f"time_den must be positive, got {time_den}"
     return Fraction(1, time_den)
-
 
 def fill_slot(
     target: Fraction,
@@ -47,12 +38,10 @@ def fill_slot(
     style: str = "uniform",
 ) -> list[Fraction]:
     """Generate valid durations that sum exactly to target.
-
     Args:
         target: Total duration to fill
         note_count: Desired number of notes
         style: "uniform", "long_short", or "varied"
-
     Returns:
         List of valid Fraction durations summing to target
     """
@@ -65,7 +54,6 @@ def fill_slot(
     if style == "long_short":
         return _fill_long_short(target, note_count)
     return _fill_varied(target, note_count)
-
 
 def _fill_uniform(target: Fraction, note_count: int) -> list[Fraction]:
     """Fill with equal durations, fallback to varied if needed."""
@@ -86,7 +74,6 @@ def _fill_uniform(target: Fraction, note_count: int) -> list[Fraction]:
     # Fallback to greedy
     return _fill_varied(target, note_count)
 
-
 def _fill_long_short(target: Fraction, note_count: int) -> list[Fraction]:
     """Fill with alternating dotted pattern."""
     dotted_pairs: list[tuple[Fraction, Fraction]] = [
@@ -106,7 +93,6 @@ def _fill_long_short(target: Fraction, note_count: int) -> list[Fraction]:
             return result
     return _fill_uniform(target, note_count)
 
-
 def _fill_varied(target: Fraction, note_count: int) -> list[Fraction]:
     """Fill with greedy selection of largest valid durations."""
     result: list[Fraction] = []
@@ -122,7 +108,6 @@ def _fill_varied(target: Fraction, note_count: int) -> list[Fraction]:
                 break
         assert found, f"Cannot fill remaining {remaining} with valid durations (target={target})"
     return result
-
 
 def repeat_to_fill(
     target: Fraction,
@@ -146,7 +131,6 @@ def repeat_to_fill(
     repeated_durations: list[Fraction] = list(durations) * repeat_count
     return repeated_degrees, repeated_durations
 
-
 def build_offsets(start: Fraction, durations: list[Fraction]) -> list[Fraction]:
     """Build note onset offsets from start position."""
     assert start >= 0, f"start must be non-negative, got {start}"
@@ -160,14 +144,12 @@ def build_offsets(start: Fraction, durations: list[Fraction]) -> list[Fraction]:
         current += dur
     return offsets
 
-
 def augment_duration(duration: Fraction) -> Fraction:
     """Double a duration via lookup. Raises if no valid mapping."""
     assert duration in AUGMENTATION, (
         f"Cannot augment duration: {duration}. Valid: {sorted(AUGMENTATION.keys())}"
     )
     return AUGMENTATION[duration]
-
 
 def diminish_duration(duration: Fraction) -> Fraction:
     """Halve a duration via lookup. Raises if no valid mapping."""
@@ -176,7 +158,6 @@ def diminish_duration(duration: Fraction) -> Fraction:
     )
     return DIMINUTION[duration]
 
-
 def slice_for_bar(
     degrees: tuple[int, ...],
     durations: tuple[Fraction, ...],
@@ -184,13 +165,11 @@ def slice_for_bar(
     bar_duration: Fraction,
 ) -> tuple[tuple[int, ...], tuple[Fraction, ...]]:
     """Extract notes that fall within a specific bar.
-
     Args:
         degrees: All pitches in the source material
         durations: All durations in the source material
         bar_idx: 0-based bar index to extract
         bar_duration: Duration of one bar
-
     Returns:
         (degrees, durations) for notes in the specified bar
     """
@@ -199,20 +178,16 @@ def slice_for_bar(
     )
     assert bar_idx >= 0, f"bar_idx must be non-negative, got {bar_idx}"
     assert bar_duration > 0, f"bar_duration must be positive, got {bar_duration}"
-
     # Calculate source material total duration
     source_duration: Fraction = sum(durations, Fraction(0))
     assert source_duration > 0, "Source material has zero duration"
-
     # Calculate bar range
     bar_start: Fraction = bar_idx * bar_duration
     bar_end: Fraction = bar_start + bar_duration
-
     # Find notes that fall within [bar_start, bar_end)
     # Wrap source material if bar extends beyond it
     result_degrees: list[int] = []
     result_durations: list[Fraction] = []
-
     # Build cumulative offsets
     offset: Fraction = Fraction(0)
     for i, dur in enumerate(durations):
@@ -221,7 +196,6 @@ def slice_for_bar(
         # Check if this note appears in the bar (accounting for wrapping)
         effective_start: Fraction = bar_start % source_duration
         effective_end: Fraction = bar_end % source_duration
-
         in_bar: bool
         if effective_end > effective_start:
             # Normal case: bar doesn't wrap around source
@@ -229,15 +203,11 @@ def slice_for_bar(
         else:
             # Bar wraps around source boundary
             in_bar = note_start >= effective_start or note_start < effective_end
-
         if in_bar:
             result_degrees.append(degrees[i])
             result_durations.append(dur)
-
         offset += dur
-
     # If we got nothing (bar_idx beyond source), repeat the whole source
     if not result_degrees:
         return degrees, durations
-
     return tuple(result_degrees), tuple(result_durations)

@@ -1,12 +1,9 @@
 """Material transformation operations.
-
 Category A: Pure functions, no validation, no I/O.
 Assumes all inputs are valid — validation happens in orchestrators.
-
 SIZE: 180 lines — MIDI-to-diatonic conversion requires complete algorithm
 including chromatic note handling and octave adjustment. Harmonize melody
 adds chord-tone awareness. Splitting would fragment a cohesive pipeline.
-
 Functions:
     apply_pitch_shift      — Shift all pitches by an interval
     fit_to_duration        — Fit notes to target duration by cycling/truncating
@@ -15,14 +12,11 @@ Functions:
     harmonize_melody       — Nudge strong-beat pitches toward chord tones
 """
 from fractions import Fraction
-
 from builder.types import Notes, ParsedTreatment
 from shared.constants import MAJOR_SCALE, NATURAL_MINOR_SCALE, NOTE_NAME_MAP, TONAL_ROOTS
 
-
 def parse_treatment(treatment_str: str) -> ParsedTreatment:
     """Parse treatment string like 'inversion[circulatio+groppo]'.
-
     Returns ParsedTreatment with base transform and ornaments.
     """
     if "[" not in treatment_str:
@@ -34,29 +28,23 @@ def parse_treatment(treatment_str: str) -> ParsedTreatment:
     ornaments: tuple[str, ...] = tuple(ornament_str.split("+"))
     return ParsedTreatment(base=base, ornaments=ornaments)
 
-
 def apply_pitch_shift(notes: Notes, shift: int) -> Notes:
     """Shift all pitches by an interval.
-
     Args:
         notes: Input notes
         shift: Interval to shift (positive or negative)
-
     Returns:
         Notes with shifted pitches
     """
     shifted: tuple[int, ...] = tuple(p + shift for p in notes.pitches)
     return Notes(shifted, notes.durations)
 
-
 def fit_to_duration(notes: Notes, target: Fraction, offset: Fraction = Fraction(0)) -> Notes:
     """Extract notes for a target duration, starting from offset.
-
     Args:
         notes: Input notes
         target: Target duration to fill
         offset: Time offset to start from (skips notes before this point)
-
     Returns:
         Notes that exactly fill target duration
     """
@@ -66,12 +54,10 @@ def fit_to_duration(notes: Notes, target: Fraction, offset: Fraction = Fraction(
     current_time: Fraction = Fraction(0)
     idx: int = 0
     max_iterations: int = 1000
-
     # Skip notes before offset
     while idx < len(notes.pitches) and current_time + notes.durations[idx] <= offset:
         current_time += notes.durations[idx]
         idx += 1
-
     # Handle partial note at offset boundary
     if idx < len(notes.pitches) and current_time < offset:
         partial: Fraction = offset - current_time
@@ -81,7 +67,6 @@ def fit_to_duration(notes: Notes, target: Fraction, offset: Fraction = Fraction(
         result_durations.append(use_dur)
         remaining -= use_dur
         idx += 1
-
     # Fill remaining duration
     iterations: int = 0
     while remaining > 0 and iterations < max_iterations:
@@ -93,9 +78,7 @@ def fit_to_duration(notes: Notes, target: Fraction, offset: Fraction = Fraction(
         remaining -= use_dur
         idx += 1
         iterations += 1
-
     return Notes(tuple(result_pitches), tuple(result_durations))
-
 
 def convert_midi_to_diatonic(
     notes: Notes,
@@ -105,14 +88,12 @@ def convert_midi_to_diatonic(
     min_diatonic: int,
 ) -> Notes:
     """Convert MIDI pitches to diatonic, transposing from source to target key.
-
     Args:
         notes: Notes with MIDI pitches
         source_key: Original key (e.g., "G")
         target_key: Target key (e.g., "C")
         target_mode: Target mode ("major" or "minor")
         min_diatonic: Minimum allowed diatonic pitch (e.g., 28 for C4)
-
     Returns:
         Notes with diatonic pitch values
     """
@@ -120,9 +101,7 @@ def convert_midi_to_diatonic(
     target_tonic: int = NOTE_NAME_MAP[target_key]
     transpose: int = target_tonic - source_tonic
     scale: tuple[int, ...] = MAJOR_SCALE if target_mode == "major" else NATURAL_MINOR_SCALE
-
     pc_to_degree: dict[int, int] = {semitones: deg_idx for deg_idx, semitones in enumerate(scale)}
-
     diatonic_pitches: list[int] = []
     for midi in notes.pitches:
         transposed: int = midi + transpose
@@ -130,25 +109,19 @@ def convert_midi_to_diatonic(
         pc: int = (transposed - target_tonic) % 12
         degree: int = pc_to_degree.get(pc, _find_nearest_degree(pc, pc_to_degree))
         diatonic_pitches.append(octave * 7 + degree)
-
     min_pitch: int = min(diatonic_pitches)
     if min_pitch < min_diatonic:
         octaves_up: int = (min_diatonic - min_pitch + 6) // 7
         diatonic_pitches = [p + octaves_up * 7 for p in diatonic_pitches]
-
     return Notes(tuple(diatonic_pitches), notes.durations)
-
 
 def convert_degrees_to_diatonic(notes: Notes, base_octave: int) -> Notes:
     """Convert scale degrees to diatonic pitch values.
-
     Degrees 1-7 are in the base octave. Degrees 8-14 are one octave higher,
     degrees -6 to 0 are one octave lower, etc. This preserves octave information.
-
     Args:
         notes: Notes with scale degrees as pitches (1=tonic, 8=octave above tonic)
         base_octave: Base octave for conversion
-
     Returns:
         Notes with diatonic pitch values
     """
@@ -156,7 +129,6 @@ def convert_degrees_to_diatonic(notes: Notes, base_octave: int) -> Notes:
         (base_octave + (d - 1) // 7) * 7 + ((d - 1) % 7) for d in notes.pitches
     )
     return Notes(diatonic, notes.durations)
-
 
 def _find_nearest_degree(pc: int, pc_to_degree: dict[int, int]) -> int:
     """Find nearest scale degree for a chromatic pitch class."""
@@ -166,7 +138,6 @@ def _find_nearest_degree(pc: int, pc_to_degree: dict[int, int]) -> int:
             return pc_to_degree[test_pc]
     return 0
 
-
 def harmonize_melody(
     notes: Notes,
     chord: str,
@@ -174,17 +145,14 @@ def harmonize_melody(
     mode: str,
 ) -> Notes:
     """Nudge strong-beat pitches toward chord tones.
-
     On strong beats (accumulating to 0, 1/2 of a bar in 4/4), prefer chord tones.
     Non-chord tones are OK on weak beats. Preserves melodic contour by choosing
     the nearest chord tone.
-
     Args:
         notes: Notes with scale degrees (1-7) as pitches
         chord: Roman numeral (e.g., "V", "I", "iv")
         key: Key (e.g., "C", "G")
         mode: Mode ("major" or "minor")
-
     Returns:
         Notes with adjusted pitches for harmony
     """
@@ -208,13 +176,10 @@ def harmonize_melody(
         cumulative += dur
     return Notes(tuple(result_pitches), notes.durations)
 
-
 def _get_chord_tones(chord: str) -> tuple[int, ...]:
     """Get chord tones as scale degrees for a Roman numeral chord.
-
     Args:
         chord: Roman numeral (e.g., "I", "V", "vi")
-
     Returns:
         Tuple of scale degrees (1-7) that are chord tones
     """
@@ -222,7 +187,6 @@ def _get_chord_tones(chord: str) -> tuple[int, ...]:
     third: int = ((root - 1 + 2) % 7) + 1
     fifth: int = ((root - 1 + 4) % 7) + 1
     return (root, third, fifth)
-
 
 def _nearest_chord_tone(pitch: int, chord_tones: tuple[int, ...]) -> int:
     """Find nearest chord tone to a pitch while preserving octave."""

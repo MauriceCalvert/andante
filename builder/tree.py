@@ -1,6 +1,5 @@
 from typing import Any, Callable, Iterator
 
-
 class Node:
     """Immutable tree node for traversing YAML structures."""
     __slots__ = ('_key', '_value', '_parent', '_children')
@@ -195,7 +194,6 @@ class Node:
             )
             object.__setattr__(new_node, '_children', reparented)
         return new_node
-
 
 def yaml_to_tree(
         data: Any,

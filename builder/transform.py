@@ -1,28 +1,21 @@
 """Transform system for note sequences.
-
 This module provides backward compatibility by re-exporting types from
 the new architecture. The Transform class delegates to domain operations.
-
 Adapter functions (notes_from_node, notes_to_dicts) live here as they
 translate between Node infrastructure and domain types.
 """
 from fractions import Fraction
 from pathlib import Path
 from typing import Any, TextIO
-
 import yaml
-
 from builder.music_math import augment_duration, diminish_duration, validate_duration
 from builder.tree import Node
 from builder.types import Notes  # Re-export for backward compatibility
 from shared.constants import VALID_DURATION_OPS, VALID_PITCH_OPS
-
 TRANSFORMS_PATH: Path = Path(__file__).parent / "data" / "transforms.yaml"
-
 
 class Transform:
     """YAML-driven melodic transformation."""
-
     _cache: dict[str, dict[str, Any]] = {}
 
     def __init__(self, name: str) -> None:
@@ -44,7 +37,6 @@ class Transform:
             )
             if op_name == 'transpose':
                 self.transpose_n = int(self._parse_arg(self.pitch_op))
-
         if self.duration_op is not None:
             assert self.duration_op in VALID_DURATION_OPS, (
                 f"Transform '{self.name}': unknown duration op '{self.duration_op}'. "
@@ -74,14 +66,12 @@ class Transform:
 
     def apply(self, notes: Notes, **kwargs: Any) -> Notes:
         """Apply transform to notes.
-
         Required kwargs by operation:
         - negate: pivot (int) - the pitch to invert around
         - transpose: n (int) - semitones to transpose (overrides YAML default)
         """
         pitches: tuple[int, ...] = notes.pitches
         durations: tuple[Fraction, ...] = notes.durations
-
         # Apply slice first (head/tail)
         if self.slice_n is not None:
             if self.slice_n > 0:
@@ -90,7 +80,6 @@ class Transform:
             else:
                 pitches = pitches[self.slice_n:]
                 durations = durations[self.slice_n:]
-
         pitches = self._transform_pitch(pitches, **kwargs)
         durations = self._transform_duration(durations)
         return Notes(pitches, durations)
@@ -99,7 +88,6 @@ class Transform:
         """Apply pitch operation."""
         if self.pitch_op is None:
             return pitches
-
         if self.pitch_op == 'negate':
             assert 'pivot' in kwargs, f"Transform '{self.name}': 'negate' requires 'pivot' kwarg"
             pivot: Any = kwargs['pivot']
@@ -107,10 +95,8 @@ class Transform:
                 f"Transform '{self.name}': pivot must be int, got {type(pivot).__name__}"
             )
             return tuple(2 * pivot - p for p in pitches)
-
         if self.pitch_op == 'reverse':
             return pitches[::-1]
-
         if self.pitch_op.startswith('transpose'):
             n: int
             if 'n' in kwargs:
@@ -124,23 +110,18 @@ class Transform:
             else:
                 assert False, f"Transform '{self.name}': 'transpose' requires 'n' kwarg or YAML arg"
             return tuple(p + n for p in pitches)
-
         assert False, f"Unknown pitch op: {self.pitch_op}"
 
     def _transform_duration(self, durations: tuple[Fraction, ...]) -> tuple[Fraction, ...]:
         """Apply duration operation."""
         if self.duration_op is None:
             return durations
-
         if self.duration_op == 'reverse':
             return durations[::-1]
-
         if self.duration_op == 'augment':
             return tuple(augment_duration(d) for d in durations)
-
         if self.duration_op == 'diminish':
             return tuple(diminish_duration(d) for d in durations)
-
         assert False, f"Unknown duration op: {self.duration_op}"
 
     @staticmethod
@@ -152,10 +133,8 @@ class Transform:
         assert end > start + 1, f"Empty argument in: '{op}'"
         return Fraction(op[start + 1:end])
 
-
 def notes_from_node(node: Node) -> Notes:
     """Extract Notes from a subject/motif node with pitches or degrees and durations.
-
     Supports both:
     - pitches: MIDI pitch values (preserves contour)
     - degrees: Scale degrees 1-7 (legacy format)
@@ -166,7 +145,6 @@ def notes_from_node(node: Node) -> Notes:
         f"Node missing 'pitches' or 'degrees' key at {node.path_string()}"
     )
     assert 'durations' in node, f"Node missing 'durations' key at {node.path_string()}"
-
     pitches: list[int] = []
     pitch_key: str = 'pitches' if has_pitches else 'degrees'
     for c in node[pitch_key].children:
@@ -174,16 +152,13 @@ def notes_from_node(node: Node) -> Notes:
             f"{pitch_key} value must be int, got {type(c.value).__name__} at {c.path_string()}"
         )
         pitches.append(c.value)
-
     durations: list[Fraction] = []
     for c in node['durations'].children:
         assert isinstance(c.value, (int, float, str)), (
             f"Duration must be numeric or string, got {type(c.value).__name__} at {c.path_string()}"
         )
         durations.append(validate_duration(Fraction(c.value)))
-
     return Notes(tuple(pitches), tuple(durations))
-
 
 def notes_to_dicts(notes: Notes) -> list[dict[str, Any]]:
     """Convert Notes to list of note dicts for tree insertion."""
