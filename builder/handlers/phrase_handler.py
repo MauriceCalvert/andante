@@ -48,37 +48,25 @@ def extract_bar_melody(melody: Notes, bar_index: int, bar_duration: Fraction) ->
     return _slice_notes(melody, offset, bar_duration)
 
 def _slice_notes(notes: Notes, offset: Fraction, duration: Fraction) -> Notes:
-    """Extract notes from offset for duration."""
+    """Extract notes that START within [offset, offset+duration).
+
+    Notes keep their full duration even if they extend past the window.
+    Notes that started before the window are excluded (already emitted).
+    """
     result_pitches: list[int] = []
     result_durations: list[Fraction] = []
     current: Fraction = Fraction(0)
-    remaining: Fraction = duration
-    for i, (p, d) in enumerate(zip(notes.pitches, notes.durations)):
-        note_end: Fraction = current + d
-        # Skip notes before offset
-        if note_end <= offset:
-            current = note_end
+    window_end: Fraction = offset + duration
+    for p, d in zip(notes.pitches, notes.durations):
+        note_start: Fraction = current
+        current += d
+        # Skip notes that start before window
+        if note_start < offset:
             continue
-        # Note overlaps with our window
-        note_start_in_window: Fraction = max(current, offset)
-        note_end_in_window: Fraction = min(note_end, offset + duration)
-        use_dur: Fraction = note_end_in_window - note_start_in_window
-        if use_dur > 0 and remaining > 0:
-            result_pitches.append(p)
-            result_durations.append(min(use_dur, remaining))
-            remaining -= use_dur
-        current = note_end
-        if remaining <= 0:
+        # Stop if we've passed the window
+        if note_start >= window_end:
             break
-    # If we ran out of notes, cycle from beginning
-    if remaining > 0 and notes.pitches:
-        idx = 0
-        while remaining > 0:
-            p = notes.pitches[idx % len(notes.pitches)]
-            d = notes.durations[idx % len(notes.durations)]
-            use_dur = min(d, remaining)
-            result_pitches.append(p)
-            result_durations.append(use_dur)
-            remaining -= use_dur
-            idx += 1
+        # Note starts within window - include with full duration
+        result_pitches.append(p)
+        result_durations.append(d)
     return Notes(tuple(result_pitches), tuple(result_durations))
