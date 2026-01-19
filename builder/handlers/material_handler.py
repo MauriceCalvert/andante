@@ -65,11 +65,15 @@ def handle_notes(node: Node) -> Node:
     return build_notes_tree(final, node.parent)
 
 def _extract_melody_slice(node: Node, bar_index: int, bar_duration: Fraction) -> Notes:
-    """Extract bar's portion of phrase melody."""
+    """Extract bar's portion of phrase melody.
+
+    Works with both legacy phrase-based structure (parent.key == "phrases")
+    and schema-based structure (parent.key == "schemas").
+    """
     phrase: Node | None = node.find_ancestor(
-        lambda n: n.parent is not None and n.parent.key == "phrases"
+        lambda n: n.parent is not None and n.parent.key in ("phrases", "schemas")
     )
-    assert phrase is not None, "No phrase ancestor found"
+    assert phrase is not None, "No phrase/schema ancestor found"
     assert "melody" in phrase, "Phrase missing melody (computed at phrase level)"
     melody_node: Node = phrase["melody"]
     pitches: tuple[int, ...] = tuple(c.value for c in melody_node["pitches"].children)

@@ -30,17 +30,20 @@ def generate_bass_for_bar(node: Node) -> Node:
 def _extract_bar_bass(node: Node, context: BarContext) -> Notes:
     """Extract pre-generated bass for this bar from phrase.
 
+    Works with both legacy phrase-based structure (parent.key == "phrases")
+    and schema-based structure (parent.key == "schemas").
+
     Raises:
         MissingContextError: If bass not found on phrase
     """
-    # Navigate to phrase node
+    # Navigate to phrase node (supports both phrases and schemas paths)
     phrase: Node | None = node.find_ancestor(
-        lambda n: n.parent is not None and n.parent.key == "phrases"
+        lambda n: n.parent is not None and n.parent.key in ("phrases", "schemas")
     )
     if phrase is None:
         raise MissingContextError(
-            "Bass handler: cannot find phrase ancestor. "
-            "Ensure bass voice is within a phrase structure."
+            "Bass handler: cannot find phrase/schema ancestor. "
+            "Ensure bass voice is within a phrase or schema structure."
         )
 
     # Check for pre-generated bass on phrase
