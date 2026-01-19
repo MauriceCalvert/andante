@@ -26,6 +26,7 @@ Every token must be classifiable. Unknown tokens are errors.
 
 - Metre: `4/4` not `[4, 4]`
 - Ranges: `range(100, 140)` builtin
+- Offsets and durations are in *whole notes*, not quarter notes.
 
 ---
 
