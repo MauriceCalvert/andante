@@ -1,7 +1,7 @@
-"""Schema operations: load, stretch, realise.
+"""Schema operations: load, tile, realise.
 
 Loads schema definitions from data/schemas.yaml and provides operations
-for stretching durations and extracting degree sequences.
+for tiling schemas and extracting degree sequences.
 """
 from fractions import Fraction
 from pathlib import Path
@@ -36,27 +36,31 @@ def get_schema(name: str) -> dict:
     return schemas[name]
 
 
-def stretch_schema(schema: dict, target_bars: int) -> dict:
-    """Stretch schema durations to fill target_bars.
+def tile_schema(schema: dict, repetitions: int) -> dict:
+    """Tile schema by repeating degree sequences and durations.
 
-    The skeleton (degree sequence) stays identical; only timing changes.
+    Pure tiling: repeat schema N times = N times the notes with same durations.
+    This preserves the musical character better than stretching durations.
 
     Args:
         schema: Schema dict with bass_degrees, soprano_degrees, durations, bars
-        target_bars: Number of bars to stretch to
+        repetitions: Number of times to repeat the schema
 
     Returns:
-        Dict with stretched durations
+        Dict with tiled content (more notes, same individual durations)
     """
+    assert repetitions >= 1, f"repetitions must be >= 1, got {repetitions}"
+
     base_bars = schema.get("bars", 1)
-    multiplier = Fraction(target_bars, base_bars)
-    stretched = [_parse_duration(d) * multiplier for d in schema["durations"]]
+    bass = schema["bass_degrees"]
+    soprano = schema["soprano_degrees"]
+    durations = [_parse_duration(d) for d in schema["durations"]]
 
     return {
-        "bass_degrees": schema["bass_degrees"],
-        "soprano_degrees": schema["soprano_degrees"],
-        "durations": stretched,
-        "bars": target_bars,
+        "bass_degrees": bass * repetitions,
+        "soprano_degrees": soprano * repetitions,
+        "durations": durations * repetitions,
+        "bars": base_bars * repetitions,
     }
 
 
