@@ -1,11 +1,27 @@
 """Convert MIDI file to .note CSV format."""
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 from mido import MidiFile
 
+from shared.constants import VALID_DURATIONS_SORTED
+
 
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def quantize_duration(duration: float) -> Fraction:
+    """Quantize duration (in beats) to nearest valid note value."""
+    dur_frac = Fraction(duration).limit_denominator(64)
+    best: Fraction = VALID_DURATIONS_SORTED[0]
+    best_diff: float = abs(float(dur_frac) - float(best))
+    for valid in VALID_DURATIONS_SORTED:
+        diff = abs(float(dur_frac) - float(valid))
+        if diff < best_diff:
+            best = valid
+            best_diff = diff
+    return best
 
 
 def midi_to_note_name(midi_num: int) -> str:
@@ -50,7 +66,8 @@ def convert_midi_to_note(midi_path: Path) -> None:
 
     for n in notes:
         offset = n["start_tick"] / ticks_per_beat
-        duration = n["duration_ticks"] / ticks_per_beat
+        raw_duration = n["duration_ticks"] / ticks_per_beat
+        duration = quantize_duration(raw_duration)
         midi_num = n["midi_num"]
         track = n["track"]
         note_name = midi_to_note_name(midi_num)
