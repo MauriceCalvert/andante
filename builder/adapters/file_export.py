@@ -100,28 +100,31 @@ def collect_notes_from_tree(tree: Node) -> list[tuple[str, int, Fraction, Fracti
     Returns:
         List of (role, diatonic, duration, offset) tuples
     """
+    # Extract bar duration from frame.metre
+    bar_duration: Fraction = Fraction(1)  # default 4/4
+    if "frame" in tree and "metre" in tree["frame"]:
+        metre_str: str = tree["frame"]["metre"].value
+        parts: list[str] = metre_str.split("/")
+        bar_duration = Fraction(int(parts[0]), int(parts[1]))
     notes: list[tuple[str, int, Fraction, Fraction]] = []
-    _collect_recursive(tree, Fraction(0), notes)
+    _collect_recursive(tree, Fraction(0), bar_duration, notes)
     return notes
 
 def _collect_recursive(
     node: Node,
     bar_offset: Fraction,
+    bar_duration: Fraction,
     notes: list[tuple[str, int, Fraction, Fraction]],
 ) -> Fraction:
     """Recursively collect notes from tree."""
     if node.key == "bars":
         offset: Fraction = bar_offset
         for bar_node in node.children:
-            offset = _collect_recursive(bar_node, offset, notes)
+            offset = _collect_recursive(bar_node, offset, bar_duration, notes)
         return offset
     if isinstance(node.key, int) and "voices" in node:
-        bar_duration: Fraction = Fraction(0)
         for voice_node in node["voices"].children:
-            _collect_recursive(voice_node, bar_offset, notes)
-            if bar_duration == 0 and "notes" in voice_node:
-                for note_node in voice_node["notes"].children:
-                    bar_duration += Fraction(note_node["duration"].value)
+            _collect_recursive(voice_node, bar_offset, bar_duration, notes)
         return bar_offset + bar_duration
     if isinstance(node.key, int) and "role" in node:
         role: str = node["role"].value
@@ -134,5 +137,5 @@ def _collect_recursive(
                 offset += dur
         return bar_offset
     for child in node.children:
-        bar_offset = _collect_recursive(child, bar_offset, notes)
+        bar_offset = _collect_recursive(child, bar_offset, bar_duration, notes)
     return bar_offset
