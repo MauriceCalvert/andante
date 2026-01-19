@@ -1,6 +1,7 @@
 """Convert .note CSV file to MIDI format."""
 import csv
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 from mido import Message, MidiFile, MidiTrack, MetaMessage
@@ -39,9 +40,9 @@ def convert_note_to_midi(note_path: Path) -> None:
                 continue
             values = stripped.split(",")
             notes.append({
-                "offset": float(values[idx_offset]),
+                "offset": float(Fraction(values[idx_offset])),
                 "midi_num": int(values[idx_midi]),
-                "duration": float(values[idx_duration]),
+                "duration": float(Fraction(values[idx_duration])),
                 "track": int(values[idx_track]),
             })
 

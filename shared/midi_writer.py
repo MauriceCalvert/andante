@@ -140,7 +140,7 @@ def write_midi_notes(
     path: str,
     notes: Sequence[SimpleNote],
     *,
-    tempo: int = 80,
+    tempo: int = 120,
     time_signature: tuple[int, int] = (4, 4),
     key: Optional[str] = None,
     mode: str = "major"
@@ -205,7 +205,7 @@ def write_midi_notes(
         midi_track.append(Message('program_change', channel=track_num % 16, program=0, time=0))
 
         # L013: 75% gate time to avoid legato/slur rendering in MuseScore
-        GATE_TIME = 0.75
+        GATE_TIME = 0.95
 
         # Build events list (on/off with absolute times)
         events: List[tuple[int, str, int, int]] = []  # (tick, type, pitch, velocity)

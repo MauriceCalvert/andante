@@ -61,23 +61,26 @@ def convert_midi_to_note(midi_path: Path) -> None:
     # Sort by start time, then by pitch (descending for same time)
     notes.sort(key=lambda n: (n["start_tick"], -n["midi_num"]))
 
-    # Convert ticks to beats (quarters)
+    # Convert ticks to bars (assuming 4/4 time: 4 beats per bar)
+    beats_per_bar = 4
     output_lines = ["Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric"]
 
     for n in notes:
-        offset = n["start_tick"] / ticks_per_beat
-        raw_duration = n["duration_ticks"] / ticks_per_beat
-        duration = quantize_duration(raw_duration)
+        offset_beats = n["start_tick"] / ticks_per_beat
+        offset_bars = offset_beats / beats_per_bar
+        raw_duration_beats = n["duration_ticks"] / ticks_per_beat
+        raw_duration_bars = raw_duration_beats / beats_per_bar
+        duration = quantize_duration(raw_duration_bars)
         midi_num = n["midi_num"]
         track = n["track"]
         note_name = midi_to_note_name(midi_num)
 
-        # Calculate bar and beat (assuming 4/4, bar 1-indexed)
-        bar = int(offset // 4) + 1
-        beat = (offset % 4) + 1
+        # Calculate bar and beat (bar 1-indexed)
+        bar = int(offset_beats // beats_per_bar) + 1
+        beat = (offset_beats % beats_per_bar) + 1
 
         output_lines.append(
-            f"{offset},{midi_num},{duration},{track},,{bar},{beat},{note_name},"
+            f"{offset_bars},{midi_num},{duration},{track},,{bar},{beat},{note_name},"
         )
 
     # Write output
