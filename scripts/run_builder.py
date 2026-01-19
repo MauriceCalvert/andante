@@ -28,12 +28,11 @@ BRIEFS_DIR: Path = Path(__file__).parent.parent / "briefs" / "builder"
 OUTPUT_DIR: Path = Path(__file__).parent.parent / "output" / "builder"
 
 
-def load_subject_from_subject_file(file_path: Path, max_notes: int = 12) -> Motif:
+def load_subject_from_subject_file(file_path: Path) -> Motif:
     """Load subject from .subject file (YAML with diatonic degrees).
 
     Args:
         file_path: Path to .subject file
-        max_notes: Maximum number of notes to extract (default 12)
 
     Returns:
         Motif with diatonic degrees and source_key
@@ -46,8 +45,8 @@ def load_subject_from_subject_file(file_path: Path, max_notes: int = 12) -> Moti
     assert "degrees" in data, f"Subject file missing 'degrees': {file_path}"
     assert "durations" in data, f"Subject file missing 'durations': {file_path}"
 
-    degrees: list[int] = data["degrees"][:max_notes]
-    durations: list[Fraction] = [Fraction(d) for d in data["durations"][:max_notes]]
+    degrees: list[int] = data["degrees"]
+    durations: list[Fraction] = [Fraction(d) for d in data["durations"]]
     source_key: str = data.get("source_key", "C")
 
     assert len(degrees) == len(durations), (
@@ -147,11 +146,10 @@ def load_brief_and_plan(path: Path) -> tuple[dict[str, Any], str]:
         if "file" in subj:
             file_rel: str = subj["file"].replace("\\", "/")
             file_path: Path = PROJECT_DIR / file_rel
-            max_notes: int = subj.get("notes", 12)
             assert file_path.suffix == ".subject", (
                 f"Subject file must be .subject, got: {file_path.suffix}"
             )
-            user_motif = load_subject_from_subject_file(file_path, max_notes)
+            user_motif = load_subject_from_subject_file(file_path)
         elif "degrees" in subj:
             user_motif = Motif(
                 degrees=tuple(subj["degrees"]),
