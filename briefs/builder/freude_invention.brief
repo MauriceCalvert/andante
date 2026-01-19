@@ -12,5 +12,5 @@ frame:
   tempo: allegro
 material:
   subject:
-    file: motifs/library/bwv0772.subject
+    file: motifs/library/surprise.subject
     notes: 12

@@ -145,16 +145,18 @@ def build_offsets(start: Fraction, durations: list[Fraction]) -> list[Fraction]:
     return offsets
 
 def augment_duration(duration: Fraction) -> Fraction:
-    """Double a duration via lookup. Raises if no valid mapping."""
+    """Double a duration via lookup. Raises if not a standard note value."""
     assert duration in AUGMENTATION, (
-        f"Cannot augment duration: {duration}. Valid: {sorted(AUGMENTATION.keys())}"
+        f"Cannot augment duration: {duration}. "
+        f"Not a standard note value. Use tied notes for compound durations."
     )
     return AUGMENTATION[duration]
 
 def diminish_duration(duration: Fraction) -> Fraction:
-    """Halve a duration via lookup. Raises if no valid mapping."""
+    """Halve a duration via lookup. Raises if not a standard note value."""
     assert duration in DIMINUTION, (
-        f"Cannot diminish duration: {duration}. Valid: {sorted(DIMINUTION.keys())}"
+        f"Cannot diminish duration: {duration}. "
+        f"Not a standard note value. Use tied notes for compound durations."
     )
     return DIMINUTION[duration]
 

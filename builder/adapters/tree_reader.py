@@ -13,7 +13,10 @@ Functions:
 from fractions import Fraction
 from builder.tree import Node
 from builder.types import BarContext, FrameContext, Metre, Notes, Subject
+from shared.constants import VALID_DURATIONS
 from shared.errors import MissingContextError
+
+_VALID_DURATIONS_SET: frozenset[Fraction] = frozenset(VALID_DURATIONS)
 
 def extract_frame_context(root: Node) -> FrameContext:
     """Extract frame context from tree root.
@@ -130,6 +133,13 @@ def extract_notes(node: Node) -> Notes:
     pitch_key: str = "pitches" if has_pitches else "degrees"
     pitches: list[int] = [c.value for c in node[pitch_key].children]
     durations: list[Fraction] = [Fraction(c.value) for c in node["durations"].children]
+    # Validate durations are standard note values
+    for d in durations:
+        assert d in _VALID_DURATIONS_SET, (
+            f"Invalid duration {d} in subject at {node.path_string()}. "
+            f"Use standard note values: {sorted(_VALID_DURATIONS_SET, reverse=True)}. "
+            f"For compound durations like {d}, use tied notes instead."
+        )
     return Notes(tuple(pitches), tuple(durations))
 
 def _extract_harmony(harmony_node: Node) -> tuple[str, ...] | None:

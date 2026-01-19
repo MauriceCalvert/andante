@@ -3,7 +3,20 @@ import sys
 from fractions import Fraction
 from pathlib import Path
 
+from shared.constants import VALID_DURATIONS_SORTED
 from shared.key import Key
+
+
+def quantize_duration(duration: Fraction) -> Fraction:
+    """Quantize duration to nearest valid note value."""
+    best: Fraction = VALID_DURATIONS_SORTED[0]
+    best_diff: Fraction = abs(duration - best)
+    for valid in VALID_DURATIONS_SORTED:
+        diff = abs(duration - valid)
+        if diff < best_diff:
+            best = valid
+            best_diff = diff
+    return best
 
 
 def convert_note_to_subject(
@@ -50,10 +63,11 @@ def convert_note_to_subject(
                 continue
             values = stripped.split(",")
             note_track = int(values[idx_track]) if idx_track is not None else 0
+            raw_dur = Fraction(values[idx_duration]).limit_denominator(64)
             notes.append({
                 "offset": float(values[idx_offset]),
                 "midi": int(values[idx_midi]),
-                "duration": Fraction(values[idx_duration]).limit_denominator(64),
+                "duration": quantize_duration(raw_dur),
                 "track": note_track,
             })
 
