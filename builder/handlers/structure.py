@@ -4,7 +4,7 @@ from typing import Any
 from builder.domain.harmony_ops import generate_melody_compatible_harmony
 from builder.handlers.core import register, elaborate
 from builder.handlers.phrase_handler import compute_phrase_melody
-from builder.solver import generate_voice_cpsat
+from builder.solver import generate_voice_cpsat, load_pattern, get_default_pattern, Pattern
 from builder.tree import Node, yaml_to_tree
 from builder.types import Notes
 from shared.constants import DIATONIC_DEFAULTS
@@ -23,6 +23,7 @@ def _build_phrase(phrase: Node, parent: Node, bar_duration: Fraction) -> Node:
     """Build phrase: compute melody, generate voices, create bars."""
     root: Node = parent.root
     voice_count: int = _get_voice_count(parent)
+    metre: str = _get_metre(parent)
 
     # Compute phrase melody (soprano) and bar count from subject + treatment
     soprano, bar_count = compute_phrase_melody(phrase, root, bar_duration)
@@ -35,18 +36,21 @@ def _build_phrase(phrase: Node, parent: Node, bar_duration: Fraction) -> Node:
 
     # Generate other voices in order: bass, alto, tenor
     # Each voice considers all previously decided voices
-    # Uses CP-SAT solver for optimal voice leading across the phrase
+    # Uses CP-SAT solver with pattern-driven rhythm for optimal voice leading
     if voice_count >= 2:
-        bass: Notes = generate_voice_cpsat([soprano], harmony, "bass", bar_duration)
+        bass_pattern: Pattern = _load_voice_pattern(phrase, "bass", metre)
+        bass: Notes = generate_voice_cpsat([soprano], harmony, "bass", bar_duration, bass_pattern)
         phrase_with_voices = _add_voice_to_phrase(phrase_with_voices, "bass", bass)
 
         if voice_count >= 3:
-            alto: Notes = generate_voice_cpsat([soprano, bass], harmony, "alto", bar_duration)
+            alto_pattern: Pattern = _load_voice_pattern(phrase, "alto", metre)
+            alto: Notes = generate_voice_cpsat([soprano, bass], harmony, "alto", bar_duration, alto_pattern)
             phrase_with_voices = _add_voice_to_phrase(phrase_with_voices, "alto", alto)
 
             if voice_count >= 4:
+                tenor_pattern: Pattern = _load_voice_pattern(phrase, "tenor", metre)
                 tenor: Notes = generate_voice_cpsat(
-                    [soprano, bass, alto], harmony, "tenor", bar_duration
+                    [soprano, bass, alto], harmony, "tenor", bar_duration, tenor_pattern
                 )
                 phrase_with_voices = _add_voice_to_phrase(phrase_with_voices, "tenor", tenor)
 
@@ -72,6 +76,26 @@ def _add_voice_to_phrase(phrase: Node, key: str, notes: Notes) -> Node:
     }
     voice_node: Node | None = yaml_to_tree(voice_data, key=key, parent=phrase)
     return phrase.with_children(tuple(phrase.children) + (voice_node,))
+
+
+def _load_voice_pattern(phrase: Node, voice_role: str, metre: str) -> Pattern:
+    """Load pattern for a voice from phrase or use default.
+
+    Looks for '{voice_role}_pattern' key in phrase (e.g., 'bass_pattern').
+    If not found, uses default pattern for the voice role.
+    """
+    pattern_key: str = f"{voice_role}_pattern"
+
+    if pattern_key in phrase:
+        pattern_name: str = phrase[pattern_key].value
+        assert isinstance(pattern_name, str), (
+            f"Pattern name must be string, got {type(pattern_name).__name__} "
+            f"for {pattern_key} in phrase"
+        )
+    else:
+        pattern_name = get_default_pattern(voice_role)
+
+    return load_pattern(pattern_name, metre, voice_role)
 
 
 @register('voices', '*')

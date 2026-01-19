@@ -20,6 +20,7 @@ from builder.solver.constraints import (
 )
 from builder.solver.solver import generate_voice
 from builder.solver.cpsat_voice import generate_voice_cpsat
+from builder.solver.pattern_loader import Pattern, load_pattern, get_default_pattern
 
 __all__ = [
     "VerticalSlice",
@@ -35,4 +36,7 @@ __all__ = [
     "check_parallel_motion",
     "generate_voice",
     "generate_voice_cpsat",
+    "Pattern",
+    "load_pattern",
+    "get_default_pattern",
 ]
