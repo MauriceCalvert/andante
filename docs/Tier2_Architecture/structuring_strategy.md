@@ -81,9 +81,12 @@ andante/
 │   ├── material.py        # P3: subject acquisition
 │   ├── subject.py         # Subject class
 │   ├── cs_generator.py    # Counter-subject solver
-│   ├── structure.py       # P4: plan_structure
-│   ├── section_planner.py # Section → episodes
-│   ├── episode_generator.py
+│   ├── structure.py       # P4: build SectionSchema from chain
+│   ├── cadence_planner.py # Plan cadence points
+│   ├── schema_generator.py # Generate schema chain
+│   ├── schema_loader.py   # Load schema definitions
+│   ├── subject_validator.py # Validate subject against schema
+│   ├── subject_deriver.py # Derive subject from schema
 │   ├── harmony.py         # P5: harmonic architecture
 │   ├── devices.py         # P6: Figurenlehre
 │   ├── coherence.py       # P7: callbacks, surprises

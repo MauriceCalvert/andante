@@ -12,9 +12,8 @@ This document defines the formal structure of Andante data types and YAML files.
 Plan        ::= brief: Brief
                 frame: Frame
                 material: Material
-                structure: Structure
+                structure: Structure | SchemaStructure
                 actual_bars: POS_INT
-                macro_form: MacroForm | NULL
                 tension_curve: TensionCurve | NULL
                 rhetoric: RhetoricalStructure | NULL
                 harmonic_plan: HarmonicPlan | NULL

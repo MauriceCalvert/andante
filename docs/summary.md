@@ -40,16 +40,17 @@ andante/
 │   ├── material.py         # Subject acquisition with affect-driven generation
 │   ├── subject.py          # Subject with lazy counter-subject
 │   ├── cs_generator.py     # CP-SAT counter-subject solver
-│   ├── structure.py        # Build sections and phrases
+│   ├── structure.py        # Build SectionSchema from schema chain
+│   ├── cadence_planner.py  # Plan cadence points from frame/genre
+│   ├── schema_generator.py # Generate schema chain from cadence plan
+│   ├── schema_loader.py    # Load and query schema definitions
+│   ├── subject_validator.py # Validate subject against opening schema
+│   ├── subject_deriver.py  # Derive subject from opening schema
 │   ├── dramaturgy.py       # Rhetorical structure & tension curves
 │   ├── harmony.py          # Harmonic architecture planning
 │   ├── devices.py          # Figurenlehre device assignment
 │   ├── coherence.py        # Callbacks, surprises, golden ratio
 │   ├── constraints.py      # Plan → bar-level constraint synthesis
-│   ├── macro_form.py       # Large-scale fantasia structure
-│   ├── section_planner.py  # Macro-section → episodes
-│   ├── episode_generator.py # Constraint-based episode sequences
-│   ├── transition.py       # Section transition generation
 │   ├── treatment_generator.py # Dynamic treatment sequences
 │   ├── arc.py              # Tension curve management
 │   ├── validator.py        # Plan structural validation
@@ -345,14 +346,15 @@ validator.py       Plan structural integrity checks
 serializer.py      Plan → YAML with Fraction formatting
 ```
 
-### Planner Structure
+### Planner Structure (Schema-First)
 ```
-structure.py       Build sections from arc templates or macro_form
-section_planner.py Macro-section → episodes
-episode_generator.py Constraint-based episode sequences
-transition.py      Section transition generation
+structure.py       Build SectionSchema hierarchy from schema chain
+cadence_planner.py Plan cadence points from frame and genre
+schema_generator.py Generate schema chain from cadence plan
+schema_loader.py   Load and query schema definitions
+subject_validator.py Validate subject against opening schema
+subject_deriver.py Derive subject from opening schema
 treatment_generator.py Dynamic treatment sequences by genre
-macro_form.py      Large-scale fantasia structure
 arc.py             Tension curve management
 ```
 
