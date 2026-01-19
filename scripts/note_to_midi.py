@@ -72,10 +72,12 @@ def convert_note_to_midi(note_path: Path) -> None:
             track.append(MetaMessage("set_tempo", tempo=500000, time=0))
 
         # Create events (note_on and note_off)
+        # Offset and duration are in whole notes; convert to ticks
+        ticks_per_whole = 480 * 4  # 4 beats per whole note
         events: list[tuple[int, str, int, int]] = []
         for n in track_notes:
-            start_tick = int(n["offset"] * 480)
-            end_tick = int((n["offset"] + n["duration"]) * 480)
+            start_tick = int(n["offset"] * ticks_per_whole)
+            end_tick = int((n["offset"] + n["duration"]) * ticks_per_whole)
             events.append((start_tick, "note_on", n["midi_num"], 64))
             events.append((end_tick, "note_off", n["midi_num"], 0))
 

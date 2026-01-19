@@ -140,7 +140,7 @@ def write_midi_notes(
     path: str,
     notes: Sequence[SimpleNote],
     *,
-    tempo: int = 120,
+    tempo: int = 100,
     time_signature: tuple[int, int] = (4, 4),
     key: Optional[str] = None,
     mode: str = "major"
