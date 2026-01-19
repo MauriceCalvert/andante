@@ -22,9 +22,9 @@ from builder.adapters.file_export import (
 from builder.types import CollectedNote
 from builder.handlers import elaborate
 from builder.tree import Node, yaml_to_tree
-from planner.planner import build_plan
+from planner.planner import build_schema_plan
 from planner.plannertypes import Brief, Frame, Motif
-from planner.serializer import serialize_plan
+from planner.serializer import serialize_schema_plan
 from shared.constants import NOTE_NAME_MAP
 from shared.dissonance import warn_dissonances
 
@@ -162,8 +162,8 @@ def load_brief_and_plan(path: Path) -> tuple[dict[str, Any], str]:
                 durations=tuple(Fraction(d) for d in subj["durations"]),
                 bars=subj.get("bars", 1),
             )
-    plan = build_plan(brief, user_motif=user_motif, user_frame=user_frame)
-    yaml_str: str = serialize_plan(plan)
+    plan = build_schema_plan(brief, user_motif=user_motif, user_frame=user_frame)
+    yaml_str: str = serialize_schema_plan(plan)
     plan_data: dict[str, Any] = yaml.safe_load(yaml_str)
     return plan_data, yaml_str
 
