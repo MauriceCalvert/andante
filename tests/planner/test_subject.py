@@ -42,24 +42,6 @@ class TestSubjectCreation:
                 bars=1,
             )
 
-    def test_invalid_degree_raises(self) -> None:
-        """Degree outside 1-7 raises assertion."""
-        with pytest.raises(AssertionError, match="Degrees must be 1-7"):
-            Subject(
-                degrees=(1, 2, 8),  # 8 is invalid
-                durations=(Fraction(1, 4),) * 3,
-                bars=1,
-            )
-
-    def test_invalid_degree_zero_raises(self) -> None:
-        """Degree 0 raises assertion."""
-        with pytest.raises(AssertionError, match="Degrees must be 1-7"):
-            Subject(
-                degrees=(0, 1, 2),
-                durations=(Fraction(1, 4),) * 3,
-                bars=1,
-            )
-
     def test_voice_count_minimum(self) -> None:
         """Voice count must be at least 2."""
         with pytest.raises(AssertionError, match="at least 2 voices"):

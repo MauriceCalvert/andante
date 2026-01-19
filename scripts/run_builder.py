@@ -14,13 +14,19 @@ from typing import Any
 
 import yaml
 
-from builder.export import collect_notes, export_midi, export_note
+from builder.adapters.file_export import (
+    collect_notes_from_tree,
+    export_midi_from_collected,
+    export_note_from_collected,
+)
+from builder.types import CollectedNote
 from builder.handlers import elaborate
 from builder.tree import Node, yaml_to_tree
 from planner.planner import build_plan
 from planner.plannertypes import Brief, Frame, Motif
 from planner.serializer import serialize_plan
 from shared.constants import NOTE_NAME_MAP
+from shared.dissonance import warn_dissonances
 
 PROJECT_DIR: Path = Path(__file__).parent.parent
 
@@ -184,23 +190,25 @@ def run_builder(input_path: Path, output_path: Path, verbose: bool = False) -> i
         print("\n=== Result tree ===")
         result.print_tree()
     print("Collecting notes...")
-    notes: list[tuple[str, int, Fraction, Fraction]] = collect_notes(result)
+    notes: list[CollectedNote] = collect_notes_from_tree(result)
     print(f"  Collected {len(notes)} notes")
     frame_info: dict[str, Any] = get_frame_from_tree(result)
     key_offset: int = get_key_offset(frame_info["key"], frame_info["mode"])
     time_sig: tuple[int, int] = parse_metre(frame_info["metre"])
     bpm: int = tempo_to_bpm(frame_info["tempo"])
+    print("Checking for dissonances...")
+    warn_dissonances(notes, key_offset=key_offset, beats_per_bar=time_sig[0])
     print(f"  Frame: {frame_info['key']} {frame_info['mode']}, {frame_info['metre']}, {frame_info['tempo']} ({bpm} bpm)")
     print(f"Exporting to {output_path}...")
-    midi_ok: bool = export_midi(
-        result,
+    midi_ok: bool = export_midi_from_collected(
+        notes,
         str(output_path),
         key_offset=key_offset,
         tempo=bpm,
         time_signature=time_sig,
     )
-    note_ok: bool = export_note(
-        result,
+    note_ok: bool = export_note_from_collected(
+        notes,
         str(output_path),
         key_offset=key_offset,
         time_signature=time_sig,

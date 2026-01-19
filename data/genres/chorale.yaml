@@ -4,6 +4,25 @@ upbeat: 0
 form: binary
 arc: hymn
 min_cs_duration: 1/4
+
+# Schema-first planning configuration (planner_design.md)
+schema_preferences:
+  opening: [do_re_mi]
+  continuation: [fenaroli]
+  cadential: [prinner, sol_fa_mi]
+
+cadence_template:
+  density: high  # Every 2-4 bars (phrase boundaries)
+  section_end: authentic
+  final: authentic
+  allow_phrygian: true
+
+texture: free
+
+subject_rhythm:
+  pattern: [1/4, 1/4, 1/4, 1/4]
+  style: lyrical
+
 sections:
   - label: A
     tonal_path: [I, V]

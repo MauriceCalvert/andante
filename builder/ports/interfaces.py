@@ -2,9 +2,8 @@
 Protocols define the contracts that adapters must implement.
 Domain code can depend on these protocols without knowing implementations.
 """
-from fractions import Fraction
 from typing import Any, Protocol
-from builder.types import BarContext, FrameContext, Notes, Subject
+from builder.types import BarContext, CollectedNote, FrameContext, Notes, Subject
 
 class ContextReader(Protocol):
     """Read musical context from infrastructure."""
@@ -33,7 +32,7 @@ class NoteExporter(Protocol):
 
     def export_midi(
         self,
-        notes: list[tuple[str, int, Fraction, Fraction]],
+        notes: list[CollectedNote],
         path: str,
         key_offset: int,
         tempo: int,
@@ -44,7 +43,7 @@ class NoteExporter(Protocol):
 
     def export_note(
         self,
-        notes: list[tuple[str, int, Fraction, Fraction]],
+        notes: list[CollectedNote],
         path: str,
         key_offset: int,
         time_signature: tuple[int, int],

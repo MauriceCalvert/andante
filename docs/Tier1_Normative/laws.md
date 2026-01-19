@@ -18,6 +18,7 @@
 | L012 | No quantization — if durations need rounding to valid values, the upstream source is wrong; patterns must use valid durations from the start |
 | L013 | MIDI gate time 95% — notes must be shortened to 95% of notated duration to avoid legato/slur rendering in players |
 | L014 | No side effects on parameters — functions must clone data before modification; never mutate passed arguments; validation functions like realise_phrase must be pure |
+| L015 | Avoid tuples for structured data — use NamedTuple or dataclass instead; tuples obscure field meaning and cause order-dependent bugs |
 
 ## Design Rules
 

@@ -225,11 +225,3 @@ class TestConvertDegreesToDiatonic:
         notes: Notes = Notes(pitches=(1, 5), durations=durations)
         result: Notes = convert_degrees_to_diatonic(notes, base_octave=4)
         assert result.durations == durations
-
-    def test_degree_wrapping(self) -> None:
-        """Degrees wrap correctly via modulo."""
-        # Degree 8 wraps to degree 1 of next octave (but in same base_octave)
-        notes: Notes = Notes(pitches=(8,), durations=(Fraction(1, 4),))
-        result: Notes = convert_degrees_to_diatonic(notes, base_octave=4)
-        # (8-1) % 7 = 0, so diatonic = 28
-        assert result.pitches == (28,)

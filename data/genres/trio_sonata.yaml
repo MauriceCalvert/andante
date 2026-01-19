@@ -4,6 +4,25 @@ upbeat: 0
 form: binary
 arc: dialogue
 min_cs_duration: 1/8
+
+# Schema-first planning configuration (planner_design.md)
+schema_preferences:
+  opening: [romanesca, do_re_mi]
+  continuation: [fonte, monte]
+  cadential: [prinner, sol_fa_mi]
+
+cadence_template:
+  density: medium  # Every 4-8 bars
+  section_end: half
+  final: authentic
+  allow_phrygian: false
+
+texture: imitative
+
+subject_rhythm:
+  pattern: [1/8, 1/8, 1/8, 1/8]
+  style: motoric
+
 sections:
   - label: A
     key_area: I

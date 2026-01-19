@@ -4,6 +4,19 @@ Types here are builder-specific; shared types live in shared/.
 """
 from dataclasses import dataclass
 from fractions import Fraction
+from typing import NamedTuple
+
+
+class CollectedNote(NamedTuple):
+    """A note collected from the elaborated tree.
+
+    Fields are explicitly named to avoid tuple order confusion (L015).
+    """
+
+    role: str
+    diatonic: int
+    duration: Fraction
+    offset: Fraction
 
 @dataclass(frozen=True)
 class Metre:

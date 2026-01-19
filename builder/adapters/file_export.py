@@ -11,15 +11,14 @@ Functions:
 """
 from fractions import Fraction
 from pathlib import Path
-from typing import Any
 from builder.domain.pitch_ops import compute_midi_from_diatonic, compute_note_name
 from builder.tree import Node
-from builder.types import Notes
+from builder.types import CollectedNote
 from shared.constants import VOICE_TRACKS
 from shared.midi_writer import SimpleNote, write_midi_notes
 
 def export_midi_from_collected(
-    collected: list[tuple[str, int, Fraction, Fraction]],
+    collected: list[CollectedNote],
     output_path: str,
     key_offset: int = 0,
     tempo: int = 80,
@@ -27,7 +26,7 @@ def export_midi_from_collected(
 ) -> bool:
     """Export collected notes to MIDI file.
     Args:
-        collected: List of (role, diatonic, duration, offset) tuples
+        collected: List of CollectedNote
         output_path: Output file path
         key_offset: Semitones to transpose (0 for C major)
         tempo: BPM
@@ -36,14 +35,14 @@ def export_midi_from_collected(
         True if successful
     """
     simple_notes: list[SimpleNote] = []
-    for role, diatonic, duration, offset in collected:
-        midi_pitch: int = compute_midi_from_diatonic(diatonic, key_offset)
-        track: int = VOICE_TRACKS.get(role, 0)
+    for note in collected:
+        midi_pitch: int = compute_midi_from_diatonic(note.diatonic, key_offset)
+        track: int = VOICE_TRACKS.get(note.role, 0)
         simple_notes.append(
             SimpleNote(
                 pitch=midi_pitch,
-                offset=float(offset),
-                duration=float(duration),
+                offset=float(note.offset),
+                duration=float(note.duration),
                 velocity=80,
                 track=track,
             )
@@ -56,14 +55,14 @@ def export_midi_from_collected(
     )
 
 def export_note_from_collected(
-    collected: list[tuple[str, int, Fraction, Fraction]],
+    collected: list[CollectedNote],
     output_path: str,
     key_offset: int = 0,
     time_signature: tuple[int, int] = (4, 4),
 ) -> bool:
     """Export collected notes to .note CSV file.
     Args:
-        collected: List of (role, diatonic, duration, offset) tuples
+        collected: List of CollectedNote
         output_path: Output file path
         key_offset: Semitones to transpose (0 for C major)
         time_signature: Tuple of (numerator, denominator)
@@ -73,19 +72,19 @@ def export_note_from_collected(
     if not collected:
         return False
     bar_duration: Fraction = Fraction(time_signature[0], time_signature[1])
-    sorted_notes: list[tuple[str, int, Fraction, Fraction]] = sorted(
-        collected, key=lambda x: (x[3], -x[1])
+    sorted_notes: list[CollectedNote] = sorted(
+        collected, key=lambda n: (n.offset, -n.diatonic)
     )
     lines: list[str] = ["Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric"]
-    for role, diatonic, duration, offset in sorted_notes:
-        midi_pitch: int = compute_midi_from_diatonic(diatonic, key_offset)
-        track: int = VOICE_TRACKS.get(role, 0)
-        bar: int = int(offset // bar_duration) + 1
-        beat_offset: Fraction = offset % bar_duration
+    for note in sorted_notes:
+        midi_pitch: int = compute_midi_from_diatonic(note.diatonic, key_offset)
+        track: int = VOICE_TRACKS.get(note.role, 0)
+        bar: int = int(note.offset // bar_duration) + 1
+        beat_offset: Fraction = note.offset % bar_duration
         beat: float = float(beat_offset / Fraction(1, time_signature[1])) + 1
         note_name: str = compute_note_name(midi_pitch)
         line: str = (
-            f"{float(offset):.6g},{midi_pitch},{float(duration):.6g},{track},"
+            f"{float(note.offset):.6g},{midi_pitch},{float(note.duration):.6g},{track},"
             f",{bar},{beat:.4g},{note_name}"
         )
         lines.append(line)
@@ -93,12 +92,12 @@ def export_note_from_collected(
     path.write_text("\n".join(lines))
     return True
 
-def collect_notes_from_tree(tree: Node) -> list[tuple[str, int, Fraction, Fraction]]:
+def collect_notes_from_tree(tree: Node) -> list[CollectedNote]:
     """Walk tree and collect all notes as domain data.
     Args:
         tree: Elaborated tree with notes at leaves
     Returns:
-        List of (role, diatonic, duration, offset) tuples
+        List of CollectedNote
     """
     # Extract bar duration from frame.metre
     bar_duration: Fraction = Fraction(1)  # default 4/4
@@ -106,7 +105,7 @@ def collect_notes_from_tree(tree: Node) -> list[tuple[str, int, Fraction, Fracti
         metre_str: str = tree["frame"]["metre"].value
         parts: list[str] = metre_str.split("/")
         bar_duration = Fraction(int(parts[0]), int(parts[1]))
-    notes: list[tuple[str, int, Fraction, Fraction]] = []
+    notes: list[CollectedNote] = []
     _collect_recursive(tree, Fraction(0), bar_duration, notes)
     return notes
 
@@ -114,7 +113,7 @@ def _collect_recursive(
     node: Node,
     bar_offset: Fraction,
     bar_duration: Fraction,
-    notes: list[tuple[str, int, Fraction, Fraction]],
+    notes: list[CollectedNote],
 ) -> Fraction:
     """Recursively collect notes from tree."""
     if node.key == "bars":
@@ -133,7 +132,7 @@ def _collect_recursive(
             for note_node in node["notes"].children:
                 diatonic: int = note_node["diatonic"].value
                 dur: Fraction = Fraction(note_node["duration"].value)
-                notes.append((role, diatonic, dur, offset))
+                notes.append(CollectedNote(role=role, diatonic=diatonic, duration=dur, offset=offset))
                 offset += dur
         return bar_offset
     for child in node.children:

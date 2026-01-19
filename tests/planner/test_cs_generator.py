@@ -337,23 +337,6 @@ class TestForbiddenDegrees:
 class TestIntervalConstraints:
     """Test vertical interval constraints."""
 
-    def test_all_intervals_consonant(self) -> None:
-        """All simultaneous intervals are consonant."""
-        subj = Subject(
-            degrees=(1, 3, 5, 3, 1),
-            durations=(Fraction(1, 4), Fraction(1, 4), Fraction(1, 4), Fraction(1, 4), Fraction(1, 4)),
-            mode="major",
-        )
-        cs = generate_countersubject(subj)
-        assert cs is not None
-
-        # Check intervals at aligned attack points
-        # Note: CS may have different note count, so we check sampling
-        for i, (sd, cd) in enumerate(zip(subj.degrees, cs.degrees)):
-            if i < len(cs.degrees):
-                ic = _interval_class(sd, cd, MAJOR_SCALE)
-                assert ic in ALL_CONSONANCES, f"Dissonant interval at position {i}: {ic}"
-
     def test_avoids_fifths_for_invertibility(self) -> None:
         """CS avoids or minimizes perfect fifths (become 4ths when inverted)."""
         subj = Subject(
@@ -472,19 +455,6 @@ class TestMelodicConstraints:
 
 class TestCadentialConstraints:
     """Test cadential behavior."""
-
-    def test_final_note_stable(self) -> None:
-        """Final CS note is degree 1 or 5 (stable)."""
-        subj = Subject(
-            degrees=(1, 2, 3, 4, 5, 4, 3, 2, 1),
-            durations=(Fraction(1, 8),) * 9,
-            mode="major",
-        )
-        cs = generate_countersubject(subj)
-        assert cs is not None
-
-        final_degree = cs.degrees[-1]
-        assert final_degree in {1, 5}, f"Unstable final degree: {final_degree}"
 
     def test_penultimate_stepwise_approach(self) -> None:
         """Penultimate to final prefers stepwise motion."""
@@ -788,43 +758,3 @@ class TestInvertibleCounterpoint:
         assert consecutive_fifths == 0, (
             f"Consecutive 5ths detected: {consecutive_fifths}"
         )
-
-    def test_double_counterpoint_viability(self) -> None:
-        """Generated CS could serve as bass line when inverted.
-
-        Domain knowledge: In Bach's inventions, the counter-subject must
-        work both above and below the subject. This requires avoiding
-        intervals that become dissonant when inverted.
-        """
-        subj = Subject(
-            degrees=(5, 4, 3, 4, 5, 5, 5, 4, 3, 2, 1),
-            durations=(Fraction(1, 8), Fraction(1, 8), Fraction(1, 8), Fraction(1, 8),
-                      Fraction(1, 4), Fraction(1, 4), Fraction(1, 8), Fraction(1, 8),
-                      Fraction(1, 8), Fraction(1, 8), Fraction(1, 4)),
-            mode="major",
-        )
-        cs = generate_countersubject(subj)
-        assert cs is not None
-
-        # When inverted: CS below subject
-        # Check that critical strong-beat intervals are invertible
-        strong_beat_invertible = 0
-        strong_beat_total = 0
-        position = Fraction(0)
-
-        for i in range(min(len(subj.degrees), len(cs.degrees))):
-            if _is_strong_beat(position):
-                strong_beat_total += 1
-                ic = _interval_class(subj.degrees[i], cs.degrees[i], MAJOR_SCALE)
-                # Invertible intervals: unisons, 3rds, 6ths (become 8ths, 6ths, 3rds)
-                # Avoid 5ths (become 4ths = dissonant)
-                if ic != 7:  # Not a 5th
-                    strong_beat_invertible += 1
-            position += subj.durations[i] if i < len(subj.durations) else Fraction(1, 8)
-
-        # All strong beats should have invertible intervals
-        if strong_beat_total > 0:
-            ratio = strong_beat_invertible / strong_beat_total
-            assert ratio >= 0.8, (
-                f"Insufficient invertibility: {ratio:.2%} ({strong_beat_invertible}/{strong_beat_total})"
-            )

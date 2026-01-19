@@ -11,8 +11,10 @@ from builder.tree import Node
 from builder.types import Notes, Subject
 from shared.constants import DIATONIC_DEFAULTS
 
+
 def compute_phrase_melody(phrase: Node, root: Node, bar_duration: Fraction) -> tuple[Notes, int]:
     """Compute full melody for phrase and return (melody_notes, bar_count).
+
     For statement: places subject as-is.
     For other treatments: applies transform to subject.
     Bar count is derived from melody duration.
@@ -33,6 +35,7 @@ def compute_phrase_melody(phrase: Node, root: Node, bar_duration: Fraction) -> t
     bar_count: int = max(1, int((total_duration + bar_duration - Fraction(1, 32)) // bar_duration))
     return melody, bar_count
 
+
 def _apply_transform(notes: Notes, transform_name: str) -> Notes:
     """Apply transform to notes (no shift for phrase-level)."""
     if transform_name == "statement" or transform_name not in TRANSFORM_SPECS:
@@ -42,10 +45,12 @@ def _apply_transform(notes: Notes, transform_name: str) -> Notes:
     transform = Transform(transform_name, spec)
     return transform.apply(notes, pivot=pivot, n=0)
 
+
 def extract_bar_melody(melody: Notes, bar_index: int, bar_duration: Fraction) -> Notes:
     """Extract notes for a specific bar from phrase melody."""
     offset: Fraction = bar_duration * bar_index
     return _slice_notes(melody, offset, bar_duration)
+
 
 def _slice_notes(notes: Notes, offset: Fraction, duration: Fraction) -> Notes:
     """Extract notes that START within [offset, offset+duration).

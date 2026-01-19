@@ -1,9 +1,18 @@
-"""Plan serializer: Plan -> YAML."""
+"""Plan serializer: Plan -> YAML.
+
+Two serializers:
+- serialize_plan(): For legacy Plan with Episode/Phrase hierarchy
+- serialize_schema_plan(): For SchemaPlan with schema-based structure
+"""
 from fractions import Fraction
+from typing import TYPE_CHECKING
 
 import yaml
 
 from planner.plannertypes import DerivedMotif, Material, Motif, Plan
+
+if TYPE_CHECKING:
+    from planner.planner import SchemaPlan
 
 
 def fraction_representer(dumper: yaml.Dumper, data: Fraction) -> yaml.Node:
@@ -113,4 +122,99 @@ def plan_to_dict(plan: Plan) -> dict:
 def serialize_plan(plan: Plan) -> str:
     """Serialize Plan to YAML string."""
     data: dict = plan_to_dict(plan)
+    return yaml.dump(data, default_flow_style=False, sort_keys=False)
+
+
+# =============================================================================
+# Schema-First Plan Serialization (planner_design.md)
+# =============================================================================
+
+
+def schema_plan_to_dict(plan: "SchemaPlan") -> dict:
+    """Convert SchemaPlan to dictionary for YAML serialization.
+
+    Output format:
+    ```yaml
+    brief: {...}
+    frame: {...}
+    material: {...}
+    cadence_plan:
+      - bar: 4
+        type: half
+        target: V
+    structure:
+      sections:
+        - label: A
+          key_area: I
+          cadence_plan: [...]
+          schemas:
+            - type: romanesca
+              bars: 2
+              texture: imitative
+              treatment: statement
+              voice_entry: soprano
+              cadence: null
+    actual_bars: 16
+    ```
+    """
+    return {
+        "brief": {
+            "affect": plan.brief.affect,
+            "genre": plan.brief.genre,
+            "forces": plan.brief.forces,
+            "bars": plan.brief.bars,
+        },
+        "frame": {
+            "key": plan.frame.key,
+            "mode": plan.frame.mode,
+            "metre": plan.frame.metre,
+            "tempo": plan.frame.tempo,
+            "voices": plan.frame.voices,
+            "upbeat": plan.frame.upbeat,
+            "form": plan.frame.form,
+        },
+        "material": _serialize_material(plan.material),
+        "cadence_plan": [
+            {
+                "bar": cp.bar,
+                "type": cp.type,
+                "target": cp.target,
+            }
+            for cp in plan.cadence_plan
+        ],
+        "structure": {
+            "sections": [
+                {
+                    "label": section.label,
+                    "key_area": section.key_area,
+                    "cadence_plan": [
+                        {
+                            "bar": cp.bar,
+                            "type": cp.type,
+                            "target": cp.target,
+                        }
+                        for cp in section.cadence_plan
+                    ],
+                    "schemas": [
+                        {
+                            "type": slot.type,
+                            "bars": slot.bars,
+                            "texture": slot.texture,
+                            "treatment": slot.treatment,
+                            "voice_entry": slot.voice_entry,
+                            "cadence": slot.cadence,
+                        }
+                        for slot in section.schemas
+                    ],
+                }
+                for section in plan.structure.sections
+            ],
+        },
+        "actual_bars": plan.actual_bars,
+    }
+
+
+def serialize_schema_plan(plan: "SchemaPlan") -> str:
+    """Serialize SchemaPlan to YAML string."""
+    data: dict = schema_plan_to_dict(plan)
     return yaml.dump(data, default_flow_style=False, sort_keys=False)

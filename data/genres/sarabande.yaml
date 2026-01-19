@@ -5,6 +5,25 @@ form: binary
 arc: dance_stately
 min_cs_duration: 1/4
 min_note_duration: 1/8
+
+# Schema-first planning configuration (planner_design.md)
+schema_preferences:
+  opening: [romanesca]
+  continuation: [fonte]
+  cadential: [prinner]
+
+cadence_template:
+  density: low  # Every 8+ bars
+  section_end: half
+  final: authentic
+  allow_phrygian: true
+
+texture: melody_bass
+
+subject_rhythm:
+  pattern: [1/2, 1/4, 1/4]
+  style: lyrical
+
 sections:
   - label: A
     tonal_path: [I, V]

@@ -38,6 +38,10 @@ DIMINUTION: dict[Fraction, Fraction] = {
     Fraction(1, 16): Fraction(1, 32),
 }
 
+# Dissonant intervals (in semitones) to warn about when occurring simultaneously
+# Minor 2nd (1), Major 7th (11) are harsh; Tritone (6) is contextually acceptable
+DISSONANT_INTERVALS: frozenset[int] = frozenset({1, 11})
+
 DOMINANT_TARGETS: frozenset[str] = frozenset({"V", "v", "vii", "VII"})
 
 FLAT_KEYS_MAJOR: frozenset[str] = frozenset({"F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb"})
@@ -113,3 +117,45 @@ VOICE_TRACKS: dict[str, int] = {
     'tenor': 2,
     'bass': 3,
 }
+
+# =============================================================================
+# Schema-First Planning Constants (planner_design.md)
+# =============================================================================
+
+# Treatment vocabulary for schema-first planning (5 contrapuntal treatments only)
+SCHEMA_TREATMENTS: tuple[str, ...] = (
+    "statement",    # Literal subject presentation
+    "imitation",    # Answer at octave/fifth
+    "sequence",     # Transposed repetition
+    "inversion",    # Melodic mirror
+    "stretto",      # Overlapped entries
+)
+
+# Texture types for schema slots
+SCHEMA_TEXTURES: tuple[str, ...] = (
+    "imitative",    # Both voices derive from schema (invention, fugue)
+    "melody_bass",  # Soprano realizes, bass supports (minuet, dance)
+    "free",         # Counterpoint fills (inner voices in 4-part)
+)
+
+# Cadence types for schema-first planning
+CADENCE_TYPES: tuple[str, ...] = (
+    "half",
+    "authentic",
+    "deceptive",
+    "phrygian",
+    "plagal",
+)
+
+# Cadence density levels (bars between cadences)
+CADENCE_DENSITY: dict[str, tuple[int, int]] = {
+    "high": (2, 4),     # Every 2-4 bars (invention)
+    "medium": (4, 8),   # Every 4-8 bars (minuet)
+    "low": (8, 16),     # Every 8+ bars (sarabande)
+}
+
+# Voice entry options for schema slots
+VOICE_ENTRIES: tuple[str, ...] = (
+    "soprano",
+    "bass",
+)

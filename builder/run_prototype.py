@@ -1,5 +1,4 @@
 """End-to-end test for the builder prototype."""
-from fractions import Fraction
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -7,7 +6,12 @@ import yaml
 
 from builder.tree import Node, yaml_to_tree
 from builder.handlers import elaborate
-from builder.export import export_midi, export_note, collect_notes
+from builder.adapters.file_export import (
+    collect_notes_from_tree,
+    export_midi_from_collected,
+    export_note_from_collected,
+)
+from builder.types import CollectedNote
 
 OUTPUT_DIR: Path = Path(__file__).parent.parent / "output"
 
@@ -32,20 +36,16 @@ def main() -> None:
     result.print_tree()
 
     print("\n=== Collecting notes ===")
-    notes: list[tuple[str, int, Fraction, Fraction]] = collect_notes(result)
+    notes: list[CollectedNote] = collect_notes_from_tree(result)
     print(f"Collected {len(notes)} notes:")
-    role: str
-    diatonic: int
-    duration: Fraction
-    offset: Fraction
-    for role, diatonic, duration, offset in notes[:10]:
-        print(f"  {role}: diatonic={diatonic}, duration={duration}, offset={offset}")
+    for note in notes[:10]:
+        print(f"  {note.role}: diatonic={note.diatonic}, duration={note.duration}, offset={note.offset}")
     if len(notes) > 10:
         print(f"  ... and {len(notes) - 10} more")
 
     print(f"\n=== Exporting to {output_path}.mid ===")
-    success: bool = export_midi(
-        result,
+    success: bool = export_midi_from_collected(
+        notes,
         str(output_path),
         key_offset=0,
         tempo=80,
@@ -58,8 +58,8 @@ def main() -> None:
         print("FAILED: Could not write MIDI file")
 
     print(f"\n=== Exporting to {output_path}.note ===")
-    note_success: bool = export_note(
-        result,
+    note_success: bool = export_note_from_collected(
+        notes,
         str(output_path),
         key_offset=0,
         time_signature=(3, 4),

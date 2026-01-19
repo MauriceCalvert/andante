@@ -226,3 +226,74 @@ class Plan:
     rhetoric: RhetoricalStructure | None = None
     harmonic_plan: HarmonicPlan | None = None
     coherence: CoherencePlan | None = None
+
+
+# =============================================================================
+# Schema-First Planning Types (planner_design.md)
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class CadencePoint:
+    """Arrival point in piece structure.
+
+    Cadences drive structure in schema-first planning. They are placed before
+    any melodic content, determining where phrases end and new sections begin.
+    """
+    bar: int      # 1-indexed bar number where cadence occurs
+    type: str     # half, authentic, deceptive, phrygian
+    target: str   # Harmonic target: I, V, vi, etc.
+
+
+@dataclass(frozen=True)
+class SchemaSlot:
+    """Atomic planning unit replacing Episode+Phrase.
+
+    A SchemaSlot specifies a partimento schema stretched to fill a given number
+    of bars, with texture, treatment, and voice entry. The schema's bass_degrees
+    and soprano_degrees encode the harmonic content; no separate harmony field needed.
+    """
+    type: str           # Schema name: romanesca, prinner, fonte, etc.
+    bars: int           # Actual bars (stretched from schema's base bars)
+    texture: str        # imitative, melody_bass, free
+    treatment: str      # statement, imitation, sequence, inversion, stretto
+    voice_entry: str    # soprano, bass
+    cadence: str | None  # Cadence type if this slot ends on a cadence point
+
+
+@dataclass(frozen=True)
+class SectionSchema:
+    """Section defined by cadence points and schema chain.
+
+    Replaces Section (which used Episode > Phrase hierarchy). A SectionSchema
+    contains a flat sequence of SchemaSlots that land on the cadence points.
+    """
+    label: str                                # A, B, etc.
+    key_area: str                             # I, V, vi, etc.
+    cadence_plan: tuple[CadencePoint, ...]    # Cadences in this section
+    schemas: tuple[SchemaSlot, ...]           # Schema chain filling the section
+
+
+@dataclass(frozen=True)
+class SubjectValidation:
+    """Result of validating subject against opening schema.
+
+    Used when user provides a subject to ensure it fits the schema-first model:
+    - First degree must be consonant with schema's opening bass
+    - Must be invertible (intervals stay consonant when flipped)
+    - Must be answerable at the fifth (transposition stays in mode)
+    """
+    valid: bool
+    invertible: bool
+    answerable: bool
+    errors: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SchemaStructure:
+    """Schema-first structure replacing episode/phrase hierarchy.
+
+    Used by the new schema-first planner. Contains SectionSchema objects
+    instead of Section objects.
+    """
+    sections: tuple[SectionSchema, ...]

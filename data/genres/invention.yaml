@@ -6,6 +6,25 @@ arc: invention
 min_cs_duration: 1/16
 final_cadence_type: invention
 bass_source: harmonic # Should be counter_subject, changed to ease testing
+
+# Schema-first planning configuration (planner_design.md)
+schema_preferences:
+  opening: [romanesca, do_re_mi]
+  continuation: [fonte, monte, fenaroli]
+  cadential: [prinner, sol_fa_mi]
+
+cadence_template:
+  density: high  # Every 2-4 bars
+  section_end: half
+  final: authentic
+  allow_phrygian: false
+
+texture: imitative
+
+subject_rhythm:
+  pattern: [1/8, 1/8, 1/8, 1/8, 1/4]
+  style: motoric
+
 treatment_constraints:
   must_include: [imitation, stretto]
   start_with: statement

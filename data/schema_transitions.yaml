@@ -1,0 +1,309 @@
+# Schema Transition Graph
+# Based on Gjerdingen (2007), Rabinovitch & Carter-Enyi (2024), and partimento pedagogy
+#
+# Transitions are organised by functional role, not just immediate pairs.
+# Each schema has: allowed_next (what can follow) and typical_position (where in form)
+#
+# Positions:
+#   opening    - beginning of section/piece
+#   riposte    - answer to opening
+#   continuation - middle, development, digression
+#   pre_cadential - approach to cadence
+#   cadential  - cadence itself
+#   post_cadential - after cadence, before next section
+
+# ============================================================================
+# OPENING SCHEMAS
+# These typically begin sections. They lead to riposte or continuation schemas.
+# ============================================================================
+
+romanesca:
+  typical_position: opening
+  allowed_next:
+    - prinner          # Classic riposte (Romanesca-Prinner is the archetypal pair)
+    - fonte            # Digression
+    - monte            # Ascending sequence
+    - meyer            # Another opening (chaining)
+    - do_re_mi         # Another opening (chaining)
+    - sol_fa_mi        # Can lead to cadential approach
+  notes: |
+    The Romanesca was "almost a cliché during the first half of the century" 
+    as an opening gambit (Gjerdingen). Almost always blends into a following 
+    schema, often a cadence or Prinner riposte.
+
+do_re_mi:
+  typical_position: opening
+  allowed_next:
+    - prinner          # Classic riposte
+    - fonte            # Digression
+    - monte            # Ascending sequence
+    - romanesca        # Chain with another opening
+    - sol_fa_mi        # Cadential approach
+  notes: |
+    Opening gambit with stepwise soprano ascent (1-2-3). 
+    Often followed by Prinner riposte.
+
+meyer:
+  typical_position: opening
+  allowed_next:
+    - prinner          # Classic riposte (documented in multiple sources)
+    - fonte            # Digression
+    - sol_fa_mi        # Cadential approach
+    - comma            # Brief cadential gesture
+  notes: |
+    Four-stage opening that prolongs tonic. When each stage gets one measure,
+    commonly found in presentation phrase. At two stages per measure, forms
+    a basic idea followed by Prinner.
+
+sol_fa_mi:
+  typical_position: opening  # Can also be cadential
+  allowed_next:
+    - prinner          # Riposte
+    - fonte            # Digression  
+    - comma            # Cadential gesture
+    - complete_cadence # Direct to cadence when used cadentially
+  notes: |
+    Versatile schema - can open or approach cadence. 
+    When opening, typically followed by Prinner.
+
+# ============================================================================
+# RIPOSTE SCHEMAS  
+# Answer to opening gambits. Lead to cadences or continuation.
+# ============================================================================
+
+prinner:
+  typical_position: riposte
+  allowed_next:
+    - half_cadence     # Very common (HC suffix after riposte)
+    - complete_cadence # Authentic cadence
+    - comma            # Brief cadential gesture
+    - fonte            # Digression after riposte
+    - monte            # Continuation
+    - modulating_prinner  # Transition to dominant
+    - passo_indietro   # Pre-cadential
+  notes: |
+    The archetypal riposte, "incredibly common in galant music" (Open Music Theory).
+    Stepwise descent: soprano 6-5-4-3, bass 4-3-2-1. Often followed by
+    cadential suffix (HC or PAC). Can also transition to continuation schemas.
+
+modulating_prinner:
+  typical_position: continuation  # Stage 4 in Rabinovitch's analysis
+  allowed_next:
+    - passo_indietro   # Pre-cadential approach (common sequence)
+    - complete_cadence # Direct to final cadence
+    - half_cadence     # Half cadence in new key
+    - comma            # Cadential gesture in dominant
+    - indugio          # Pre-cadential delay
+  notes: |
+    Prinner transposed to modulate from I to V. First stage becomes tonic
+    of home key, effecting smooth transition. Common at beginning of
+    Transition zone in sonata movements.
+
+# ============================================================================
+# CONTINUATION/SEQUENTIAL SCHEMAS
+# Provide development, digression, forward motion. Can repeat.
+# ============================================================================
+
+fonte:
+  typical_position: continuation
+  allowed_next:
+    - fonte            # Sequential repetition (very common)
+    - monte            # Direction change
+    - prinner          # Return after digression
+    - modulating_prinner # Transition
+    - sol_fa_mi        # Cadential approach
+    - comma            # Cadential gesture
+    - passo_indietro   # Pre-cadential
+  notes: |
+    Descending sequence, "used to briefly deviate from, and then return to,
+    a main key" (Gjerdingen). Especially common immediately after double bar
+    in minuets. Can repeat (Fonte → Fonte).
+
+monte:
+  typical_position: continuation
+  allowed_next:
+    - monte            # Sequential repetition
+    - fonte            # Direction change
+    - prinner          # Return with riposte
+    - modulating_prinner # Transition
+    - sol_fa_mi        # Cadential approach
+    - passo_indietro   # Pre-cadential
+  notes: |
+    Ascending sequence, counterpart to Fonte. Two tonicizations moving upward.
+    Can repeat (Monte → Monte).
+
+fenaroli:
+  typical_position: continuation
+  allowed_next:
+    - fenaroli         # Repeatable (noted by Gjerdingen)
+    - prinner          # Riposte
+    - fonte            # Sequential
+    - comma            # Cadential
+    - sol_fa_mi        # Cadential approach
+  notes: |
+    Interior schema, bass 7-1-2-3 with soprano 4-3-7-1.
+    Associated with secondary-key area materials. Explicitly repeatable.
+
+# ============================================================================
+# PRE-CADENTIAL SCHEMAS
+# Approach the final cadence. Lead to cadential formulas.
+# ============================================================================
+
+passo_indietro:
+  typical_position: pre_cadential
+  allowed_next:
+    - complete_cadence # Most common (documented sequence)
+    - half_cadence     # Can precede HC
+    - comma            # Brief cadential
+  notes: |
+    "Stepping back" - essentially first two stages of Prinner.
+    Often precedes significant cadence. Bass: 4-#4-5 (fa-fi-sol).
+    Strong pre-cadential signal.
+
+indugio:
+  typical_position: pre_cadential
+  allowed_next:
+    - complete_cadence # Resolution after delay
+    - half_cadence     # Can lead to HC
+    - comma            # Cadential gesture
+  notes: |
+    Pre-cadential delay, prolongs 4 before resolving.
+    Soprano typically 2-1-7, with characteristic stepwise outline.
+
+# ============================================================================
+# PROLONGATION/BRIDGE SCHEMAS
+# Hold or extend before moving forward. Lead to cadential or continuation.
+# ============================================================================
+
+ponte:
+  typical_position: continuation  # Bridge function
+  allowed_next:
+    - complete_cadence # After prolongation
+    - half_cadence     # Common destination
+    - prinner          # Return to riposte
+    - passo_indietro   # Pre-cadential
+    - sol_fa_mi        # Cadential approach
+  notes: |
+    Dominant pedal bridge, prolongs V before return or new section.
+    Can precede any cadential schema.
+
+quiescenza:
+  typical_position: opening  # Also post_cadential (framing)
+  allowed_next:
+    - romanesca        # Lead into opening
+    - do_re_mi         # Lead into opening
+    - meyer            # Lead into opening
+    - complete_cadence # Confirmatory cadence
+  notes: |
+    Tonic pedal with chromatic neighbor motion. 
+    Framing function - used to begin or after cadences.
+
+# ============================================================================
+# CADENTIAL SCHEMAS
+# Close sections. Lead to new section (back to opening) or post-cadential.
+# ============================================================================
+
+half_cadence:
+  typical_position: cadential
+  allowed_next:
+    - romanesca        # New section
+    - do_re_mi         # New section
+    - meyer            # New section
+    - fonte            # Development after HC
+    - monte            # Development after HC
+    - modulating_prinner # Transition
+  notes: |
+    Resting point on V. Typically followed by continuation or new section.
+    In expositions, often marks end of first phrase group.
+
+complete_cadence:
+  typical_position: cadential
+  allowed_next:
+    - romanesca        # New section
+    - do_re_mi         # New section
+    - meyer            # New section
+    - quiescenza       # Post-cadential prolongation
+    - comma            # Cadential extension
+  notes: |
+    Authentic cadence (V-I). At section end, may be followed by post-cadential
+    material or new section beginning.
+
+comma:
+  typical_position: cadential  # Brief cadential gesture
+  allowed_next:
+    - comma            # Can repeat (Rabinovitch notes this)
+    - complete_cadence # Strengthen with full cadence
+    - fonte            # Continue after brief pause
+    - monte            # Continue after brief pause
+    - prinner          # Return to riposte pattern
+    - romanesca        # New phrase
+  notes: |
+    Brief cadential gesture (4-3 or 1-7). Can repeat.
+    In monotonal terms: Comma in I (4-3), Comma in V (1-7).
+
+# ============================================================================
+# TYPICAL FORMAL TRAJECTORIES
+# Based on Rabinovitch & Carter-Enyi's analysis of 27 1740s expositions
+# ============================================================================
+
+typical_exposition_stages:
+  stage_1_opening:
+    schemas: [romanesca, do_re_mi, meyer, sol_fa_mi]
+    next_stage: stage_2_riposte
+    
+  stage_2_riposte:
+    schemas: [prinner]
+    next_stage: stage_3_post_riposte
+    notes: Prinner riposte appears in almost all expositions
+    
+  stage_3_post_riposte:
+    schemas: [half_cadence, comma, complete_cadence]
+    next_stage: stage_4_middle
+    notes: Often HC (Quintabsatz in Koch terms)
+    
+  stage_4_middle:
+    schemas: [modulating_prinner, fonte, monte, comma, passo_indietro]
+    next_stage: stage_5_final
+    notes: Most variable stage; modulation to V occurs here
+    
+  stage_5_final:
+    schemas: [passo_indietro, indugio, complete_cadence]
+    notes: Final authentic cadence in secondary key (V)
+
+# ============================================================================
+# COMMON PAIRED SEQUENCES (documented in sources)
+# ============================================================================
+
+documented_pairs:
+  - [romanesca, prinner]       # Archetypal opening pair
+  - [meyer, prinner]           # Opening gambit + riposte
+  - [do_re_mi, prinner]        # Opening + riposte
+  - [prinner, half_cadence]    # Riposte + HC suffix
+  - [prinner, complete_cadence] # Riposte + PAC
+  - [fonte, fonte]             # Sequential repetition
+  - [monte, monte]             # Sequential repetition
+  - [fonte, prinner]           # After digression, return
+  - [monte, prinner]           # After sequence, return
+  - [modulating_prinner, passo_indietro]  # Transition sequence
+  - [passo_indietro, complete_cadence]    # Pre-cadential to cadence
+  - [indugio, complete_cadence]           # Pre-cadential to cadence
+  - [comma, comma]             # Can repeat
+
+# ============================================================================
+# REFERENCES
+# ============================================================================
+
+references:
+  - |
+    Gjerdingen, Robert O. 2007. Music in the Galant Style. Oxford University Press.
+    Chapter 27 discusses "Il filo" (the thread) and p. 372 gives transitional probabilities.
+  - |
+    Rabinovitch, Gilad and Aaron Carter-Enyi. 2024. "Melodic Organization and Sequential 
+    Ordering of Galant Schemata." Music Theory Online 30.1.
+    Analysed 27 expositions from 1740s, identified 5-stage formal trajectory.
+  - |
+    Open Music Theory (viva.pressbooks.pub). Galant Schemas chapters.
+    Documents functional categories and common pairs.
+  - |
+    partimenti.org. Schema Prototypes PDF.
+    Primary source for schema definitions.

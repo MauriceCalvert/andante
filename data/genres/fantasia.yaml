@@ -5,6 +5,25 @@ form: through_composed
 uses_macro_form: true
 min_cs_duration: 1/16
 min_note_duration: 1/16
+
+# Schema-first planning configuration (planner_design.md)
+schema_preferences:
+  opening: [romanesca, do_re_mi, meyer]
+  continuation: [fonte, monte, fenaroli]
+  cadential: [prinner, sol_fa_mi]
+
+cadence_template:
+  density: medium  # Every 4-8 bars
+  section_end: half
+  final: authentic
+  allow_phrygian: true
+
+texture: imitative
+
+subject_rhythm:
+  pattern: [1/8, 1/8, 1/8, 1/8, 1/4]
+  style: motoric
+
 sections:
   - label: A
     repeat: false
