@@ -10,7 +10,7 @@ def convert_note_to_midi(note_path: Path) -> None:
     """Convert .note CSV file to MIDI file."""
     # Read notes from CSV, skipping comment lines
     notes: list[dict] = []
-    with open(note_path, encoding="utf-8") as f:
+    with open(note_path, encoding="utf-8-sig") as f:
         # Skip comment lines, find header
         header_line: str | None = None
         for line in f:
@@ -23,13 +23,13 @@ def convert_note_to_midi(note_path: Path) -> None:
         # Build case-insensitive field map
         fields = [field.strip() for field in header_line.split(",")]
         field_map: dict[str, int] = {field.lower(): i for i, field in enumerate(fields)}
-        # Required fields (case-insensitive lookup)
+        # Required fields (case-insensitive lookup with aliases)
         idx_offset = field_map.get("offset")
-        idx_midi = field_map.get("midinote")
+        idx_midi = field_map.get("midinote") or field_map.get("midi")
         idx_duration = field_map.get("duration")
         idx_track = field_map.get("track")
         assert idx_offset is not None, f"Missing 'offset' column. Found: {fields}"
-        assert idx_midi is not None, f"Missing 'midiNote' column. Found: {fields}"
+        assert idx_midi is not None, f"Missing 'midiNote' or 'midi' column. Found: {fields}"
         assert idx_duration is not None, f"Missing 'duration' column. Found: {fields}"
         assert idx_track is not None, f"Missing 'track' column. Found: {fields}"
         # Read data lines
