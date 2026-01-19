@@ -4,14 +4,34 @@ from typing import Any
 from builder.domain.harmony_ops import generate_melody_compatible_harmony
 from builder.handlers.core import register, elaborate
 from builder.handlers.phrase_handler import compute_phrase_melody
+from builder.handlers.schema_handler import build_schema_slot
 from builder.solver import generate_voice_cpsat, load_pattern, get_default_pattern, Pattern
 from builder.tree import Node, yaml_to_tree
 from builder.types import Notes
 from shared.constants import DIATONIC_DEFAULTS
 
+@register('schemas', '*')
+def handle_schemas(node: Node) -> Node:
+    """Elaborate each schema slot by creating bars.
+
+    Schema-first pipeline: processes SchemaSlot nodes from planner output,
+    converting schema definitions into voiced bars.
+    """
+    metre: str = _get_metre(node)
+    bar_duration: Fraction = _parse_metre(metre)
+    voice_count: int = _get_voice_count(node)
+    results: list[Node] = []
+
+    for schema_slot in node.children:
+        built = build_schema_slot(schema_slot, node, bar_duration, voice_count, metre)
+        results.append(built)
+
+    return node.with_children(tuple(results))
+
+
 @register('phrases', '*')
 def handle_phrases(node: Node) -> Node:
-    """Elaborate each phrase by creating bars."""
+    """Elaborate each phrase by creating bars (legacy episode-based path)."""
     metre: str = _get_metre(node)
     bar_duration: Fraction = _parse_metre(metre)
     results: list[Node] = []
