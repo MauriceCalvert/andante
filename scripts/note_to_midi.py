@@ -8,16 +8,41 @@ from mido import Message, MidiFile, MidiTrack, MetaMessage
 
 def convert_note_to_midi(note_path: Path) -> None:
     """Convert .note CSV file to MIDI file."""
-    # Read notes from CSV
+    # Read notes from CSV, skipping comment lines
     notes: list[dict] = []
     with open(note_path, encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
+        # Skip comment lines, find header
+        header_line: str | None = None
+        for line in f:
+            stripped = line.strip()
+            if stripped.startswith("#") or not stripped:
+                continue
+            header_line = stripped
+            break
+        assert header_line is not None, "No header line found"
+        # Build case-insensitive field map
+        fields = [field.strip() for field in header_line.split(",")]
+        field_map: dict[str, int] = {field.lower(): i for i, field in enumerate(fields)}
+        # Required fields (case-insensitive lookup)
+        idx_offset = field_map.get("offset")
+        idx_midi = field_map.get("midinote")
+        idx_duration = field_map.get("duration")
+        idx_track = field_map.get("track")
+        assert idx_offset is not None, f"Missing 'offset' column. Found: {fields}"
+        assert idx_midi is not None, f"Missing 'midiNote' column. Found: {fields}"
+        assert idx_duration is not None, f"Missing 'duration' column. Found: {fields}"
+        assert idx_track is not None, f"Missing 'track' column. Found: {fields}"
+        # Read data lines
+        for line in f:
+            stripped = line.strip()
+            if stripped.startswith("#") or not stripped:
+                continue
+            values = stripped.split(",")
             notes.append({
-                "offset": float(row["Offset"]),
-                "midi_num": int(row["midiNote"]),
-                "duration": float(row["Duration"]),
-                "track": int(row["track"]),
+                "offset": float(values[idx_offset]),
+                "midi_num": int(values[idx_midi]),
+                "duration": float(values[idx_duration]),
+                "track": int(values[idx_track]),
             })
 
     if not notes:
