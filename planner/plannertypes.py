@@ -5,13 +5,26 @@ from fractions import Fraction
 
 @dataclass(frozen=True)
 class Brief:
-    """User input specifying compositional intent."""
+    """User input specifying compositional intent.
+
+    Required fields define the commission. Optional fields override genre defaults.
+    """
     affect: str
     genre: str
     forces: str
     bars: int
+    # Optional: override genre defaults
+    key: str | None = None
+    mode: str | None = None
+    metre: str | None = None
+    tempo: str | None = None
+    # Optional: provide subject (otherwise derived from opening schema)
+    subject: 'Motif | None' = None
+    # Optional: override specific genre settings
+    overrides: dict | None = None
+    # Deprecated: kept for backward compatibility during migration
     virtuosic: bool = False
-    motif_source: str | None = None  # e.g., "motif_002" - loads from motifs/
+    motif_source: str | None = None
 
 
 @dataclass(frozen=True)
@@ -297,3 +310,81 @@ class SchemaStructure:
     instead of Section objects.
     """
     sections: tuple[SectionSchema, ...]
+
+
+# =============================================================================
+# Genre Template Types (brief_upgrade.md)
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class CadenceTemplate:
+    """Cadence planning rules for a genre.
+
+    Specifies how frequently cadences occur and what types are used at
+    different structural positions.
+    """
+    density: str              # high (2-4 bars), medium (4-8), low (8+)
+    first_cadence_bar: int    # Typical first cadence location
+    first_cadence_type: str   # half, authentic
+    section_end_type: str     # Cadence type at section boundaries
+    final_type: str           # Final cadence type (always authentic for baroque)
+
+
+@dataclass(frozen=True)
+class GenreSection:
+    """Section template in genre definition.
+
+    Defines proportions and cadence types for formal sections.
+    """
+    label: str                # A, B, etc.
+    key_area: str             # I, V, vi, etc.
+    proportion: float         # Proportion of total piece (0.0 to 1.0)
+    end_cadence: str          # half, authentic
+
+
+@dataclass(frozen=True)
+class SubjectConstraints:
+    """Rules for subject validation and derivation.
+
+    Used to validate user-provided subjects or constrain generated ones.
+    """
+    min_notes: int
+    max_notes: int
+    max_bars: int
+    require_invertible: bool   # Must work in melodic inversion
+    require_answerable: bool   # Must work transposed at fifth
+    first_degree: tuple[int, ...]  # Allowed starting degrees
+    last_degree: tuple[int, ...]   # Allowed ending degrees (avoid strong closure)
+
+
+@dataclass(frozen=True)
+class TreatmentSpec:
+    """Treatment vocabulary for a genre.
+
+    Defines which contrapuntal treatments are required, optional, and
+    where they appear in the structure.
+    """
+    required: tuple[str, ...]   # Must appear: statement, imitation, etc.
+    optional: tuple[str, ...]   # May appear: sequence, inversion, stretto
+    opening: str                # First slot treatment (usually statement)
+    answer: str                 # Second slot treatment (usually imitation)
+
+
+@dataclass(frozen=True)
+class GenreTemplate:
+    """Complete schema-first genre specification.
+
+    Loaded from data/genres/*.yaml. Encodes all style-specific knowledge:
+    schema preferences, cadence rules, section structure, subject constraints,
+    and treatment vocabulary.
+    """
+    name: str                                     # Human-readable name
+    voices: int                                   # Voice count (2, 3, or 4)
+    metre: str                                    # Default metre (e.g., "4/4")
+    texture: str                                  # imitative, melody_bass, homophonic
+    schema_preferences: dict[str, list[str]]      # Position → schema names
+    cadence_template: CadenceTemplate
+    sections: tuple[GenreSection, ...]
+    subject_constraints: SubjectConstraints
+    treatments: TreatmentSpec

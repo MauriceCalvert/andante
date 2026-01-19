@@ -8,13 +8,15 @@ Schema-first planning (per planner_design.md):
 5. Structure building (from schemas, not episodes)
 """
 from dataclasses import dataclass
+from pathlib import Path
 
+from planner.brief_parser import parse_brief
 from planner.frame import resolve_frame
 from planner.material import acquire_material
 from planner.structure import build_structure_from_schemas
 from planner.plannertypes import (
     Brief, Frame, Material, Motif, SchemaStructure,
-    CadencePoint, SchemaSlot,
+    CadencePoint, SchemaSlot, GenreTemplate,
 )
 from planner.validator import validate_schema_plan
 from planner.cadence_planner import plan_cadences
@@ -146,3 +148,28 @@ def build_schema_plan(
     assert valid, f"Schema plan validation failed: {errors}"
 
     return plan
+
+
+def build_plan_from_brief_file(
+    brief_path: Path,
+    seed: int | None = None,
+) -> SchemaPlan:
+    """Build plan from brief file path.
+
+    Entry point that uses the brief parser to load brief + genre,
+    then delegates to build_schema_plan.
+
+    Args:
+        brief_path: Path to .brief or .yaml file
+        seed: Optional random seed
+
+    Returns:
+        SchemaPlan with schema-based structure
+    """
+    brief, genre = parse_brief(brief_path)
+
+    return build_schema_plan(
+        brief=brief,
+        user_motif=brief.subject,  # From top-level subject field
+        seed=seed,
+    )

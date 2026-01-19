@@ -1,35 +1,58 @@
+# Bourree (GenreTemplate format)
+# Fast duple-metre dance with quarter-note upbeat
+
+name: Bourree
 voices: 2
 metre: 4/4
-upbeat: 1/4
-form: binary
-arc: dance_contrast
-min_cs_duration: 1/8
-bass_source: accompaniment
-
-# Schema-first planning configuration (planner_design.md)
-schema_preferences:
-  opening: [do_re_mi, romanesca]
-  continuation: [fonte, monte]
-  cadential: [prinner]
-
-cadence_template:
-  density: medium  # Every 4-8 bars
-  section_end: half
-  final: authentic
-  allow_phrygian: false
-
 texture: melody_bass
 
-subject_rhythm:
-  pattern: [1/4, 1/8, 1/8, 1/8, 1/8]
-  style: motoric
+# Schema selection by formal position
+schema_preferences:
+  opening:
+    - do_re_mi
+    - romanesca
+  riposte:
+    - prinner
+  continuation:
+    - fonte
+    - monte
+  pre_cadential:
+    - indugio
+  cadential:
+    - prinner
 
+# Cadence planning rules
+cadence_template:
+  density: medium            # Every 4-8 bars
+  first_cadence_bar: 4       # Typical first cadence location
+  first_cadence_type: authentic
+  section_end_type: authentic
+  final_type: authentic
+
+# Section structure (binary form)
 sections:
   - label: A
-    tonal_path: [I, V]
-    final_cadence: authentic
-    bars_per_phrase: 4
+    key_area: I
+    proportion: 0.5
+    end_cadence: authentic
   - label: B
-    tonal_path: [V, ii, I]
-    final_cadence: authentic
-    bars_per_phrase: 4
+    key_area: V
+    proportion: 0.5
+    end_cadence: authentic
+
+# Subject constraints for validation and derivation
+subject_constraints:
+  min_notes: 4
+  max_notes: 10
+  max_bars: 2
+  require_invertible: false
+  require_answerable: false
+  first_degree: [1, 3, 5]
+  last_degree: [1, 2, 3, 5]
+
+# Treatment vocabulary
+treatments:
+  required: [statement]
+  optional: [sequence]
+  opening: statement
+  answer: statement

@@ -1,49 +1,62 @@
+# Two-Part Invention (GenreTemplate format)
+# Bach-style two-voice imitative counterpoint
+
+name: Two-Part Invention
 voices: 2
 metre: 4/4
-upbeat: 0
-form: through_composed
-arc: invention
-min_cs_duration: 1/16
-final_cadence_type: invention
-bass_source: harmonic # Should be counter_subject, changed to ease testing
-
-# Schema-first planning configuration (planner_design.md)
-schema_preferences:
-  opening: [romanesca, do_re_mi]
-  continuation: [fonte, monte, fenaroli]
-  cadential: [prinner, sol_fa_mi]
-
-cadence_template:
-  density: high  # Every 2-4 bars
-  section_end: half
-  final: authentic
-  allow_phrygian: false
-
 texture: imitative
 
-subject_rhythm:
-  pattern: [1/8, 1/8, 1/8, 1/8, 1/4]
-  style: motoric
+# Schema selection by formal position
+# Only use schemas that exist in schemas.yaml
+schema_preferences:
+  opening:
+    - romanesca
+    - do_re_mi
+  riposte:
+    - prinner
+  continuation:
+    - fonte
+    - monte
+    - fenaroli
+  pre_cadential:
+    - indugio
+    - ponte
+  cadential:
+    - prinner
+    - sol_fa_mi
 
-treatment_constraints:
-  must_include: [imitation, stretto]
-  start_with: statement
-  end_with: statement
-  second_phrase: imitation  # Bass answer
+# Cadence planning rules
+cadence_template:
+  density: high              # Every 2-4 bars
+  first_cadence_bar: 4       # Typical first cadence location
+  first_cadence_type: half   # Usually half cadence
+  section_end_type: half     # At section boundary
+  final_type: authentic      # Piece ends PAC on I
+
+# Section structure (binary form)
 sections:
-  # Koch-compliant tonal paths:
-  # - No I→I (§35)
-  # - No V→V in same key (§36)
-  # - V→I forbidden at start only (§37)
   - label: A
-    repeat: false
-    texture: baroque_invention
-    tonal_path: [I, V, iii, IV, V]
-    final_cadence: half
-    bars_per_phrase: 2
+    key_area: I
+    proportion: 0.5
+    end_cadence: half
   - label: B
-    repeat: false
-    texture: baroque_invention
-    tonal_path: [vi, ii, IV, vi, ii, V, I]
-    final_cadence: authentic
-    bars_per_phrase: 2
+    key_area: V
+    proportion: 0.5
+    end_cadence: authentic
+
+# Subject constraints for validation and derivation
+subject_constraints:
+  min_notes: 4
+  max_notes: 12
+  max_bars: 2
+  require_invertible: true   # Must work in melodic inversion
+  require_answerable: true   # Must work at the fifth
+  first_degree: [1, 3, 5]    # Allowed starting degrees
+  last_degree: [2, 3, 5, 7]  # Avoid strong closure on 1
+
+# Treatment vocabulary
+treatments:
+  required: [statement, imitation]
+  optional: [sequence, inversion, stretto]
+  opening: statement
+  answer: imitation

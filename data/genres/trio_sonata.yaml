@@ -1,36 +1,60 @@
+# Trio Sonata (GenreTemplate format)
+# Three-voice imitative dialogue (two upper + continuo)
+
+name: Trio Sonata
 voices: 3
 metre: 4/4
-upbeat: 0
-form: binary
-arc: dialogue
-min_cs_duration: 1/8
-
-# Schema-first planning configuration (planner_design.md)
-schema_preferences:
-  opening: [romanesca, do_re_mi]
-  continuation: [fonte, monte]
-  cadential: [prinner, sol_fa_mi]
-
-cadence_template:
-  density: medium  # Every 4-8 bars
-  section_end: half
-  final: authentic
-  allow_phrygian: false
-
 texture: imitative
 
-subject_rhythm:
-  pattern: [1/8, 1/8, 1/8, 1/8]
-  style: motoric
+# Schema selection by formal position
+schema_preferences:
+  opening:
+    - romanesca
+    - do_re_mi
+  riposte:
+    - prinner
+  continuation:
+    - fonte
+    - monte
+  pre_cadential:
+    - indugio
+    - ponte
+  cadential:
+    - prinner
+    - sol_fa_mi
 
+# Cadence planning rules
+cadence_template:
+  density: medium            # Every 4-8 bars
+  first_cadence_bar: 4       # Typical first cadence location
+  first_cadence_type: half
+  section_end_type: half
+  final_type: authentic
+
+# Section structure (binary form)
 sections:
   - label: A
     key_area: I
-    final_cadence: half
-    bars_per_phrase: 4
-    episodes: [statement, response, continuation, cadential]
+    proportion: 0.5
+    end_cadence: half
   - label: B
-    key_area: I
-    final_cadence: authentic
-    bars_per_phrase: 4
-    episodes: [statement, exchange, intensification, cadential]
+    key_area: V
+    proportion: 0.5
+    end_cadence: authentic
+
+# Subject constraints for validation and derivation
+subject_constraints:
+  min_notes: 4
+  max_notes: 12
+  max_bars: 2
+  require_invertible: true
+  require_answerable: true
+  first_degree: [1, 3, 5]
+  last_degree: [2, 3, 5, 7]
+
+# Treatment vocabulary
+treatments:
+  required: [statement, imitation]
+  optional: [sequence, inversion]
+  opening: statement
+  answer: imitation

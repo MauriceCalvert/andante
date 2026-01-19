@@ -1,35 +1,57 @@
+# Sarabande (GenreTemplate format)
+# Slow, stately triple-metre dance with emphasis on beat 2
+
+name: Sarabande
 voices: 2
 metre: 3/4
-upbeat: 0
-form: binary
-arc: dance_stately
-min_cs_duration: 1/4
-min_note_duration: 1/8
-
-# Schema-first planning configuration (planner_design.md)
-schema_preferences:
-  opening: [romanesca]
-  continuation: [fonte]
-  cadential: [prinner]
-
-cadence_template:
-  density: low  # Every 8+ bars
-  section_end: half
-  final: authentic
-  allow_phrygian: true
-
 texture: melody_bass
 
-subject_rhythm:
-  pattern: [1/2, 1/4, 1/4]
-  style: lyrical
+# Schema selection by formal position
+schema_preferences:
+  opening:
+    - romanesca
+  riposte:
+    - prinner
+  continuation:
+    - fonte
+  pre_cadential:
+    - indugio
+  cadential:
+    - prinner
+    - sol_fa_mi
 
+# Cadence planning rules
+cadence_template:
+  density: low               # Every 8+ bars
+  first_cadence_bar: 8       # Typical first cadence location
+  first_cadence_type: half
+  section_end_type: half
+  final_type: authentic
+
+# Section structure (binary form)
 sections:
   - label: A
-    tonal_path: [I, V]
-    final_cadence: half
-    bars_per_phrase: 4
+    key_area: I
+    proportion: 0.5
+    end_cadence: half
   - label: B
-    tonal_path: [V, vi, I]
-    final_cadence: authentic
-    bars_per_phrase: 4
+    key_area: V
+    proportion: 0.5
+    end_cadence: authentic
+
+# Subject constraints for validation and derivation
+subject_constraints:
+  min_notes: 3
+  max_notes: 8
+  max_bars: 2
+  require_invertible: false
+  require_answerable: false
+  first_degree: [1, 3, 5]
+  last_degree: [1, 2, 3, 5]
+
+# Treatment vocabulary
+treatments:
+  required: [statement]
+  optional: [sequence]
+  opening: statement
+  answer: statement

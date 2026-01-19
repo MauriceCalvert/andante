@@ -1,34 +1,57 @@
-voices: 2
+# Chorale (GenreTemplate format)
+# Hymn-style homophonic texture with phrase-based cadences
+
+name: Chorale
+voices: 4
 metre: 4/4
-upbeat: 0
-form: binary
-arc: hymn
-min_cs_duration: 1/4
+texture: homophonic
 
-# Schema-first planning configuration (planner_design.md)
+# Schema selection by formal position
 schema_preferences:
-  opening: [do_re_mi]
-  continuation: [fenaroli]
-  cadential: [prinner, sol_fa_mi]
+  opening:
+    - do_re_mi
+  riposte:
+    - prinner
+  continuation:
+    - fenaroli
+  pre_cadential:
+    - indugio
+  cadential:
+    - prinner
+    - sol_fa_mi
 
+# Cadence planning rules
 cadence_template:
-  density: high  # Every 2-4 bars (phrase boundaries)
-  section_end: authentic
-  final: authentic
-  allow_phrygian: true
+  density: high              # Every 2-4 bars (phrase-end cadences)
+  first_cadence_bar: 2       # Cadence at end of first phrase
+  first_cadence_type: half
+  section_end_type: authentic
+  final_type: authentic
 
-texture: free
-
-subject_rhythm:
-  pattern: [1/4, 1/4, 1/4, 1/4]
-  style: lyrical
-
+# Section structure (binary form)
 sections:
   - label: A
-    tonal_path: [I, V]
-    final_cadence: half
-    bars_per_phrase: 4
+    key_area: I
+    proportion: 0.5
+    end_cadence: half
   - label: B
-    tonal_path: [V, I]
-    final_cadence: authentic
-    bars_per_phrase: 4
+    key_area: V
+    proportion: 0.5
+    end_cadence: authentic
+
+# Subject constraints for validation and derivation
+subject_constraints:
+  min_notes: 4
+  max_notes: 12
+  max_bars: 2
+  require_invertible: false   # Chorale melodies are pre-existing
+  require_answerable: false
+  first_degree: [1, 3, 5]
+  last_degree: [1, 2, 3, 5]
+
+# Treatment vocabulary
+treatments:
+  required: [statement]
+  optional: []
+  opening: statement
+  answer: statement
