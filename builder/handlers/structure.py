@@ -1,8 +1,10 @@
 """Structure handlers - only for nodes that create new structure."""
 from fractions import Fraction
 from typing import Any
+from builder.domain.harmony_ops import generate_melody_compatible_harmony
 from builder.handlers.core import register, elaborate
 from builder.handlers.phrase_handler import compute_phrase_melody
+from builder.solver import generate_voice_cpsat
 from builder.tree import Node, yaml_to_tree
 from builder.types import Notes
 from shared.constants import DIATONIC_DEFAULTS
@@ -18,32 +20,59 @@ def handle_phrases(node: Node) -> Node:
     return node.with_children(tuple(results))
 
 def _build_phrase(phrase: Node, parent: Node, bar_duration: Fraction) -> Node:
-    """Build phrase: compute melody, derive bar count, create bars."""
+    """Build phrase: compute melody, generate voices, create bars."""
     root: Node = parent.root
     voice_count: int = _get_voice_count(parent)
-    # Compute phrase melody and bar count from subject + treatment
-    melody, bar_count = compute_phrase_melody(phrase, root, bar_duration)
-    # Store melody on phrase for bar handlers to access
-    melody_data: dict[str, Any] = {
-        "pitches": list(melody.pitches),
-        "durations": [str(d) for d in melody.durations],
-    }
-    melody_node: Node | None = yaml_to_tree(melody_data, key="melody", parent=phrase)
-    # Add melody to phrase BEFORE elaborating bars (bars need to access it)
-    phrase_with_melody: Node = phrase.with_children(
-        tuple(phrase.children) + (melody_node,)
-    )
+
+    # Compute phrase melody (soprano) and bar count from subject + treatment
+    soprano, bar_count = compute_phrase_melody(phrase, root, bar_duration)
+
+    # Generate melody-compatible harmony (ignores plan harmony, computes from melody)
+    harmony: tuple[str, ...] = generate_melody_compatible_harmony(soprano, bar_duration)
+
+    # Store soprano on phrase as "melody" for bar handlers
+    phrase_with_voices: Node = _add_voice_to_phrase(phrase, "melody", soprano)
+
+    # Generate other voices in order: bass, alto, tenor
+    # Each voice considers all previously decided voices
+    # Uses CP-SAT solver for optimal voice leading across the phrase
+    if voice_count >= 2:
+        bass: Notes = generate_voice_cpsat([soprano], harmony, "bass", bar_duration)
+        phrase_with_voices = _add_voice_to_phrase(phrase_with_voices, "bass", bass)
+
+        if voice_count >= 3:
+            alto: Notes = generate_voice_cpsat([soprano, bass], harmony, "alto", bar_duration)
+            phrase_with_voices = _add_voice_to_phrase(phrase_with_voices, "alto", alto)
+
+            if voice_count >= 4:
+                tenor: Notes = generate_voice_cpsat(
+                    [soprano, bass, alto], harmony, "tenor", bar_duration
+                )
+                phrase_with_voices = _add_voice_to_phrase(phrase_with_voices, "tenor", tenor)
+
+    # Create bars
     bars_data: list[dict[str, Any]] = []
     for bar_idx in range(bar_count):
         bars_data.append({
             'bar_index': bar_idx,
             'voices': _create_voices_stub(voice_count),
         })
-    bars_node: Node | None = yaml_to_tree(bars_data, key='bars', parent=phrase_with_melody)
+    bars_node: Node | None = yaml_to_tree(bars_data, key='bars', parent=phrase_with_voices)
     assert bars_node is not None, "bars_data produced empty tree"
     built_bars: Node = elaborate(bars_node)
-    results: list[Node] = list(phrase_with_melody.children) + [built_bars]
-    return phrase_with_melody.with_children(tuple(results))
+    results: list[Node] = list(phrase_with_voices.children) + [built_bars]
+    return phrase_with_voices.with_children(tuple(results))
+
+
+def _add_voice_to_phrase(phrase: Node, key: str, notes: Notes) -> Node:
+    """Add a voice's notes to phrase node."""
+    voice_data: dict[str, Any] = {
+        "pitches": list(notes.pitches),
+        "durations": [str(d) for d in notes.durations],
+    }
+    voice_node: Node | None = yaml_to_tree(voice_data, key=key, parent=phrase)
+    return phrase.with_children(tuple(phrase.children) + (voice_node,))
+
 
 @register('voices', '*')
 def handle_voices(node: Node) -> Node:

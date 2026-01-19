@@ -27,3 +27,11 @@ class MissingContextError(ValidationError):
 
 class InvalidRomanNumeralError(ValidationError):
     """Unknown Roman numeral chord symbol."""
+
+
+class VoiceGenerationError(AndanteError):
+    """Voice cannot be generated satisfying all constraints."""
+
+
+class HarmonyGenerationError(AndanteError):
+    """No compatible harmony found for melody."""
