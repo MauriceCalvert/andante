@@ -1,0 +1,35 @@
+# Key: C Major with Confident Affect Arrivals
+# Version: 1.0.0 (matches architecture.md v1.3.2)
+
+name: "C Major"
+
+pitch_class_set: [0, 2, 4, 5, 7, 9, 11]
+
+bridge_pitch_set: [0, 2, 4, 7, 9]
+
+registers:
+  soprano: [59, 79]
+  bass: [36, 60]
+
+preferred_tessitura:
+  soprano: [64, 76]
+  bass: [43, 55]
+
+arrivals:
+  confident:
+    - {bar_beat: "1.1", schema: do_re_mi, stage: 1, soprano: 60, bass: 48}
+    - {bar_beat: "1.3", schema: do_re_mi, stage: 2, soprano: 62, bass: 47}
+    - {bar_beat: "2.1", schema: do_re_mi, stage: 3, soprano: 64, bass: 48}
+    - {bar_beat: "3.1", schema: do_re_mi, stage: 1, soprano: 67, bass: 55}
+    - {bar_beat: "3.3", schema: do_re_mi, stage: 2, soprano: 69, bass: 54}
+    - {bar_beat: "4.1", schema: do_re_mi, stage: 3, soprano: 71, bass: 55}
+    - {bar_beat: "9.1", schema: monte, stage: 1, soprano: 69, bass: 53}
+    - {bar_beat: "10.1", schema: monte, stage: 2, soprano: 71, bass: 55}
+    - {bar_beat: "11.1", schema: monte, stage: 3, soprano: 72, bass: 57}
+    - {bar_beat: "13.1", schema: prinner, stage: 1, soprano: 69, bass: 53}
+    - {bar_beat: "14.1", schema: prinner, stage: 2, soprano: 67, bass: 52}
+    - {bar_beat: "15.1", schema: prinner, stage: 3, soprano: 65, bass: 50}
+    - {bar_beat: "16.1", schema: prinner, stage: 4, soprano: 64, bass: 48}
+    - {bar_beat: "19.1", schema: cadenza_semplice, stage: 1, soprano: 62, bass: 55}
+    - {bar_beat: "19.3", schema: cadenza_semplice, stage: 2, soprano: 59, bass: 55}
+    - {bar_beat: "20.1", schema: cadenza_semplice, stage: 3, soprano: 60, bass: 48}
