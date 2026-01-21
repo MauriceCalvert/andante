@@ -1,27 +1,34 @@
-"""Run the treatment/texture showcase for auditory verification.
+"""Run the showcase generation for auditory verification.
 
-Generates a piece demonstrating all treatments and textures with
-names visible as lyrics in MuseScore.
+Generates a piece demonstrating the full pipeline.
 
 Usage:
-    cd /d/projects/Barok/barok && source .venv/Scripts/activate && cd source/andante
     python -m scripts.run_showcase
 """
 from pathlib import Path
-from scripts.run_exercises import run_exercise, EXERCISES_OUT
 
-SHOWCASE_BRIEF = Path(__file__).parent.parent / "briefs" / "exercises" / "showcase.brief"
+from planner.planner import generate_to_files
+
+
+OUTPUT_DIR: Path = Path(__file__).parent.parent / "output" / "showcase"
 
 
 def main() -> None:
-    """Run the showcase exercise."""
-    EXERCISES_OUT.mkdir(parents=True, exist_ok=True)
-    print("Running treatment/texture showcase...")
-    print("This generates a piece with all treatments and textures,")
-    print("with names as lyrics visible in MuseScore.\n")
-    run_exercise(SHOWCASE_BRIEF)
-    print(f"\nOutput files in {EXERCISES_OUT}/showcase.*")
-    print("Open showcase.musicxml in MuseScore to see treatments/textures as lyrics.")
+    """Run the showcase."""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    print("Running showcase generation...")
+    print("This generates an invention in C major with confident affect.\n")
+
+    result = generate_to_files("invention", "c_major", "confident", OUTPUT_DIR, "showcase")
+
+    print(f"\nGenerated:")
+    print(f"  Soprano notes: {len(result.soprano)}")
+    print(f"  Bass notes: {len(result.bass)}")
+    print(f"  Tempo: {result.tempo} BPM")
+    print(f"  Metre: {result.metre}")
+    print(f"\nOutput files in {OUTPUT_DIR}/showcase.*")
+    print("Open showcase.midi in a MIDI player or DAW to listen.")
 
 
 if __name__ == "__main__":

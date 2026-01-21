@@ -1,241 +1,86 @@
-"""Generate music from brief/plan using builder (tree elaboration).
+"""Generate music from a brief file.
 
 Usage:
     python -m scripts.run_builder <brief_name> [-v]
 
 Examples:
-    python -m scripts.run_builder freude_invention.brief
-    python -m scripts.run_builder freude_invention.brief -v
+    python -m scripts.run_builder freude_invention
+    python -m scripts.run_builder freude_invention -v
+
+Brief files are YAML with genre, key, affect fields.
 """
 import argparse
-from fractions import Fraction
 from pathlib import Path
-from typing import Any
 
 import yaml
 
-from builder.adapters.file_export import (
-    collect_notes_from_tree,
-    export_midi_from_collected,
-    export_note_from_collected,
-)
-from builder.types import CollectedNote
-from builder.handlers import elaborate
-from builder.tree import Node, yaml_to_tree
-from planner.planner import build_schema_plan
-from planner.plannertypes import Brief, Frame, Motif
-from planner.serializer import serialize_schema_plan
-from shared.constants import NOTE_NAME_MAP
-from shared.dissonance import warn_dissonances
+from planner.planner import generate_to_files
 
-PROJECT_DIR: Path = Path(__file__).parent.parent
 
 BRIEFS_DIR: Path = Path(__file__).parent.parent / "briefs" / "builder"
 OUTPUT_DIR: Path = Path(__file__).parent.parent / "output" / "builder"
 
 
-def load_subject_from_subject_file(file_path: Path) -> Motif:
-    """Load subject from .subject file (YAML with diatonic degrees).
-
-    Args:
-        file_path: Path to .subject file
-
-    Returns:
-        Motif with diatonic degrees and source_key
-    """
-    assert file_path.exists(), f"Subject file not found: {file_path}"
-
-    with open(file_path, encoding="utf-8") as f:
-        data: dict[str, Any] = yaml.safe_load(f)
-
-    assert "degrees" in data, f"Subject file missing 'degrees': {file_path}"
-    assert "durations" in data, f"Subject file missing 'durations': {file_path}"
-
-    degrees: list[int] = data["degrees"]
-    durations: list[Fraction] = [Fraction(d) for d in data["durations"]]
-    source_key: str = data.get("source_key", "C")
-
-    assert len(degrees) == len(durations), (
-        f"Degrees ({len(degrees)}) and durations ({len(durations)}) mismatch"
-    )
-
-    total_dur: Fraction = sum(durations, Fraction(0))
-    bars: int = max(1, int(total_dur.limit_denominator(1)))
-
-    return Motif(
-        degrees=tuple(degrees),
-        durations=tuple(durations),
-        bars=bars,
-        source_key=source_key,
-    )
-
-
-def get_frame_from_tree(root: Node) -> dict[str, Any]:
-    """Extract frame info from tree."""
-    assert "frame" in root, "Tree missing 'frame' node"
-    frame: Node = root["frame"]
-    return {
-        "key": frame["key"].value if "key" in frame else "C",
-        "mode": frame["mode"].value if "mode" in frame else "major",
-        "metre": frame["metre"].value if "metre" in frame else "4/4",
-        "tempo": frame["tempo"].value if "tempo" in frame else "allegro",
-    }
-
-
-def get_key_offset(key: str, mode: str) -> int:
-    """Get semitone offset for key from C."""
-    offset: int = NOTE_NAME_MAP.get(key, 0)
-    if mode == "minor":
-        offset -= 3
-    return offset % 12
-
-
-def parse_metre(metre: str) -> tuple[int, int]:
-    """Parse metre string like '4/4' to tuple."""
-    parts: list[str] = metre.split("/")
-    return (int(parts[0]), int(parts[1]))
-
-
-def tempo_to_bpm(tempo: str) -> int:
-    """Convert tempo name to BPM."""
-    tempos: dict[str, int] = {
-        "largo": 50,
-        "adagio": 66,
-        "andante": 76,
-        "moderato": 96,
-        "allegretto": 112,
-        "allegro": 120,
-        "vivace": 140,
-        "presto": 168,
-    }
-    return tempos.get(tempo.lower(), 100)
-
-
-def is_plan_yaml(data: dict[str, Any]) -> bool:
-    """Check if data is a complete plan (has frame and structure)."""
-    return "frame" in data and "structure" in data
-
-
-def load_brief_and_plan(path: Path) -> tuple[dict[str, Any], str]:
-    """Load file and generate plan if needed.
-
-    Returns:
-        Tuple of (data dict, plan yaml string)
-    """
-    with open(path, encoding="utf-8") as f:
-        data: dict[str, Any] = yaml.safe_load(f)
-    if is_plan_yaml(data):
-        with open(path, encoding="utf-8") as f:
-            return data, f.read()
-    brief_data: dict[str, Any] = data.get("brief", data)
-    brief: Brief = Brief(
-        affect=brief_data["affect"],
-        genre=brief_data["genre"],
-        forces=brief_data["forces"],
-        bars=brief_data["bars"],
-    )
-    user_frame: Frame | None = None
-    if "frame" in data:
-        fd: dict[str, Any] = data["frame"]
-        user_frame = Frame(
-            key=fd.get("key", "C"),
-            mode=fd.get("mode", "major"),
-            metre=fd.get("metre", "4/4"),
-            tempo=fd.get("tempo", "allegro"),
-            voices=fd.get("voices", 2),
-            upbeat=fd.get("upbeat", 0),
-            form=fd.get("form", "through_composed"),
-        )
-    user_motif: Motif | None = None
-    if "material" in data and "subject" in data["material"]:
-        subj: dict[str, Any] = data["material"]["subject"]
-        if "file" in subj:
-            file_rel: str = subj["file"].replace("\\", "/")
-            file_path: Path = PROJECT_DIR / file_rel
-            assert file_path.suffix == ".subject", (
-                f"Subject file must be .subject, got: {file_path.suffix}"
-            )
-            user_motif = load_subject_from_subject_file(file_path)
-        elif "degrees" in subj:
-            user_motif = Motif(
-                degrees=tuple(subj["degrees"]),
-                durations=tuple(Fraction(d) for d in subj["durations"]),
-                bars=subj.get("bars", 1),
-            )
-    plan = build_schema_plan(brief, user_motif=user_motif, user_frame=user_frame)
-    yaml_str: str = serialize_schema_plan(plan)
-    plan_data: dict[str, Any] = yaml.safe_load(yaml_str)
-    return plan_data, yaml_str
-
-
-def run_builder(input_path: Path, output_path: Path, verbose: bool = False) -> int:
-    """Run builder on input file and export to output path.
+def run_builder(input_path: Path, output_name: str, verbose: bool = False) -> int:
+    """Run builder on brief file and export to output path.
 
     Returns:
         Number of notes generated
     """
     print(f"Loading {input_path}...")
-    data, yaml_str = load_brief_and_plan(input_path)
-    plan_path: Path = output_path.with_suffix(".plan.yaml")
-    plan_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(plan_path, "w", encoding="utf-8") as f:
-        f.write(yaml_str)
-    print(f"  Plan written to {plan_path}")
-    print("Converting to tree...")
-    root: Node | None = yaml_to_tree(data)
-    assert root is not None, f"Empty or invalid YAML: {input_path}"
-    print("Elaborating tree...")
-    result: Node = elaborate(root)
+
+    with open(input_path, encoding="utf-8") as f:
+        data: dict = yaml.safe_load(f)
+
+    # Extract brief fields
+    brief_data: dict = data.get("brief", data)
+    genre: str = brief_data.get("genre", "invention")
+    key: str = brief_data.get("key", "c_major")
+    affect: str = brief_data.get("affect", "confident")
+
     if verbose:
-        print("\n=== Result tree ===")
-        result.print_tree()
-    print("Collecting notes...")
-    notes: list[CollectedNote] = collect_notes_from_tree(result)
-    print(f"  Collected {len(notes)} notes")
-    frame_info: dict[str, Any] = get_frame_from_tree(result)
-    key_offset: int = get_key_offset(frame_info["key"], frame_info["mode"])
-    time_sig: tuple[int, int] = parse_metre(frame_info["metre"])
-    bpm: int = tempo_to_bpm(frame_info["tempo"])
-    print("Checking for dissonances...")
-    warn_dissonances(notes, key_offset=key_offset, beats_per_bar=time_sig[0])
-    print(f"  Frame: {frame_info['key']} {frame_info['mode']}, {frame_info['metre']}, {frame_info['tempo']} ({bpm} bpm)")
-    print(f"Exporting to {output_path}...")
-    midi_ok: bool = export_midi_from_collected(
-        notes,
-        str(output_path),
-        key_offset=key_offset,
-        tempo=bpm,
-        time_signature=time_sig,
-    )
-    note_ok: bool = export_note_from_collected(
-        notes,
-        str(output_path),
-        key_offset=key_offset,
-        time_signature=time_sig,
-    )
-    if midi_ok:
-        print(f"  MIDI: {output_path}.midi")
-    if note_ok:
-        print(f"  Note: {output_path}.note")
-    return len(notes)
+        print(f"  Genre: {genre}")
+        print(f"  Key: {key}")
+        print(f"  Affect: {affect}")
+
+    print(f"Generating {genre} in {key} with {affect} affect...")
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    result = generate_to_files(genre, key, affect, OUTPUT_DIR, output_name)
+
+    note_count: int = len(result.soprano) + len(result.bass)
+    print(f"  Generated {note_count} notes")
+    print(f"  Tempo: {result.tempo} BPM")
+    print(f"Output written to:")
+    print(f"  {OUTPUT_DIR / output_name}.note")
+    print(f"  {OUTPUT_DIR / output_name}.midi")
+
+    return note_count
 
 
 def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Generate music from brief/plan using builder"
+        description="Generate music from brief file"
     )
-    parser.add_argument("input", help="Brief name (e.g., freude_invention.brief)")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Print elaborated tree")
+    parser.add_argument("input", help="Brief name (e.g., freude_invention)")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     args = parser.parse_args()
+
     input_name: str = args.input
     if not input_name.endswith(".brief"):
         input_name += ".brief"
+
     input_path: Path = BRIEFS_DIR / input_name
-    assert input_path.exists(), f"Brief not found: {input_path}"
-    output_path: Path = OUTPUT_DIR / input_path.stem
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    note_count: int = run_builder(input_path, output_path, verbose=args.verbose)
+    if not input_path.exists():
+        print(f"Brief not found: {input_path}")
+        print(f"Available briefs in {BRIEFS_DIR}:")
+        for brief in BRIEFS_DIR.glob("*.brief"):
+            print(f"  {brief.stem}")
+        return
+
+    output_name: str = input_path.stem
+    note_count: int = run_builder(input_path, output_name, verbose=args.verbose)
     print(f"\nDone: {note_count} notes generated")
 
 
