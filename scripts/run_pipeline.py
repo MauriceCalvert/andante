@@ -32,7 +32,9 @@ from planner.planner import generate_to_files
 from builder.types import NoteFile
 
 
-DEFAULT_OUTPUT_DIR: Path = Path(__file__).parent.parent / "output"
+SCRIPT_DIR: Path = Path(__file__).parent
+PROJECT_DIR: Path = SCRIPT_DIR.parent
+DEFAULT_OUTPUT_DIR: Path = PROJECT_DIR / "output"
 
 # Normalize affect names to config file names
 AFFECT_ALIASES: dict[str, str] = {
@@ -171,15 +173,20 @@ Examples:
     first_arg: str = args.args[0]
     first_path: Path = Path(first_arg)
 
+    # Try to resolve path relative to project dir if not found
+    if not first_path.exists() and (PROJECT_DIR / first_arg).exists():
+        first_path = PROJECT_DIR / first_arg
+
     # Case 1: Directory of briefs
     if first_path.is_dir():
         run_from_directory(first_path, args.output_dir, args.verbose)
         return
 
     # Case 2: Single .brief file
-    if first_path.suffix == ".brief" or first_path.exists() and first_path.is_file():
+    if first_path.suffix == ".brief" or (first_path.exists() and first_path.is_file()):
         if not first_path.exists():
             print(f"File not found: {first_path}")
+            print(f"  (also checked: {PROJECT_DIR / first_arg})")
             return
         run_from_brief(first_path, args.output_dir, args.verbose)
         print("\nDone!")
