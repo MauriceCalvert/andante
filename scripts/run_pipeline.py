@@ -32,7 +32,7 @@ from planner.planner import generate_to_files
 from builder.types import NoteFile
 
 
-SCRIPT_DIR: Path = Path(__file__).parent
+SCRIPT_DIR: Path = Path(__file__).resolve().parent
 PROJECT_DIR: Path = SCRIPT_DIR.parent
 DEFAULT_OUTPUT_DIR: Path = PROJECT_DIR / "output"
 
@@ -171,11 +171,13 @@ Examples:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     first_arg: str = args.args[0]
-    first_path: Path = Path(first_arg)
+    # Strip leading slashes to treat as relative path
+    first_arg_clean: str = first_arg.lstrip("/\\")
+    first_path: Path = Path(first_arg_clean)
 
     # Try to resolve path relative to project dir if not found
-    if not first_path.exists() and (PROJECT_DIR / first_arg).exists():
-        first_path = PROJECT_DIR / first_arg
+    if not first_path.exists() and (PROJECT_DIR / first_arg_clean).exists():
+        first_path = PROJECT_DIR / first_arg_clean
 
     # Case 1: Directory of briefs
     if first_path.is_dir():
@@ -185,8 +187,8 @@ Examples:
     # Case 2: Single .brief file
     if first_path.suffix == ".brief" or (first_path.exists() and first_path.is_file()):
         if not first_path.exists():
-            print(f"File not found: {first_path}")
-            print(f"  (also checked: {PROJECT_DIR / first_arg})")
+            print(f"File not found: {first_arg_clean}")
+            print(f"  (also checked: {PROJECT_DIR / first_arg_clean})")
             return
         run_from_brief(first_path, args.output_dir, args.verbose)
         print("\nDone!")
