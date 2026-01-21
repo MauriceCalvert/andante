@@ -35,3 +35,15 @@ class VoiceGenerationError(AndanteError):
 
 class HarmonyGenerationError(AndanteError):
     """No compatible harmony found for melody."""
+
+
+class SubjectValidationError(AndanteError):
+    """Subject incompatible with schema or treatment requirements."""
+
+
+class SolverTimeoutError(AndanteError):
+    """CP-SAT solver exceeded time limit."""
+
+
+class SolverInfeasibleError(AndanteError):
+    """No solution satisfies all hard constraints."""
