@@ -1,175 +1,175 @@
-"""Main planner: orchestrates Brief -> SchemaPlan via schema-first pipeline.
+"""Main planner orchestrating 7 layers.
 
-Schema-first planning (per planner_design.md):
-1. Frame resolution (key, mode, metre, tempo)
-2. Cadence planning (arrival points first)
-3. Schema chain generation (harmonic DNA)
-4. Subject handling (validation/derivation after schema)
-5. Structure building (from schemas, not episodes)
+generate() is the public entry point matching architecture.md.
+
+The seven layers:
+1. Rhetorical: Genre → Trajectory + rhythm + tempo
+2. Tonal: Affect → Tonal plan + density + modality
+3. Schematic: Tonal plan → Schema chain
+4. Metric: Schema chain + tonal plan → Bar assignments + phrase anchors
+5. Textural: Genre + bar assignments → Treatment assignments (voice roles per bar)
+6. Rhythmic: Anchors + treatments + density → Active slots + durations per voice
+7. Melodic: Active slots + anchors → Pitches for active slots only
+
+Category B: Orchestrator that validates and delegates.
 """
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from planner.brief_parser import parse_brief
-from planner.frame import resolve_frame
-from planner.material import acquire_material
-from planner.structure import build_structure_from_schemas
-from planner.plannertypes import (
-    Brief, Frame, Material, Motif, SchemaStructure,
-    CadencePoint, SchemaSlot, GenreTemplate,
-)
-from planner.validator import validate_schema_plan
-from planner.cadence_planner import plan_cadences
-from planner.schema_generator import generate_schema_chain, compute_actual_bars
-from planner.subject_validator import validate_subject
-from planner.subject_deriver import derive_subject
-from shared.constraint_validator import validate_brief, validate_frame
-
-
-# =============================================================================
-# Schema-First Planner (planner_design.md)
-# =============================================================================
+from builder.config_loader import load_configs
+from builder.io import write_midi_file, write_note_file
+from builder.realisation import realise
+from builder.types import NoteFile, RhythmPlan, SchemaChain, Solution, TreatmentAssignment
+from planner.dramaturgy import get_suggested_key
+from planner.melodic import layer_7_melodic
+from planner.metric import layer_4_metric
+from planner.rhetorical import layer_1_rhetorical
+from planner.rhythmic import layer_6_rhythmic
+from planner.schematic import layer_3_schematic
+from planner.textural import layer_5_textural, treatments_to_rhythm_input
+from planner.tonal import layer_2_tonal
 
 
-@dataclass
-class SchemaPlan:
-    """Schema-first plan output.
-
-    Different from Plan in that:
-    - structure is SchemaStructure (SectionSchema, not Section)
-    - No macro_form, tension_curve, rhetoric, harmonic_plan, coherence
-    - Schema chain is the "harmonic plan" - no separate harmony stage needed
-    """
-    brief: Brief
-    frame: Frame
-    material: Material
-    structure: SchemaStructure
-    cadence_plan: tuple[CadencePoint, ...]
-    schema_chain: tuple[SchemaSlot, ...]
-    actual_bars: int
+DEBUG: bool = True
 
 
-def build_schema_plan(
-    brief: Brief,
-    user_motif: Motif | None = None,
-    seed: int | None = None,
-    user_frame: Frame | None = None,
-    user_cs: Motif | None = None,
-) -> SchemaPlan:
-    """Build plan using schema-first approach.
+def _debug(msg: str) -> None:
+    """Print debug message if DEBUG is enabled."""
+    if DEBUG:
+        print(f"[DEBUG] {msg}")
 
-    New pipeline (per planner_design.md):
-    1. Frame resolution (unchanged)
-    2. Cadence planning (NEW - arrival points first)
-    3. Schema chain generation (NEW - harmonic DNA)
-    4. Subject handling (NEW - validation/derivation after schema)
-    5. Structure building (CHANGED - from schemas, not episodes)
 
-    Args:
-        brief: Brief with affect, genre, forces, bars
-        user_motif: Optional user-provided motif
-        seed: Optional random seed
-        user_frame: Optional explicit frame
-        user_cs: Optional user counter-subject (ignored in schema-first)
-
-    Returns:
-        SchemaPlan with schema-based structure
-    """
-    # Validate brief
-    valid, errors = validate_brief(brief.genre, brief.affect, brief.bars)
-    assert valid, f"Brief validation failed: {errors}"
-
-    # Step 1: Resolve frame (unchanged)
-    frame: Frame = user_frame if user_frame else resolve_frame(brief)
-    valid, errors = validate_frame(
-        genre=brief.genre,
-        affect=brief.affect,
-        key=frame.key,
-        mode=frame.mode,
-        metre=frame.metre,
-        tempo=frame.tempo,
-        voices=frame.voices,
-        form=frame.form,
-    )
-    assert valid, f"Frame validation failed: {errors}"
-
-    # Step 2: Plan cadences (NEW)
-    cadence_plan: tuple[CadencePoint, ...] = plan_cadences(
-        frame=frame,
-        genre=brief.genre,
-        total_bars=brief.bars,
-    )
-
-    # Step 3: Generate schema chain (NEW)
-    schema_chain: tuple[SchemaSlot, ...] = generate_schema_chain(
-        cadence_plan=cadence_plan,
-        genre=brief.genre,
-        mode=frame.mode,
-        total_bars=brief.bars,
-        seed=seed,
-    )
-
-    # Step 4: Handle subject (NEW - after schema)
-    opening_schema: str = schema_chain[0].type
-
-    if user_motif is not None:
-        # Validate user subject against opening schema
-        validation = validate_subject(user_motif, opening_schema, frame.mode)
-        assert validation.valid, f"Subject invalid: {validation.errors}"
-        subject = user_motif
+def _derive_key_from_affect(affect: str) -> str:
+    """Derive key from affect using Mattheson's Affektenlehre."""
+    tonic: str = get_suggested_key(affect)
+    if tonic[0].islower():
+        mode = "minor"
+        tonic = tonic.upper()
     else:
-        # Derive subject from opening schema
-        subject = derive_subject(opening_schema, frame, brief.genre)
+        mode = "major"
+    if len(tonic) > 1 and tonic[1] == "b":
+        tonic = tonic[0].lower() + "b"
+    else:
+        tonic = tonic.lower()
+    return f"{tonic}_{mode}"
 
-    material: Material = Material(subject=subject, counter_subject=user_cs)
 
-    # Step 5: Build structure from schemas (CHANGED)
-    structure: SchemaStructure = build_structure_from_schemas(
-        schema_chain=schema_chain,
-        cadence_plan=cadence_plan,
+def generate(
+    genre: str,
+    affect: str,
+    key: str | None = None,
+) -> NoteFile:
+    """Generate composition from genre and affect, with optional key."""
+    if key is None:
+        key = _derive_key_from_affect(affect)
+    _debug(f"Config: genre={genre}, affect={affect}, key={key}")
+    config: dict[str, Any] = load_configs(genre, key, affect)
+    genre_config = config["genre"]
+    key_config = config["key"]
+    affect_config = config["affect"]
+    form_config = config["form"]
+    schemas = config["schemas"]
+
+    # Layer 1: Rhetorical
+    trajectory, rhythm_vocab, tempo = layer_1_rhetorical(genre_config)
+    _debug(f"L1 Rhetorical: trajectory={trajectory}, tempo={tempo}")
+
+    # Layer 2: Tonal
+    tonal_plan, density, modality = layer_2_tonal(affect_config)
+    _debug(f"L2 Tonal: tonal_plan={tonal_plan}, density={density}, modality={modality}")
+
+    # Layer 3: Schematic
+    schema_chain: SchemaChain = layer_3_schematic(
+        tonal_plan,
+        genre_config,
+        form_config,
+        schemas,
+    )
+    _debug(f"L3 Schematic: schema_chain has {len(schema_chain.schemas)} schemas")
+    for i, s in enumerate(schema_chain.schemas):
+        _debug(f"  [{i}] {s}")
+
+    # Layer 4: Metric (produces bar assignments + anchors)
+    bar_assignments, arrivals, total_bars = layer_4_metric(
+        schema_chain,
+        genre_config,
+        form_config,
+        key_config,
+        schemas,
+        tonal_plan,
+        affect_config.answer_interval,
+    )
+    _debug(f"L4 Metric: total_bars={total_bars}, arrivals={len(arrivals)}")
+    _debug(f"  bar_assignments: {bar_assignments}")
+    for a in arrivals[:10]:
+        _debug(f"  anchor {a.bar_beat}: S={a.soprano_midi} B={a.bass_midi} ({a.schema})")
+    if len(arrivals) > 10:
+        _debug(f"  ... and {len(arrivals) - 10} more anchors")
+
+    # Layer 5: Textural (treatment assignments)
+    treatment_assignments: list[TreatmentAssignment] = layer_5_textural(
+        genre_config,
+        bar_assignments,
+    )
+    _debug(f"L5 Textural: {len(treatment_assignments)} treatment assignments")
+    for ta in treatment_assignments:
+        _debug(f"  bars {ta.start_bar}-{ta.end_bar}: {ta.treatment}, voice={ta.subject_voice}")
+
+    # Layer 6: Rhythmic (active slots per voice)
+    treatments_for_rhythm: list[dict] = treatments_to_rhythm_input(treatment_assignments)
+    rhythm_plan: RhythmPlan = layer_6_rhythmic(
+        anchors=arrivals,
+        treatments=treatments_for_rhythm,
+        density=density,
+        total_bars=total_bars,
+        metre=genre_config.metre,
+    )
+    _debug(f"L6 Rhythmic: soprano_active={len(rhythm_plan.soprano_active)}, bass_active={len(rhythm_plan.bass_active)}")
+
+    # Layer 7: Melodic (pitches for active slots)
+    _debug(f"L7 Melodic: sections from genre_config:")
+    if genre_config.sections:
+        for sec in genre_config.sections:
+            _debug(f"  {sec['name']}: bars {sec['bars']}")
+    else:
+        _debug(f"  (no sections defined)")
+
+    solution: Solution = layer_7_melodic(
+        schema_chain,
+        rhythm_vocab,
+        density,
+        affect_config,
+        key_config,
+        genre_config,
+        schemas,
+        total_bars,
+        arrivals,
+        rhythm_plan,
+    )
+    _debug(f"L7 Melodic: solution cost={solution.cost:.2f}, soprano_pitches={len(solution.soprano_pitches)}")
+
+    return realise(
+        solution,
+        treatment_assignments,
+        arrivals,
+        key_config,
+        affect_config,
+        genre_config,
+        form_config,
     )
 
-    # Calculate actual bars
-    actual_bars: int = compute_actual_bars(schema_chain)
 
-    # Build schema plan
-    plan = SchemaPlan(
-        brief=brief,
-        frame=frame,
-        material=material,
-        structure=structure,
-        cadence_plan=cadence_plan,
-        schema_chain=schema_chain,
-        actual_bars=actual_bars,
-    )
-
-    # Validate schema plan
-    valid, errors = validate_schema_plan(plan)
-    assert valid, f"Schema plan validation failed: {errors}"
-
-    return plan
-
-
-def build_plan_from_brief_file(
-    brief_path: Path,
-    seed: int | None = None,
-) -> SchemaPlan:
-    """Build plan from brief file path.
-
-    Entry point that uses the brief parser to load brief + genre,
-    then delegates to build_schema_plan.
-
-    Args:
-        brief_path: Path to .brief or .yaml file
-        seed: Optional random seed
-
-    Returns:
-        SchemaPlan with schema-based structure
-    """
-    brief, genre = parse_brief(brief_path)
-
-    return build_schema_plan(
-        brief=brief,
-        user_motif=brief.subject,  # From top-level subject field
-        seed=seed,
-    )
+def generate_to_files(
+    genre: str,
+    affect: str,
+    output_dir: Path,
+    name: str,
+    key: str | None = None,
+) -> NoteFile:
+    """Generate composition and write to files."""
+    result: NoteFile = generate(genre, affect, key)
+    note_path: Path = output_dir / f"{name}.note"
+    midi_path: Path = output_dir / f"{name}.midi"
+    write_note_file(result, note_path)
+    write_midi_file(result, midi_path)
+    return result
