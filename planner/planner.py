@@ -207,6 +207,7 @@ def generate(
         pitch_class_set=key_config.pitch_class_set,
         registers=registers,
         metre=genre_config.metre,
+        treatment_assignments=treatment_assignments,
     )
     _debug(f"L6.5 Figuration: {len(soprano_pitches)} soprano notes, {len(bass_pitches)} bass notes")
 

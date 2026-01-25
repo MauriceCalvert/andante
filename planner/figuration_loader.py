@@ -4,8 +4,10 @@ Category A: Pure functions, no I/O, no validation.
 
 Figuration patterns are baroque melodic vocabulary from Quantz and CPE Bach.
 Profiles group patterns by schema context (stepwise descent, ascending sequence, etc.).
+Accompaniment patterns are bass figures for melody_accompaniment texture.
 """
 from dataclasses import dataclass
+from fractions import Fraction
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -46,6 +48,16 @@ class FigurationProfile:
     description: str
     interior: tuple[str, ...]  # Pattern names for interior connections
     cadential: tuple[str, ...]  # Pattern names for cadential connections
+
+
+@dataclass(frozen=True)
+class AccompanimentPattern:
+    """Bass accompaniment pattern from accompaniments.yaml."""
+    name: str
+    description: str
+    degrees: tuple[int, ...]  # Scale degrees (1=root, 3=third, 5=fifth, 8=octave)
+    durations: tuple[Fraction, ...]  # Note durations as fractions of a bar
+    per_bar: bool  # Whether pattern repeats each bar
 
 
 def _load_yaml(name: str) -> dict[str, Any]:
@@ -183,3 +195,75 @@ def get_patterns_by_direction(ascending: bool) -> list[FigurationPattern]:
             result.append(pattern)
 
     return result
+
+
+def _parse_accompaniment(name: str, data: dict[str, Any]) -> AccompanimentPattern:
+    """Parse single accompaniment pattern from YAML."""
+    raw_degrees: list[int] = data["degrees"]
+    raw_durations: list[str | float] = data["durations"]
+
+    # Parse durations - they may be strings like "1/4" or floats
+    durations: list[Fraction] = []
+    for d in raw_durations:
+        if isinstance(d, str):
+            if "/" in d:
+                parts = d.split("/")
+                durations.append(Fraction(int(parts[0]), int(parts[1])))
+            else:
+                durations.append(Fraction(d))
+        else:
+            # Float - convert to Fraction
+            durations.append(Fraction(d).limit_denominator(16))
+
+    return AccompanimentPattern(
+        name=name,
+        description=data.get("description", ""),
+        degrees=tuple(raw_degrees),
+        durations=tuple(durations),
+        per_bar=data.get("per_bar", True),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_accompaniments() -> dict[str, AccompanimentPattern]:
+    """Load all accompaniment patterns from data/accompaniments.yaml."""
+    raw: dict[str, Any] = _load_yaml("accompaniments.yaml")
+    patterns: dict[str, AccompanimentPattern] = {}
+    for name, data in raw.items():
+        if not isinstance(data, dict):
+            continue
+        if "degrees" not in data:
+            continue
+        patterns[name] = _parse_accompaniment(name, data)
+    return patterns
+
+
+def get_accompaniment(name: str) -> AccompanimentPattern:
+    """Get single accompaniment pattern by name."""
+    patterns: dict[str, AccompanimentPattern] = load_accompaniments()
+    assert name in patterns, f"Unknown accompaniment: {name}. Available: {sorted(patterns.keys())}"
+    return patterns[name]
+
+
+def get_accompaniment_for_energy(energy: str) -> AccompanimentPattern:
+    """Select accompaniment pattern based on energy level.
+
+    Low energy: pedal, murky (simple, sustained)
+    Medium energy: arpeggiated_down, basso_continuo (standard baroque)
+    High energy: running, walking (more active)
+    """
+    patterns: dict[str, AccompanimentPattern] = load_accompaniments()
+
+    energy_map: dict[str, list[str]] = {
+        "low": ["pedal", "murky", "chaconne"],
+        "medium": ["arpeggiated_down", "basso_continuo", "arpeggiated_up"],
+        "high": ["running", "walking", "arpeggiated_down"],
+    }
+
+    candidates: list[str] = energy_map.get(energy, energy_map["medium"])
+    for name in candidates:
+        if name in patterns:
+            return patterns[name]
+
+    # Fallback to first available
+    return next(iter(patterns.values()))
