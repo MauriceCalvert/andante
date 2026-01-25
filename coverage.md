@@ -1,7 +1,8 @@
 # Test Coverage Report
 
-**Overall: 97%** (20,013 statements, 541 missed)
-**Tests: 2,740 passing**
+**Tests: 220 passing**
+
+Last updated: 2026-01-25 (figuration integration)
 
 ## Engine (Executor)
 
@@ -99,7 +100,7 @@
 | music_math.py | 93% | 92, 97, 115, 131, 151 |
 | parallels.py | 100% | |
 | pitch.py | 100% | |
-| schema_validator.py | 83% | 19, 30, 45, 49, 64-67, 74, 104, 108, 115, 129-135 |
+| yaml_validator.py | 0% | Needs new test coverage |
 | timed_material.py | 100% | |
 | tracer.py | 100% | |
 | types.py | 100% | |

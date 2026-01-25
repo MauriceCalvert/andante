@@ -1,120 +1,288 @@
-# Harmonic schemas: partimento-style bass patterns that imply harmonic progressions
-# Based on Gjerdingen, "Music in the Galant Style" (2007), Appendix A
-# Each schema provides bass degrees and implied harmony over a specified number of bars
+# Galante Schemas
+# AUTHORITATIVE — derived from Gjerdingen (2007), Sanguinetti (2012), partimento pedagogy
+#
+# Notation:
+#   soprano_degrees: scale degrees in melody (Gjerdingen's filled circles)
+#   bass_degrees: scale degrees in bass (Gjerdingen's open circles)
+#   Degrees are relative to local key unless sequential: true
+#
+# References:
+#   - Gjerdingen, Robert O. Music in the Galant Style. Oxford, 2007.
+#   - Sanguinetti, Giorgio. The Art of Partimento. Oxford, 2012.
+#   - Open Music Theory: https://viva.pressbooks.pub/openmusictheory/
 
-# === OPENING SCHEMAS ===
+# =============================================================================
+# OPENING SCHEMAS
+# =============================================================================
 
 do_re_mi:
-  description: Opening gambit with stepwise soprano ascent (1-2-3) over bass neighbor (1-7-1)
-  bass_degrees: [1, 7, 1]
-  durations: [1/2, 1/4, 1/4]
+  description: Opening gambit with stepwise soprano ascent
   soprano_degrees: [1, 2, 3]
-  bars: 1
-  opening: true
+  bass_degrees: [1, 7, 1]
+  bass_alt: [1, 5, 1]  # Alternative harmonisation
+  entry: {soprano: 1, bass: 1}
+  exit: {soprano: 3, bass: 1}
+  bars: [1, 2]
+  cadential_state: open
+  position: opening
+  figuration_profile: stepwise_ascent
+  cadence_approach: false
+  source: "Gjerdingen Ch.6"
 
 romanesca:
-  description: Opening schema with descending bass (1-7-6-3) supporting soprano on 1 and 5
-  bass_degrees: [1, 7, 6, 3]
-  durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [1, 5, 1, 1]
-  bars: 1
-  opening: true
-
-# === RIPOSTE/ANSWER SCHEMAS ===
-
-prinner:
-  description: Riposte to opening; stepwise descent in both voices (bass 4-3-2-1, soprano 6-5-4-3)
-  bass_degrees: [4, 3, 2, 1]
-  durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [6, 5, 4, 3]
-  bars: 1
-  cadence_approach: true
-
-sol_fa_mi:
-  description: Cadential approach; descending melody (5-4-4-3) with bass (1-2-7-1)
-  bass_degrees: [1, 2, 7, 1]
-  durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [5, 4, 4, 3]
-  bars: 1
-  cadence_approach: true
-
-# === SEQUENTIAL SCHEMAS ===
-
-fonte:
-  description: Digression and return; two half-cadences, second a step lower (minor then major)
-  bass_degrees: [7, 1, 7, 1]  # second pair transposed down
-  durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [4, 3, 4, 3]  # second pair transposed down
-  bars: 1
-  sequential: true
-  direction: descending
-
-monte:
-  description: Ascending sequence; two pairs, each a step higher
-  bass_degrees: [7, 1, 7, 1]  # second pair transposed up
-  durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [4, 3, 4, 3]  # second pair transposed up
-  bars: 1
-  sequential: true
-  direction: ascending
-
-# === INTERIOR SCHEMAS ===
+  description: Six-stage opening with alternating strong/weak
+  soprano_degrees: [3, 5, 1, 3, 6, 5]
+  bass_degrees: [1, 7, 6, 5, 4, 3]
+  stages: 6
+  entry: {soprano: 3, bass: 1}
+  exit: {soprano: 5, bass: 3}
+  bars: [2, 4]
+  cadential_state: open
+  position: opening
+  figuration_profile: stepwise_mixed
+  cadence_approach: false
+  notes: "Almost always blends into following schema (often Prinner)"
+  source: "Gjerdingen Ch.2, Figure 2.1"
 
 meyer:
-  description: Interior phrase; open (1-7 over 1-2) answered by closed (4-3 over 7-1)
-  bass_degrees: [1, 2, 7, 1]
-  durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [1, 7, 4, 3]
-  bars: 1
+  description: Two dyads with accented dissonance on scale-degree 7
+  soprano_degrees: [1, 7, 4, 3]  # Two dyads: 1-7, 4-3
+  bass_degrees: [1, 2, 7, 1]     # Two dyads: 1-2, 7-1
+  structure: two_dyads
+  entry: {soprano: 1, bass: 1}
+  exit: {soprano: 3, bass: 1}
+  bars: [1, 2]
+  cadential_state: open
+  position: opening
+  figuration_profile: stepwise_mixed
+  cadence_approach: false
+  source: "Gjerdingen Ch.9"
+
+sol_fa_mi:
+  description: Lyrical opening, less bold than Meyer
+  soprano_degrees: [5, 4, 4, 3]  # Two dyads: 5-4, 4-3
+  bass_degrees: [1, 2, 7, 1]     # Two dyads: 1-2, 7-1
+  structure: two_dyads
+  entry: {soprano: 5, bass: 1}
+  exit: {soprano: 3, bass: 1}
+  bars: [1, 2]
+  cadential_state: open
+  position: opening
+  figuration_profile: stepwise_descent
+  cadence_approach: false
+  source: "Gjerdingen Ch.10"
+
+# =============================================================================
+# RIPOSTE SCHEMAS
+# =============================================================================
+
+prinner:
+  description: Archetypal riposte; parallel tenths descending
+  soprano_degrees: [6, 5, 4, 3]
+  bass_degrees: [4, 3, 2, 1]
+  bass_alt: [4, 3, 2, 5, 1]  # Cadential variant with dominant
+  entry: {soprano: 6, bass: 4}
+  exit: {soprano: 3, bass: 1}
+  bars: [1, 2]
+  cadential_state: closed
+  position: riposte
+  figuration_profile: stepwise_descent
+  cadence_approach: true
+  notes: "Optional 5 before final 1 strengthens cadential effect"
+  source: "Gjerdingen Ch.3"
+
+# =============================================================================
+# CONTINUATION SCHEMAS (Sequential)
+# =============================================================================
+
+fonte:
+  description: Descending sequence; clausula cantizans per segment
+  # Degrees are per segment, relative to local tonicisation
+  # Note: (4,7) is passing motion; arrival is (3,1)
+  segment:
+    soprano_degrees: [4, 3]
+    bass_degrees: [7, 1]
+  segments: 2
+  direction: descending
+  typical_keys: "ii -> I"
+  entry: {soprano: 4, bass: 7}  # Approach (passing)
+  exit: {soprano: 3, bass: 1}   # Arrival (consonant)
+  bars: [2, 4]
+  cadential_state: open
+  position: continuation
+  sequential: true
+  figuration_profile: sequence_descending
+  cadence_approach: false
+  source: "Riepel (1755); Gjerdingen Ch.8"
+
+monte:
+  description: Ascending sequence; clausula cantizans per segment
+  # Degrees are per segment, relative to local tonicisation
+  # Note: (4,7) is passing motion; arrival is (3,1)
+  segment:
+    soprano_degrees: [4, 3]  # Variable; often same as Fonte
+    bass_degrees: [7, 1]
+  segments: [2, 3]  # Can be 2 or 3 segments
+  direction: ascending
+  typical_keys: "IV -> V (-> vi)"
+  entry: {soprano: 4, bass: 7}  # Approach (passing)
+  exit: {soprano: 3, bass: 1}   # Arrival (consonant)
+  bars: [2, 4]
+  cadential_state: open
+  position: continuation
+  sequential: true
+  figuration_profile: sequence_ascending
+  cadence_approach: false
+  notes: "Soprano less fixed than other schemas"
+  source: "Riepel (1755); Gjerdingen Ch.7"
 
 fenaroli:
-  description: Fundamental schema; bass 7-1-2-3 with soprano 4-3-7-1, often repeated
-  bass_degrees: [7, 1, 2, 3]
-  durations: [1/4, 1/4, 1/4, 1/4]
+  description: Interior schema; bass 7-1-2-3 with soprano 4-3-7-1
   soprano_degrees: [4, 3, 7, 1]
-  bars: 1
+  bass_degrees: [7, 1, 2, 3]
+  entry: {soprano: 4, bass: 7}
+  exit: {soprano: 1, bass: 3}
+  bars: [1, 2]
+  cadential_state: open
+  position: continuation
   repeatable: true
+  figuration_profile: galant_general
+  cadence_approach: false
+  source: "Gjerdingen Ch.13"
 
-# === PROLONGATION/BRIDGE SCHEMAS ===
+# =============================================================================
+# PRE-CADENTIAL SCHEMAS
+# =============================================================================
 
 ponte:
-  description: Dominant pedal bridge; prolongs V before return or new section
-  bass_degrees: [5, 5, 5]
-  durations: [1/4, 1/4, 1/2]
-  soprano_degrees: [5, 7, 2]
-  bars: 1
-  pedal: true
-  dominant: true
+  description: Dominant pedal prolongation
+  soprano_degrees: [2, 2, 2]  # Or 7-7-7; sustained/repeated
+  bass_degrees: [5, 5, 5]     # Pedal
+  entry: {soprano: 2, bass: 5}
+  exit: {soprano: 2, bass: 5}
+  bars: [1, 2]
+  cadential_state: open
+  position: pre_cadential
+  pedal: dominant
+  figuration_profile: repeated_tone
+  cadence_approach: false
+  source: "Riepel; Gjerdingen Ch.14"
+
+passo_indietro:
+  description: Pre-cadential approach; first two stages of Prinner
+  soprano_degrees: [6, 5]
+  bass_degrees: [4, 4.5, 5]  # 4-#4-5 (fa-fi-sol); 4.5 = raised 4
+  entry: {soprano: 6, bass: 4}
+  exit: {soprano: 5, bass: 5}
+  bars: [1, 2]
+  cadential_state: open
+  position: pre_cadential
+  chromatic: true
+  figuration_profile: stepwise_descent
+  cadence_approach: true
+  notes: "The raised 4 creates strong pull to 5"
+  source: "Gjerdingen Ch.15"
 
 indugio:
-  description: Pre-cadential delay; prolongs 4 before resolving to #4-5
-  bass_degrees: [4, 4, {degree: 4, alter: 1}, 5]  # Last 4 is raised (#4)
-  durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [2, 4, 6, 7]
-  bars: 1
-  pre_cadential: true
+  description: Pre-cadential delay; prolongs 4
+  soprano_degrees: [2, 1, 7]
+  bass_degrees: [4, 4, 4]  # Prolonged, often as 6/5 chord
+  entry: {soprano: 2, bass: 4}
+  exit: {soprano: 7, bass: 4}
+  bars: [1, 2]
+  cadential_state: open
+  position: pre_cadential
+  pedal: subdominant
+  figuration_profile: repeated_tone
+  cadence_approach: true
+  notes: "Prolongs subdominant before resolving to cadence"
+  source: "Gjerdingen Ch.16"
+
+# =============================================================================
+# CADENTIAL SCHEMAS
+# =============================================================================
+
+cadenza_semplice:
+  description: Simple authentic cadence
+  soprano_degrees: [2, 7, 1]
+  bass_degrees: [5, 5, 1]  # Can also be just [5, 1]
+  entry: {soprano: 2, bass: 5}
+  exit: {soprano: 1, bass: 1}
+  bars: [1, 1]
+  cadential_state: closed
+  position: cadential
+  figuration_profile: galant_general
+  cadence_approach: true
+  source: "Partimento tradition"
+
+cadenza_composta:
+  description: Strong authentic cadence with IV-V-I
+  soprano_degrees: [4, 3, 2, 1]
+  bass_degrees: [4, 5, 5, 1]
+  entry: {soprano: 4, bass: 4}
+  exit: {soprano: 1, bass: 1}
+  bars: [1, 2]
+  cadential_state: closed
+  position: cadential
+  figuration_profile: stepwise_descent
+  cadence_approach: true
+  source: "Gjerdingen Ch.11"
+
+comma:
+  description: Brief cadential gesture
+  soprano_degrees: [4, 3]  # Or [1, 7] in dominant context
+  bass_degrees: [5, 1]
+  entry: {soprano: 4, bass: 5}
+  exit: {soprano: 3, bass: 1}
+  bars: [1, 1]
+  cadential_state: closed
+  position: cadential
+  repeatable: true
+  figuration_profile: galant_general
+  cadence_approach: true
+  source: "Gjerdingen"
+
+half_cadence:
+  description: Cadence on dominant
+  soprano_degrees: [2, 2]  # Or approach from various degrees
+  bass_degrees: [5, 5]
+  entry: {soprano: 2, bass: 5}
+  exit: {soprano: 2, bass: 5}
+  bars: [1, 1]
+  cadential_state: half_closed
+  position: cadential
+  figuration_profile: repeated_tone
+  cadence_approach: true
+  source: "Common practice"
+
+# =============================================================================
+# POST-CADENTIAL SCHEMAS
+# =============================================================================
 
 quiescenza:
-  description: Tonic pedal with chromatic neighbor motion (b7-6-#7-1)
-  bass_degrees: [1, 1, 1, 1]
-  durations: [1/4, 1/4, 1/4, 1/4]
-  soprano_degrees: [{degree: 7, alter: -1}, 6, {degree: 7, alter: 1}, 1]  # b7, 6, #7, 1
-  bars: 1
-  pedal: true
-  framing: true
+  description: Tonic pedal with chromatic neighbour motion
+  soprano_degrees: [1, -7, 6, 7, 1]  # 1-b7-6-#7-1; -7 = flat, 7 = natural
+  bass_degrees: [1, 1, 1, 1, 1]      # Pedal
+  entry: {soprano: 1, bass: 1}
+  exit: {soprano: 1, bass: 1}
+  bars: [1, 2]
+  cadential_state: closed
+  position: post_cadential
+  pedal: tonic
+  chromatic: true
+  figuration_profile: pedal
+  cadence_approach: false
+  notes: "Framing function; used to begin pieces or confirm cadences"
+  source: "Gjerdingen Ch.17"
 
-# === RULE OF THE OCTAVE ===
-
-rule_of_octave_asc:
-  description: Harmonizing ascending scale
-  bass_degrees: [1, 2, 3, 4, 5, 6, 7, 1]
-  durations: [1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8]
-  soprano_degrees: [3, 7, 1, 4, 3, 4, 5, 5]
-  bars: 1
-
-rule_of_octave_desc:
-  description: Harmonizing descending scale
-  bass_degrees: [1, 7, 6, 5, 4, 3, 2, 1]
-  durations: [1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8]
-  soprano_degrees: [3, 5, 4, 3, 6, 5, 4, 3]
-  bars: 1
+# =============================================================================
+# BASS CONTINUITY RULES
+# =============================================================================
+# Schema A can connect to schema B if:
+#   1. Identity: exit.bass of A == entry.bass of B
+#   2. Step: |exit.bass of A - entry.bass of B| == 1
+#   3. Dominant: exit.bass of A == 5 and entry.bass of B == 1
+# If none apply, free passage (counterpoint only) bridges the gap.
+#
+# For Monte/Fonte: (4,7) is passing motion; actual arrival is (3,1).
+# Free passage targets local degree 1, not degree 7.

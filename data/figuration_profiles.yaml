@@ -1,0 +1,94 @@
+# Figuration Profiles - Groupings of pattern names for schema contexts
+# Profiles reference patterns defined in figurations.yaml
+# Schemas reference profiles by name, with optional per-connection overrides
+
+# ============================================================================
+# STEPWISE MOTION PROFILES
+# ============================================================================
+
+stepwise_descent:
+  description: Descending by step (prinner, rule_of_octave_desc)
+  interior: [circolo_mezzo_down, groppo_down, passaggio_down, mordent, doppelschlag]
+  cadential: [cadential_trill, cadential_turn, cadential_gruppetto]
+
+stepwise_ascent:
+  description: Ascending by step (rule_of_octave_asc)
+  interior: [circolo_mezzo_up, groppo_up, passaggio_up, mordent, doppelschlag]
+  cadential: [cadential_trill, cadential_turn]
+
+stepwise_mixed:
+  description: Alternating direction (romanesca)
+  interior: [circolo_mezzo_up, circolo_mezzo_down, passaggio_up, passaggio_down, mordent]
+  cadential: [cadential_trill, cadential_turn]
+
+# ============================================================================
+# SEQUENTIAL PROFILES
+# ============================================================================
+
+sequence_descending:
+  description: Descending sequences (fonte)
+  interior: [sequence_step_down, sequence_third_down, passaggio_down]
+  cadential: [cadential_trill, cadential_turn]
+
+sequence_ascending:
+  description: Ascending sequences (monte)
+  interior: [sequence_step_up, sequence_third_up, rosalia, passaggio_up]
+  cadential: [cadential_trill, cadential_turn]
+
+# ============================================================================
+# STATIC/PROLONGATION PROFILES
+# ============================================================================
+
+repeated_tone:
+  description: Same pitch repeated (pedal points, held harmonies)
+  interior: [mordent, mordent_double, trillo, doppelschlag, schneller]
+  cadential: [cadential_trill]
+
+pedal:
+  description: Over sustained bass
+  interior: [pedal_figuration, batterie, tremolo]
+  cadential: [cadential_turn]
+
+# ============================================================================
+# LEAP PROFILES
+# ============================================================================
+
+leap_descent:
+  description: Descending by leap (arpeggiated motion)
+  interior: [arpeggio_fill_down, broken_third_down, tirata_down]
+  cadential: [cadential_tirata]
+
+leap_ascent:
+  description: Ascending by leap (arpeggiated motion)
+  interior: [arpeggio_fill_up, broken_third_up, tirata_up]
+  cadential: [cadential_trill, cadential_turn]
+
+# ============================================================================
+# VIRTUOSIC PROFILES
+# ============================================================================
+
+virtuosic_descent:
+  description: Extended runs downward (cadenzas, episodes)
+  interior: [tirata_down_long, tirata_down, broken_third_down]
+  cadential: [cadential_tirata]
+
+virtuosic_ascent:
+  description: Extended runs upward (cadenzas, episodes)
+  interior: [tirata_up_long, tirata_up, broken_third_up]
+  cadential: [cadential_trill]
+
+# ============================================================================
+# COMPOUND PROFILES (multiple motion types)
+# ============================================================================
+
+galant_general:
+  description: Default for galant schemas with mixed motion
+  interior: [circolo_mezzo_down, circolo_mezzo_up, groppo_down, groppo_up, 
+             passaggio_down, passaggio_up, mordent, doppelschlag]
+  cadential: [cadential_trill, cadential_turn, cadential_gruppetto]
+
+episode_general:
+  description: Fugue episodes and continuation passages
+  interior: [sequence_step_down, sequence_step_up, sequence_third_down,
+             rosalia, tirata_down, tirata_up]
+  cadential: [cadential_trill, cadential_tirata]
