@@ -3,6 +3,7 @@
 
 name: Chorale
 voices: 4
+form: strophic
 metre: 4/4
 texture: homophonic
 

@@ -3,6 +3,7 @@
 
 name: Bourree
 voices: 2
+form: binary
 metre: 4/4
 texture: melody_bass
 
@@ -53,6 +54,6 @@ subject_constraints:
 # Treatment vocabulary
 treatments:
   required: [statement]
-  optional: [sequence]
+  optional: [transposition]
   opening: statement
   answer: statement

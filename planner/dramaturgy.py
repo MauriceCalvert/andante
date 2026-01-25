@@ -369,13 +369,61 @@ TEMPO_BPM_RANGES: Dict[str, Tuple[int, int]] = {
 }
 
 
-# Key suggestions by affect character
-# Based on baroque key character theory (Mattheson, Charpentier)
-KEY_SUGGESTIONS: Dict[str, Dict[str, Tuple[str, ...]]] = {
-    "bright_major": ("D", "A", "G", "Bb"),  # Bright, joyful keys
-    "dark_major": ("Eb", "Ab", "E"),  # More serious major keys
-    "bright_minor": ("E", "A", "D"),  # Plaintive but clear minor keys
-    "dark_minor": ("C", "G", "F", "B"),  # Deeper, more sorrowful minor keys
+# Mattheson Key Characteristics (baroque_theory.md section 8.1)
+# Maps key to its baroque character per Mattheson's Der vollkommene Capellmeister
+MATTHESON_KEYS: Dict[str, str] = {
+    "C": "pure_innocent",
+    "D": "sharp_martial",
+    "E": "piercing_sorrowful",
+    "F": "tender_calm",
+    "G": "persuading_brilliant",
+    "A": "affecting_radiant",
+    "Bb": "magnificent",
+    "Eb": "serious",
+    "c": "sweet_sad",
+    "d": "devout_grand",
+    "e": "pensive_profound",
+    "g": "serious_magnificent",
+    "a": "tender_plaintive",
+    "f": "obscure_plaintive",
+    "b": "harsh_plaintive",
+}
+
+# Affect to Mattheson key mapping (baroque_theory.md section 8.1 Affektenlehre)
+# Maps each affect to its appropriate keys based on Mattheson's key character theory
+# Both German baroque names and English equivalents are supported
+AFFECT_TO_KEYS: Dict[str, Tuple[str, ...]] = {
+    # Major affects (German)
+    "Freudigkeit": ("G", "A", "D"),       # Joy → brilliant, radiant, sharp
+    "Majestaet": ("D", "Bb", "Eb"),       # Majesty → martial, magnificent, serious
+    "Zaertlichkeit": ("F", "C", "A"),     # Tenderness → tender, pure, radiant
+    "Verwunderung": ("A", "G", "E"),      # Wonder → radiant, brilliant, piercing
+    "Entschlossenheit": ("D", "G", "C"),  # Resolution → martial, brilliant, pure
+    # Minor affects (German)
+    "Sehnsucht": ("e", "a", "d"),         # Yearning → pensive, plaintive, devout
+    "Klage": ("a", "c", "g"),             # Lament → plaintive, sad, serious
+    "Zorn": ("g", "d", "c"),              # Anger → serious, grand, sad
+    "Dolore": ("a", "c", "e"),            # Pain → plaintive, sad, pensive
+    # English equivalents (map to same keys as German counterparts)
+    "joyful": ("G", "A", "D"),            # = Freudigkeit
+    "majestic": ("D", "Bb", "Eb"),        # = Majestaet
+    "tender": ("F", "C", "A"),            # = Zaertlichkeit
+    "default": ("D", "G", "C"),           # Default affect (based on Entschlossenheit)
+    "resolute": ("D", "G", "C"),          # = Entschlossenheit
+    "wondering": ("A", "G", "E"),         # = Verwunderung
+    "yearning": ("e", "a", "d"),          # = Sehnsucht
+    "lamenting": ("a", "c", "g"),         # = Klage
+    "angry": ("g", "d", "c"),             # = Zorn
+    "sorrowful": ("a", "c", "e"),         # = Dolore
+}
+
+# Legacy key suggestions by affect character (for backwards compatibility)
+# Deprecated: Use AFFECT_TO_KEYS directly for Mattheson compliance
+KEY_SUGGESTIONS: Dict[str, Tuple[str, ...]] = {
+    "bright_major": ("G", "A", "D"),      # Brilliant, radiant
+    "dark_major": ("Eb", "Bb", "E"),      # Serious, magnificent
+    "bright_minor": ("e", "a", "d"),      # Pensive, plaintive
+    "dark_minor": ("c", "g", "f"),        # Sad, serious
 }
 
 
@@ -464,17 +512,32 @@ def get_affect_characteristics(affect: str) -> Dict[str, str]:
 
 
 def get_suggested_key(affect: str, preference: int = 0) -> str:
-    """Get a suggested key for the affect.
+    """Get a suggested key for the affect per Mattheson's Affektenlehre.
+
+    Uses baroque_theory.md section 8.1 key-character mappings to select
+    historically appropriate keys for the given affect.
 
     Args:
-        affect: Name of the affect
+        affect: Name of the affect (e.g., "Freudigkeit", "Sehnsucht")
         preference: Index into key suggestions (0 = first choice)
 
     Returns:
-        Key as pitch class string (e.g., "D", "Eb")
+        Key as pitch class string (e.g., "G", "a" for minor)
+        Lowercase indicates minor mode.
     """
+    # Direct Mattheson mapping takes priority
+    if affect in AFFECT_TO_KEYS:
+        suggestions = AFFECT_TO_KEYS[affect]
+        if preference < len(suggestions):
+            return suggestions[preference]
+        return suggestions[0]
+
+    # Fall back to legacy mode+character mapping
     params = select_parameters(affect)
-    suggestions = params.key_suggestions
+    key_character = params.key_character
+    mode = params.mode
+    key_category = f"{key_character}_{mode}"
+    suggestions = KEY_SUGGESTIONS.get(key_category, ("C",))
 
     if preference < len(suggestions):
         return suggestions[preference]

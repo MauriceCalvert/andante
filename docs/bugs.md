@@ -176,3 +176,18 @@ Alternatively, use a modifier syntax: `{"degree": 7, "alter": -1}` for ♭7.
 - `shared/pitch.py` - chromatic offset handling
 
 **Source:** Gjerdingen, "Music in the Galant Style" — Quiescenza and other schemas require chromatic voice-leading.
+
+---
+
+### TODO-003: Renumber layers to match execution order
+
+**Status:** DONE (2025-01-22)
+
+**Fix applied:**
+- Swapped Layer 4 (Metric) and Layer 5 (Thematic) in architecture.md v1.4.0
+- Removed incoherent Layer 4.5; moved useful content to "Solver Configuration" appendix
+- Added phrase-level solving specification to Layer 5
+- Updated all code: `layer_4_metric()`, `layer_5_thematic()` in planner/
+- Updated all docs: ontology.md, walkthrough.md, run_pipeline.py, test files
+
+**Result:** Layers now execute in numerical order (1→2→3→4→5→6). Layer 4 (Metric) produces bar assignments and phrase-grouped anchors. Layer 5 (Thematic) uses those anchors to generate pitches via CP-SAT.

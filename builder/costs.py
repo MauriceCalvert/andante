@@ -15,6 +15,56 @@ SKIP_MAX: int = 4       # Up to major third
 LEAP_MAX: int = 7       # Up to perfect fifth
 # > 7 = large leap
 
+# =============================================================================
+# Corpus-Derived Melodic Cost Ratios
+# =============================================================================
+# Source: analyse_intervals.py run on 9 baroque pieces (source/andante/motifs/frequencies/)
+#   Brandenburg Concerto No.3, Pachelbel Canon, Dido's Lament, Hallelujah,
+#   La Folia, Little Fugue in G minor, Primavera, Tambourin, Toccata in D minor
+#
+# Method: Extract highest-pitch track (soprano/melody line) from each piece,
+#   compute successive melodic intervals, aggregate across corpus (n=7426).
+#
+# Frequency distribution:
+#   unison:     331 ( 4.5%)
+#   step:      3677 (49.5%)  -- semitones 1-2
+#   skip:      1547 (20.8%)  -- semitones 3-4
+#   leap:      1021 (13.7%)  -- semitones 5-7
+#   large_leap: 850 (11.4%)  -- semitones 8+
+#
+# Cost ratios derived as inverse frequency (rarer = higher cost):
+#   If step cost = 1.0, then:
+#     unison     = 3677 / 331  = 11.11x
+#     skip       = 3677 / 1547 =  2.38x
+#     leap       = 3677 / 1021 =  3.60x
+#     large_leap = 3677 / 850  =  4.33x
+#
+# Normalised to step=1.0 base cost:
+CORPUS_RATIO_UNISON: float = 11.1
+CORPUS_RATIO_STEP: float = 1.0
+CORPUS_RATIO_SKIP: float = 2.4
+CORPUS_RATIO_LEAP: float = 3.6
+CORPUS_RATIO_LARGE_LEAP: float = 4.3
+
+
+def default_motive_weights(base_cost: float = 100.0) -> dict[str, float]:
+    """
+    Return corpus-derived melodic motion weights.
+
+    Args:
+        base_cost: Cost for a step (default 100). Other costs scale from this.
+
+    Returns:
+        Dict with keys: "unison", "step", "skip", "leap", "large_leap"
+    """
+    return {
+        "unison": base_cost * CORPUS_RATIO_UNISON,
+        "step": base_cost * CORPUS_RATIO_STEP,
+        "skip": base_cost * CORPUS_RATIO_SKIP,
+        "leap": base_cost * CORPUS_RATIO_LEAP,
+        "large_leap": base_cost * CORPUS_RATIO_LARGE_LEAP,
+    }
+
 
 class VoiceMode(Enum):
     """Voice interaction mode affecting crossing costs."""
@@ -35,8 +85,10 @@ def melodic_motion_category(semitones: int) -> str:
         semitones: Absolute melodic interval
 
     Returns:
-        One of: "step", "skip", "leap", "large_leap"
+        One of: "unison", "step", "skip", "leap", "large_leap"
     """
+    if semitones == 0:
+        return "unison"
     if semitones <= STEP_MAX:
         return "step"
     if semitones <= SKIP_MAX:
@@ -112,32 +164,52 @@ def cost_leap_recovery(
 
 
 # =============================================================================
-# S06: Tessitura Deviation
+# S06: Tessitura Deviation (Two-Tier Model)
 # =============================================================================
+# Corpus analysis (analyse_intervals.py) shows:
+#   81% of baroque melody notes fall within 7 semitones of median
+#   Only 19% venture beyond, with gradual drop-off
+#
+# Two-tier model:
+#   Within span (<=7 from median): no penalty (no gravity well)
+#   Beyond span: 100 per semitone past boundary (soft fence)
+#
+# This allows natural melodic exploration within tessitura while
+# discouraging stepwise drift outside the intended range.
+
+TESSITURA_SPAN: int = 7  # Semitones from median (9th = 14 semitones total)
+TESSITURA_BEYOND_COST: float = 100.0  # Per semitone beyond span
 
 
 def cost_tessitura_deviation(
     slices: list[Slice],
     voice: int,
     median: int,
+    span: int = TESSITURA_SPAN,
 ) -> float:
     """
-    S06: Penalty for pitches far from tessitura median.
+    S06: Two-tier penalty for pitches outside tessitura span.
 
     Args:
         slices: All slices in phrase
         voice: Voice index
         median: MIDI pitch of tessitura centre
+        span: Semitones from median before penalty applies (default 7)
 
     Returns:
-        Sum of 0.1 * abs(pitch - median) for each pitch.
+        Sum of penalties for notes beyond span.
+        Within span: 0 cost (no gravity toward median).
+        Beyond span: 100 per semitone past boundary.
     """
     cost: float = 0.0
     for slice_ in slices:
         pitch = slice_.pitches[voice]
         if pitch is None:
             continue
-        cost += 0.1 * abs(pitch - median)
+        deviation: int = abs(pitch - median)
+        if deviation > span:
+            beyond: int = deviation - span
+            cost += beyond * TESSITURA_BEYOND_COST
     return cost
 
 
@@ -238,7 +310,65 @@ def cost_voice_crossing(
 
 
 # =============================================================================
-# S10: Bass Motion Cost (from test_cost.py)
+# S11: Directional Constraint (Escalating Penalty)
+# =============================================================================
+# Baroque melody changes direction frequently. After 4 consecutive steps
+# in the same direction, penalty escalates to encourage direction change.
+#
+# Consecutive steps same direction | Cost
+# --------------------------------|------
+# 1-4                              | 0
+# 5                                | 100
+# 6                                | 200
+# 7                                | 300
+# n (where n>4)                    | (n-4) * 100
+
+DIRECTION_THRESHOLD: int = 4  # Steps allowed before penalty starts
+DIRECTION_COST_PER_STEP: float = 100.0  # Escalation rate
+
+
+def cost_directional(
+    slices: list[Slice],
+    voice: int,
+) -> float:
+    """
+    S11: Escalating penalty for prolonged motion in same direction.
+
+    Args:
+        slices: All slices in phrase
+        voice: Voice index
+
+    Returns:
+        Sum of escalating penalties for consecutive steps in same direction.
+        First 4 consecutive steps: 0 cost.
+        5th consecutive step: 100.
+        6th: 200, 7th: 300, etc.
+    """
+    pitches: list[int] = [s.pitches[voice] for s in slices if s.pitches[voice] is not None]
+    if len(pitches) < 2:
+        return 0.0
+    cost: float = 0.0
+    consecutive: int = 1
+    prev_direction: int = 0  # -1 = down, 0 = none, +1 = up
+    for i in range(1, len(pitches)):
+        interval: int = pitches[i] - pitches[i - 1]
+        if interval == 0:
+            # Unison: doesn't count as continuing or breaking direction
+            continue
+        direction: int = 1 if interval > 0 else -1
+        if direction == prev_direction:
+            consecutive += 1
+            if consecutive > DIRECTION_THRESHOLD:
+                # Penalty escalates: 5th step = 100, 6th = 200, etc.
+                cost += (consecutive - DIRECTION_THRESHOLD) * DIRECTION_COST_PER_STEP
+        else:
+            consecutive = 1
+            prev_direction = direction
+    return cost
+
+
+# =============================================================================
+# S10: Bass Motion Cost
 # =============================================================================
 
 
@@ -307,13 +437,14 @@ def compute_total_cost(
     """
     cost: float = 0.0
 
-    # S01-S04, S05, S06: Per voice
+    # S01-S04, S05, S06, S11: Per voice
     for voice in range(voice_count):
         cost += cost_melodic_motion(slices, voice, motive_weights)
         cost += cost_leap_recovery(slices, voice)
         cost += cost_tessitura_deviation(
             slices, voice, tessitura_medians[voice]
         )
+        cost += cost_directional(slices, voice)
 
     # S07-S08, S09: Per voice pair
     for voice_a in range(voice_count):

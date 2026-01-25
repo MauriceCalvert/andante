@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 from planner.plannertypes import Frame, Motif
-from planner.schema_loader import get_schema, stretch_durations
+from planner.schema_loader import get_schema
 from planner.subject_validator import check_answerability, check_invertibility
 from shared.constants import VALID_DURATIONS
 

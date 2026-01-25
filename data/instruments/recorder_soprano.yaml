@@ -1,0 +1,12 @@
+# Soprano recorder (descant) playability constraints
+# See: docs/Tier2_Architecture/playability.md
+
+name: recorder_soprano
+
+actuators:
+  - name: breath
+    range: [72, 98]
+    max_simultaneous: 1
+    max_leap: 12
+    reach:
+      method: monophonic

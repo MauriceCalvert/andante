@@ -5,12 +5,15 @@ from the transition graph to land on cadence points, with texture and
 treatment assigned per genre conventions.
 """
 import random
+from fractions import Fraction
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from planner.plannertypes import CadencePoint, SchemaSlot
+from planner.genre_loader import load_genre_template
+from planner.plannertypes import CadencePoint, SchemaSlot, TonalSection
 from planner.schema_loader import (
     get_allowed_next,
     get_cadential_schemas,
@@ -20,118 +23,43 @@ from planner.schema_loader import (
     get_typical_position,
     schema_fits_bars,
 )
-from shared.constants import SCHEMA_TEXTURES, SCHEMA_TREATMENTS, VOICE_ENTRIES
+from shared.constants import DUX_VOICES, SCHEMA_TEXTURES, SCHEMA_TREATMENTS
 
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
 
-# Default schema preferences by genre (used when genre YAML lacks schema_preferences)
-DEFAULT_SCHEMA_PREFERENCES: dict[str, dict[str, list[str]]] = {
-    "invention": {
-        "opening": ["romanesca", "do_re_mi"],
-        "continuation": ["fonte", "monte", "fenaroli"],
-        "cadential": ["prinner", "sol_fa_mi"],
-    },
-    "minuet": {
-        "opening": ["do_re_mi", "romanesca"],
-        "continuation": ["fonte"],
-        "cadential": ["prinner"],
-    },
-    "gavotte": {
-        "opening": ["romanesca", "do_re_mi"],
-        "continuation": ["fonte", "monte"],
-        "cadential": ["prinner", "sol_fa_mi"],
-    },
-    "sarabande": {
-        "opening": ["romanesca"],
-        "continuation": ["fonte"],
-        "cadential": ["prinner"],
-    },
-    "bourree": {
-        "opening": ["do_re_mi", "romanesca"],
-        "continuation": ["fonte", "monte"],
-        "cadential": ["prinner"],
-    },
-    "fantasia": {
-        "opening": ["romanesca", "do_re_mi", "meyer"],
-        "continuation": ["fonte", "monte", "fenaroli"],
-        "cadential": ["prinner", "sol_fa_mi"],
-    },
-    "chorale": {
-        "opening": ["do_re_mi"],
-        "continuation": ["fenaroli"],
-        "cadential": ["prinner", "sol_fa_mi"],
-    },
-    "trio_sonata": {
-        "opening": ["romanesca", "do_re_mi"],
-        "continuation": ["fonte", "monte"],
-        "cadential": ["prinner", "sol_fa_mi"],
-    },
-}
 
-# Fallback preferences
-FALLBACK_PREFERENCES: dict[str, list[str]] = {
-    "opening": ["romanesca", "do_re_mi"],
-    "continuation": ["fonte", "monte"],
-    "cadential": ["prinner", "sol_fa_mi"],
-}
-
-# Default textures by genre
-DEFAULT_TEXTURES: dict[str, str] = {
-    "invention": "imitative",
-    "minuet": "melody_bass",
-    "gavotte": "melody_bass",
-    "sarabande": "melody_bass",
-    "bourree": "melody_bass",
-    "fantasia": "imitative",
-    "chorale": "free",
-    "trio_sonata": "imitative",
-}
-
-
-def _load_genre_yaml(genre: str) -> dict[str, Any]:
-    """Load genre YAML file if it exists."""
-    path = DATA_DIR / "genres" / f"{genre}.yaml"
-    if not path.exists():
-        return {}
+@lru_cache(maxsize=1)
+def _load_schema_transitions() -> dict[str, Any]:
+    """Load schema transitions YAML (cached)."""
+    path = DATA_DIR / "schema_transitions.yaml"
+    assert path.exists(), f"Schema transitions file not found: {path}"
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+        return yaml.safe_load(f)
 
 
 def get_schema_preferences(genre: str) -> dict[str, list[str]]:
     """Get schema preferences for a genre.
 
-    Priority:
-    1. schema_preferences field in genre YAML (if present)
-    2. DEFAULT_SCHEMA_PREFERENCES lookup
-    3. FALLBACK_PREFERENCES
+    Uses load_genre_template which merges genre-specific over _default.yaml.
 
     Returns:
-        Dict with keys: opening, continuation, cadential
+        Dict with keys: opening, riposte, continuation, pre_cadential, cadential
     """
-    genre_data = _load_genre_yaml(genre)
-
-    if "schema_preferences" in genre_data:
-        return genre_data["schema_preferences"]
-
-    if genre in DEFAULT_SCHEMA_PREFERENCES:
-        return DEFAULT_SCHEMA_PREFERENCES[genre]
-
-    return FALLBACK_PREFERENCES
+    genre_data = load_genre_template(genre)
+    return genre_data["schema_preferences"]
 
 
 def get_genre_texture(genre: str) -> str:
     """Get default texture for a genre.
 
+    Uses load_genre_template which merges genre-specific over _default.yaml.
+
     Returns:
         Texture string: imitative, melody_bass, or free
     """
-    genre_data = _load_genre_yaml(genre)
-
-    if "texture" in genre_data:
-        return genre_data["texture"]
-
-    return DEFAULT_TEXTURES.get(genre, "imitative")
+    genre_data = load_genre_template(genre)
+    return genre_data["texture"]
 
 
 def select_schema_for_position(
@@ -194,23 +122,16 @@ def select_schema_for_position(
     # Select randomly from candidates
     schema_name = rng.choice(candidates)
 
-    # Determine bar count: prefer 2 bars, but can use 1 or match available
+    # Determine bar count within schema's range, constrained by available
     schema = get_schema(schema_name)
-    base_bars = schema.bars
+    min_bars = schema.min_bars
+    max_bars = min(schema.max_bars, available_bars)
 
-    # Try 2 bars first (common case), then 1, then available
-    possible_bars = []
-    for mult in [2, 1, 4]:
-        target = base_bars * mult
-        if target <= available_bars:
-            possible_bars.append(target)
-
-    # Default to base_bars if nothing works
-    if not possible_bars:
-        possible_bars = [base_bars]
-
-    # Prefer larger bar counts for smoother flow
-    bars = max(possible_bars)
+    # Prefer 2 bars if in range, else max available within range
+    if min_bars <= 2 <= max_bars:
+        bars = 2
+    else:
+        bars = max_bars
 
     return schema_name, bars
 
@@ -250,9 +171,9 @@ def assign_treatment(
     if position_in_section == 1 and texture == "imitative":
         return "imitation"
 
-    # Sequential schemas: sequence treatment
+    # Sequential schemas: transposition treatment
     if is_sequential:
-        return "sequence"
+        return "transposition"
 
     # Later positions in imitative: consider inversion/stretto
     if texture == "imitative":
@@ -267,12 +188,12 @@ def assign_treatment(
     return "statement"
 
 
-def assign_voice_entry(
+def assign_dux_voice(
     position_in_section: int,
     texture: str,
-    prev_voice_entry: str | None,
+    prev_dux_voice: str | None,
 ) -> str:
-    """Determine which voice carries the subject.
+    """Determine which voice presents the subject first (dux voice).
 
     Rules:
     - First entry: soprano (conventional)
@@ -281,39 +202,100 @@ def assign_voice_entry(
     Args:
         position_in_section: 0-indexed position
         texture: Texture type
-        prev_voice_entry: Previous voice entry (for alternation)
+        prev_dux_voice: Previous dux voice (for alternation)
 
     Returns:
-        Voice entry: 'soprano' or 'bass'
+        Dux voice: 'soprano' or 'bass'
     """
     if position_in_section == 0:
         return "soprano"
 
-    if texture == "imitative" and prev_voice_entry:
+    if texture == "imitative" and prev_dux_voice:
         # Alternate voices
-        return "bass" if prev_voice_entry == "soprano" else "soprano"
+        return "bass" if prev_dux_voice == "soprano" else "soprano"
 
     # Default: soprano
     return "soprano"
 
 
+def _compute_stretto_overlap(
+    treatment: str,
+    bar_duration: Fraction,
+    rng: random.Random,
+) -> Fraction | None:
+    """Compute stretto overlap amount for stretto treatment.
+
+    Args:
+        treatment: Treatment type
+        bar_duration: Duration of one bar in whole notes
+        rng: Random number generator
+
+    Returns:
+        Overlap in whole notes, or None if not stretto treatment
+    """
+    if treatment != "stretto":
+        return None
+
+    # Overlap is typically 1-2 beats in 4/4
+    # For other metres, scale proportionally
+    min_overlap = Fraction(1, 4)  # 1 beat minimum
+    max_overlap = bar_duration / 2  # Half bar maximum
+
+    # Choose randomly within range
+    options = [Fraction(1, 4), Fraction(1, 2), Fraction(3, 4)]
+    valid_options = [o for o in options if min_overlap <= o <= max_overlap]
+
+    if not valid_options:
+        return min_overlap
+
+    return rng.choice(valid_options)
+
+
+def _compute_sequence_reps(
+    treatment: str,
+    slot_bars: int,
+    schema_bars: int,
+    rng: random.Random,
+) -> int | None:
+    """Compute number of sequence repetitions.
+
+    Args:
+        treatment: Treatment type
+        slot_bars: Total bars in slot
+        schema_bars: Base bars of schema
+        rng: Random number generator
+
+    Returns:
+        Number of repetitions, or None if not sequence treatment
+    """
+    if treatment != "transposition":
+        return None
+
+    # Number of times the head repeats
+    # Head is ~1 bar, so repetitions = slot_bars approximately
+    return max(2, slot_bars)  # At least 2 repetitions for audible sequence
+
+
 def generate_schema_chain(
+    tonal_sections: tuple[TonalSection, ...],
     cadence_plan: tuple[CadencePoint, ...],
     genre: str,
     mode: str,
     total_bars: int,
     seed: int | None = None,
 ) -> tuple[SchemaSlot, ...]:
-    """Generate complete schema chain for piece.
+    """Generate complete schema chain for piece with key area propagation.
 
     Algorithm:
     1. Start with opening schema
-    2. Fill space between cadences using allowed_next transitions
+    2. Fill each tonal section with schemas using allowed_next transitions
     3. Approach each cadence with pre-cadential schema
     4. Assign texture per genre
     5. Assign treatment per position in section
+    6. Propagate key_area from TonalSection to each SchemaSlot
 
     Args:
+        tonal_sections: Tuple of TonalSection from tonal_planner
         cadence_plan: Tuple of CadencePoint from cadence_planner
         genre: Genre name for preferences
         mode: 'major' or 'minor'
@@ -321,8 +303,9 @@ def generate_schema_chain(
         seed: Random seed for reproducibility
 
     Returns:
-        Tuple of SchemaSlot covering all bars
+        Tuple of SchemaSlot covering all bars with key_area set
     """
+    assert tonal_sections, "tonal_sections cannot be empty"
     assert cadence_plan, "cadence_plan cannot be empty"
     assert total_bars > 0, f"total_bars must be positive, got {total_bars}"
 
@@ -334,19 +317,22 @@ def generate_schema_chain(
     history: list[str] = []
     current_bar = 1
     prev_schema: str | None = None
-    prev_voice_entry: str | None = None
+    prev_dux_voice: str | None = None
 
-    # Process each section (delimited by cadences)
-    cadence_bars = [cp.bar for cp in cadence_plan]
-    section_start = 1
-    section_idx = 0
+    # Build cadence lookup by bar
+    cadence_by_bar: dict[int, CadencePoint] = {cp.bar: cp for cp in cadence_plan}
 
-    for cadence_idx, cadence in enumerate(cadence_plan):
-        section_end = cadence.bar
+    # Process each tonal section
+    for section_idx, tonal_section in enumerate(tonal_sections):
+        section_start = tonal_section.start_bar
+        section_end = tonal_section.end_bar
         section_bars = section_end - section_start + 1
+        key_area = tonal_section.key_area
+
+        # Find cadence for this section (at section end)
+        cadence = cadence_by_bar.get(section_end)
 
         # Estimate schemas needed for this section
-        # Rough estimate: 2 bars per schema
         estimated_schemas = max(1, section_bars // 2)
 
         # Generate schemas for this section
@@ -376,9 +362,9 @@ def generate_schema_chain(
             )
 
             # Determine if this schema lands on the cadence
-            lands_on_cadence = (current_bar + bars - 1) == section_end
+            lands_on_cadence = cadence is not None and (current_bar + bars - 1) == section_end
 
-            # Assign treatment and voice entry
+            # Assign treatment
             treatment = assign_treatment(
                 schema_type=schema_name,
                 position_in_section=len(section_slots),
@@ -386,32 +372,44 @@ def generate_schema_chain(
                 texture=texture,
             )
 
-            voice_entry = assign_voice_entry(
+            # Assign dux voice
+            dux_voice = assign_dux_voice(
                 position_in_section=len(section_slots),
                 texture=texture,
-                prev_voice_entry=prev_voice_entry,
+                prev_dux_voice=prev_dux_voice,
             )
 
-            # Create slot
+            # Get schema base bars for sequence calculation
+            schema = get_schema(schema_name)
+            schema_bars = schema.min_bars
+
+            # Compute stretto overlap and sequence repetitions
+            # Use Fraction(1, 1) as default bar_duration (4/4 time)
+            bar_duration = Fraction(1, 1)
+            stretto_overlap = _compute_stretto_overlap(treatment, bar_duration, rng)
+            sequence_reps = _compute_sequence_reps(treatment, bars, schema_bars, rng)
+
+            # Create slot with key_area from tonal section
             slot = SchemaSlot(
                 type=schema_name,
                 bars=bars,
                 texture=texture,
                 treatment=treatment,
-                voice_entry=voice_entry,
+                dux_voice=dux_voice,
                 cadence=cadence.type if lands_on_cadence else None,
+                key_area=key_area,
+                stretto_overlap_beats=stretto_overlap,
+                sequence_repetitions=sequence_reps,
             )
 
             section_slots.append(slot)
             history.append(schema_name)
             prev_schema = schema_name
-            prev_voice_entry = voice_entry
+            prev_dux_voice = dux_voice
             current_bar += bars
             remaining_bars -= bars
 
         slots.extend(section_slots)
-        section_start = section_end + 1
-        section_idx += 1
 
     return tuple(slots)
 

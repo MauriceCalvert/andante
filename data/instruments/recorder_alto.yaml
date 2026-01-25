@@ -1,0 +1,12 @@
+# Alto recorder (treble) playability constraints
+# See: docs/Tier2_Architecture/playability.md
+
+name: recorder_alto
+
+actuators:
+  - name: breath
+    range: [65, 91]
+    max_simultaneous: 1
+    max_leap: 12
+    reach:
+      method: monophonic

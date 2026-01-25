@@ -1,15 +1,14 @@
 """Plan serializer: Plan -> YAML.
 
-Two serializers:
-- serialize_plan(): For legacy Plan with Episode/Phrase hierarchy
-- serialize_schema_plan(): For SchemaPlan with schema-based structure
+Uses dataclasses.asdict for elegant serialization with custom converters.
 """
+from dataclasses import asdict, fields, is_dataclass
 from fractions import Fraction
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from planner.plannertypes import DerivedMotif, Material, Motif, Plan
+from planner.plannertypes import Material, Motif, Plan
 
 if TYPE_CHECKING:
     from planner.planner import SchemaPlan
@@ -36,11 +35,33 @@ yaml.add_representer(Fraction, fraction_representer)
 yaml.add_representer(InlineList, inline_list_representer)
 
 
-def _serialize_motif(motif: Motif) -> dict:
-    """Serialize a Motif to dictionary.
+def _convert_value(value: Any) -> Any:
+    """Convert a value for YAML serialization."""
+    if value is None:
+        return None
+    if isinstance(value, Fraction):
+        return str(value) if value != 0 else 0
+    if isinstance(value, tuple):
+        # Convert tuples to InlineList for compact display
+        return InlineList(_convert_value(v) for v in value)
+    if isinstance(value, list):
+        return [_convert_value(v) for v in value]
+    if is_dataclass(value) and not isinstance(value, type):
+        return _dataclass_to_dict(value)
+    return value
 
-    Outputs pitches (MIDI) if available, otherwise degrees.
-    """
+
+def _dataclass_to_dict(obj: Any) -> dict[str, Any]:
+    """Convert a dataclass to dict with proper value conversion."""
+    result: dict[str, Any] = {}
+    for field in fields(obj):
+        value = getattr(obj, field.name)
+        result[field.name] = _convert_value(value)
+    return result
+
+
+def _serialize_motif(motif: Motif) -> dict:
+    """Serialize a Motif to dictionary."""
     result: dict = {
         "durations": InlineList(str(d) for d in motif.durations),
         "bars": motif.bars,
@@ -65,45 +86,21 @@ def _serialize_material(material: Material) -> dict:
 def plan_to_dict(plan: Plan) -> dict:
     """Convert Plan to dictionary for YAML serialization."""
     return {
-        "brief": {
-            "affect": plan.brief.affect,
-            "genre": plan.brief.genre,
-            "forces": plan.brief.forces,
-            "bars": plan.brief.bars,
-        },
-        "frame": {
-            "key": plan.frame.key,
-            "mode": plan.frame.mode,
-            "metre": plan.frame.metre,
-            "tempo": plan.frame.tempo,
-            "voices": plan.frame.voices,
-            "upbeat": plan.frame.upbeat,
-            "form": plan.frame.form,
-        },
+        "brief": _dataclass_to_dict(plan.brief),
+        "frame": _dataclass_to_dict(plan.frame),
         "material": _serialize_material(plan.material),
         "structure": {
             "arc": plan.structure.arc,
             "sections": [
                 {
-                    "label": section.label,
+                    **_dataclass_to_dict(section),
                     "tonal_path": InlineList(section.tonal_path),
-                    "final_cadence": section.final_cadence,
                     "episodes": [
                         {
-                            "type": episode.type,
-                            "bars": episode.bars,
-                            "texture": episode.texture,
-                            "is_transition": episode.is_transition,
+                            **_dataclass_to_dict(episode),
                             "phrases": [
                                 {
-                                    "index": phrase.index,
-                                    "bars": phrase.bars,
-                                    "tonal_target": phrase.tonal_target,
-                                    "cadence": phrase.cadence,
-                                    "treatment": phrase.treatment,
-                                    "surprise": phrase.surprise,
-                                    "is_climax": phrase.is_climax,
-                                    "energy": phrase.energy,
+                                    **_dataclass_to_dict(phrase),
                                     "harmony": InlineList(phrase.harmony) if phrase.harmony else None,
                                 }
                                 for phrase in episode.phrases
@@ -121,100 +118,37 @@ def plan_to_dict(plan: Plan) -> dict:
 
 def serialize_plan(plan: Plan) -> str:
     """Serialize Plan to YAML string."""
-    data: dict = plan_to_dict(plan)
-    return yaml.dump(data, default_flow_style=False, sort_keys=False)
+    return yaml.dump(plan_to_dict(plan), default_flow_style=False, sort_keys=False)
 
 
 # =============================================================================
-# Schema-First Plan Serialization (planner_design.md)
+# Schema-First Plan Serialization
 # =============================================================================
 
 
 def schema_plan_to_dict(plan: "SchemaPlan") -> dict:
-    """Convert SchemaPlan to dictionary for YAML serialization.
-
-    Output format:
-    ```yaml
-    brief: {...}
-    frame: {...}
-    material: {...}
-    cadence_plan:
-      - bar: 4
-        type: half
-        target: V
-    structure:
-      sections:
-        - label: A
-          key_area: I
-          cadence_plan: [...]
-          schemas:
-            - type: romanesca
-              bars: 2
-              texture: imitative
-              treatment: statement
-              voice_entry: soprano
-              cadence: null
-    actual_bars: 16
-    ```
-    """
+    """Convert SchemaPlan to dictionary for YAML serialization."""
     return {
-        "brief": {
-            "affect": plan.brief.affect,
-            "genre": plan.brief.genre,
-            "forces": plan.brief.forces,
-            "bars": plan.brief.bars,
-        },
-        "frame": {
-            "key": plan.frame.key,
-            "mode": plan.frame.mode,
-            "metre": plan.frame.metre,
-            "tempo": plan.frame.tempo,
-            "voices": plan.frame.voices,
-            "upbeat": plan.frame.upbeat,
-            "form": plan.frame.form,
-        },
+        "brief": _dataclass_to_dict(plan.brief),
+        "frame": _dataclass_to_dict(plan.frame),
         "material": _serialize_material(plan.material),
-        "cadence_plan": [
-            {
-                "bar": cp.bar,
-                "type": cp.type,
-                "target": cp.target,
-            }
-            for cp in plan.cadence_plan
-        ],
+        "tonal_sections": [_dataclass_to_dict(ts) for ts in plan.tonal_sections],
+        "cadence_plan": [_dataclass_to_dict(cp) for cp in plan.cadence_plan],
         "structure": {
             "sections": [
                 {
-                    "label": section.label,
-                    "key_area": section.key_area,
-                    "cadence_plan": [
-                        {
-                            "bar": cp.bar,
-                            "type": cp.type,
-                            "target": cp.target,
-                        }
-                        for cp in section.cadence_plan
-                    ],
-                    "schemas": [
-                        {
-                            "type": slot.type,
-                            "bars": slot.bars,
-                            "texture": slot.texture,
-                            "treatment": slot.treatment,
-                            "voice_entry": slot.voice_entry,
-                            "cadence": slot.cadence,
-                        }
-                        for slot in section.schemas
-                    ],
+                    **_dataclass_to_dict(section),
+                    "cadence_plan": [_dataclass_to_dict(cp) for cp in section.cadence_plan],
+                    "schemas": [_dataclass_to_dict(slot) for slot in section.schemas],
                 }
                 for section in plan.structure.sections
             ],
         },
+        "schema_chain": [_dataclass_to_dict(slot) for slot in plan.schema_chain],
         "actual_bars": plan.actual_bars,
     }
 
 
 def serialize_schema_plan(plan: "SchemaPlan") -> str:
     """Serialize SchemaPlan to YAML string."""
-    data: dict = schema_plan_to_dict(plan)
-    return yaml.dump(data, default_flow_style=False, sort_keys=False)
+    return yaml.dump(schema_plan_to_dict(plan), default_flow_style=False, sort_keys=False)

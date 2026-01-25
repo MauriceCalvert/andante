@@ -21,7 +21,7 @@ def quantize_duration(duration: Fraction) -> Fraction:
 
 def convert_note_to_subject(
     note_path: Path,
-    key: str = "C",
+    tonic: str = "C",
     mode: str = "major",
     track: int | None = None,
 ) -> None:
@@ -29,7 +29,7 @@ def convert_note_to_subject(
 
     Args:
         note_path: Path to input .note file
-        key: Key signature (default C)
+        tonic: Tonic pitch (default C)
         mode: Mode (major/minor, default major)
         track: Track number to extract (default: lowest track number)
     """
@@ -83,7 +83,7 @@ def convert_note_to_subject(
     assert notes, f"No notes found for track {track}"
 
     # Convert MIDI to degrees
-    key_obj = Key(key, mode)
+    key_obj = Key(tonic, mode)
     base_midi = notes[0]["midi"]
     base_octave = base_midi // 12
 
@@ -104,7 +104,7 @@ def convert_note_to_subject(
     output_path = note_path.with_suffix(".subject")
     lines = [
         f"# Subject extracted from {note_path.name}",
-        f"source_key: {key}",
+        f"source_tonic: {tonic}",
         f"mode: {mode}",
         f"degrees: {degrees}",
         f"durations: [{', '.join(durations)}]",
@@ -116,8 +116,8 @@ def convert_note_to_subject(
 def main() -> None:
     """Convert .note to .subject format."""
     if len(sys.argv) < 2:
-        print("Usage: python note_to_subject.py <note_file> [key] [mode] [track]")
-        print("  key: C, D, E, F, G, A, B (default: C)")
+        print("Usage: python note_to_subject.py <note_file> [tonic] [mode] [track]")
+        print("  tonic: C, D, E, F, G, A, B (default: C)")
         print("  mode: major, minor (default: major)")
         print("  track: track number to extract (default: first track)")
         sys.exit(1)
@@ -125,11 +125,11 @@ def main() -> None:
     note_path = Path(sys.argv[1])
     assert note_path.exists(), f"File not found: {note_path}"
 
-    key = sys.argv[2] if len(sys.argv) > 2 else "C"
+    tonic = sys.argv[2] if len(sys.argv) > 2 else "C"
     mode = sys.argv[3] if len(sys.argv) > 3 else "major"
     track = int(sys.argv[4]) if len(sys.argv) > 4 else None
 
-    convert_note_to_subject(note_path, key, mode, track)
+    convert_note_to_subject(note_path, tonic, mode, track)
 
 
 if __name__ == "__main__":

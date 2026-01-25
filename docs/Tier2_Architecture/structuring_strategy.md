@@ -152,23 +152,27 @@ SIZE: 105 lines — justification if over limit.
 from fractions import Fraction
 from typing import Any
 
-from shared.types import Key, Note
+from shared.typedefs import Key, Note
 from shared.constants import VALID_DURATIONS
 
 # === Constants ===
 DEFAULT_STYLE: str = "uniform"
 MAX_ITERATIONS: int = 100
 
+
 # === Public Functions (alphabetical) ===
 def build_offsets(...) -> ...:
     ...
 
+
 def fill_slot(...) -> ...:
     ...
+
 
 # === Private Functions (alphabetical) ===
 def _fill_uniform(...) -> ...:
     ...
+
 
 def _fill_varied(...) -> ...:
     ...

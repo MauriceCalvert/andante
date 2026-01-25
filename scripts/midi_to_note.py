@@ -5,10 +5,7 @@ from pathlib import Path
 
 from mido import MidiFile
 
-from shared.constants import VALID_DURATIONS_SORTED
-
-
-NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+from shared.constants import NOTE_NAMES, VALID_DURATIONS_SORTED
 
 
 def quantize_duration(duration: float) -> Fraction:
@@ -63,7 +60,7 @@ def convert_midi_to_note(midi_path: Path) -> None:
 
     # Convert ticks to bars (assuming 4/4 time: 4 beats per bar)
     beats_per_bar = 4
-    output_lines = ["Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric"]
+    output_lines = ["offset,midinote,duration,track,length,bar,beat,notename,lyric"]
 
     for n in notes:
         offset_beats = n["start_tick"] / ticks_per_beat
@@ -92,15 +89,23 @@ def convert_midi_to_note(midi_path: Path) -> None:
 def main() -> None:
     """Convert MIDI to .note format."""
     if len(sys.argv) < 2:
-        print("Usage: python midi_to_note.py <midi_file>")
+        print("Usage: python midi_to_note.py <midi_file_or_directory>")
         sys.exit(1)
 
-    midi_path = Path(sys.argv[1])
-    if not midi_path.exists():
-        print(f"File not found: {midi_path}")
+    path = Path(sys.argv[1])
+    if not path.exists():
+        print(f"Path not found: {path}")
         sys.exit(1)
 
-    convert_midi_to_note(midi_path)
+    if path.is_dir():
+        midi_files = list(path.glob("*.mid")) + list(path.glob("*.midi"))
+        if not midi_files:
+            print(f"No MIDI files found in {path}")
+            sys.exit(1)
+        for midi_path in sorted(midi_files):
+            convert_midi_to_note(midi_path)
+    else:
+        convert_midi_to_note(path)
 
 
 if __name__ == "__main__":

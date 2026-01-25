@@ -119,3 +119,55 @@ Dolore:
   contour: descending          # Sinking, despairing
   rhythm_density: sparse       # Weighted with grief
   chromaticism: heavy          # Chromatic pain
+
+# =============================================================================
+# English affect names with runtime parameters
+# These merge theoretical Affektenlehre with builder runtime config
+# =============================================================================
+
+default:
+  # Default affect with complete runtime parameters
+  description: "Resolution, determination, firm decisiveness"
+  mode: major
+  tempo: allegro
+  key_character: bright
+  archetype: assertion_confirmation
+  interval_profile: mixed
+  contour: ascending
+  rhythm_density: moderate
+  chromaticism: none
+  # Runtime parameters for builder
+  density: high
+  articulation: detached
+  tempo_modifier: 5
+  tonal_path:
+    exordium: [I, V]           # Subject in tonic, Answer in dominant
+    narratio: [V, vi, IV]      # Modulating development
+    confirmatio: [IV, V, I]    # Return to tonic
+    peroratio: [I]             # Final cadence
+  answer_interval: 7           # Perfect 5th (7 semitones)
+  anacrusis: false
+  motive_weights:
+    step: 0.2
+    skip: 0.4
+    leap: 0.8
+    large_leap: 1.5
+  direction_limit: 4
+  rhythmic_profile:
+    pattern: ["1/16", "1/16", "1/16", "1/16", "1/8", "1/8"]
+    arrival_duration: ["1/8", "1/4"]
+    decoration: [semiquaver_runs, neighbour_tones]
+  density_minimum: 0.75
+  rhythm_states:
+    RUN:
+      density: 0.75
+      values: ["1/16"]
+    HOLD:
+      density: 0.5
+      values: ["1/8", "1/4"]
+    CADENCE:
+      density: 0.25
+      values: ["1/4", "1/2"]
+    TRANSITION:
+      density: 0.5
+      values: ["1/8", "1/16"]

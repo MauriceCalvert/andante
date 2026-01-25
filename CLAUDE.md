@@ -65,6 +65,7 @@ manifest constants must be in shared\constants.py
 
 Do not run the full test suite yourself.
 When i ask you to run it, update overage.md and show the final %.
+When implementing a phased plan, don't test after every change, test only at the end.
 
 ---
 
@@ -92,5 +93,22 @@ Only then propose a change - and get approval before implementing.
 
 ## Git Workflow
 
-Auto-commit after each bug fix that passes tests. No prompt needed.
+Auto-commit after each bug fix that passes tests or after adding functionality. No prompt needed.
 Commit message format: `Fix: [brief description]`
+
+---
+
+## PowerShell Execution (Windows MCP)
+
+Direct calls to external processes (python.exe, pytest.exe) hang indefinitely.
+Use cmd.exe with file redirection, then read the output file:
+
+```powershell
+# Step 1: Run command via cmd.exe, redirect to file
+C:\WINDOWS\system32\cmd.exe /c "cd /d D:\projects\Barok\barok\source\andante && D:\projects\Barok\barok\.venv\Scripts\python.exe -m pytest tests/builder/test_cost.py -v > D:\temp_pytest.txt 2>&1"
+
+# Step 2: Read the output
+Get-Content D:\temp_pytest.txt
+```
+
+Simple PowerShell commands (Get-Content, Test-Path, Write-Output) work directly.

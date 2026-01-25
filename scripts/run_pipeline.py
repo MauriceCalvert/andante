@@ -1,13 +1,16 @@
-"""Full pipeline: Generate music from genre/key/affect or brief files.
+"""Full pipeline: Generate music from genre/affect or brief files.
+
+When key is omitted, derives appropriate key from affect using Mattheson's
+Affektenlehre (baroque_theory.md section 8.1).
 
 Usage:
-    python -m scripts.run_pipeline <genre> <key> <affect> [output_name]
+    python -m scripts.run_pipeline <genre> <affect> [key] [output_name]
     python -m scripts.run_pipeline <brief_file>
     python -m scripts.run_pipeline <brief_directory>
 
 Examples:
-    python -m scripts.run_pipeline invention c_major confident
-    python -m scripts.run_pipeline invention c_major confident my_piece
+    python -m scripts.run_pipeline invention default
+    python -m scripts.run_pipeline invention default c_major
     python -m scripts.run_pipeline briefs/builder/freude_invention.brief
     python -m scripts.run_pipeline briefs/tests/
 
@@ -19,8 +22,8 @@ This uses the 6-layer architecture:
     Layer 1: Rhetorical - Genre -> Trajectory + rhythm + tempo
     Layer 2: Tonal - Affect -> Tonal plan + density + modality
     Layer 3: Schematic - Tonal plan -> Schema chain
-    Layer 4: Thematic - Schema + rhythm -> Subject
-    Layer 5: Metric - Schema chain -> Bar assignments + arrivals
+    Layer 4: Metric - Schema chain -> Bar assignments + phrase anchors
+    Layer 5: Thematic - Phrase anchors -> Pitches per phrase
     Layer 6: Textural - Genre + chain + subject -> Treatment sequence
 """
 import argparse
@@ -38,15 +41,15 @@ DEFAULT_OUTPUT_DIR: Path = PROJECT_DIR / "output"
 
 # Normalize affect names to config file names
 AFFECT_ALIASES: dict[str, str] = {
-    "freudigkeit": "confident",
-    "joy": "confident",
-    "bright": "confident",
+    "joy": "Freudigkeit",
+    "bright": "Freudigkeit",
+    "confident": "Entschlossenheit",
 }
 
 # Normalize key names to config file names
 KEY_ALIASES: dict[str, str] = {
     "c": "c_major",
-    "c_major": "c_major",
+    "yes. then justidfc_major": "c_major",
     "cmajor": "c_major",
 }
 
@@ -65,25 +68,31 @@ def normalize_affect(affect: str) -> str:
 
 def run_from_args(
     genre: str,
-    key: str,
     affect: str,
     output_dir: Path,
+    key: str | None = None,
     output_name: str | None = None,
     verbose: bool = False,
 ) -> NoteFile:
-    """Generate from explicit genre/key/affect arguments."""
+    """Generate from explicit genre/affect arguments.
+
+    When key is None, derives appropriate key from affect using
+    Mattheson's Affektenlehre.
+    """
     # Normalize inputs
-    key = normalize_key(key)
     affect = normalize_affect(affect)
-    name: str = output_name or f"{genre}_{key}_{affect}"
+    if key is not None:
+        key = normalize_key(key)
+    name: str = output_name or f"{genre}_{affect}"
 
     if verbose:
         print(f"  Genre: {genre}")
-        print(f"  Key: {key}")
+        print(f"  Key: {key if key else '(from affect)'}")
         print(f"  Affect: {affect}")
 
-    print(f"Generating {genre} in {key} with {affect} affect...")
-    result = generate_to_files(genre, key, affect, output_dir, name)
+    key_display: str = key if key else "(derived from affect)"
+    print(f"Generating {genre} with {affect} affect in {key_display}...")
+    result = generate_to_files(genre, affect, output_dir, name, key)
 
     print(f"  Soprano: {len(result.soprano)} notes")
     print(f"  Bass: {len(result.bass)} notes")
@@ -98,20 +107,29 @@ def run_from_brief(
     output_dir: Path,
     verbose: bool = False,
 ) -> NoteFile:
-    """Generate from a .brief file."""
+    """Generate from a .brief file.
+
+    If key is not specified in the brief, derives from affect per Mattheson.
+    """
     print(f"Loading {brief_path.name}...")
 
     with open(brief_path, encoding="utf-8") as f:
         data: dict = yaml.safe_load(f)
 
     brief_data: dict = data.get("brief", data)
+    frame_data: dict = data.get("frame", {})
     genre: str = brief_data.get("genre", "invention")
-    key: str = brief_data.get("key", "c_major")
-    affect: str = brief_data.get("affect", "confident")
+    # Key can be in brief.key or frame.key+frame.mode
+    key: str | None = brief_data.get("key")
+    if key is None and "key" in frame_data:
+        tonic: str = frame_data["key"].lower()
+        mode: str = frame_data.get("mode", "major").lower()
+        key = f"{tonic}_{mode}"
+    affect: str = brief_data.get("affect", "default")
 
     output_name: str = brief_path.stem
 
-    return run_from_args(genre, key, affect, output_dir, output_name, verbose)
+    return run_from_args(genre, affect, output_dir, key, output_name, verbose)
 
 
 def run_from_directory(
@@ -141,19 +159,22 @@ def run_from_directory(
 def main() -> None:
     """Run the pipeline."""
     parser = argparse.ArgumentParser(
-        description="Generate music from genre/key/affect or brief files",
+        description="Generate music from genre/affect or brief files",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m scripts.run_pipeline invention c_major confident
+  python -m scripts.run_pipeline invention default
+  python -m scripts.run_pipeline invention default c_major
   python -m scripts.run_pipeline briefs/builder/freude_invention.brief
   python -m scripts.run_pipeline briefs/tests/ -o output/tests
+
+When key is omitted, derives from affect per Mattheson's Affektenlehre.
         """,
     )
     parser.add_argument(
         "args",
         nargs="+",
-        help="genre key affect [name], or path to .brief file, or directory",
+        help="genre affect [key] [name], or path to .brief file, or directory",
     )
     parser.add_argument(
         "-o", "--output-dir",
@@ -194,18 +215,28 @@ Examples:
         print("\nDone!")
         return
 
-    # Case 3: Direct genre/key/affect arguments
-    if len(args.args) < 3:
+    # Case 3: Direct genre/affect [key] arguments
+    if len(args.args) < 2:
         parser.print_help()
-        print("\nError: Need genre, key, and affect arguments")
+        print("\nError: Need at least genre and affect arguments")
         return
 
     genre: str = args.args[0]
-    key: str = args.args[1]
-    affect: str = args.args[2]
-    output_name: str | None = args.args[3] if len(args.args) > 3 else None
+    affect: str = args.args[1]
+    # Key is optional - if present, contains '_' (e.g., "c_major")
+    key: str | None = None
+    output_name: str | None = None
 
-    run_from_args(genre, key, affect, args.output_dir, output_name, args.verbose)
+    if len(args.args) >= 3:
+        # Check if third arg looks like a key (contains '_')
+        if "_" in args.args[2]:
+            key = args.args[2]
+            output_name = args.args[3] if len(args.args) > 3 else None
+        else:
+            # Third arg is output name, no key specified
+            output_name = args.args[2]
+
+    run_from_args(genre, affect, args.output_dir, key, output_name, args.verbose)
     print("\nDone!")
 
 

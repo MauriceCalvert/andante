@@ -5,7 +5,7 @@ The new 6-layer architecture uses pre-defined arrivals from YAML config
 rather than generated motifs.
 
 To generate music, use:
-    python -m scripts.run_pipeline invention c_major confident
+    python -m scripts.run_pipeline invention c_major default
 """
 import sys
 
@@ -17,7 +17,7 @@ def main() -> int:
     print("rather than generated motifs.")
     print("")
     print("To generate music, use:")
-    print("    python -m scripts.run_pipeline invention c_major confident")
+    print("    python -m scripts.run_pipeline invention c_major default")
     return 1
 
 

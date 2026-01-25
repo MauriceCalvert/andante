@@ -1,9 +1,16 @@
-"""Load genre templates from YAML.
+"""Load genre templates from YAML with fallback merge logic.
 
-Parses data/genres/*.yaml into GenreTemplate objects. Uses defensive parsing
-with clear error messages for missing or invalid fields.
+Provides centralised genre template loading that deep-merges genre-specific
+YAML over _default.yaml to ensure all fields are always present.
+
+Two APIs:
+- load_genre_template(genre) -> dict: Raw merged dict for simple field access
+- load_genre(genre) -> GenreTemplate: Typed dataclass for structured access
 """
+import logging
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -15,12 +22,125 @@ from planner.plannertypes import (
     TreatmentSpec,
 )
 
+
+logger = logging.getLogger(__name__)
+
 DATA_DIR = Path(__file__).parent.parent / "data" / "genres"
+DEFAULT_FILE = DATA_DIR / "_default.yaml"
 _CACHE: dict[str, GenreTemplate] = {}
 
 
+# =============================================================================
+# Deep Merge Utilities
+# =============================================================================
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Deep merge override dict over base dict.
+
+    - Dicts: recursive merge
+    - Lists: override replaces (no concatenation)
+    - Scalars: override replaces
+
+    Args:
+        base: Base dictionary (typically defaults)
+        override: Override dictionary (typically genre-specific)
+
+    Returns:
+        New merged dictionary (does not mutate inputs)
+    """
+    result: dict[str, Any] = {}
+
+    # Start with all base keys
+    for key, base_value in base.items():
+        if key in override:
+            override_value = override[key]
+            # Both are dicts: recursive merge
+            if isinstance(base_value, dict) and isinstance(override_value, dict):
+                result[key] = _deep_merge(base_value, override_value)
+            else:
+                # Lists or scalars: override replaces
+                result[key] = override_value
+        else:
+            result[key] = base_value
+
+    # Add keys only in override
+    for key, override_value in override.items():
+        if key not in base:
+            result[key] = override_value
+
+    return result
+
+
+@lru_cache(maxsize=1)
+def _load_default_template() -> dict[str, Any]:
+    """Load _default.yaml (cached).
+
+    Returns:
+        Default template dict
+
+    Raises:
+        AssertionError: If _default.yaml does not exist
+    """
+    assert DEFAULT_FILE.exists(), f"Default genre template not found: {DEFAULT_FILE}"
+    with open(DEFAULT_FILE, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    assert data is not None, f"Default genre template is empty: {DEFAULT_FILE}"
+    return data
+
+
+def _load_genre_file(genre: str) -> dict[str, Any] | None:
+    """Load genre-specific YAML file if it exists.
+
+    Args:
+        genre: Genre name (e.g., 'invention', 'minuet')
+
+    Returns:
+        Genre data dict, or None if file does not exist
+    """
+    path = DATA_DIR / f"{genre}.yaml"
+    if not path.exists():
+        return None
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data if data else None
+
+
+def load_genre_template(genre: str) -> dict[str, Any]:
+    """Load genre template with fallback to defaults.
+
+    Priority:
+    1. Load _default.yaml first
+    2. If genre-specific file exists, deep merge it over defaults
+    3. If not, log warning and return defaults
+
+    Args:
+        genre: Genre name (e.g., 'invention', 'minuet')
+
+    Returns:
+        Complete genre template dict with all fields guaranteed
+    """
+    defaults = _load_default_template()
+
+    genre_data = _load_genre_file(genre)
+    if genre_data is None:
+        logger.warning(
+            "Genre file not found for '%s', using default template", genre
+        )
+        return defaults.copy()
+
+    return _deep_merge(defaults, genre_data)
+
+
+# =============================================================================
+# Typed API (GenreTemplate dataclass)
+# =============================================================================
+
+
 def load_genre(name: str) -> GenreTemplate:
-    """Load genre template by name.
+    """Load genre template by name with fallback merge.
+
+    Uses load_genre_template to get merged dict, then parses to typed object.
 
     Args:
         name: Genre name (e.g., "invention", "minuet")
@@ -29,25 +149,21 @@ def load_genre(name: str) -> GenreTemplate:
         GenreTemplate with all fields populated
 
     Raises:
-        AssertionError: If genre file not found or missing required fields
+        AssertionError: If _default.yaml missing or corrupted
     """
     if name in _CACHE:
         return _CACHE[name]
 
-    path = DATA_DIR / f"{name}.yaml"
-    assert path.exists(), f"Unknown genre: {name}. File not found: {path}"
-
-    with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-
+    data = load_genre_template(name)
     template = _parse_genre(data, name)
     _CACHE[name] = template
     return template
 
 
 def clear_cache() -> None:
-    """Clear the genre cache. Used in tests."""
+    """Clear all caches. Used in tests."""
     _CACHE.clear()
+    _load_default_template.cache_clear()
 
 
 def _parse_genre(data: dict, name: str) -> GenreTemplate:

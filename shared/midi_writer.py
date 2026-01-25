@@ -61,7 +61,7 @@ def write_midi(
     tempo: int = 80,
     velocity: int = 80,
     time_signature: tuple[int, int] = (4, 4),
-    key: Optional[str] = None,
+    tonic: Optional[str] = None,
     mode: str = "major"
 ) -> bool:
     """Write a single-track MIDI file from pitch and duration lists.
@@ -73,7 +73,7 @@ def write_midi(
         tempo: BPM (default 80)
         velocity: Note velocity 0-127 (default 80)
         time_signature: Tuple of (numerator, denominator)
-        key: Key signature pitch (e.g., 'G', 'D', 'Bb')
+        tonic: Tonic pitch for key signature (e.g., 'G', 'D', 'Bb')
         mode: 'major' or 'minor'
 
     Returns:
@@ -100,10 +100,10 @@ def write_midi(
         numerator=time_signature[0],
         denominator=time_signature[1]
     ))
-    if key:
-        key_str = key if mode == "major" else f"{key}m"
+    if tonic:
+        key_sig = tonic if mode == "major" else f"{tonic}m"
         try:
-            meta_track.append(MetaMessage('key_signature', key=key_str))
+            meta_track.append(MetaMessage('key_signature', key=key_sig))
         except (ValueError, KeyError):
             pass  # Invalid key signature, skip
     meta_track.append(MetaMessage('end_of_track', time=0))
@@ -142,7 +142,7 @@ def write_midi_notes(
     *,
     tempo: int = 100,
     time_signature: tuple[int, int] = (4, 4),
-    key: Optional[str] = None,
+    tonic: Optional[str] = None,
     mode: str = "major"
 ) -> bool:
     """Write MIDI file from a list of SimpleNote objects.
@@ -155,7 +155,7 @@ def write_midi_notes(
         notes: List of SimpleNote objects
         tempo: BPM (default 80)
         time_signature: Tuple of (numerator, denominator)
-        key: Key signature pitch
+        tonic: Tonic pitch for key signature
         mode: 'major' or 'minor'
 
     Returns:
@@ -181,10 +181,10 @@ def write_midi_notes(
         numerator=time_signature[0],
         denominator=time_signature[1]
     ))
-    if key:
-        key_str = key if mode == "major" else f"{key}m"
+    if tonic:
+        key_sig = tonic if mode == "major" else f"{tonic}m"
         try:
-            meta_track.append(MetaMessage('key_signature', key=key_str))
+            meta_track.append(MetaMessage('key_signature', key=key_sig))
         except (ValueError, KeyError):
             pass
     meta_track.append(MetaMessage('end_of_track', time=0))

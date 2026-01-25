@@ -1,6 +1,6 @@
 # Haydn Surprise Symphony theme
 # Bar 1: C C E E G G E | Bar 2: F F D D B B G
-Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric
+offset,midinote,duration,track,length,bar,beat,notename,lyric
 0,60,1/8,0,,1,1,C4,
 0.125,60,1/8,0,,1,1.5,C4,
 0.25,64,1/8,0,,1,2,E4,

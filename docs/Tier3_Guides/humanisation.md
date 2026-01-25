@@ -755,7 +755,7 @@ overrides:
 Add humanisation hints to .note:
 
 ```csv
-Offset,midiNote,Duration,track,Length,bar,beat,noteName,lyric,h_onset,h_velocity,h_duration
+offset,midinote,duration,track,length,bar,beat,notename,lyric,h_onset,h_velocity,h_duration
 0,72,0.25,0,,1,1.0,C5,statement,-0.002,78,0.23
 ...
 ```

@@ -38,6 +38,17 @@ class Key:
         """Return scale intervals from tonic (natural minor for minor mode)."""
         return MAJOR_SCALE if self.mode == "major" else NATURAL_MINOR_SCALE
 
+    @property
+    def pitch_class_set(self) -> frozenset[int]:
+        """Return pitch classes of the diatonic scale."""
+        return frozenset((self.tonic_pc + interval) % 12 for interval in self.scale)
+
+    @property
+    def bridge_pitch_set(self) -> frozenset[int]:
+        """Return pentatonic subset for bridges (omits 4th and 7th degrees)."""
+        pentatonic_intervals: Tuple[int, ...] = (0, 2, 4, 7, 9) if self.mode == "major" else (0, 3, 5, 7, 10)
+        return frozenset((self.tonic_pc + interval) % 12 for interval in pentatonic_intervals)
+
     def get_scale_for_context(self, tonal_target: str | None) -> Tuple[int, ...]:
         """Return scale appropriate for harmonic context."""
         if self.mode == "major":

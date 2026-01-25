@@ -3,6 +3,7 @@
 
 name: Trio Sonata
 voices: 3
+form: binary
 metre: 4/4
 texture: imitative
 
@@ -55,6 +56,6 @@ subject_constraints:
 # Treatment vocabulary
 treatments:
   required: [statement, imitation]
-  optional: [sequence, inversion]
+  optional: [transposition, inversion]
   opening: statement
   answer: imitation

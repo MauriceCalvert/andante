@@ -12,16 +12,14 @@ All valid heads are equal candidates - no scoring.
 from dataclasses import dataclass
 from typing import Iterator
 
+from shared.constants import MAJOR_SCALE, MINOR_SCALE, NOTE_NAMES
+
 # Pitch constraints
 MIN_LEAP = 3  # Minimum interval to count as a leap
 MAX_INTERVAL = 7  # Octave
 MIN_DEGREE = 0
 MAX_DEGREE = 14  # Two octaves
 START_DEGREES = (0, 2, 4)  # Tonic triad
-
-# Scale patterns for MIDI conversion
-MAJOR_SCALE = (0, 2, 4, 5, 7, 9, 11)
-MINOR_SCALE = (0, 2, 3, 5, 7, 8, 10)
 
 # Rhythm cells indexed by metre - only those with 2+ distinct durations are valid
 # Minimum 4 notes per head
@@ -244,9 +242,6 @@ def degrees_to_midi(degrees: tuple[int, ...], tonic_midi: int = 60, mode: str = 
         midi = tonic_midi + octave * 12 + scale[scale_idx]
         result.append(midi)
     return tuple(result)
-
-
-NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 
 def head_to_str(head: Head, tonic_midi: int = 60, mode: str = "major") -> str:

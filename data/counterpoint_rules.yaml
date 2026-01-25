@@ -1,7 +1,6 @@
 # Counterpoint Rules for CP-SAT Solver
 # Synthesized from Fux, Rameau, C.P.E. Bach, Kirnberger, Koch, Marpurg, Mattheson
 
----
 # Hard constraints: violation = infeasible solution
 hard_constraints:
 
@@ -59,7 +58,6 @@ hard_constraints:
       detection: "Current pitch crosses previous pitch of neighbor voice"
       source: "Kirnberger II.5"
 
----
 # Soft constraints: violation = penalty added to cost
 soft_constraints:
 
@@ -192,27 +190,27 @@ soft_constraints:
       source: "Fux I.17"
 
   range:
-    outside_comfortable_range:
-      description: "Voice outside comfortable tessitura"
-      cost: 10
-      ranges_midi:
-        soprano: [60, 79]  # C4-G5
-        alto: [55, 74]     # G3-D5
-        tenor: [48, 67]    # C3-G4
-        bass: [40, 60]     # E2-C4
-      source: "Traditional"
+    # Per L003: no hard range constraints, use tessitura distance penalty
+    outside_comfortable_tessitura:
+      description: "Voice far from tessitura median"
+      cost_per_semitone: 1
+      tessituras_midi:
+        soprano: 70  # Bb4 median
+        alto: 64     # E4 median
+        tenor: 57    # A3 median
+        bass: 48     # C3 median
+      source: "Traditional, adapted per L003"
 
     extended_extreme:
-      description: "Voice at range extreme for more than 2 bars"
+      description: "Voice far from tessitura for more than 2 bars"
       cost: 15
       source: "Traditional"
 
     bass_above_tenor:
-      description: "Bass pitch above tenor comfortable range"
+      description: "Bass pitch above tenor tessitura median"
       cost: 20
       source: "Kirnberger III.2"
 
----
 # Rewards: bonus subtracted from cost
 rewards:
 
@@ -319,7 +317,6 @@ rewards:
       reward: 15
       source: "Traditional"
 
----
 # Dissonance intervals (semitones mod 12)
 intervals:
   consonant_perfect: [0, 7, 12]      # unison, fifth, octave
@@ -328,23 +325,14 @@ intervals:
 
 # Note: fourth (5) is dissonant against bass, consonant between upper voices
 
----
-# Voice ranges (MIDI note numbers)
-voice_ranges:
-  soprano:
-    comfortable: [60, 79]   # C4-G5
-    possible: [55, 84]      # G3-C6
-  alto:
-    comfortable: [55, 74]   # G3-D5
-    possible: [52, 77]      # E3-F5
-  tenor:
-    comfortable: [48, 67]   # C3-G4
-    possible: [43, 72]      # G2-C5
-  bass:
-    comfortable: [40, 60]   # E2-C4
-    possible: [36, 64]      # C2-E4
+# Voice tessituras (MIDI note numbers) - per L003 no hard ranges
+# Median pitch for each voice; cost increases with distance from median
+voice_tessituras:
+  soprano: 70   # Bb4 - typical baroque soprano center
+  alto: 64      # E4 - typical baroque alto center
+  tenor: 57     # A3 - typical baroque tenor center
+  bass: 48      # C3 - typical baroque bass center
 
----
 # Doubling rules for chord voicing
 doubling:
   priority:
@@ -357,7 +345,6 @@ doubling:
     - seventh
     - any_tendency_tone
 
----
 # Document metadata
 metadata:
   version: "1.0"

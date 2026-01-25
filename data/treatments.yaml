@@ -3,47 +3,59 @@
 # Each treatment configures how soprano and bass voices are expanded.
 # Parameters use prefix: soprano_* for soprano, bass_* for bass.
 #
+# The _default treatment provides base values that all treatments inherit.
+# Each treatment only needs to specify values that differ from _default.
+#
 # Parameters:
 #   {voice}_source      Material source for the voice
 #                       Values: subject, counter_subject, sustained, pedal, schema, accompaniment
-#                       Default: subject (for both soprano and bass)
 #
 #   {voice}_transform   Melodic transformation applied to source material
 #                       Values: none, invert, retrograde, head, tail, augment, diminish
-#                       Default: none
 #
 #   {voice}_transform_params  Parameters for transform (e.g., { size: 4 } for head/tail)
-#                       Default: {}
 #
 #   {voice}_derivation  Post-transform derivation
 #                       Values: null, imitation
-#                       Default: null
 #
 #   {voice}_derivation_params  Parameters for derivation (e.g., { interval: 4 })
-#                       Default: {}
 #
 #   {voice}_delay       Entry delay in bars (creates rest before voice enters)
 #                       Values: fraction like 1/4, 1/2, 1
-#                       Default: 0
 #
 #   {voice}_direct      If true, use source material directly without bar treatment cycling
-#                       Default: false
 #
 # Special parameters:
 #   pedal_type          For pedal treatments: tonic, dominant
 #   swap_at             For voice_exchange: when voices swap material (fraction of phrase)
 #   schema              For schema treatment: schema name (e.g., romanesca)
 
+_default:
+  soprano_source: subject
+  soprano_transform: none
+  soprano_transform_params: {}
+  soprano_derivation: null
+  soprano_derivation_params: {}
+  soprano_delay: 0
+  soprano_direct: false
+  bass_source: subject
+  bass_transform: none
+  bass_transform_params: {}
+  bass_derivation: null
+  bass_derivation_params: {}
+  bass_delay: 0
+  bass_direct: false
+  interdictions: []
+
 augmentation:
   # Augmentation: double note values (slower)
   # Both voices augmented to preserve CS consonance alignment
-  # Direct mode required for transforms to apply correctly
   soprano_transform: augment
   soprano_direct: true
   bass_source: counter_subject
   bass_transform: augment
   bass_direct: true
-  interdictions: [ornaments]  # preserve augmented durations
+  interdictions: [ornaments]
 
 bass_development:
   soprano_source: sustained
@@ -51,23 +63,19 @@ bass_development:
 
 bass_sequence:
   soprano_source: sustained
-  bass_source: subject
   bass_transform: head
   bass_transform_params: { size: 4 }
 
 bass_statement:
   soprano_source: sustained
-  bass_source: subject
 
 dialogue:
-  soprano_source: subject
-  bass_source: subject
+  # Bass enters 1 bar later with augmented subject
   bass_transform: augment
   bass_delay: 1
 
 dialogue_invert:
-  soprano_source: subject
-  bass_source: subject
+  # Bass enters 1 bar later with inverted subject
   bass_transform: invert
   bass_delay: 1
 
@@ -81,13 +89,12 @@ diminution:
   bass_transform: diminish
   bass_transform_params: { min_duration: 1/16 }
   bass_direct: true
-  interdictions: [ornaments]  # preserve diminished durations
+  interdictions: [ornaments]
 
 fragmentation:
   # Fragmentation: head motif with bass imitation (not CS - delay breaks alignment)
   soprano_transform: head
   soprano_transform_params: { size: 4 }
-  bass_source: subject
   bass_transform: head
   bass_transform_params: { size: 4 }
   bass_delay: 1/8
@@ -96,16 +103,12 @@ head_sequence:
   # Head sequence: head motif with bass imitation
   soprano_transform: head
   soprano_transform_params: { size: 4 }
-  bass_source: subject
   bass_transform: head
   bass_transform_params: { size: 4 }
   bass_delay: 1/8
 
 imitation:
   # Imitation: bass imitates subject at the fifth below (interval -4 = fifth below)
-  soprano_source: subject
-  bass_source: subject
-  bass_transform: none
   bass_derivation: imitation
   bass_derivation_params: { interval: -4 }
   bass_delay: 1
@@ -113,7 +116,6 @@ imitation:
 imitation_cs:
   # Soprano plays counter_subject, bass plays subject
   soprano_source: counter_subject
-  bass_source: subject
 
 inversion:
   # Inversion: soprano inverts subject, bass plays counter_subject
@@ -121,12 +123,10 @@ inversion:
   bass_source: counter_subject
 
 melody_accompaniment:
-  soprano_source: subject
   bass_source: accompaniment
 
 repose:
   # Repose: slower augmented melody over sustained bass
-  # Sustained bass avoids CS alignment issues with augmentation
   soprano_transform: augment
   soprano_direct: true
   bass_source: sustained
@@ -142,7 +142,6 @@ schema:
 
 sequence:
   # Sequence: augmented bass imitation (not CS - delay breaks alignment)
-  bass_source: subject
   bass_transform: augment
   bass_delay: 1/4
 
@@ -156,15 +155,12 @@ statement:
 
 stretto:
   # Stretto: tight overlapping entries (bass enters before soprano finishes)
-  soprano_source: subject
-  bass_source: subject
   bass_derivation: imitation
   bass_derivation_params: { interval: -4 }
-  interdictions: [ornaments]  # preserve subject rhythm for recognizable overlap
   bass_delay: 1/4
+  interdictions: [ornaments]
 
 voice_exchange:
-  soprano_source: subject
   bass_source: counter_subject
   swap_at: 1/2
 
@@ -172,7 +168,6 @@ tail_development:
   # Tail development: tail motif with bass imitation (not CS - delay breaks alignment)
   soprano_transform: tail
   soprano_transform_params: { size: 4 }
-  bass_source: subject
   bass_transform: tail
   bass_transform_params: { size: 4 }
   bass_delay: 1/8
@@ -184,11 +179,9 @@ hold:
 pedal_tonic:
   pedal_type: tonic
   bass_source: pedal
-  interdictions:
-    - inner_voice_gen      # Bass is fixed pedal
+  interdictions: [inner_voice_gen]
 
 pedal_dominant:
   pedal_type: dominant
   bass_source: pedal
-  interdictions:
-    - inner_voice_gen      # Bass is fixed pedal
+  interdictions: [inner_voice_gen]

@@ -1,0 +1,12 @@
+# Bass recorder playability constraints
+# See: docs/Tier2_Architecture/playability.md
+
+name: recorder_bass
+
+actuators:
+  - name: breath
+    range: [53, 79]
+    max_simultaneous: 1
+    max_leap: 12
+    reach:
+      method: monophonic

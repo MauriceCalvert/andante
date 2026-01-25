@@ -346,7 +346,7 @@ Key context must flow to guards for accurate leading-tone detection:
 
 Without key context, the guard would look for B (pitch class 11) in all keys, causing wrong-key false positives.
 
-### diss_003 Leading Tone Detection Bug
+### dis_003 Leading Tone Detection Bug
 
 The original `validate_dissonance` check for "resolved upward" used:
 ```python
@@ -391,7 +391,7 @@ This maintains strict voice-leading at structural boundaries while allowing baro
 tonic_cadences = {"authentic", "plagal", "deceptive"}
 fux_strict_guards = {
     "cad_001", "cad_002",              # Leading tone rules
-    "diss_001", "diss_002", "diss_004", # Dissonance treatment
+    "dis_001", "dis_002", "dis_004", # Dissonance treatment
     "vl_003", "vl_004",                # Hidden motion
 }
 if phrase.cadence not in tonic_cadences:
@@ -405,10 +405,10 @@ if phrase.cadence not in tonic_cadences:
 |-------|------|----------|------|
 | cad_001 | Leading tone unresolved | Warning (non-cad) | Bach allows melodic 7 freely |
 | cad_002 | Leading tone down | Warning (non-cad) | Bach allows 7→6 motion |
-| diss_001 | Unprepared dissonance | Warning (non-cad) | Bach uses appoggiaturas |
-| diss_002 | Unresolved dissonance | Warning (non-cad) | Bach uses free resolution |
-| diss_003 | Dissonance up | Wrapper-filtered | Allows actual leading tones |
-| diss_004 | Invalid weak-beat diss | Warning (non-cad) | Bach uses escape tones |
+| dis_001 | Unprepared dissonance | Warning (non-cad) | Bach uses appoggiaturas |
+| dis_002 | Unresolved dissonance | Warning (non-cad) | Bach uses free resolution |
+| dis_003 | Dissonance up | Wrapper-filtered | Allows actual leading tones |
+| dis_004 | Invalid weak-beat diss | Warning (non-cad) | Bach uses escape tones |
 | vl_003 | Hidden fifth | Warning (non-cad) | Bach uses in keyboard music |
 | vl_004 | Hidden octave | Warning (non-cad) | Bach uses in keyboard music |
 | tex_001 | Parallel fifths | Always blocker | Universal prohibition |
@@ -418,7 +418,7 @@ if phrase.cadence not in tonic_cadences:
 
 - `engine/realiser_guards.py`: Downgrades Fux-strict to warnings post-realisation
 - `engine/inner_voice.py`: Downgrades for N-voice backtracking
-- `engine/guards/registry.py`: diss_003 wrapper with leading-tone pitch-class filter
+- `engine/guards/registry.py`: dis_003 wrapper with leading-tone pitch-class filter
 - `engine/voice_checks.py`: Hidden motion threshold relaxed to 4 semitones (major third)
 
 ---

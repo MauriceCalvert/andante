@@ -19,13 +19,14 @@ PROGRESSIONS_TO: dict[str, list[str]] = {
 
 
 def _load_cadence_formulas() -> dict[str, list[str]]:
-    """Load cadence formulas from YAML."""
-    path = DATA_DIR / "cadence_formulas.yaml"
-    assert path.exists(), f"Missing cadence_formulas.yaml at {path}"
+    """Load cadence Roman numeral formulas from cadences.yaml."""
+    path = DATA_DIR / "cadences.yaml"
+    assert path.exists(), f"Missing cadences.yaml at {path}"
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    assert isinstance(data, dict), "cadence_formulas.yaml must be a dict"
-    return data
+    assert isinstance(data, dict), "cadences.yaml must be a dict"
+    assert "roman_numerals" in data, "cadences.yaml must have 'roman_numerals' section"
+    return data["roman_numerals"]
 
 
 def _get_lead_in(bars_needed: int, target: str, prev_end: str) -> list[str]:

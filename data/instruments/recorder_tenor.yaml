@@ -1,0 +1,12 @@
+# Tenor recorder playability constraints
+# See: docs/Tier2_Architecture/playability.md
+
+name: recorder_tenor
+
+actuators:
+  - name: breath
+    range: [60, 86]
+    max_simultaneous: 1
+    max_leap: 12
+    reach:
+      method: monophonic

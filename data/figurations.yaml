@@ -1,89 +1,392 @@
-# Figuration patterns for virtuosic passage work
-# type: scalar (stepwise), arpeggiated (chord tones), tremolo (alternating)
-# direction: up, down, round (up then down)
-# degrees_per_beat: note density
-# span: interval covered (octave, two_octaves, third, fifth)
+# Figuration Patterns - Baroque melodic vocabulary
+# Based on Quantz (Versuch, 1752) and CPE Bach (Versuch, 1753)
+#
+# Each pattern defines how to elaborate a structural tone or connect two tones.
+# Intervals are scale degrees relative to target (0 = target, +1 = step up, -1 = step down)
+# Rhythm emerges from pattern length and notes_per_beat.
+#
+# Fields:
+#   description: what it is and where it comes from
+#   offset_from_target: sequence of scale degrees, last is always the target (0)
+#   notes_per_beat: typical rhythmic density (2=eighths, 4=sixteenths in common time)
+#   metric: strong (on beat), weak (off beat), across (spans barline/beat)
+#   function: ornament | diminution | cadential | sequential
+#   approach: how pattern begins relative to previous tone (step, leap, repeated, any)
+#   energy: tension level (low, medium, high)
 
-# Scalar figurations (stepwise motion)
+# ============================================================================
+# ORNAMENTAL FIGURES (decoration of single tones)
+# ============================================================================
 
-scalar_ascending:
-  description: Rising scale passage
-  type: scalar
-  direction: up
-  degrees_per_beat: 4
-  span: octave
-  triggers: [scalar, virtuosic, drive]
+mordent:
+  description: Lower neighbor and return (CPE Bach, essential ornament)
+  offset_from_target: [0, -1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: any
+  energy: low
 
-scalar_descending:
-  description: Falling scale passage
-  type: scalar
-  direction: down
-  degrees_per_beat: 4
-  span: octave
-  triggers: [scalar, release, cadential]
+mordent_double:
+  description: Extended mordent with two oscillations
+  offset_from_target: [0, -1, 0, -1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: any
+  energy: low
 
-scalar_round:
-  description: Up then down scale
-  type: scalar
-  direction: round
-  degrees_per_beat: 4
-  span: octave
-  triggers: [scalar, continuation]
+schneller:
+  description: Inverted mordent - upper neighbor snap (CPE Bach)
+  offset_from_target: [0, 1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: any
+  energy: medium
 
-# Arpeggiated figurations (chord tones)
+pralltriller:
+  description: Half-trill from above (CPE Bach)
+  offset_from_target: [1, 0, 1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: step_above
+  energy: medium
 
-arpeggio_ascending:
-  description: Rising arpeggio
-  type: arpeggiated
-  direction: up
-  degrees_per_beat: 4
-  span: two_octaves
-  triggers: [arpeggiated, climax, triumphant]
+trillo:
+  description: Standard trill - oscillation from upper neighbor
+  offset_from_target: [1, 0, 1, 0, 1, 0, 1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: any
+  energy: medium
 
-arpeggio_descending:
-  description: Falling arpeggio
-  type: arpeggiated
-  direction: down
-  degrees_per_beat: 4
-  span: two_octaves
-  triggers: [arpeggiated, release]
+trillo_con_ribattuta:
+  description: Trill with repeated-note preparation (Quantz)
+  offset_from_target: [0, 0, 1, 0, 1, 0, 1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: repeated
+  energy: medium
 
-arpeggio_sweep:
-  description: Full arpeggio up and down
-  type: arpeggiated
-  direction: round
-  degrees_per_beat: 4
-  span: two_octaves
-  triggers: [cadenza, climax]
+doppelschlag:
+  description: Turn figure - upper-main-lower-main (Quantz groppo)
+  offset_from_target: [1, 0, -1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: any
+  energy: low
 
-# Tremolo figurations (rapid alternation)
+doppelschlag_inverted:
+  description: Inverted turn - lower-main-upper-main
+  offset_from_target: [-1, 0, 1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: any
+  energy: low
 
-tremolo_fifth:
-  description: Rapid fifth alternation
-  type: tremolo
-  interval: 4
-  degrees_per_beat: 4
-  triggers: [dramatic]
+schleifer:
+  description: Slide - ascending approach to target (CPE Bach)
+  offset_from_target: [-2, -1, 0]
+  notes_per_beat: 4
+  metric: weak
+  function: ornament
+  approach: step_below
+  energy: low
 
-tremolo_third:
-  description: Rapid alternation on thirds
-  type: tremolo
-  interval: 2
-  degrees_per_beat: 4
-  triggers: [turbulent]
+nachschlag:
+  description: Termination - note(s) following main tone
+  offset_from_target: [0, -1]
+  notes_per_beat: 4
+  metric: weak
+  function: ornament
+  approach: any
+  energy: low
 
-# Broken patterns
+# ============================================================================
+# DIMINUTION FIGURES (connecting two structural tones)
+# ============================================================================
 
-broken_sixths:
-  description: Alternating sixths pattern
-  type: broken
-  pattern: [0, 5, 1, 6, 2, 7, 3, 8]
-  degrees_per_beat: 4
-  triggers: [virtuosic, triumphant]
+# --- Stepwise connections (filling intervals) ---
 
-broken_thirds:
-  description: Alternating thirds pattern
-  type: broken
-  pattern: [0, 2, 1, 3, 2, 4, 3, 5]
-  degrees_per_beat: 4
-  triggers: [continuation, scalar]
+tirata_up:
+  description: Rapid ascending scale run (Quantz)
+  offset_from_target: [-3, -2, -1, 0]
+  notes_per_beat: 4
+  metric: across
+  function: diminution
+  approach: step_below
+  energy: high
+
+tirata_down:
+  description: Rapid descending scale run (Quantz)
+  offset_from_target: [3, 2, 1, 0]
+  notes_per_beat: 4
+  metric: across
+  function: diminution
+  approach: step_above
+  energy: high
+
+tirata_up_long:
+  description: Extended ascending run (octave)
+  offset_from_target: [-7, -6, -5, -4, -3, -2, -1, 0]
+  notes_per_beat: 4
+  metric: across
+  function: diminution
+  approach: leap_below
+  energy: high
+
+tirata_down_long:
+  description: Extended descending run (octave)
+  offset_from_target: [7, 6, 5, 4, 3, 2, 1, 0]
+  notes_per_beat: 4
+  metric: across
+  function: diminution
+  approach: leap_above
+  energy: high
+
+passaggio_up:
+  description: Stepwise ascending passage (moderate)
+  offset_from_target: [-2, -1, 0]
+  notes_per_beat: 2
+  metric: any
+  function: diminution
+  approach: step_below
+  energy: medium
+
+passaggio_down:
+  description: Stepwise descending passage (moderate)
+  offset_from_target: [2, 1, 0]
+  notes_per_beat: 2
+  metric: any
+  function: diminution
+  approach: step_above
+  energy: medium
+
+# --- Circling figures (embellished stepwise motion) ---
+
+circolo_mezzo_up:
+  description: Half-circle ascending - down-up-up (Quantz)
+  offset_from_target: [-1, -2, -1, 0]
+  notes_per_beat: 4
+  metric: weak
+  function: diminution
+  approach: step_below
+  energy: medium
+
+circolo_mezzo_down:
+  description: Half-circle descending - up-down-down (Quantz)
+  offset_from_target: [1, 2, 1, 0]
+  notes_per_beat: 4
+  metric: weak
+  function: diminution
+  approach: step_above
+  energy: medium
+
+groppo_up:
+  description: Turn-based ascending connection (Quantz)
+  offset_from_target: [-1, 0, -2, -1, 0]
+  notes_per_beat: 4
+  metric: across
+  function: diminution
+  approach: step_below
+  energy: medium
+
+groppo_down:
+  description: Turn-based descending connection (Quantz)
+  offset_from_target: [1, 0, 2, 1, 0]
+  notes_per_beat: 4
+  metric: across
+  function: diminution
+  approach: step_above
+  energy: medium
+
+ribattuta_approach:
+  description: Repeated note resolving stepwise (Quantz)
+  offset_from_target: [1, 1, 1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: diminution
+  approach: step_above
+  energy: medium
+
+# --- Leap-filling figures ---
+
+arpeggio_fill_up:
+  description: Arpeggiated ascent through chord
+  offset_from_target: [-4, -2, 0]
+  notes_per_beat: 2
+  metric: any
+  function: diminution
+  approach: leap_below
+  energy: medium
+
+arpeggio_fill_down:
+  description: Arpeggiated descent through chord
+  offset_from_target: [4, 2, 0]
+  notes_per_beat: 2
+  metric: any
+  function: diminution
+  approach: leap_above
+  energy: medium
+
+broken_third_up:
+  description: Ascending thirds with step back (compound melody)
+  offset_from_target: [-2, -3, -1, -2, 0]
+  notes_per_beat: 4
+  metric: across
+  function: diminution
+  approach: step_below
+  energy: medium
+
+broken_third_down:
+  description: Descending thirds with step back (compound melody)
+  offset_from_target: [2, 3, 1, 2, 0]
+  notes_per_beat: 4
+  metric: across
+  function: diminution
+  approach: step_above
+  energy: medium
+
+# ============================================================================
+# CADENTIAL FIGURES (phrase endings)
+# ============================================================================
+
+cadential_trill:
+  description: Trill resolving to tonic (standard cadence)
+  offset_from_target: [1, 0, 1, 0, 1, 0, -1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: cadential
+  approach: step_above
+  energy: medium
+
+cadential_turn:
+  description: Turn figure into final note
+  offset_from_target: [1, 0, -1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: cadential
+  approach: any
+  energy: low
+
+cadential_tirata:
+  description: Scale run into cadence (from above)
+  offset_from_target: [4, 3, 2, 1, 0]
+  notes_per_beat: 4
+  metric: across
+  function: cadential
+  approach: leap_above
+  energy: high
+
+cadential_anticipation:
+  description: Early arrival on final tone
+  offset_from_target: [0, 0]
+  notes_per_beat: 2
+  metric: weak
+  function: cadential
+  approach: any
+  energy: low
+
+cadential_gruppetto:
+  description: Extended turn for feminine cadence
+  offset_from_target: [1, 0, -1, 0, 1, 0]
+  notes_per_beat: 4
+  metric: across
+  function: cadential
+  approach: any
+  energy: medium
+
+# ============================================================================
+# SEQUENTIAL FIGURES (for continuation passages)
+# ============================================================================
+
+sequence_step_down:
+  description: Descending sequence unit (2nds)
+  offset_from_target: [1, 0, -1, 0]
+  notes_per_beat: 4
+  metric: any
+  function: sequential
+  approach: step_above
+  energy: medium
+
+sequence_step_up:
+  description: Ascending sequence unit (2nds)
+  offset_from_target: [-1, 0, 1, 0]
+  notes_per_beat: 4
+  metric: any
+  function: sequential
+  approach: step_below
+  energy: medium
+
+sequence_third_down:
+  description: Descending by thirds (fonte-style)
+  offset_from_target: [2, 1, 0, -1, 0]
+  notes_per_beat: 4
+  metric: any
+  function: sequential
+  approach: step_above
+  energy: medium
+
+sequence_third_up:
+  description: Ascending by thirds (monte-style)
+  offset_from_target: [-2, -1, 0, 1, 0]
+  notes_per_beat: 4
+  metric: any
+  function: sequential
+  approach: step_below
+  energy: medium
+
+rosalia:
+  description: Rising sequence pattern (step up each iteration)
+  offset_from_target: [0, 1, 0, -1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: sequential
+  approach: any
+  energy: medium
+
+# ============================================================================
+# SUSTAINED/STATIC FIGURES (pedal, tremolo effects)
+# ============================================================================
+
+batterie:
+  description: Broken chord alternation (keyboard idiom)
+  offset_from_target: [0, 2, 4, 2]
+  notes_per_beat: 4
+  metric: any
+  function: diminution
+  approach: any
+  energy: medium
+
+tremolo:
+  description: Rapid alternation between two notes
+  offset_from_target: [0, 2, 0, 2, 0, 2, 0, 2]
+  notes_per_beat: 4
+  metric: any
+  function: diminution
+  approach: any
+  energy: high
+
+bariolage:
+  description: String crossing pattern (violin idiom)
+  offset_from_target: [0, -3, 0, -3]
+  notes_per_beat: 4
+  metric: any
+  function: diminution
+  approach: any
+  energy: medium
+
+pedal_figuration:
+  description: Pattern over sustained bass
+  offset_from_target: [0, 2, 4, 2, 0, 2, 4, 2]
+  notes_per_beat: 4
+  metric: any
+  function: diminution
+  approach: any
+  energy: low

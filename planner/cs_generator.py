@@ -18,12 +18,10 @@ from typing import Optional
 import yaml
 from ortools.sat.python import cp_model
 
+from shared.constants import MAJOR_SCALE, MINOR_SCALE
+
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
 RULES_PATH: Path = DATA_DIR / "counterpoint" / "rules.yaml"
-
-# Scale intervals (semitones from tonic)
-MAJOR_SCALE: tuple[int, ...] = (0, 2, 4, 5, 7, 9, 11)
-MINOR_SCALE: tuple[int, ...] = (0, 2, 3, 5, 7, 8, 10)
 
 # Valid durations in descending order
 VALID_DURATIONS: tuple[Fraction, ...] = (

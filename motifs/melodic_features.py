@@ -8,6 +8,9 @@ Implements features from:
 from collections import Counter
 import math
 from typing import Dict, List, Optional, Tuple
+
+from shared.constants import INTERVAL_NAMES
+
 # Priority 1: Information-Theoretic Measures
 
 def pitch_entropy(
@@ -170,22 +173,9 @@ def opens_with_triad(
     if len(distinct) < 3:
         return False
     return all(pc in triad for pc in distinct[:3])
-# Priority 4: Interval Distribution Detail
-INTERVAL_NAMES: Dict[int, str] = {
-    0: 'unison',
-    1: 'minor_2nd',
-    2: 'major_2nd',
-    3: 'minor_3rd',
-    4: 'major_3rd',
-    5: 'perfect_4th',
-    6: 'tritone',
-    7: 'perfect_5th',
-    8: 'minor_6th',
-    9: 'major_6th',
-    10: 'minor_7th',
-    11: 'major_7th',
-}
 
+
+# Priority 4: Interval Distribution Detail
 def interval_distribution(
     intervals: List[int]
 ) -> Dict[str, float]:

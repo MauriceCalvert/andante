@@ -94,6 +94,29 @@ NOTE_NAMES_SHARP: Tuple[str, ...] = (
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 )
 
+# Alias for NOTE_NAMES_SHARP (common usage)
+NOTE_NAMES: Tuple[str, ...] = NOTE_NAMES_SHARP
+
+# Number of scale degrees in diatonic system
+SCALE_DEGREES: int = 7
+
+# Interval names by semitone count
+INTERVAL_NAMES: dict[int, str] = {
+    0: "unison",
+    1: "minor_2nd",
+    2: "major_2nd",
+    3: "minor_3rd",
+    4: "major_3rd",
+    5: "perfect_4th",
+    6: "tritone",
+    7: "perfect_5th",
+    8: "minor_6th",
+    9: "major_6th",
+    10: "minor_7th",
+    11: "major_7th",
+    12: "octave",
+}
+
 TONAL_ROOTS: dict[str, int] = {
     "I": 1, "i": 1, "V": 5, "v": 5, "IV": 4, "iv": 4,
     "vi": 6, "VI": 6, "ii": 2, "iii": 3, "III": 3, "VII": 7, "vii": 7,
@@ -126,7 +149,7 @@ VOICE_TRACKS: dict[str, int] = {
 SCHEMA_TREATMENTS: tuple[str, ...] = (
     "statement",    # Literal subject presentation
     "imitation",    # Answer at octave/fifth
-    "sequence",     # Transposed repetition
+    "transposition", # Transposed repetition
     "inversion",    # Melodic mirror
     "stretto",      # Overlapped entries
 )
@@ -154,8 +177,17 @@ CADENCE_DENSITY: dict[str, tuple[int, int]] = {
     "low": (8, 16),     # Every 8+ bars (sarabande)
 }
 
-# Voice entry options for schema slots
-VOICE_ENTRIES: tuple[str, ...] = (
+# Dux voice options for schema slots (voice that presents subject first)
+DUX_VOICES: tuple[str, ...] = (
     "soprano",
     "bass",
 )
+
+# Tonal journey constants
+MIN_TONAL_SECTION_BARS: int = 2  # Minimum bars for a tonal section
+TONAL_PROPORTION_TOLERANCE: float = 0.01  # Allowed deviation from proportions summing to 1.0
+
+# Scale degree to chord symbol mapping
+DEGREE_TO_CHORD: dict[int, str] = {
+    1: "I", 2: "ii", 3: "iii", 4: "IV", 5: "V", 6: "vi", 7: "viio"
+}

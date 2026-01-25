@@ -4,6 +4,19 @@ from fractions import Fraction
 
 
 @dataclass(frozen=True)
+class TonalSection:
+    """Section of a piece in a single key area.
+
+    Tonal sections drive structure in schema-first planning. They define
+    where the piece spends time in each key area before cadences are placed.
+    """
+    start_bar: int      # 1-indexed inclusive
+    end_bar: int        # 1-indexed inclusive
+    key_area: str       # Roman numeral: I, V, vi, etc.
+    relationship: str   # tonic, dominant, relative, subdominant
+
+
+@dataclass(frozen=True)
 class Brief:
     """User input specifying compositional intent.
 
@@ -253,25 +266,30 @@ class CadencePoint:
     Cadences drive structure in schema-first planning. They are placed before
     any melodic content, determining where phrases end and new sections begin.
     """
-    bar: int      # 1-indexed bar number where cadence occurs
-    type: str     # half, authentic, deceptive, phrygian
-    target: str   # Harmonic target: I, V, vi, etc.
+    bar: int            # 1-indexed bar number where cadence occurs
+    type: str           # half, authentic, deceptive, phrygian
+    target: str         # Harmonic target: I, V, vi, etc.
+    in_key_area: str = "I"        # Key area where cadence occurs
+    beat: Fraction | None = None  # Beat within bar; None = downbeat
 
 
 @dataclass(frozen=True)
 class SchemaSlot:
     """Atomic planning unit replacing Episode+Phrase.
 
-    A SchemaSlot specifies a partimento schema stretched to fill a given number
-    of bars, with texture, treatment, and voice entry. The schema's bass_degrees
+    A SchemaSlot specifies a partimento schema tiled to fill a given number
+    of bars, with texture, treatment, and dux voice. The schema's bass_degrees
     and soprano_degrees encode the harmonic content; no separate harmony field needed.
     """
     type: str           # Schema name: romanesca, prinner, fonte, etc.
-    bars: int           # Actual bars (stretched from schema's base bars)
+    bars: int           # Actual bars (tiled from schema's base bars)
     texture: str        # imitative, melody_bass, free
     treatment: str      # statement, imitation, sequence, inversion, stretto
-    voice_entry: str    # soprano, bass
+    dux_voice: str      # soprano, bass (voice that presents subject first)
     cadence: str | None  # Cadence type if this slot ends on a cadence point
+    key_area: str = "I"  # Key area for this slot
+    stretto_overlap_beats: Fraction | None = None  # Overlap for stretto treatment
+    sequence_repetitions: int | None = None        # Repetitions for sequence treatment
 
 
 @dataclass(frozen=True)

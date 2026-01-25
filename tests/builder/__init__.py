@@ -1,1 +1,1 @@
-# Builder tests package
+# Tests for builder package.

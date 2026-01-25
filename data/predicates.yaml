@@ -10,33 +10,20 @@ intervals:
   sixth: 9         # major sixth - max contour leap
   octave: 12       # octave equivalence
 
-# Registers (MIDI pitch) - baroque SATB vocal centers
-registers:
-  soprano: 72      # C5
+# Voice tessituras (MIDI pitch) - baroque SATB gravity centres
+# Per L003: no hard range constraints, use median as gravity centre
+tessituras:
+  soprano: 70      # Bb4
   alto: 65         # F4
   tenor: 60        # C4
-  bass: 52         # E3
+  bass: 48         # C3
 
-# Voice ranges (MIDI pitch) - practical baroque SATB ranges
-# Used by slice solver for inner voice generation
-voice_ranges:
-  soprano: [60, 81]  # C4 to A5
-  alto: [53, 74]     # F3 to D5
-  tenor: [48, 67]    # C3 to G4
-  bass: [40, 60]     # E2 to C4
-
-# Interleaved voice ranges (Goldberg-style shared tessitura)
-# Both voices share overlapping range but different home registers
-# This creates ~octave separation while allowing crossings
-interleaved_ranges:
-  voice_1: [60, 79]  # C4 to G5 - upper register
-  voice_2: [48, 67]  # C3 to G4 - lower register
-
-# Interleaved voice medians - home pitch for each voice
+# Interleaved voice tessituras (Goldberg-style shared space)
 # V1 centered high, V2 centered low = audible voice separation
-interleaved_medians:
-  voice_1: 72  # C5 - like soprano
-  voice_2: 60  # C4 - like tenor
+# Per L003: no range constraints, just medians
+interleaved_tessituras:
+  voice_1: 70  # Bb4 - like soprano
+  voice_2: 57  # A3 - like tenor
 
 # Contour: prefer small intervals, allow octave displacement for large leaps
 contour:

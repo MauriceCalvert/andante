@@ -10,7 +10,7 @@ from shared.midi_writer import write_midi
 
 MAJOR_INTERVALS = (0, 2, 4, 5, 7, 9, 11)
 MINOR_INTERVALS = (0, 2, 3, 5, 7, 8, 10)
-KEY_TO_MIDI = {
+TONIC_TO_MIDI = {
     'C': 60, 'C#': 61, 'Db': 61, 'D': 62, 'D#': 63, 'Eb': 63,
     'E': 64, 'F': 65, 'F#': 66, 'Gb': 66, 'G': 67, 'G#': 68,
     'Ab': 68, 'A': 69, 'A#': 70, 'Bb': 70, 'B': 71,
@@ -19,13 +19,13 @@ KEY_TO_MIDI = {
 
 def degrees_to_midi(
     degrees: Sequence[int],
-    key: str = 'G',
+    tonic: str = 'G',
     mode: str = 'major',
     start_octave: int = 4,
 ) -> list[int]:
     """Convert degrees to MIDI, choosing octave to minimise leaps."""
     intervals = MAJOR_INTERVALS if mode == 'major' else MINOR_INTERVALS
-    base = KEY_TO_MIDI[key]
+    base = TONIC_TO_MIDI[tonic]
     pitches: list[int] = []
     prev: int = base + (start_octave - 4) * 12
     for deg in degrees:
@@ -48,7 +48,7 @@ def parse_duration(d: str | float | int) -> float:
 
 def convert_subject_to_midi(
     subject_path: Path,
-    key: str = 'G',
+    tonic: str = 'G',
     mode: str = 'major',
     octave: int = 4,
 ) -> None:
@@ -61,7 +61,7 @@ def convert_subject_to_midi(
         pitches: list[int] = data['pitches']
     elif 'degrees' in data:
         degrees: list[int] = data['degrees']
-        pitches = degrees_to_midi(degrees, key, mode, octave)
+        pitches = degrees_to_midi(degrees, tonic, mode, octave)
     else:
         raise ValueError("Subject file must have 'pitches' or 'degrees' field")
     assert len(pitches) == len(durations), "pitches/degrees and durations must match"
@@ -71,7 +71,7 @@ def convert_subject_to_midi(
         pitches,
         durations,
         tempo=90,
-        key=key,
+        tonic=tonic,
         mode=mode,
     )
     print(f"Wrote {len(pitches)} notes to {output_path}")

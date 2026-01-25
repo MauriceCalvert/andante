@@ -1,0 +1,27 @@
+# Cadence type lookup by key area transition
+# Format: from_area_to_area: cadence_type
+# Used by cadence_planner to determine cadence types at tonal section boundaries
+
+major:
+  I_to_V: half        # Moving to dominant
+  V_to_I: authentic   # Returning to tonic
+  I_to_vi: deceptive  # Moving to relative minor
+  I_to_IV: half       # Moving to subdominant
+  vi_to_I: authentic  # Relative minor back to tonic
+  IV_to_I: plagal     # Subdominant to tonic (Amen cadence)
+  ii_to_V: half       # Predominant to dominant
+  V_to_vi: deceptive  # Deceptive resolution
+  _default: half      # Fallback for unlisted transitions
+
+minor:
+  i_to_III: half      # Moving to relative major
+  III_to_i: authentic # Relative major back to tonic
+  i_to_v: half        # Moving to minor dominant
+  i_to_V: half        # Moving to major dominant
+  v_to_i: authentic   # Minor dominant back to tonic
+  V_to_i: authentic   # Major dominant back to tonic
+  III_to_v: half      # Relative to dominant
+  III_to_V: half      # Relative to major dominant
+  iv_to_i: plagal     # Subdominant to tonic
+  i_to_iv: half       # Moving to subdominant
+  _default: half      # Fallback for unlisted transitions

@@ -23,12 +23,17 @@ from builder.costs import (
     cost_voice_motion,
     cost_voice_crossing,
     cost_bass_motion,
+    cost_directional,
     compute_total_cost,
+    TESSITURA_SPAN,
+    TESSITURA_BEYOND_COST,
+    DIRECTION_THRESHOLD,
 )
 from builder.slice import Slice, extract_slices
 
 
 DEFAULT_WEIGHTS: dict[str, float] = {
+    "unison": 2.2,  # ~11x step (corpus-derived ratio)
     "step": 0.2,
     "skip": 0.4,
     "leap": 0.8,
@@ -39,8 +44,8 @@ DEFAULT_WEIGHTS: dict[str, float] = {
 class TestMelodicMotionCategory:
     """Tests for melodic_motion_category classification."""
 
-    def test_unison_is_step(self) -> None:
-        assert melodic_motion_category(0) == "step"
+    def test_unison_is_unison(self) -> None:
+        assert melodic_motion_category(0) == "unison"
 
     def test_semitone_is_step(self) -> None:
         assert melodic_motion_category(1) == "step"
@@ -135,7 +140,7 @@ class TestCostLeapRecovery:
 
 
 class TestCostTessituraDeviation:
-    """Tests for cost_tessitura_deviation function."""
+    """Tests for cost_tessitura_deviation function (two-tier model)."""
 
     def _make_slices(self, pitches: list[int]) -> list[Slice]:
         pitch_dict: dict[tuple[Fraction, int], int] = {}
@@ -144,16 +149,40 @@ class TestCostTessituraDeviation:
             pitch_dict[(Fraction(i, 4), 1)] = 48
         return extract_slices(pitch_dict, voice_count=2)
 
-    def test_at_median_zero_cost(self) -> None:
-        slices = self._make_slices([70, 70, 70])
-        cost = cost_tessitura_deviation(slices, voice=0, median=70)
+    def test_within_span_zero_cost(self) -> None:
+        """Notes within span (<=7 from median) have zero cost."""
+        median = 70
+        slices = self._make_slices([70, 72, 68, 77, 63])  # All within 7 of 70
+        cost = cost_tessitura_deviation(slices, voice=0, median=median)
         assert cost == 0.0
 
-    def test_far_from_median_high_cost(self) -> None:
-        slices = self._make_slices([84, 84, 84])  # 14 semitones above median
-        cost = cost_tessitura_deviation(slices, voice=0, median=70)
-        # 3 notes * 0.1 * 14 = 4.2
-        assert cost == pytest.approx(4.2, rel=0.01)
+    def test_at_span_boundary_zero_cost(self) -> None:
+        """Notes exactly at span boundary (7 from median) have zero cost."""
+        median = 70
+        slices = self._make_slices([77, 63])  # Exactly 7 away
+        cost = cost_tessitura_deviation(slices, voice=0, median=median)
+        assert cost == 0.0
+
+    def test_beyond_span_has_cost(self) -> None:
+        """Notes beyond span incur penalty."""
+        median = 70
+        slices = self._make_slices([78])  # 8 semitones from median, 1 beyond span
+        cost = cost_tessitura_deviation(slices, voice=0, median=median)
+        assert cost == TESSITURA_BEYOND_COST  # 1 * 100 = 100
+
+    def test_far_beyond_span_high_cost(self) -> None:
+        """Notes far beyond span incur escalating penalty."""
+        median = 70
+        slices = self._make_slices([80])  # 10 semitones from median, 3 beyond span
+        cost = cost_tessitura_deviation(slices, voice=0, median=median)
+        assert cost == 3 * TESSITURA_BEYOND_COST  # 3 * 100 = 300
+
+    def test_multiple_notes_beyond_span(self) -> None:
+        """Multiple notes beyond span accumulate cost."""
+        median = 70
+        slices = self._make_slices([78, 79])  # 1 beyond + 2 beyond
+        cost = cost_tessitura_deviation(slices, voice=0, median=median)
+        assert cost == 3 * TESSITURA_BEYOND_COST  # (1 + 2) * 100 = 300
 
 
 class TestCostVoiceMotion:
@@ -206,6 +235,55 @@ class TestCostVoiceCrossing:
         slices = self._make_slices([60, 60, 60], [65, 65, 65])
         cost = cost_voice_crossing(slices, voice_upper=0, voice_lower=1, voice_mode=VoiceMode.INTERLEAVED)
         assert cost < 0  # Rewarded in interleaved mode
+
+
+class TestCostDirectional:
+    """Tests for cost_directional function (escalating penalty)."""
+
+    def _make_slices(self, pitches: list[int]) -> list[Slice]:
+        pitch_dict: dict[tuple[Fraction, int], int] = {}
+        for i, pitch in enumerate(pitches):
+            pitch_dict[(Fraction(i, 4), 0)] = pitch
+            pitch_dict[(Fraction(i, 4), 1)] = 48
+        return extract_slices(pitch_dict, voice_count=2)
+
+    def test_four_steps_same_direction_no_cost(self) -> None:
+        """First 4 consecutive steps in same direction have no penalty."""
+        slices = self._make_slices([60, 62, 64, 66, 68])  # 4 steps up
+        cost = cost_directional(slices, voice=0)
+        assert cost == 0.0
+
+    def test_five_steps_same_direction_has_cost(self) -> None:
+        """5th consecutive step incurs penalty."""
+        slices = self._make_slices([60, 62, 64, 66, 68, 70])  # 5 steps up
+        cost = cost_directional(slices, voice=0)
+        assert cost == 100.0  # (5-4) * 100
+
+    def test_six_steps_escalates(self) -> None:
+        """6th consecutive step adds more penalty."""
+        slices = self._make_slices([60, 62, 64, 66, 68, 70, 72])  # 6 steps up
+        cost = cost_directional(slices, voice=0)
+        # 5th step: 100, 6th step: 200 = 300 total
+        assert cost == 300.0
+
+    def test_direction_change_resets(self) -> None:
+        """Changing direction resets the counter."""
+        slices = self._make_slices([60, 62, 64, 66, 68, 66, 64, 62, 60, 58])  # 4 up, 5 down
+        cost = cost_directional(slices, voice=0)
+        assert cost == 100.0  # Only the 5th down step incurs cost
+
+    def test_unison_does_not_break_or_continue(self) -> None:
+        """Unison doesn't count as direction change or continuation."""
+        slices = self._make_slices([60, 62, 64, 64, 66, 68, 70])  # 3 up, unison, 2 up = 5 up total
+        cost = cost_directional(slices, voice=0)
+        # 5 steps up total (unison ignored), so 5th step costs 100
+        assert cost == 100.0
+
+    def test_descending_same_as_ascending(self) -> None:
+        """Descending motion is treated same as ascending."""
+        slices = self._make_slices([70, 68, 66, 64, 62, 60])  # 5 steps down
+        cost = cost_directional(slices, voice=0)
+        assert cost == 100.0
 
 
 class TestCostBassMotion:

@@ -1,0 +1,21 @@
+# Keyboard playability constraints
+# See: docs/Tier2_Architecture/playability.md
+
+name: keyboard
+
+actuators:
+  - name: right_hand
+    range: [48, 96]
+    max_simultaneous: 3
+    max_leap: 24
+    reach:
+      method: span
+      span: 12
+
+  - name: left_hand
+    range: [36, 72]
+    max_simultaneous: 3
+    max_leap: 24
+    reach:
+      method: span
+      span: 12

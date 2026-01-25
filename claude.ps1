@@ -37,5 +37,14 @@ if (-not (Test-Path $claudeDir)) {
 # Write settings
 $settings | ConvertTo-Json -Depth 4 | Set-Content $settingsPath -Encoding UTF8
 
-# Launch Claude Code
-& "C:\Users\Momo\AppData\Roaming\Claude\claude-code\2.1.5\claude.exe"
+# Launch Claude Code (find latest version automatically)
+$claudeExe = Get-ChildItem "$env:APPDATA\Claude\claude-code\*\claude.exe" -ErrorAction SilentlyContinue |
+    Sort-Object { [version]$_.Directory.Name } -Descending |
+    Select-Object -First 1
+
+if ($claudeExe) {
+    & $claudeExe.FullName
+} else {
+    Write-Error "Claude Code not found in $env:APPDATA\Claude\claude-code"
+    pause
+}

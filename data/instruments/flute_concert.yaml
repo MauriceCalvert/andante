@@ -1,0 +1,12 @@
+# Concert flute (traversière) playability constraints
+# See: docs/Tier2_Architecture/playability.md
+
+name: flute_concert
+
+actuators:
+  - name: breath
+    range: [62, 86]
+    max_simultaneous: 1
+    max_leap: 12
+    reach:
+      method: monophonic

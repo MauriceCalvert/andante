@@ -1,0 +1,13 @@
+# Freude Minuet
+# Affect: Freudigkeit (joy, brightness)
+# Subject: derived from opening schema
+brief:
+  affect: Freudigkeit
+  genre: minuet
+  forces: keyboard
+  bars: 16
+frame:
+  key: C
+  mode: major
+  metre: 3/4
+  tempo: allegro

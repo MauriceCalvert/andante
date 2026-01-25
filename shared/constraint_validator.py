@@ -114,7 +114,7 @@ def validate_brief(
 def validate_frame(
     genre: str,
     affect: str,
-    key: str,
+    tonic: str,
     mode: str,
     metre: str,
     tempo: str,
@@ -127,7 +127,7 @@ def validate_frame(
     context: dict[str, Any] = {
         "genre": genre,
         "affect": affect,
-        "key": key,
+        "tonic": tonic,
         "mode": mode,
         "metre": metre,
         "tempo": tempo,
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     valid, errors = validate_frame(
         genre="minuet",
         affect="maestoso",
-        key="C",
+        tonic="C",
         mode="major",
         metre="3/4",
         tempo="allegro",
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     valid, errors = validate_frame(
         genre="minuet",
         affect="maestoso",
-        key="C",
+        tonic="C",
         mode="major",
         metre="4/4",
         tempo="allegro",

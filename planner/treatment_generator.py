@@ -28,24 +28,24 @@ REGIONS = {
 # Treatment pools by region
 TREATMENT_POOLS: dict[str, list[str]] = {
     "exposition": ["statement"],
-    "development_1": ["imitation", "sequence", "inversion", "dialogue"],
+    "development_1": ["imitation", "transposition", "inversion", "dialogue"],
     "climax": ["stretto", "fragmentation", "augmentation", "diminution"],
-    "development_2": ["sequence", "imitation", "inversion"],
+    "development_2": ["transposition", "imitation", "inversion"],
     "close": ["statement"],
 }
 
 # Transition rules: what can follow what
 # Format: treatment -> list of valid next treatments
 TRANSITIONS: dict[str, list[str]] = {
-    "statement": ["imitation", "sequence", "stretto", "inversion", "dialogue", "statement"],
-    "imitation": ["sequence", "inversion", "statement", "stretto", "fragmentation"],
-    "sequence": ["statement", "imitation", "inversion", "stretto", "fragmentation", "sequence"],
-    "inversion": ["sequence", "statement", "imitation", "stretto"],
-    "stretto": ["fragmentation", "sequence", "statement", "augmentation"],
-    "fragmentation": ["sequence", "imitation", "statement", "stretto"],
-    "augmentation": ["diminution", "sequence", "statement"],
-    "diminution": ["sequence", "statement", "stretto"],
-    "dialogue": ["imitation", "sequence", "statement", "inversion"],
+    "statement": ["imitation", "transposition", "stretto", "inversion", "dialogue", "statement"],
+    "imitation": ["transposition", "inversion", "statement", "stretto", "fragmentation"],
+    "transposition": ["statement", "imitation", "inversion", "stretto", "fragmentation", "transposition"],
+    "inversion": ["transposition", "statement", "imitation", "stretto"],
+    "stretto": ["fragmentation", "transposition", "statement", "augmentation"],
+    "fragmentation": ["transposition", "imitation", "statement", "stretto"],
+    "augmentation": ["diminution", "transposition", "statement"],
+    "diminution": ["transposition", "statement", "stretto"],
+    "dialogue": ["imitation", "transposition", "statement", "inversion"],
 }
 
 # Treatments that should appear at most N times

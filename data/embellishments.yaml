@@ -1,7 +1,0 @@
-neighbor:
-  pattern: [0, 1, 0]
-  durations: [0.5, 0.25, 0.25]
-
-passing:
-  pattern: [0, 1]
-  durations: [0.5, 0.5]

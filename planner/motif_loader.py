@@ -5,24 +5,10 @@ import csv
 import re
 
 from planner.plannertypes import Motif
-from shared.constants import NOTE_NAME_MAP
+from shared.constants import MAJOR_SCALE, MINOR_SCALE, NOTE_NAME_MAP
 
 MOTIFS_DIR: Path = Path(__file__).parent.parent / "motifs"
 BASE_DIR: Path = Path(__file__).parent.parent
-
-# Note name to pitch class (0-11), handles sharps and flats
-NOTE_TO_PC: dict[str, int] = {
-    'C': 0, 'C#': 1, 'Db': 1,
-    'D': 2, 'D#': 3, 'Eb': 3,
-    'E': 4, 'Fb': 4, 'E#': 5,
-    'F': 5, 'F#': 6, 'Gb': 6,
-    'G': 7, 'G#': 8, 'Ab': 8,
-    'A': 9, 'A#': 10, 'Bb': 10,
-    'B': 11, 'Cb': 11, 'B#': 0,
-}
-
-# G major scale: G=0, A=2, B=4, C=5, D=7, E=9, F#=11
-MAJOR_SCALE_SEMITONES: tuple[int, ...] = (0, 2, 4, 5, 7, 9, 11)
 
 # Valid musical duration denominators (powers of 2, with triplet variants)
 VALID_DENOMINATORS: frozenset[int] = frozenset({1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64})
@@ -47,7 +33,7 @@ def midi_to_degree(midi: int, tonic_pc: int = 7, mode: str = "major") -> int:
     relative_pc = (pc - tonic_pc) % 12
 
     # Find closest scale degree
-    scale = MAJOR_SCALE_SEMITONES if mode == "major" else (0, 2, 3, 5, 7, 8, 10)
+    scale = MAJOR_SCALE if mode == "major" else MINOR_SCALE
     for i, semitones in enumerate(scale):
         if relative_pc == semitones:
             return i + 1  # 1-indexed

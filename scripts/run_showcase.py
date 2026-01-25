@@ -4,7 +4,7 @@ Usage:
     python -m scripts.run_showcase
 
 This is a shortcut for:
-    python -m scripts.run_pipeline invention c_major confident -o output/showcase
+    python -m scripts.run_pipeline invention c_major default -o output/showcase
 """
 from pathlib import Path
 
@@ -18,12 +18,12 @@ def main() -> None:
     """Run the showcase."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("Generating showcase: invention in C major, confident affect\n")
+    print("Generating showcase: invention in C major, default affect\n")
 
     run_from_args(
         genre="invention",
         key="c_major",
-        affect="confident",
+        affect="default",
         output_dir=OUTPUT_DIR,
         output_name="showcase",
     )

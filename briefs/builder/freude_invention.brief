@@ -1,5 +1,6 @@
 # Freude Invention
 # Affect: Freudigkeit (joy, brightness, energetic happiness)
+# Subject: derived from opening schema
 brief:
   affect: Freudigkeit
   genre: invention
@@ -10,6 +11,3 @@ frame:
   mode: major
   metre: 4/4
   tempo: allegro
-material:
-  subject:
-    file: motifs/library/surprise.subject

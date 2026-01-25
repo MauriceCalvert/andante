@@ -9,7 +9,7 @@ from shared.errors import (
 )
 from shared.key import Key
 from shared.pitch import FloatingNote, MidiPitch, Pitch, Rest, is_rest
-from shared.types import ExpandedVoices, Frame, Motif, VoiceMaterial
+from shared.typedefs import ExpandedVoices, Frame, Motif, VoiceMaterial
 from shared.validate import (
     require_known_roman,
     require_positive_duration,

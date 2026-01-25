@@ -1,8 +1,0 @@
-# Cadence formulas for phrase harmony generation
-# Each cadence type maps to the Roman numerals for its final bars
-authentic: [V, I]
-half: [V]
-deceptive: [V, vi]
-plagal: [IV, I]
-imperfect: [V, I]
-"null": []

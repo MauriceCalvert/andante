@@ -3,6 +3,7 @@
 
 name: Fantasia
 voices: 2
+form: through_composed
 metre: 4/4
 texture: imitative
 
@@ -53,6 +54,6 @@ subject_constraints:
 # Treatment vocabulary
 treatments:
   required: [statement, imitation]
-  optional: [sequence, inversion, stretto]
+  optional: [transposition, inversion, stretto]
   opening: statement
   answer: imitation
