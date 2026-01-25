@@ -23,17 +23,12 @@ from typing import Sequence
 
 from builder.counterpoint import check_parallels, is_consonant, validate_passage
 from builder.types import Anchor, CounterpointViolation, Note
-from builder.types import TreatmentAssignment
 from planner.figuration_loader import (
-    AccompanimentPattern,
     FigurationPattern,
     FigurationProfile,
-    get_accompaniment,
-    get_accompaniment_for_energy,
     get_pattern,
     get_patterns_for_profile,
     get_profile,
-    load_accompaniments,
     load_figurations,
 )
 from shared.key import Key
@@ -159,155 +154,6 @@ def _filter_by_function(
 ) -> list[FigurationPattern]:
     """Filter patterns by function."""
     return [p for p in patterns if p.function == function]
-
-
-def _get_bass_role_for_bar(bar: int, treatments: Sequence[TreatmentAssignment]) -> str:
-    """Determine bass role for a given bar based on treatment assignments.
-
-    Returns:
-        'thematic' if subject_voice==1 (bass carries subject)
-        'accompaniment' otherwise (bass accompanies soprano)
-    """
-    for ta in treatments:
-        if ta.start_bar <= bar <= ta.end_bar:
-            if ta.subject_voice == 1:
-                return "thematic"
-            return "accompaniment"
-    return "accompaniment"
-
-
-def _realise_accompaniment_pattern(
-    pattern: AccompanimentPattern,
-    anchor_bass: int,
-    key: Key,
-) -> tuple[list[int], list[Fraction]]:
-    """Convert accompaniment degrees to MIDI pitches relative to anchor.
-
-    Args:
-        pattern: Accompaniment pattern with degrees and durations
-        anchor_bass: MIDI pitch of bass anchor (acts as root)
-        key: Key for diatonic mapping
-
-    Returns:
-        Tuple of (pitches, durations)
-    """
-    pitches: list[int] = []
-    durations: list[Fraction] = []
-
-    for degree, dur in zip(pattern.degrees, pattern.durations):
-        # Map scale degree to MIDI pitch relative to anchor (root = degree 1)
-        # Degrees: 1=root, 2=second, 3=third, 4=fourth, 5=fifth, 6=sixth, 7=seventh, 8=octave
-        steps_from_root: int = degree - 1  # degree 1 = 0 steps, degree 5 = 4 steps, degree 8 = 7 steps
-        if steps_from_root == 7:  # degree 8 = octave above
-            midi_pitch = anchor_bass + 12
-        else:
-            midi_pitch = key.diatonic_step(anchor_bass, steps_from_root)
-        pitches.append(midi_pitch)
-        durations.append(dur)
-
-    return pitches, durations
-
-
-def _generate_bass_accompaniment(
-    anchors: Sequence[Anchor],
-    key: Key,
-    energy: str,
-    metre: str,
-    treatments: Sequence[TreatmentAssignment],
-) -> tuple[tuple[int, ...], tuple[Fraction, ...]]:
-    """Generate bass using accompaniment patterns from accompaniments.yaml.
-
-    For each anchor gap, applies accompaniment pattern if bass role is 'accompaniment'.
-    If bass role is 'thematic', falls back to hold.
-
-    Args:
-        anchors: Anchors from L4
-        key: Key for pitch operations
-        energy: Energy level for pattern selection
-        metre: Time signature (e.g., "4/4")
-        treatments: Treatment assignments from L5
-
-    Returns:
-        Tuple of (bass_pitches, bass_durations)
-    """
-    if not anchors:
-        return (), ()
-
-    all_pitches: list[int] = []
-    all_durations: list[Fraction] = []
-
-    # Select accompaniment pattern based on energy
-    pattern: AccompanimentPattern = get_accompaniment_for_energy(energy)
-    _debug(f"Bass accompaniment: using pattern '{pattern.name}' for energy='{energy}'")
-
-    for i in range(len(anchors) - 1):
-        anchor_a: Anchor = anchors[i]
-        anchor_b: Anchor = anchors[i + 1]
-
-        # Extract bar from bar_beat
-        bar: int = int(anchor_a.bar_beat.split(".")[0])
-
-        # Check bass role for this bar
-        role: str = _get_bass_role_for_bar(bar, treatments)
-
-        if role == "thematic":
-            # Bass carries subject - use figuration instead of accompaniment
-            # For now, hold at anchor pitch (figuration will be added via apply_figuration_to_voice)
-            _debug(f"  Bar {bar}: bass is thematic - holding anchor pitch")
-            offset_a: Fraction = _bar_beat_to_offset(anchor_a.bar_beat)
-            offset_b: Fraction = _bar_beat_to_offset(anchor_b.bar_beat)
-            duration: Fraction = offset_b - offset_a
-            all_pitches.append(anchor_a.bass_midi)
-            all_durations.append(duration)
-        else:
-            # Bass is accompaniment - apply pattern
-            _debug(f"  Bar {bar}: bass is accompaniment - applying pattern '{pattern.name}'")
-
-            # Calculate gap duration
-            offset_a = _bar_beat_to_offset(anchor_a.bar_beat)
-            offset_b = _bar_beat_to_offset(anchor_b.bar_beat)
-            gap_duration: Fraction = offset_b - offset_a
-
-            # Realise pattern
-            pattern_pitches, pattern_durations = _realise_accompaniment_pattern(
-                pattern, anchor_a.bass_midi, key
-            )
-
-            # Calculate total pattern duration
-            total_pattern_dur: Fraction = sum(pattern_durations, Fraction(0))
-
-            if pattern.per_bar and total_pattern_dur > Fraction(0):
-                # Repeat pattern to fill gap
-                filled: Fraction = Fraction(0)
-                idx: int = 0
-                while filled < gap_duration:
-                    pitch = pattern_pitches[idx % len(pattern_pitches)]
-                    dur = pattern_durations[idx % len(pattern_durations)]
-
-                    # Don't exceed gap
-                    remaining = gap_duration - filled
-                    if dur > remaining:
-                        dur = remaining
-
-                    if dur > Fraction(0):
-                        all_pitches.append(pitch)
-                        all_durations.append(dur)
-                        filled += dur
-                    idx += 1
-
-                    # Safety: don't loop forever
-                    if idx > 100:
-                        break
-            else:
-                # Single pattern application
-                all_pitches.extend(pattern_pitches)
-                all_durations.extend(pattern_durations)
-
-    # Add final anchor
-    all_pitches.append(anchors[-1].bass_midi)
-    all_durations.append(Fraction(1, 4))  # Quarter note for final anchor
-
-    return tuple(all_pitches), tuple(all_durations)
 
 
 def select_diminution(
@@ -599,16 +445,10 @@ def layer_6_5_figuration(
     pitch_class_set: frozenset[int],
     registers: dict[str, tuple[int, int]],
     metre: str,
-    treatment_assignments: Sequence[TreatmentAssignment] | None = None,
 ) -> tuple[tuple[int, ...], tuple[Fraction, ...], tuple[int, ...], tuple[Fraction, ...]]:
     """Execute Layer 6.5: Figuration selection and realisation.
 
     Replaces L7 greedy solver with pattern-based figuration.
-
-    Soprano: Always uses figurations.yaml via profile.
-    Bass:
-        - If subject_voice == 1 (thematic): uses figurations.yaml
-        - Otherwise (accompaniment): uses accompaniments.yaml
 
     Args:
         anchors: Anchors from L4
@@ -618,16 +458,12 @@ def layer_6_5_figuration(
         pitch_class_set: Valid pitch classes for counterpoint check
         registers: Voice ranges for counterpoint check
         metre: Time signature for counterpoint check
-        treatment_assignments: Voice role assignments from L5 (optional for backward compat)
 
     Returns:
         Tuple of (soprano_pitches, soprano_durations, bass_pitches, bass_durations)
     """
     if not anchors:
         return (), (), (), ()
-
-    # Default to empty treatments if not provided
-    treatments: Sequence[TreatmentAssignment] = treatment_assignments or []
 
     # Group anchors by schema to use appropriate profile
     # For now, use default profile for all anchors
@@ -639,30 +475,13 @@ def layer_6_5_figuration(
 
     _debug(f"L6.5: Processing {len(anchors)} anchors with profile '{profile_name}', energy='{energy}'")
 
-    # Apply figuration to soprano (always uses figurations.yaml)
+    # Apply figuration to soprano
     soprano_pitches, soprano_durations = apply_figuration_to_voice(
         anchors, key, profile_name, energy, "soprano"
     )
 
-    # For bass, check if any bars have thematic bass (subject_voice==1)
-    has_thematic_bass: bool = any(ta.subject_voice == 1 for ta in treatments)
-
-    if treatments and not has_thematic_bass:
-        # All bars have accompaniment bass - use accompaniments.yaml
-        _debug("L6.5: Bass is always accompaniment - using accompaniments.yaml")
-        bass_pitches, bass_durations = _generate_bass_accompaniment(
-            anchors, key, energy, metre, treatments
-        )
-    elif treatments and has_thematic_bass:
-        # Mixed: some bars thematic, some accompaniment
-        _debug("L6.5: Bass has mixed roles - using hybrid approach")
-        bass_pitches, bass_durations = _generate_bass_hybrid(
-            anchors, key, profile_name, energy, metre, treatments
-        )
-    else:
-        # No treatment info - fall back to simple hold (backward compatibility)
-        _debug("L6.5: No treatment info - using simple bass hold")
-        bass_pitches, bass_durations = _generate_bass_from_anchors(anchors)
+    # For bass, use simpler approach: hold at anchor pitches
+    bass_pitches, bass_durations = _generate_bass_from_anchors(anchors)
 
     _debug(f"L6.5: Generated {len(soprano_pitches)} soprano notes, {len(bass_pitches)} bass notes")
 
@@ -712,117 +531,6 @@ def _generate_bass_from_anchors(
             durations.append(Fraction(1, 4))
 
     return tuple(pitches), tuple(durations)
-
-
-def _generate_bass_hybrid(
-    anchors: Sequence[Anchor],
-    key: Key,
-    profile_name: str,
-    energy: str,
-    metre: str,
-    treatments: Sequence[TreatmentAssignment],
-) -> tuple[tuple[int, ...], tuple[Fraction, ...]]:
-    """Generate bass with mixed roles: thematic in some bars, accompaniment in others.
-
-    When bass is thematic (subject_voice==1), applies full figuration.
-    When bass is accompaniment, applies accompaniment patterns.
-
-    Args:
-        anchors: Anchors from L4
-        key: Key for pitch operations
-        profile_name: Figuration profile for thematic sections
-        energy: Energy level
-        metre: Time signature
-        treatments: Treatment assignments from L5
-
-    Returns:
-        Tuple of (bass_pitches, bass_durations)
-    """
-    if not anchors:
-        return (), ()
-
-    all_pitches: list[int] = []
-    all_durations: list[Fraction] = []
-
-    # Select accompaniment pattern for accompaniment sections
-    acc_pattern: AccompanimentPattern = get_accompaniment_for_energy(energy)
-
-    for i in range(len(anchors) - 1):
-        anchor_a: Anchor = anchors[i]
-        anchor_b: Anchor = anchors[i + 1]
-
-        # Extract bar from bar_beat
-        bar: int = int(anchor_a.bar_beat.split(".")[0])
-
-        # Check bass role for this bar
-        role: str = _get_bass_role_for_bar(bar, treatments)
-
-        # Calculate gap
-        offset_a: Fraction = _bar_beat_to_offset(anchor_a.bar_beat)
-        offset_b: Fraction = _bar_beat_to_offset(anchor_b.bar_beat)
-        gap_duration: Fraction = offset_b - offset_a
-        gap_beats: float = float(gap_duration * 4)
-
-        if role == "thematic":
-            # Bass carries subject - use full figuration
-            _debug(f"  Bar {bar}: bass is thematic - applying figuration")
-
-            is_cadential: bool = (i == len(anchors) - 2)
-
-            context = FigurationContext(
-                anchor_a=anchor_a,
-                anchor_b=anchor_b,
-                start_pitch=anchor_a.bass_midi,
-                target_pitch=anchor_b.bass_midi,
-                gap_beats=gap_beats,
-                key=key,
-                is_cadential=is_cadential,
-                energy=energy,
-                profile_name=profile_name,
-            )
-
-            figuration: RealisedFiguration = fill_gap_with_figuration(context)
-            all_pitches.extend(figuration.pitches)
-            all_durations.extend(figuration.durations)
-        else:
-            # Bass is accompaniment - apply pattern
-            _debug(f"  Bar {bar}: bass is accompaniment - applying pattern '{acc_pattern.name}'")
-
-            pattern_pitches, pattern_durations = _realise_accompaniment_pattern(
-                acc_pattern, anchor_a.bass_midi, key
-            )
-
-            total_pattern_dur: Fraction = sum(pattern_durations, Fraction(0))
-
-            if acc_pattern.per_bar and total_pattern_dur > Fraction(0):
-                # Repeat pattern to fill gap
-                filled: Fraction = Fraction(0)
-                idx: int = 0
-                while filled < gap_duration:
-                    pitch = pattern_pitches[idx % len(pattern_pitches)]
-                    dur = pattern_durations[idx % len(pattern_durations)]
-
-                    remaining = gap_duration - filled
-                    if dur > remaining:
-                        dur = remaining
-
-                    if dur > Fraction(0):
-                        all_pitches.append(pitch)
-                        all_durations.append(dur)
-                        filled += dur
-                    idx += 1
-
-                    if idx > 100:
-                        break
-            else:
-                all_pitches.extend(pattern_pitches)
-                all_durations.extend(pattern_durations)
-
-    # Add final anchor
-    all_pitches.append(anchors[-1].bass_midi)
-    all_durations.append(Fraction(1, 4))
-
-    return tuple(all_pitches), tuple(all_durations)
 
 
 def _generate_soprano_from_anchors(
