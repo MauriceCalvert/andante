@@ -1,0 +1,135 @@
+# Rhythm Templates - Duration patterns for figure realisation
+# Maps note count and metre to specific duration patterns
+#
+# Templates specify durations in beats (not whole notes).
+# For 3/4: bar = 3 beats, beat = 1/4 note
+# For 4/4: bar = 4 beats, beat = 1/4 note
+#
+# Standard templates use even or conventional baroque rhythms.
+# Overdotted variants add characteristic baroque inequality.
+
+# =============================================================================
+# 3/4 METRE TEMPLATES
+# =============================================================================
+
+"3/4":
+  2:
+    standard:
+      durations: [2, 1]  # half + quarter
+    overdotted:
+      durations: [5/2, 1/2]  # dotted half + eighth
+
+  3:
+    standard:
+      durations: [1, 1, 1]  # three quarters
+    overdotted:
+      durations: [3/2, 1/2, 1]  # dotted quarter + eighth + quarter
+
+  4:
+    standard:
+      durations: [1, 1, 1/2, 1/2]  # quarter + quarter + eighth + eighth
+    overdotted:
+      durations: [1, 1, 3/4, 1/4]  # with dotted rhythm at end
+
+  5:
+    standard:
+      durations: [1, 1/2, 1/2, 1/2, 1/2]  # quarter + four eighths
+
+  6:
+    standard:
+      durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2]  # six eighths
+
+  8:
+    standard:
+      durations: [1/4, 1/4, 1/2, 1/2, 1/2, 1/4, 1/4, 1/2]  # mixed sixteenths and eighths
+
+# =============================================================================
+# 4/4 METRE TEMPLATES
+# =============================================================================
+
+"4/4":
+  2:
+    standard:
+      durations: [2, 2]  # two half notes
+    overdotted:
+      durations: [3, 1]  # dotted half + quarter
+
+  3:
+    standard:
+      durations: [2, 1, 1]  # half + two quarters
+    overdotted:
+      durations: [5/2, 1/2, 1]  # dotted half + eighth + quarter
+
+  4:
+    standard:
+      durations: [1, 1, 1, 1]  # four quarters
+    overdotted:
+      durations: [3/2, 1/2, 3/2, 1/2]  # dotted quarters with eighths
+
+  5:
+    standard:
+      durations: [1, 1, 1, 1/2, 1/2]  # three quarters + two eighths
+
+  6:
+    standard:
+      durations: [1, 1/2, 1/2, 1, 1/2, 1/2]  # alternating quarters and eighth pairs
+
+  8:
+    standard:
+      durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2, 1/2]  # eight eighths
+
+# =============================================================================
+# 6/8 METRE TEMPLATES (compound duple)
+# =============================================================================
+
+"6/8":
+  2:
+    standard:
+      durations: [3/2, 3/2]  # two dotted quarters
+    overdotted:
+      durations: [2, 1]  # elongated first beat
+
+  3:
+    standard:
+      durations: [1, 1/2, 3/2]  # varied compound rhythm
+    overdotted:
+      durations: [3/2, 1/2, 1]  # siciliano rhythm
+
+  6:
+    standard:
+      durations: [1/2, 1/2, 1/2, 1/2, 1/2, 1/2]  # six eighths
+
+# =============================================================================
+# 2/4 METRE TEMPLATES
+# =============================================================================
+
+"2/4":
+  2:
+    standard:
+      durations: [1, 1]  # two quarters
+    overdotted:
+      durations: [3/2, 1/2]  # dotted quarter + eighth
+
+  3:
+    standard:
+      durations: [1, 1/2, 1/2]  # quarter + two eighths
+
+  4:
+    standard:
+      durations: [1/2, 1/2, 1/2, 1/2]  # four eighths
+    overdotted:
+      durations: [3/4, 1/4, 3/4, 1/4]  # dotted eighths
+
+# =============================================================================
+# HEMIOLA TEMPLATES (for bars 6-7 in 3/4)
+# =============================================================================
+
+hemiola:
+  "3/4":
+    # Hemiola spans 2 bars: 6 beats become 2+1+2+1 grouping
+    4:
+      standard:
+        durations: [2, 1, 2, 1]  # creates 2:3 against regular metre
+    6:
+      standard:
+        durations: [1, 1, 1, 1, 1, 1]  # even distribution for subtle hemiola

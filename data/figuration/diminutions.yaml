@@ -1,0 +1,937 @@
+# Diminution Table - Interval-indexed baroque figure vocabulary
+# Based on Quantz (Versuch, 1752) and CPE Bach (Versuch, 1753)
+#
+# Indexed by interval between consecutive anchors.
+# Degrees are relative to starting pitch; final degree equals the interval.
+#
+# Fields:
+#   name: unique identifier
+#   degrees: scale degree offsets from start (0=start, final=interval)
+#   contour: descriptive shape name
+#   polarity: upper | lower | balanced (where ornamentation occurs)
+#   arrival: direct | stepwise | accented (how we reach target)
+#   placement: start | end | span (where figure fits in gap)
+#   character: plain | expressive | energetic | ornate | bold
+#   harmonic_tension: low | medium | high
+#   max_density: low | medium | high (rhythmic ceiling)
+#   cadential_safe: true if usable near phrase endings
+#   repeatable: true if suitable for sequences
+#   requires_compensation: true if generates leap needing recovery
+#   compensation_direction: up | down | null
+#   is_compound: true if implies two-voice texture
+#   minor_safe: true if works with melodic minor inflections
+#   requires_leading_tone: true if needs raised 7 in minor
+#   weight: selection probability (historical frequency)
+
+unison:
+  - name: repeated_tone
+    degrees: [0, 0]
+    contour: static
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
+  - name: mordent_static
+    degrees: [0, -1, 0]
+    contour: lower_neighbor
+    polarity: lower
+    arrival: direct
+    placement: start
+    character: expressive
+    harmonic_tension: low
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.9
+
+  - name: turn_static
+    degrees: [0, 1, 0, -1, 0]
+    contour: turn
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: ornate
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: trill_static
+    degrees: [0, 1, 0, 1, 0]
+    contour: oscillation
+    polarity: upper
+    arrival: direct
+    placement: span
+    character: ornate
+    harmonic_tension: medium
+    max_density: high
+    cadential_safe: true
+    repeatable: false
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.6
+
+step_up:
+  - name: direct_step_up
+    degrees: [0, 1]
+    contour: ascending_step
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
+  - name: lower_neighbor_up
+    degrees: [0, -1, 1]
+    contour: lower_neighbor
+    polarity: lower
+    arrival: stepwise
+    placement: end
+    character: expressive
+    harmonic_tension: low
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.9
+
+  - name: turn_up
+    degrees: [0, 1, 0, -1, 1]
+    contour: turn
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: ornate
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: cambiata_up
+    degrees: [0, -1, -2, 1]
+    contour: cambiata
+    polarity: lower
+    arrival: accented
+    placement: span
+    character: expressive
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: false
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.6
+
+  - name: circolo_up
+    degrees: [0, 1, 0, -1, 0, 1]
+    contour: circling
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.8
+
+step_down:
+  - name: direct_step_down
+    degrees: [0, -1]
+    contour: descending_step
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
+  - name: upper_neighbor_down
+    degrees: [0, 1, -1]
+    contour: upper_neighbor
+    polarity: upper
+    arrival: stepwise
+    placement: end
+    character: expressive
+    harmonic_tension: low
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.9
+
+  - name: turn_down
+    degrees: [0, -1, 0, 1, -1]
+    contour: turn
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: ornate
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: cambiata_down
+    degrees: [0, 1, 2, -1]
+    contour: cambiata
+    polarity: upper
+    arrival: accented
+    placement: span
+    character: expressive
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: false
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.6
+
+  - name: circolo_down
+    degrees: [0, -1, 0, 1, 0, -1]
+    contour: circling
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.8
+
+third_up:
+  - name: direct_third_up
+    degrees: [0, 2]
+    contour: ascending_skip
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
+  - name: filled_third_up
+    degrees: [0, 1, 2]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.95
+
+  - name: neighbor_third_up
+    degrees: [0, -1, 0, 1, 2]
+    contour: embellished_scalar
+    polarity: lower
+    arrival: stepwise
+    placement: span
+    character: expressive
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: broken_third_up
+    degrees: [0, 2, 1, 2]
+    contour: broken
+    polarity: upper
+    arrival: stepwise
+    placement: end
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: true
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.6
+
+third_down:
+  - name: direct_third_down
+    degrees: [0, -2]
+    contour: descending_skip
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
+  - name: filled_third_down
+    degrees: [0, -1, -2]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.95
+
+  - name: neighbor_third_down
+    degrees: [0, 1, 0, -1, -2]
+    contour: embellished_scalar
+    polarity: upper
+    arrival: stepwise
+    placement: span
+    character: expressive
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: broken_third_down
+    degrees: [0, -2, -1, -2]
+    contour: broken
+    polarity: lower
+    arrival: stepwise
+    placement: end
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: true
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.6
+
+fourth_up:
+  - name: direct_fourth_up
+    degrees: [0, 3]
+    contour: ascending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: low
+    cadential_safe: false
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: down
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.8
+
+  - name: filled_fourth_up
+    degrees: [0, 1, 2, 3]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.9
+
+  - name: arpeggiated_fourth_up
+    degrees: [0, 2, 3]
+    contour: arpeggiated
+    polarity: upper
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.75
+
+  - name: tirata_fourth_up
+    degrees: [0, 1, 2, 1, 2, 3]
+    contour: tirata
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.65
+
+fourth_down:
+  - name: direct_fourth_down
+    degrees: [0, -3]
+    contour: descending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: low
+    cadential_safe: false
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: up
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.8
+
+  - name: filled_fourth_down
+    degrees: [0, -1, -2, -3]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.9
+
+  - name: arpeggiated_fourth_down
+    degrees: [0, -2, -3]
+    contour: arpeggiated
+    polarity: lower
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.75
+
+  - name: tirata_fourth_down
+    degrees: [0, -1, -2, -1, -2, -3]
+    contour: tirata
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.65
+
+fifth_up:
+  - name: direct_fifth_up
+    degrees: [0, 4]
+    contour: ascending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: low
+    cadential_safe: false
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: down
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.75
+
+  - name: filled_fifth_up
+    degrees: [0, 1, 2, 3, 4]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.85
+
+  - name: arpeggiated_fifth_up
+    degrees: [0, 2, 4]
+    contour: arpeggiated
+    polarity: upper
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: broken_fifth_up
+    degrees: [0, 2, 1, 3, 2, 4]
+    contour: broken
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: true
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.55
+
+fifth_down:
+  - name: direct_fifth_down
+    degrees: [0, -4]
+    contour: descending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: low
+    cadential_safe: false
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: up
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.75
+
+  - name: filled_fifth_down
+    degrees: [0, -1, -2, -3, -4]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.85
+
+  - name: arpeggiated_fifth_down
+    degrees: [0, -2, -4]
+    contour: arpeggiated
+    polarity: lower
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: broken_fifth_down
+    degrees: [0, -2, -1, -3, -2, -4]
+    contour: broken
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: true
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.55
+
+sixth_up:
+  - name: direct_sixth_up
+    degrees: [0, 5]
+    contour: ascending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: high
+    max_density: low
+    cadential_safe: false
+    repeatable: false
+    requires_compensation: true
+    compensation_direction: down
+    is_compound: false
+    minor_safe: false
+    requires_leading_tone: false
+    weight: 0.5
+
+  - name: filled_sixth_up
+    degrees: [0, 1, 2, 3, 4, 5]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.8
+
+  - name: arpeggiated_sixth_up
+    degrees: [0, 2, 4, 5]
+    contour: arpeggiated
+    polarity: upper
+    arrival: stepwise
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.6
+
+sixth_down:
+  - name: direct_sixth_down
+    degrees: [0, -5]
+    contour: descending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: high
+    max_density: low
+    cadential_safe: false
+    repeatable: false
+    requires_compensation: true
+    compensation_direction: up
+    is_compound: false
+    minor_safe: false
+    requires_leading_tone: false
+    weight: 0.5
+
+  - name: filled_sixth_down
+    degrees: [0, -1, -2, -3, -4, -5]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.8
+
+  - name: arpeggiated_sixth_down
+    degrees: [0, -2, -4, -5]
+    contour: arpeggiated
+    polarity: lower
+    arrival: stepwise
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.6
+
+octave_up:
+  - name: direct_octave_up
+    degrees: [0, 7]
+    contour: ascending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: low
+    cadential_safe: false
+    repeatable: false
+    requires_compensation: true
+    compensation_direction: down
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.4
+
+  - name: filled_octave_up
+    degrees: [0, 1, 2, 3, 4, 5, 6, 7]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: false
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: true
+    weight: 0.7
+
+  - name: arpeggiated_octave_up
+    degrees: [0, 2, 4, 7]
+    contour: arpeggiated
+    polarity: upper
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: false
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.5
+
+octave_down:
+  - name: direct_octave_down
+    degrees: [0, -7]
+    contour: descending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: low
+    cadential_safe: false
+    repeatable: false
+    requires_compensation: true
+    compensation_direction: up
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.4
+
+  - name: filled_octave_down
+    degrees: [0, -1, -2, -3, -4, -5, -6, -7]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: false
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: arpeggiated_octave_down
+    degrees: [0, -2, -4, -7]
+    contour: arpeggiated
+    polarity: lower
+    arrival: direct
+    placement: span
+    character: bold
+    harmonic_tension: medium
+    max_density: medium
+    cadential_safe: false
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.5

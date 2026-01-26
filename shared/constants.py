@@ -191,3 +191,44 @@ TONAL_PROPORTION_TOLERANCE: float = 0.01  # Allowed deviation from proportions s
 DEGREE_TO_CHORD: dict[int, str] = {
     1: "I", 2: "ii", 3: "iii", 4: "IV", 5: "V", 6: "vi", 7: "viio"
 }
+
+# =============================================================================
+# Figuration System Constants (figuration.md)
+# =============================================================================
+
+# Figuration intervals for diminution table indexing
+FIGURATION_INTERVALS: tuple[str, ...] = (
+    "unison", "step_up", "step_down", "third_up", "third_down",
+    "fourth_up", "fourth_down", "fifth_up", "fifth_down",
+    "sixth_up", "sixth_down", "octave_up", "octave_down",
+)
+
+# Phrase positions within standard 8-bar phrase
+PHRASE_POSITIONS: tuple[str, ...] = ("opening", "continuation", "cadence")
+
+# Figure character types
+FIGURE_CHARACTERS: tuple[str, ...] = ("plain", "expressive", "energetic", "ornate", "bold")
+
+# Harmonic tension levels
+TENSION_LEVELS: tuple[str, ...] = ("low", "medium", "high")
+
+# Density levels
+DENSITY_LEVELS: tuple[str, ...] = ("low", "medium", "high")
+
+# Misbehaviour probability for controlled violations
+MISBEHAVIOUR_PROBABILITY: float = 0.05
+
+# Maximum sequence repetitions before fragmentation (Rule of Three)
+MAX_SEQUENCE_REPETITIONS: int = 2
+
+# Phrase deformation types
+PHRASE_DEFORMATIONS: tuple[str, ...] = ("early_cadence", "extended_continuation")
+
+# Figure polarity options
+FIGURE_POLARITIES: tuple[str, ...] = ("upper", "lower", "balanced")
+
+# Figure arrival types
+FIGURE_ARRIVALS: tuple[str, ...] = ("direct", "stepwise", "accented")
+
+# Figure placement options
+FIGURE_PLACEMENTS: tuple[str, ...] = ("start", "end", "span")

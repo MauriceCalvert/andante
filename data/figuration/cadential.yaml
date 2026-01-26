@@ -1,0 +1,188 @@
+# Cadential Figures - Phrase ending patterns
+# Separate from diminution table, indexed by target degree (1 or 5) and approach interval
+#
+# Fields:
+#   name: unique identifier
+#   degrees: scale degree offsets leading to cadence
+#   contour: descriptive shape name
+#   trill_position: which degree gets trill (0-indexed), or null
+#   hemiola: true if creates hemiola rhythm (3:2)
+
+target_1:  # Perfect Authentic Cadence (PAC) arrivals
+  step_down:  # degree 2 -> 1
+    - name: simple_resolution
+      degrees: [0, -1]
+      contour: descending_step
+      trill_position: null
+      hemiola: false
+
+    - name: trill_resolution
+      degrees: [0, 1, 0, 1, 0, -1]
+      contour: trilled_resolution
+      trill_position: 0
+      hemiola: false
+
+    - name: turn_resolution
+      degrees: [0, 1, 0, -1, -1]
+      contour: turn_resolution
+      trill_position: null
+      hemiola: false
+
+    - name: anticipation_resolution
+      degrees: [0, -1, -1]
+      contour: anticipation
+      trill_position: null
+      hemiola: false
+
+    - name: hemiola_resolution
+      degrees: [0, 0, -1, -1]
+      contour: hemiola_close
+      trill_position: null
+      hemiola: true
+
+  third_down:  # degree 3 -> 1
+    - name: filled_third_cadence
+      degrees: [0, -1, -2]
+      contour: scalar_descent
+      trill_position: null
+      hemiola: false
+
+    - name: trill_third_cadence
+      degrees: [0, 1, 0, -1, -2]
+      contour: trilled_descent
+      trill_position: 0
+      hemiola: false
+
+    - name: turn_third_cadence
+      degrees: [0, -1, 0, 1, 0, -1, -2]
+      contour: turn_descent
+      trill_position: null
+      hemiola: false
+
+  step_up:  # degree 7 -> 1 (leading tone resolution)
+    - name: leading_tone_resolution
+      degrees: [0, 1]
+      contour: ascending_step
+      trill_position: null
+      hemiola: false
+
+    - name: trill_leading_tone
+      degrees: [0, 1, 0, 1, 0, 1]
+      contour: trilled_ascent
+      trill_position: 0
+      hemiola: false
+
+    - name: appoggiatura_leading_tone
+      degrees: [0, -1, 0, 1]
+      contour: appoggiatura_ascent
+      trill_position: null
+      hemiola: false
+
+  unison:  # already on 1
+    - name: sustained_tonic
+      degrees: [0, 0]
+      contour: static
+      trill_position: null
+      hemiola: false
+
+    - name: ornamented_tonic
+      degrees: [0, 1, 0, -1, 0]
+      contour: turn_static
+      trill_position: null
+      hemiola: false
+
+target_5:  # Half Cadence (HC) arrivals
+  step_up:  # degree 4 -> 5
+    - name: simple_half_cadence
+      degrees: [0, 1]
+      contour: ascending_step
+      trill_position: null
+      hemiola: false
+
+    - name: double_appoggiatura_hc
+      degrees: [0, 1, 2, 1]
+      contour: double_appoggiatura
+      trill_position: null
+      hemiola: true
+
+    - name: trill_half_cadence
+      degrees: [0, -1, 0, -1, 0, 1]
+      contour: trilled_ascent
+      trill_position: 0
+      hemiola: false
+
+    - name: turn_half_cadence
+      degrees: [0, 1, 0, -1, 0, 1]
+      contour: turn_ascent
+      trill_position: null
+      hemiola: false
+
+  step_down:  # degree 6 -> 5
+    - name: descent_to_dominant
+      degrees: [0, -1]
+      contour: descending_step
+      trill_position: null
+      hemiola: false
+
+    - name: trill_descent_dominant
+      degrees: [0, 1, 0, 1, 0, -1]
+      contour: trilled_descent
+      trill_position: 0
+      hemiola: false
+
+    - name: ornamented_descent_dominant
+      degrees: [0, 1, 0, -1, -1]
+      contour: turn_descent
+      trill_position: null
+      hemiola: false
+
+  third_up:  # degree 3 -> 5
+    - name: filled_third_hc
+      degrees: [0, 1, 2]
+      contour: scalar_ascent
+      trill_position: null
+      hemiola: false
+
+    - name: arpeggiated_hc
+      degrees: [0, 2]
+      contour: skip_ascent
+      trill_position: null
+      hemiola: false
+
+    - name: embellished_third_hc
+      degrees: [0, -1, 0, 1, 2]
+      contour: embellished_ascent
+      trill_position: null
+      hemiola: false
+
+  third_down:  # degree 7 -> 5
+    - name: descent_from_leading
+      degrees: [0, -1, -2]
+      contour: scalar_descent
+      trill_position: null
+      hemiola: false
+
+    - name: leap_to_dominant
+      degrees: [0, -2]
+      contour: skip_descent
+      trill_position: null
+      hemiola: false
+
+  unison:  # already on 5
+    - name: sustained_dominant
+      degrees: [0, 0]
+      contour: static
+      trill_position: null
+      hemiola: false
+
+    - name: ornamented_dominant
+      degrees: [0, 1, 0, -1, 0]
+      contour: turn_static
+      trill_position: null
+      hemiola: false
+
+    - name: trill_dominant
+      degrees: [0, 1, 0, 1, 0]
+      contour: trilled_static
+      trill_position: 0
+      hemiola: false
