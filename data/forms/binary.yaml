@@ -1,31 +1,8 @@
 # Form: Binary
 # Two-part form typical of dances (minuet, gavotte)
-# Single source of truth (L017)
 
 name: binary
 description: "Two-part dance form with repeats"
 
-minimum_bars: 16
-typical_range: [16, 32]
-
-bar_allocation:
-  A: [1, 8]
-  B: [9, 16]
-
-schema_allocation:
-  A:
-    schemas: [do_re_mi, prinner]
-    treatment: [melody_accompaniment]
-  B:
-    schemas: [monte, cadenza_semplice]
-    treatment: [melody_accompaniment]
-
-phrase_boundaries:
-  - bar: 4
-    type: half_cadence
-  - bar: 8
-    type: half_cadence
-  - bar: 12
-    type: half_cadence
-  - bar: 16
-    type: perfect_authentic_cadence
+# Cadences derived from section end_cadence and schema cadential_state
+# No phrase_boundaries needed - schemas define structure

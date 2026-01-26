@@ -1,50 +1,9 @@
 # Form: Through-Composed
 # Continuous development without formal repeats
-# Single source of truth (L017)
 
 name: through_composed
 description: "No formal repeats; continuous development"
 
-minimum_bars: 20
-typical_range: [20, 32]
-
-bar_allocation:
-  exordium: [1, 4]
-  episode_1: [5, 8]
-  narratio: [9, 12]
-  confirmatio: [13, 16]
-  episode_2: [17, 18]
-  peroratio: [19, 20]
-
-schema_allocation:
-  exordium:
-    schemas: [do_re_mi, do_re_mi]
-    treatment: [S, A]
-  episode_1:
-    schemas: []
-    treatment: [episode]
-  narratio:
-    schemas: [monte]
-    segments: 3
-    treatment: [development]
-  confirmatio:
-    schemas: [prinner]
-    treatment: [schematic]
-  episode_2:
-    schemas: []
-    treatment: [episode]
-  peroratio:
-    schemas: [cadenza_semplice]
-    treatment: [cadential]
-
-phrase_boundaries:
-  - bar: 4
-    type: half_cadence
-  - bar: 8
-    type: half_cadence
-  - bar: 12
-    type: half_cadence
-  - bar: 16
-    type: authentic_cadence
-  - bar: 20
-    type: perfect_authentic_cadence
+# Cadences derived from section end_cadence and schema cadential_state
+# No phrase_boundaries, bar_allocation, or schema_allocation needed
+# These are defined in genre sections

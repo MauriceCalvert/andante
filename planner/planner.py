@@ -88,6 +88,7 @@ def generate(
         schemas,
         tonal_plan,
         affect_config.answer_interval,
+        modality,
     )
     _debug(f"L4 Metric: total_bars={total_bars}, anchors={len(anchors)}")
     _debug(f"  bar_assignments: {bar_assignments}")
@@ -109,6 +110,7 @@ def generate(
         affect_config,
         genre_config,
         form_config,
+        total_bars,
     )
 
 

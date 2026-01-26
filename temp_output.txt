@@ -1,0 +1,26 @@
+[DEBUG] Config: genre=minuet, affect=Zierlich, key=g_major
+[DEBUG] L1 Rhetorical: trajectory=['A', 'B'], tempo=110
+[DEBUG] L2 Tonal: tonal_plan={'exordium': ('I', 'V'), 'narratio': ('V', 'vi', 'IV'), 'confirmatio': ('IV', 'V', 'I'), 'peroratio': ('I',), 'A': ('I',), 'B': ('V', 'I')}, density=medium, modality=diatonic
+[DEBUG] L3 Schematic: schema_chain has 4 schemas
+[DEBUG]   [0] do_re_mi
+[DEBUG]   [1] prinner
+[DEBUG]   [2] monte
+[DEBUG]   [3] cadenza_semplice
+[DEBUG] L4 Metric: total_bars=13, anchors=13
+[DEBUG]   bar_assignments: {'A': (1, 7), 'B': (8, 13)}
+[DEBUG]   anchor 1.1: S=1 B=1 key=G (do_re_mi)
+[DEBUG]   anchor 2.1: S=2 B=7 key=G (do_re_mi)
+[DEBUG]   anchor 3.1: S=3 B=1 key=G (do_re_mi)
+[DEBUG]   anchor 4.1: S=6 B=4 key=G (prinner)
+[DEBUG]   anchor 5.1: S=5 B=3 key=G (prinner)
+[DEBUG]   anchor 6.1: S=4 B=2 key=G (prinner)
+[DEBUG]   anchor 7.1: S=3 B=1 key=G (prinner)
+[DEBUG]   anchor 8.1: S=3 B=1 key=G (monte)
+[DEBUG]   anchor 9.1: S=4 B=2 key=G (monte)
+[DEBUG]   anchor 10.1: S=5 B=3 key=G (monte)
+[DEBUG]   ... and 3 more anchors
+[DEBUG] L5 Textural: 2 treatment assignments
+[DEBUG]   bars 1-7: statement, voice=None
+[DEBUG]   bars 8-13: statement, voice=None
+Generated 13 soprano notes, 13 bass notes
+Metre: 3/4, Tempo: 110

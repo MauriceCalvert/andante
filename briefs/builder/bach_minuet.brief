@@ -5,7 +5,6 @@ brief:
   affect: Zierlich
   genre: minuet
   forces: keyboard
-  bars: 16
 frame:
   key: G
   mode: major

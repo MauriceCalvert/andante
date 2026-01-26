@@ -35,16 +35,15 @@ cadence_template:
   final_type: authentic
 
 # Section structure (binary form)
+# Bar count derived from schema_sequence stages
 sections:
   - name: A
-    bars: [1, 8]
     key_area: I
-    schema_sequence: [do_re_mi, prinner]
+    schema_sequence: [do_re_mi, prinner]  # 3 + 4 = 7 bars
     end_cadence: half
   - name: B
-    bars: [9, 16]
     key_area: V
-    schema_sequence: [monte, cadenza_semplice]
+    schema_sequence: [monte, cadenza_semplice]  # 3 + 3 = 6 bars
     end_cadence: authentic
 
 # Subject constraints

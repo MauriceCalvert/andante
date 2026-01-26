@@ -4,6 +4,7 @@ You **MUST** read
 `docs/summary.md`
 `docs/Tier1_Normative/laws.md`
 `docs/Tier2_Architecture/*.md`
+`docs\Tier3_Guides\bob.md`
 now and keep them in the foreground for the whole chat.
 
 ---
@@ -101,14 +102,55 @@ Commit message format: `Fix: [brief description]`
 ## PowerShell Execution (Windows MCP)
 
 Direct calls to external processes (python.exe, pytest.exe) hang indefinitely.
-Use cmd.exe with file redirection, then read the output file:
+Use `Start-Process` with `-WindowStyle Hidden -Wait` to run commands silently.
+
+### Running Python scripts or pytest
 
 ```powershell
-# Step 1: Run command via cmd.exe, redirect to file
-C:\WINDOWS\system32\cmd.exe /c "cd /d D:\projects\Barok\barok\source\andante && D:\projects\Barok\barok\.venv\Scripts\python.exe -m pytest tests/builder/test_cost.py -v > D:\temp_pytest.txt 2>&1"
+# Step 1: Run command hidden, redirect to file
+Start-Process -FilePath "C:\WINDOWS\system32\cmd.exe" -ArgumentList '/c "cd /d D:\projects\Barok\barok\source\andante && D:\projects\Barok\barok\.venv\Scripts\python.exe -m pytest tests/ -v > D:\temp_output.txt 2>&1"' -WindowStyle Hidden -Wait
 
 # Step 2: Read the output
-Get-Content D:\temp_pytest.txt
+Get-Content D:\temp_output.txt
 ```
 
-Simple PowerShell commands (Get-Content, Test-Path, Write-Output) work directly.
+### Running a Python script file
+
+```powershell
+# Step 1
+Start-Process -FilePath "C:\WINDOWS\system32\cmd.exe" -ArgumentList '/c "cd /d D:\projects\Barok\barok\source\andante && D:\projects\Barok\barok\.venv\Scripts\python.exe my_script.py > D:\temp_output.txt 2>&1"' -WindowStyle Hidden -Wait
+
+# Step 2
+Get-Content D:\temp_output.txt
+```
+
+### Git commands
+
+Git is in both cmd.exe and PowerShell PATH on the user's machine, but the Windows MCP tool runs in a restricted context where PATH may not be fully inherited. Use a batch file:
+
+```powershell
+# Create batch file, run it hidden, then delete
+# (Filesystem:write_file to D:/projects/Barok/barok/source/andante/temp_cmd.bat)
+```
+
+```batch
+@echo off
+cd /d D:\projects\Barok\barok\source\andante
+git add -A
+git commit -m "Fix: description"
+```
+
+```powershell
+Start-Process -FilePath "D:\projects\Barok\barok\source\andante\temp_cmd.bat" -WindowStyle Hidden -Wait
+# Then delete the batch file
+Remove-Item D:\projects\Barok\barok\source\andante\temp_cmd.bat
+```
+
+### Key points
+
+- **Always use two separate tool calls**: one to run, one to read output
+- **Always use `-WindowStyle Hidden`**: prevents flashing windows
+- **Always use `-Wait`**: ensures command completes before reading output
+- **Use single quotes** around `-ArgumentList` value, double quotes inside
+- **Temp file**: use `D:\temp_output.txt` or similar
+- Simple PowerShell commands (Get-Content, Test-Path, Remove-Item, Set-Location) work directly without Start-Process

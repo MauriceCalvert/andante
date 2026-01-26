@@ -55,13 +55,10 @@ def _invention_texture(
     """
     assignments: list[TreatmentAssignment] = []
     treatment_seq: list[dict] = list(genre_config.treatment_sequence)
-
-    # Build section list in order
-    sections: list[tuple[str, int, int]] = []
-    for section in genre_config.sections:
-        name = section["name"]
-        bars = section["bars"]
-        sections.append((name, bars[0], bars[1]))
+    sections: list[tuple[str, int, int]] = [
+        (section["name"], *bar_assignments[section["name"]])
+        for section in genre_config.sections
+    ]
 
     # Match treatments to sections
     section_idx: int = 0

@@ -304,7 +304,7 @@ def validate_required_fields() -> list[str]:
                     errors.append(f"{rel_path}: missing required field '{field}'")
 
     # Check form files have required fields (in data/forms/)
-    required_form_fields = ["name", "minimum_bars"]
+    required_form_fields = ["name"]
     forms_dir = DATA_DIR / "forms"
     if forms_dir.exists():
         for form_file in forms_dir.glob("*.yaml"):
@@ -314,6 +314,67 @@ def validate_required_fields() -> list[str]:
                     rel_path = str(form_file.relative_to(PROJECT_DIR))
                     errors.append(f"{rel_path}: missing required field '{field}'")
 
+    return errors
+
+
+def get_schema_stages(schema_name: str, schemas: dict[str, Any]) -> int:
+    """Get number of stages (bars) a schema occupies."""
+    if schema_name not in schemas:
+        return 1
+    schema = schemas[schema_name]
+    if schema.get("sequential"):
+        segments = schema.get("segments", [2])
+        if isinstance(segments, list):
+            return max(segments)
+        return segments
+    soprano_degrees = schema.get("soprano_degrees", [])
+    return len(soprano_degrees) if soprano_degrees else 1
+
+
+def validate_genre_sections() -> list[str]:
+    """Validate genre sections have non-empty schema_sequence."""
+    errors: list[str] = []
+    genres_dir = DATA_DIR / "genres"
+    schemas_path = DATA_DIR / "schemas" / "schemas.yaml"
+    if not genres_dir.exists():
+        return errors
+    schemas: dict[str, Any] = load_yaml(schemas_path) if schemas_path.exists() else {}
+    for genre_file in genres_dir.glob("*.yaml"):
+        if genre_file.name.startswith("_"):
+            continue
+        rel_path = str(genre_file.relative_to(PROJECT_DIR))
+        data = load_yaml(genre_file)
+        sections = data.get("sections", [])
+        if not sections:
+            continue
+        for i, section in enumerate(sections):
+            section_name = section.get("name", f"section_{i}")
+            schema_sequence = section.get("schema_sequence", [])
+            if not schema_sequence:
+                errors.append(f"{rel_path}: section '{section_name}' has empty schema_sequence")
+                continue
+            for schema_name in schema_sequence:
+                if schema_name != "episode" and schema_name not in schemas:
+                    errors.append(
+                        f"{rel_path}: section '{section_name}' references unknown schema '{schema_name}'"
+                    )
+    return errors
+
+
+def validate_brief_files() -> list[str]:
+    """Validate brief files don't have 'bars' field (sections define bars)."""
+    errors: list[str] = []
+    briefs_dir = PROJECT_DIR / "briefs"
+    if not briefs_dir.exists():
+        return errors
+    for brief_file in briefs_dir.rglob("*.brief"):
+        rel_path = str(brief_file.relative_to(PROJECT_DIR))
+        data = load_yaml(brief_file)
+        brief_section = data.get("brief", {})
+        if "bars" in brief_section:
+            errors.append(
+                f"{rel_path}: brief has 'bars' field — remove it (bar count derived from schema_sequence)"
+            )
     return errors
 
 
@@ -364,10 +425,18 @@ def validate_all() -> tuple[bool, list[str], dict[str, list[str]], list[Path]]:
     else:
         errors.append("data/yaml_types.yaml not found - cannot validate cross-references")
 
-    # 4. Build usages map
+    # 4. Validate genre section structure and schema-bar coherence
+    section_errors = validate_genre_sections()
+    errors.extend(section_errors)
+
+    # 5. Validate brief files don't conflict with genre sections
+    brief_errors = validate_brief_files()
+    errors.extend(brief_errors)
+
+    # 6. Build usages map
     usages: dict[str, list[str]] = build_yaml_usages()
 
-    # 5. Find orphaned files
+    # 7. Find orphaned files
     orphaned: list[Path] = find_orphaned_yaml_files(usages)
 
     return len(errors) == 0, errors, usages, orphaned

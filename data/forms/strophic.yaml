@@ -1,39 +1,9 @@
 # Form: Strophic
 # Simple repeated phrase structure typical of chorales
-# Single source of truth (L017)
 
 name: strophic
 description: "Repeated phrases with regular cadences"
 
-minimum_bars: 8
-typical_range: [8, 16]
-
-bar_allocation:
-  phrase_1: [1, 2]
-  phrase_2: [3, 4]
-  phrase_3: [5, 6]
-  phrase_4: [7, 8]
-
-schema_allocation:
-  phrase_1:
-    schemas: [do_re_mi]
-    treatment: [statement]
-  phrase_2:
-    schemas: [prinner]
-    treatment: [schematic]
-  phrase_3:
-    schemas: [fonte]
-    treatment: [schematic]
-  phrase_4:
-    schemas: [cadenza_semplice]
-    treatment: [cadential]
-
-phrase_boundaries:
-  - bar: 2
-    type: half_cadence
-  - bar: 4
-    type: half_cadence
-  - bar: 6
-    type: half_cadence
-  - bar: 8
-    type: perfect_authentic_cadence
+# Cadences derived from section end_cadence and schema cadential_state
+# No phrase_boundaries, bar_allocation, or schema_allocation needed
+# These are defined in genre sections

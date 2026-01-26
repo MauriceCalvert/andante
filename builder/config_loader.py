@@ -136,6 +136,29 @@ def _compute_slots_per_bar(metre: str, rhythmic_unit: str) -> int:
     return int(slots)
 
 
+def _get_schema_stages(schema_name: str, schemas: dict[str, SchemaConfig]) -> int:
+    """Get number of bars a schema occupies."""
+    if schema_name not in schemas or schema_name == "episode":
+        return 0
+    schema_def: SchemaConfig = schemas[schema_name]
+    if schema_def.sequential:
+        return max(schema_def.segments) if schema_def.segments else 2
+    return len(schema_def.soprano_degrees)
+
+
+def _compute_total_bars(
+    genre_config: GenreConfig,
+    schemas: dict[str, SchemaConfig],
+) -> int:
+    """Compute total bars from schema stages in all sections."""
+    total: int = 0
+    for section in genre_config.sections:
+        schema_sequence: list[str] = section.get("schema_sequence", [])
+        for name in schema_sequence:
+            total += _get_schema_stages(name, schemas)
+    return total
+
+
 def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
     """Load all required configurations."""
     genre_config: GenreConfig = load_genre(genre)
@@ -146,7 +169,7 @@ def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
     tempo_range: list[int] = genre_config.rhythmic_vocabulary.get("tempo_range", [72, 88])
     base_tempo: int = (tempo_range[0] + tempo_range[1]) // 2
     tempo: int = base_tempo + affect_config.tempo_modifier
-    total_bars: int = form_config.minimum_bars
+    total_bars: int = _compute_total_bars(genre_config, schemas)
     slots_per_bar: int = _compute_slots_per_bar(genre_config.metre, genre_config.rhythmic_unit)
     total_slots: int = total_bars * slots_per_bar
     return {
@@ -166,8 +189,8 @@ def _validate_genre(data: dict) -> GenreConfig:
     sections: list[dict] = data.get("sections", [])
     for section in sections:
         section_name: str = section.get("name", "<unnamed>")
-        assert "bars" in section, f"Section '{section_name}' missing 'bars'"
         assert "schema_sequence" in section, f"Section '{section_name}' missing 'schema_sequence'"
+        assert len(section["schema_sequence"]) > 0, f"Section '{section_name}' has empty schema_sequence"
     tessitura_raw: dict = data.get("tessitura", {})
     tessitura: dict[str, int] = {}
     for voice, median in tessitura_raw.items():
@@ -248,14 +271,4 @@ def _validate_affect(data: dict) -> AffectConfig:
 
 def _validate_form(data: dict) -> FormConfig:
     """Validate form YAML against schema."""
-    bar_alloc_raw: dict = data.get("bar_allocation", {})
-    bar_allocation: dict[str, tuple[int, int]] = {}
-    for section, bounds in bar_alloc_raw.items():
-        bar_allocation[section] = (bounds[0], bounds[1])
-    return FormConfig(
-        name=data["name"],
-        bar_allocation=bar_allocation,
-        schema_allocation=data.get("schema_allocation", {}),
-        phrase_boundaries=tuple(data.get("phrase_boundaries", [])),
-        minimum_bars=data.get("minimum_bars", 20),
-    )
+    return FormConfig(name=data["name"])

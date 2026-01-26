@@ -23,12 +23,12 @@ def realise(
     affect_config: AffectConfig,
     genre_config: GenreConfig,
     form_config: FormConfig,
+    total_bars: int,
 ) -> NoteFile:
     """Convert anchors to notes with gravitational voice leading."""
     soprano_notes: list[Note] = []
     bass_notes: list[Note] = []
     sorted_anchors: list[Anchor] = sorted(anchors, key=_anchor_sort_key)
-    total_bars: int = form_config.minimum_bars
     beats_per_bar: int = _get_beats_per_bar(genre_config.metre)
     end_offset: Fraction = Fraction(total_bars * beats_per_bar, 4)
     soprano_median: int = genre_config.tessitura.get("soprano", 70)

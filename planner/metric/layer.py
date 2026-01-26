@@ -1,9 +1,19 @@
 """Layer 4: Metric planning orchestration."""
 from builder.types import Anchor, FormConfig, GenreConfig, KeyConfig, SchemaConfig
-from planner.metric.bridge_anchors import generate_bridge_anchors
 from planner.metric.distribution import bar_beat_to_float
 from planner.metric.schema_anchors import generate_schema_anchors
 from shared.key import Key
+
+
+def get_schema_stages(schema_name: str, schemas: dict[str, SchemaConfig]) -> int:
+    """Get number of bars a schema occupies (1 stage = 1 bar)."""
+    if schema_name not in schemas or schema_name == "episode":
+        return 0
+    schema_def: SchemaConfig = schemas[schema_name]
+    if schema_def.sequential:
+        segments: tuple[int, ...] = schema_def.segments or (2,)
+        return max(segments) if isinstance(segments, (list, tuple)) else segments
+    return len(schema_def.soprano_degrees)
 
 
 def layer_4_metric(
@@ -14,36 +24,48 @@ def layer_4_metric(
     schemas: dict[str, SchemaConfig] | None = None,
     tonal_plan: dict[str, tuple[str, ...]] | None = None,
     answer_interval: int = 7,
+    modality: str = "diatonic",
 ) -> tuple[dict[str, tuple[int, int]], list[Anchor], int]:
     """Execute Layer 4 metric planning."""
-    bar_assignments: dict[str, tuple[int, int]] = _build_bar_assignments(genre_config)
-    total_bars: int = form_config.minimum_bars
-    if key_config is None or schemas is None:
+    if schemas is None:
+        schemas = {}
+    bar_assignments: dict[str, tuple[int, int]] = _build_bar_assignments(
+        genre_config, schemas,
+    )
+    total_bars: int = max(end for _, end in bar_assignments.values()) if bar_assignments else 0
+    if key_config is None:
         return bar_assignments, [], total_bars
     key: Key = _key_config_to_key(key_config)
     if tonal_plan is None:
         tonal_plan = {}
-    section_anchors: list[Anchor] = _generate_section_anchors(
+    anchors: list[Anchor] = _generate_section_anchors(
         genre_config.sections, schemas, key,
-        genre_config.metre, tonal_plan, answer_interval,
+        genre_config.metre, tonal_plan, answer_interval, modality,
+        bar_assignments,
     )
-    anchors: list[Anchor] = section_anchors
-    covered_bars: set[int] = _get_covered_bars(anchors)
-    bridge_anchors: list[Anchor] = generate_bridge_anchors(
-        total_bars, covered_bars, anchors, key, genre_config.metre,
-    )
-    anchors.extend(bridge_anchors)
     anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.soprano_degree))
     return bar_assignments, anchors, total_bars
 
 
-def _build_bar_assignments(genre_config: GenreConfig) -> dict[str, tuple[int, int]]:
-    """Build bar assignments from genre sections."""
+def _build_bar_assignments(
+    genre_config: GenreConfig,
+    schemas: dict[str, SchemaConfig],
+) -> dict[str, tuple[int, int]]:
+    """Build bar assignments by computing section lengths from schema stages."""
     assignments: dict[str, tuple[int, int]] = {}
+    current_bar: int = 1
     for section in genre_config.sections:
         section_name: str = section["name"]
-        bars: list[int] = section["bars"]
-        assignments[section_name] = (bars[0], bars[1])
+        schema_sequence: list[str] = section.get("schema_sequence", [])
+        section_bars: int = sum(
+            get_schema_stages(name, schemas)
+            for name in schema_sequence
+        )
+        assert section_bars > 0, f"Section '{section_name}' has no stages"
+        start_bar: int = current_bar
+        end_bar: int = current_bar + section_bars - 1
+        assignments[section_name] = (start_bar, end_bar)
+        current_bar = end_bar + 1
     return assignments
 
 
@@ -54,12 +76,17 @@ def _generate_section_anchors(
     metre: str,
     tonal_plan: dict[str, tuple[str, ...]],
     answer_interval: int,
+    modality: str,
+    bar_assignments: dict[str, tuple[int, int]],
 ) -> list[Anchor]:
-    """Generate anchors for all sections with transposition."""
+    """Generate anchors for all sections."""
     anchors: list[Anchor] = []
     for section in sections:
+        section_name: str = section["name"]
+        start_bar, _ = bar_assignments[section_name]
         section_anchors: list[Anchor] = _generate_single_section_anchors(
-            section, schemas, key, metre, tonal_plan, answer_interval,
+            section, schemas, key, metre, tonal_plan, answer_interval, modality,
+            start_bar,
         )
         anchors.extend(section_anchors)
     return anchors
@@ -72,76 +99,35 @@ def _generate_single_section_anchors(
     metre: str,
     tonal_plan: dict[str, tuple[str, ...]],
     answer_interval: int,
+    modality: str,
+    start_bar: int,
 ) -> list[Anchor]:
     """Generate anchors for a single section."""
     section_name: str = section["name"]
-    bars: list[int] = section["bars"]
-    start_bar: int = bars[0]
-    end_bar: int = bars[1]
     schema_sequence: list[str] = section.get("schema_sequence", [])
     real_schemas: list[str] = [s for s in schema_sequence if s != "episode"]
     if not real_schemas:
         return []
     key_areas: tuple[str, ...] = tonal_plan.get(section_name, ("I",))
     is_exordium: bool = section_name == "exordium"
-    bar_ranges: list[tuple[int, int]] = _allocate_bars_by_stages(
-        real_schemas, schemas, start_bar, end_bar,
-    )
     anchors: list[Anchor] = []
+    current_bar: int = start_bar
     for i, schema_name in enumerate(real_schemas):
         if schema_name not in schemas:
             continue
-        schema_start, schema_end = bar_ranges[i]
-        local_key: Key = _get_local_key(home_key, i, is_exordium, key_areas, answer_interval)
+        schema_def: SchemaConfig = schemas[schema_name]
+        stages: int = get_schema_stages(schema_name, schemas)
+        schema_end: int = current_bar + stages - 1
+        local_key: Key = _get_local_key(
+            home_key, i, is_exordium, key_areas, answer_interval, modality,
+        )
         schema_anchors: list[Anchor] = generate_schema_anchors(
-            schema_name, schemas[schema_name], schema_start, schema_end,
+            schema_name, schema_def, current_bar, schema_end,
             local_key, metre,
         )
         anchors.extend(schema_anchors)
-    return anchors
-
-
-def _allocate_bars_by_stages(
-    schema_names: list[str],
-    schemas: dict[str, SchemaConfig],
-    start_bar: int,
-    end_bar: int,
-) -> list[tuple[int, int]]:
-    """Allocate bars to schemas proportional to stage count."""
-    stage_counts: list[int] = []
-    for name in schema_names:
-        if name not in schemas:
-            stage_counts.append(1)
-            continue
-        schema_def: SchemaConfig = schemas[name]
-        if schema_def.sequential:
-            segments: tuple[int, ...] = schema_def.segments or (2,)
-            stage_counts.append(max(segments) * 2)
-        else:
-            stage_counts.append(len(schema_def.soprano_degrees))
-    total_stages: int = sum(stage_counts)
-    section_bars: int = end_bar - start_bar + 1
-    bar_ranges: list[tuple[int, int]] = []
-    current_bar: int = start_bar
-    for i, stages in enumerate(stage_counts):
-        is_last: bool = i == len(stage_counts) - 1
-        if is_last:
-            schema_bars = end_bar - current_bar + 1
-        else:
-            schema_bars = max(1, round(section_bars * stages / total_stages))
-        schema_end: int = min(current_bar + schema_bars - 1, end_bar)
-        bar_ranges.append((current_bar, schema_end))
         current_bar = schema_end + 1
-    return bar_ranges
-
-
-def _get_covered_bars(anchors: list[Anchor]) -> set[int]:
-    """Get set of bars that have at least one anchor."""
-    covered: set[int] = set()
-    for anchor in anchors:
-        bar: int = int(anchor.bar_beat.split(".")[0])
-        covered.add(bar)
-    return covered
+    return anchors
 
 
 def _get_local_key(
@@ -150,8 +136,11 @@ def _get_local_key(
     is_exordium: bool,
     key_areas: tuple[str, ...],
     answer_interval: int,
+    modality: str,
 ) -> Key:
     """Determine local key for schema at given index."""
+    if modality == "diatonic":
+        return home_key
     if is_exordium and schema_index == 1:
         return home_key.modulate_to("V")
     if schema_index < len(key_areas):

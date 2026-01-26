@@ -129,10 +129,6 @@ class AffectConfig:
 class FormConfig:
     """Form template from YAML."""
     name: str
-    bar_allocation: dict[str, tuple[int, int]]
-    schema_allocation: dict[str, dict[str, Any]]
-    phrase_boundaries: tuple[dict[str, Any], ...]
-    minimum_bars: int
 
 
 @dataclass(frozen=True)
