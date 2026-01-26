@@ -5,6 +5,7 @@ name: Fantasia
 voices: 2
 form: through_composed
 metre: 4/4
+primary_value: "1/16"
 texture: imitative
 
 # Schema selection by formal position
