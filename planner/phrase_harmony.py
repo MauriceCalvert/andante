@@ -20,7 +20,7 @@ PROGRESSIONS_TO: dict[str, list[str]] = {
 
 def _load_cadence_formulas() -> dict[str, list[str]]:
     """Load cadence Roman numeral formulas from cadences.yaml."""
-    path = DATA_DIR / "cadences.yaml"
+    path = DATA_DIR / "cadences" / "cadences.yaml"
     assert path.exists(), f"Missing cadences.yaml at {path}"
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)

@@ -21,17 +21,15 @@ _CADENCE_TRANSITIONS: dict[str, dict[str, str]] | None = None
 
 
 def _load_cadence_transitions() -> dict[str, dict[str, str]]:
-    """Load cadence transition rules from YAML."""
+    """Load cadence transition rules from cadences.yaml."""
     global _CADENCE_TRANSITIONS
     if _CADENCE_TRANSITIONS is not None:
         return _CADENCE_TRANSITIONS
-
-    path = DATA_DIR / "cadence_transitions.yaml"
-    assert path.exists(), f"Cadence transitions file not found: {path}"
-
+    path = DATA_DIR / "cadences" / "cadences.yaml"
+    assert path.exists(), f"Cadences file not found: {path}"
     with open(path, encoding="utf-8") as f:
-        _CADENCE_TRANSITIONS = yaml.safe_load(f)
-
+        data = yaml.safe_load(f)
+    _CADENCE_TRANSITIONS = data.get("transitions", {})
     return _CADENCE_TRANSITIONS
 
 

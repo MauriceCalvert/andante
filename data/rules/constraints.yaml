@@ -1,4 +1,4 @@
-# Semantic Constraints
+# Semantic Constraints and Treatise Rules
 # Validates that value combinations are musically sound.
 #
 # Format:
@@ -9,175 +9,261 @@
 #       forbid: { field: [values] }      # Forbidden values
 #       message: "Error description"     # Custom error message
 
-# Genre constraints - what each genre requires/forbids
+# ============================================================================
+# GENRE CONSTRAINTS
+# ============================================================================
+
 genre:
   minuet_metre:
     when: { genre: minuet }
     require: { metre: ["3/4"] }
     message: "Minuet must be in 3/4 time"
-
   minuet_voices:
     when: { genre: minuet }
     require: { voices: [2] }
     message: "Minuet requires 2 voices"
-
   sarabande_metre:
     when: { genre: sarabande }
     require: { metre: ["3/4"] }
     message: "Sarabande must be in 3/4 time"
-
   bourree_metre:
     when: { genre: bourree }
     require: { metre: ["2/2", "4/4"] }
     message: "Bourrée must be in 2/2 or 4/4 time"
-
   gavotte_metre:
     when: { genre: gavotte }
     require: { metre: ["2/2", "4/4"] }
     message: "Gavotte must be in 2/2 or 4/4 time"
-
   invention_metre:
     when: { genre: invention }
     require: { metre: ["4/4", "3/4", "2/4"] }
     message: "Invention must be in common time signatures"
-
   invention_voices:
     when: { genre: invention }
     require: { voices: [2] }
     message: "Two-part invention requires 2 voices"
-
   chorale_voices:
     when: { genre: chorale }
     require: { voices: [4] }
     message: "Chorale requires 4 voices"
-
   chorale_metre:
     when: { genre: chorale }
     require: { metre: ["4/4"] }
     message: "Chorale must be in 4/4 time"
-
   trio_sonata_voices:
     when: { genre: trio_sonata }
     require: { voices: [3] }
     message: "Trio sonata requires 3 voices"
 
-# Affect constraints - what affects imply
-# German Affektenlehre terms (primary system)
+# ============================================================================
+# AFFECT CONSTRAINTS (German Affektenlehre terms)
+# ============================================================================
+
 affect:
   Sehnsucht_tempo:
     when: { affect: Sehnsucht }
     require: { tempo: [adagio, andante, lento] }
     message: "Sehnsucht requires slow/moderate tempo"
-
   Sehnsucht_mode:
     when: { affect: Sehnsucht }
     require: { mode: [minor] }
     message: "Sehnsucht requires minor mode"
-
   Klage_tempo:
     when: { affect: Klage }
     require: { tempo: [adagio, lento, grave, largo] }
     message: "Klage requires slow tempo"
-
   Klage_mode:
     when: { affect: Klage }
     require: { mode: [minor] }
     message: "Klage requires minor mode"
-
   Freudigkeit_tempo:
     when: { affect: Freudigkeit }
     require: { tempo: [allegro, vivace, presto] }
     message: "Freudigkeit requires lively tempo"
-
   Freudigkeit_mode:
     when: { affect: Freudigkeit }
     require: { mode: [major] }
     message: "Freudigkeit requires major mode"
-
   Majestaet_tempo:
     when: { affect: Majestaet }
     require: { tempo: [allegro, moderato, andante] }
     message: "Majestaet requires stately tempo"
-
   Majestaet_mode:
     when: { affect: Majestaet }
     require: { mode: [major] }
     message: "Majestaet requires major mode"
-
   Zaertlichkeit_tempo:
     when: { affect: Zaertlichkeit }
     require: { tempo: [andante, moderato, allegretto] }
     message: "Zaertlichkeit requires moderate tempo"
-
   Zaertlichkeit_mode:
     when: { affect: Zaertlichkeit }
     require: { mode: [major] }
     message: "Zaertlichkeit requires major mode"
-
   Zorn_tempo:
     when: { affect: Zorn }
     require: { tempo: [presto, vivace, allegro] }
     message: "Zorn requires fast tempo"
-
   Zorn_mode:
     when: { affect: Zorn }
     require: { mode: [minor] }
     message: "Zorn requires minor mode"
-
   Verwunderung_tempo:
     when: { affect: Verwunderung }
     require: { tempo: [andante, moderato] }
     message: "Verwunderung requires moderate tempo"
-
   Entschlossenheit_tempo:
     when: { affect: Entschlossenheit }
     require: { tempo: [allegro, moderato] }
     message: "Entschlossenheit requires confident tempo"
-
   Entschlossenheit_mode:
     when: { affect: Entschlossenheit }
     require: { mode: [major] }
     message: "Entschlossenheit requires major mode"
 
-# Form constraints
+# ============================================================================
+# FORM CONSTRAINTS
+# ============================================================================
+
 form:
   binary_sections:
     when: { form: binary }
     require: { section_count: [2] }
     message: "Binary form requires exactly 2 sections"
-
   ternary_sections:
     when: { form: ternary }
     require: { section_count: [3] }
     message: "Ternary form requires exactly 3 sections"
 
-# Structural constraints
+# ============================================================================
+# STRUCTURAL CONSTRAINTS
+# ============================================================================
+
 structure:
   last_cadence_authentic:
     require: { last_section_cadence: [authentic] }
     message: "Final section must end with authentic cadence"
-
   bars_divisible_by_phrase:
     require: { bars_divisible: true }
     message: "Total bars must be divisible by phrase length"
-
   minimum_bars:
     require: { min_bars: 8 }
     message: "Piece must have at least 8 bars"
 
-# Arc constraints - voice count must match
+# ============================================================================
+# ARC CONSTRAINTS
+# ============================================================================
+
 arc:
   fugue_voices:
     when: { arc: fugue_4voice }
     require: { voices: [4] }
     message: "Fugue 4-voice arc requires 4 voices"
-
   chorale_arc_voices:
     when: { arc: chorale_4voice }
     require: { voices: [4] }
     message: "Chorale arc requires 4 voices"
-
   dialogue_voices:
     when: { arc: dialogue }
     require: { voices: [3] }
     message: "Dialogue arc requires 3 voices"
+
+# ============================================================================
+# KOCH'S MECHANICAL RULES
+# Source: Heinrich Christoph Koch, Versuch einer Anleitung zur Composition (1782-1793)
+# ============================================================================
+
+koch:
+  # Phrase sequence constraints (hard blockers)
+  phrase_sequence:
+    i_i_forbidden: true
+    v_v_same_key_forbidden: true
+    vi_start_forbidden: true
+
+  # Phrase length preferences (soft constraints)
+  phrase_length:
+    preferred: 4
+    allowed: [4, 5, 6, 7]
+
+  # Period structure preferences (soft constraints)
+  period_structure:
+    standard_bars: [8, 16, 24, 32]
+    periods: 2
+
+  # Modulation rules for first cadence (soft constraints)
+  modulation:
+    major_first_cadence: ["I", "V"]
+    minor_first_cadence: ["i", "v", "III"]
+
+  # Metrical stress (post-realisation guard)
+  metrical:
+    max_tied_subdivisions: 2
+
+  # Caesura placement rules (Koch section 61-65)
+  caesura:
+    authentic_on_downbeat: true
+    half_on_strong: true
+    incise_relaxed: true
+
+# ============================================================================
+# CPE BACH RULES
+# Source: C.P.E. Bach, Versuch über die wahre Art das Clavier zu spielen (1753/1762)
+# ============================================================================
+
+cpe_bach:
+  # Cadence rules
+  cadence:
+    fifth_in_soprano_forbidden: true
+
+  # Free fantasia rules
+  free_fantasia:
+    establish_key: true
+    remote_key_constraint:
+      short_piece_max_distance: 2
+      long_piece_max_distance: 4
+    require_figuration_diversity: true
+
+  # Appoggiatura rules
+  appoggiatura:
+    duple_time_duration: "half"
+    triple_time_duration: "two_thirds"
+    require_legato: true
+    triple_time_downbeat_only: true
+    louder_than_resolution: true
+
+  # Trill rules
+  trill:
+    start_from_upper: true
+    require_evenness: true
+    suffix_speed_matches_trill: true
+    augmented_second_forbidden: true
+    ascending_requires_long_note: true
+
+  # Turn rules
+  turn:
+    affect_aware: true
+    avoid_rapid_descending: true
+    avoid_congested_texture: true
+
+  # Mordent rules
+  mordent:
+    descending_leap_rare: true
+    descending_second_forbidden: true
+    prefer_bass_notes: true
+    long_notes_use_trill: true
+
+  # Slow movement rules
+  slow_movement:
+    touch: "broad_sustained"
+    ornaments_sustain_tone: true
+    character: "cantabile"
+    fill_gaps: true
+    avoid_excess: true
+    dotted_shortening: true
+
+  # Expression rules
+  expression:
+    sparingly: true
+    affect_aware: true
+    require_variety: true
+    ornament_length_proportional: true

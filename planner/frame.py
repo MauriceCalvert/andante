@@ -24,16 +24,17 @@ def parse_upbeat(value: int | str) -> Fraction:
 
 def resolve_frame(brief: Brief) -> Frame:
     """Resolve Frame from Brief using data files."""
-    affects: dict = load_yaml("affects.yaml")
-    keys: dict = load_yaml("keys.yaml")
+    affects_data: dict = load_yaml("rhetoric/affects.yaml")
+    affects: dict = affects_data.get("affects", {})
+    key_characters: dict = affects_data.get("key_characters", {})
     genre_data: dict = load_yaml(f"genres/{brief.genre}.yaml")
     assert brief.affect in affects, f"Unknown affect: {brief.affect}"
     affect_def: dict = affects[brief.affect]
     mode: str = affect_def["mode"]
     tempo: str = affect_def["tempo"]
     key_character: str = affect_def["key_character"]
-    assert key_character in keys, f"Unknown key_character: {key_character}"
-    candidates: list[str] = sorted(keys[key_character])
+    assert key_character in key_characters, f"Unknown key_character: {key_character}"
+    candidates: list[str] = sorted(key_characters[key_character])
     key: str = candidates[0]
     metre: str = genre_data["metre"]
     voices: int = genre_data["voices"]

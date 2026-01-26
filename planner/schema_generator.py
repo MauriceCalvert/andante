@@ -32,7 +32,7 @@ DATA_DIR: Path = Path(__file__).parent.parent / "data"
 @lru_cache(maxsize=1)
 def _load_schema_transitions() -> dict[str, Any]:
     """Load schema transitions YAML (cached)."""
-    path = DATA_DIR / "schema_transitions.yaml"
+    path = DATA_DIR / "schemas" / "schema_transitions.yaml"
     assert path.exists(), f"Schema transitions file not found: {path}"
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)

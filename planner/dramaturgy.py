@@ -37,7 +37,7 @@ DEFAULT_ARCHETYPE = "assertion_confirmation"
 
 def load_archetypes() -> Dict[str, dict]:
     """Load archetype definitions from YAML."""
-    path = DATA_DIR / "archetypes.yaml"
+    path = DATA_DIR / "rhetoric" / "archetypes.yaml"
     if not path.exists():
         return {}
     with open(path, "r", encoding="utf-8") as f:
@@ -46,11 +46,12 @@ def load_archetypes() -> Dict[str, dict]:
 
 def load_affects() -> Dict[str, dict]:
     """Load affect definitions from YAML."""
-    path = DATA_DIR / "affects.yaml"
+    path = DATA_DIR / "rhetoric" / "affects.yaml"
     if not path.exists():
         return {}
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+        data = yaml.safe_load(f) or {}
+    return data.get("affects", {})
 
 
 def select_archetype(affect: str) -> str:

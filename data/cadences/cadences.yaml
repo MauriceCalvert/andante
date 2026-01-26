@@ -6,6 +6,7 @@
 #   roman_numerals - Simple chord progressions (for phrase harmony)
 #   internal       - Half-bar formulas with voice-leading (mid-piece)
 #   final          - Two-bar formulas with approach + resolution
+#   transitions    - Cadence type lookup by key area transition
 #
 # Voice roles (not SATB names):
 #   top     - highest voice (track 0)
@@ -15,9 +16,10 @@
 #
 # Degrees are relative to tonal target (offset applied at runtime)
 
-# -----------------------------------------------------------------------------
+# ============================================================================
 # ROMAN NUMERALS - Chord progressions for phrase harmony generation
-# -----------------------------------------------------------------------------
+# ============================================================================
+
 roman_numerals:
   authentic: [V, I]
   half: [V]
@@ -27,60 +29,62 @@ roman_numerals:
   phrygian: [iv, V]
   "null": []
 
-# -----------------------------------------------------------------------------
+# ============================================================================
 # INTERNAL CADENCES - Half-bar, used mid-piece
-# -----------------------------------------------------------------------------
+# ============================================================================
 # Inner voices move stepwise to chord tones for proper voice leading
+
 internal:
   authentic:
     top: [7, 1]
-    inner_1: [2, 3]     # Re-Mi: stepwise resolution to mediant
-    inner_2: [5, 5]     # Sol-Sol: holds fifth
+    inner_1: [2, 3]
+    inner_2: [5, 5]
     bottom: [5, 1]
   half:
     top: [1, 7]
-    inner_1: [5, 4]     # Sol-Fa: approaches leading tone area
-    inner_2: [3, 2]     # Mi-Re: descending step
+    inner_1: [5, 4]
+    inner_2: [3, 2]
     bottom: [4, 5]
   deceptive:
     top: [7, 1]
-    inner_1: [2, 1]     # Re-Do: resolves down (vi chord has tonic)
-    inner_2: [5, 6]     # Sol-La: rises to submediant
+    inner_1: [2, 1]
+    inner_2: [5, 6]
     bottom: [5, 6]
   plagal:
     top: [4, 3]
-    inner_1: [6, 5]     # La-Sol: subdominant to tonic fifth
-    inner_2: [1, 1]     # Do-Do: holds
+    inner_1: [6, 5]
+    inner_2: [1, 1]
     bottom: [4, 1]
   phrygian:
     top: [3, 2]
-    inner_1: [6, 7]     # La-Ti: characteristic Phrygian half-step
-    inner_2: [4, 4]     # Fa stays (bass note becomes root)
+    inner_1: [6, 7]
+    inner_2: [4, 4]
     bottom: [6, 5]
 
-# -----------------------------------------------------------------------------
+# ============================================================================
 # FINAL CADENCES - Two-bar: approach + resolution
-# -----------------------------------------------------------------------------
+# ============================================================================
 # Inner voices follow standard voice leading: stepwise motion, resolve dissonances
+
 final:
   stepwise:
     approach:
       top: [3, 2]
-      inner_1: [1, 7]       # Do-Ti: stepwise descent to leading tone
-      inner_2: [5, 5]       # Sol-Sol: pedal fifth
+      inner_1: [1, 7]
+      inner_2: [5, 5]
       bottom: [4, 5]
       durations: [1/2, 1/2]
     resolution:
       top: [7, 1]
-      inner_1: [2, 3]       # Re-Mi: resolves up to mediant
-      inner_2: [5, 5]       # Sol-Sol: stays on fifth
+      inner_1: [2, 3]
+      inner_2: [5, 5]
       bottom: [5, 1]
       durations: [1/4, 3/4]
   leap:
     approach:
       top: [5, 2]
-      inner_1: [1, 7]       # Do-Ti: same as stepwise
-      inner_2: [3, 5]       # Mi-Sol: rises to fifth
+      inner_1: [1, 7]
+      inner_2: [3, 5]
       bottom: [3, 5]
       durations: [1/2, 1/2]
     resolution:
@@ -92,8 +96,8 @@ final:
   decorated:
     approach:
       top: [4, 3, 2]
-      inner_1: [6, 5, 7]    # La-Sol-Ti: passing through
-      inner_2: [1, 1, 5]    # Do-Do-Sol: holds then moves to V
+      inner_1: [6, 5, 7]
+      inner_2: [1, 1, 5]
       bottom: [4, 4, 5]
       durations: [1/4, 1/4, 1/2]
     resolution:
@@ -105,8 +109,8 @@ final:
   invention:
     approach:
       top: [3, 2, 7, 1, 2]
-      inner_1: [1, 7, 5, 5, 7]      # Active inner voice
-      inner_2: [5, 5, 2, 3, 5]      # Stepwise motion
+      inner_1: [1, 7, 5, 5, 7]
+      inner_2: [5, 5, 2, 3, 5]
       bottom: [1, 7, 5, 4, 5]
       durations: [1/8, 1/8, 1/8, 1/8, 1/2]
     resolution:
@@ -115,3 +119,34 @@ final:
       inner_2: [5, 5]
       bottom: [5, 1]
       durations: [1/4, 3/4]
+
+# ============================================================================
+# TRANSITIONS - Cadence type lookup by key area transition
+# ============================================================================
+# Format: from_area_to_area: cadence_type
+# Used by cadence_planner to determine cadence types at tonal section boundaries
+
+transitions:
+  major:
+    I_to_V: half
+    V_to_I: authentic
+    I_to_vi: deceptive
+    I_to_IV: half
+    vi_to_I: authentic
+    IV_to_I: plagal
+    ii_to_V: half
+    V_to_vi: deceptive
+    _default: half
+
+  minor:
+    i_to_III: half
+    III_to_i: authentic
+    i_to_v: half
+    i_to_V: half
+    v_to_i: authentic
+    V_to_i: authentic
+    III_to_v: half
+    III_to_V: half
+    iv_to_i: plagal
+    i_to_iv: half
+    _default: half

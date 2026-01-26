@@ -1,4 +1,4 @@
-# Textures - voice relationship patterns
+# Textures and Voice Spacing
 #
 # A texture specifies how voices interact in time and pitch space.
 # Textures are orthogonal to treatments (melodic transformations).
@@ -16,6 +16,10 @@
 #   parameters         Texture-specific configuration
 #
 #   interdictions      Processing steps to skip for this texture
+
+# ============================================================================
+# TEXTURES
+# ============================================================================
 
 polyphonic:
   time_relation: independent
@@ -37,12 +41,11 @@ homophonic:
     - ornaments
 
 interleaved:
-  # Goldberg-style: voice 2 enters after entry_offset, voices swap material at swap_at
   time_relation: offset
   pitch_relation: independent
   parameters:
     swap_at: 1/2
-    entry_offset: 1/2  # voice 2 enters half a bar later
+    entry_offset: 1/2
     tessitura: overlapping
   voice_roles:
     voice_1: leader
@@ -79,7 +82,7 @@ hocket:
     voice_2: leader
   interdictions:
     - ornaments
-    - gap_validation  # hocket intentionally creates gaps between notes
+    - gap_validation
 
 heterophony:
   time_relation: independent
@@ -106,7 +109,6 @@ stratified:
   interdictions: []
 
 figured_bass:
-  # Special texture: bass from schema, soprano from figure realization
   time_relation: independent
   pitch_relation: harmonic
   parameters:
@@ -118,7 +120,6 @@ figured_bass:
   interdictions: []
 
 melody_accompaniment:
-  # Clear melodic line with supporting accompaniment
   time_relation: independent
   pitch_relation: independent
   parameters:
@@ -130,25 +131,41 @@ melody_accompaniment:
   interdictions: []
 
 baroque_invention:
-  # True baroque invention texture with rotating subject entries
-  # - Subject rotates through all voices at tonic and dominant
-  # - Simultaneous entries for short phrases, staggered for longer
-  # - Tonal answer when entering on dominant (5th→4th adjustment)
-  # - Bass carries subject entries, not just harmonic support
-  # - Counter-subject is intentionally repeated (Bach style)
   time_relation: offset
   pitch_relation: independent
   parameters:
-    entry_offset_bars: 2    # Default entry delay in bars
-    use_tonal_answer: true  # Apply tonal answer on dominant entries
-    rotate_entries: true    # Subject appears in all voices
-    generate_defaults: true # Auto-generate baroque entry schedule if not specified
+    entry_offset_bars: 2
+    use_tonal_answer: true
+    rotate_entries: true
+    generate_defaults: true
   voice_roles:
-    soprano: thematic       # Can carry subject or CS
-    alto: thematic          # Can carry subject or CS
-    bass: thematic          # Can carry subject or CS
+    soprano: thematic
+    alto: thematic
+    bass: thematic
   interdictions:
-    - inner_voice_gen       # We handle inner voices via entry system
-    - ornaments             # Keep lines clean for counterpoint clarity
-    - parallel_check        # TEMPORARY: skip parallel check until solver added
-    - sequence_duplication  # CS is intentionally repeated in each phrase
+    - inner_voice_gen
+    - ornaments
+    - parallel_check
+    - sequence_duplication
+
+# ============================================================================
+# VOICE SPACING CONSTRAINTS
+# ============================================================================
+# All intervals in semitones
+
+spacing:
+  adjacent_upper:
+    min_interval: 0
+    max_interval: 12
+    allow_crossing: true
+    max_crossing_beats: 0.125
+
+  bass_gap:
+    min_interval: 0
+    max_interval: 19
+    allow_crossing: false
+
+  outer:
+    min_interval: 7
+    max_interval: 36
+    allow_crossing: false

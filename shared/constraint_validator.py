@@ -16,7 +16,7 @@ def load_constraints() -> dict[str, Any]:
     """Load constraints.yaml with caching."""
     global _constraints_cache
     if _constraints_cache is None:
-        with open(DATA_DIR / "constraints.yaml") as f:
+        with open(DATA_DIR / "rules" / "constraints.yaml") as f:
             _constraints_cache = yaml.safe_load(f)
     return _constraints_cache
 

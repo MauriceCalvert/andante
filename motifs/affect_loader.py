@@ -30,15 +30,14 @@ _affects_cache: dict[str, AffectProfile] | None = None
 
 def _load_affects() -> dict[str, AffectProfile]:
     """Load all affect profiles from YAML."""
-    path = DATA_DIR / "affects.yaml"
+    path = DATA_DIR / "rhetoric" / "affects.yaml"
     if not path.exists():
         return {}
-
     with open(path, encoding="utf-8") as f:
         data: dict = yaml.safe_load(f)
-
+    affects_data: dict = data.get("affects", {})
     profiles: dict[str, AffectProfile] = {}
-    for name, defn in data.items():
+    for name, defn in affects_data.items():
         if not isinstance(defn, dict):
             continue
         profiles[name] = AffectProfile(

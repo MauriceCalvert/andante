@@ -116,8 +116,8 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
 
 @lru_cache(maxsize=1)
 def load_schemas() -> dict[str, Schema]:
-    """Load all schemas from data/schemas.yaml."""
-    raw = _load_yaml("schemas.yaml")
+    """Load all schemas from data/schemas/schemas.yaml."""
+    raw = _load_yaml("schemas/schemas.yaml")
     schemas: dict[str, Schema] = {}
     for name, data in raw.items():
         if not isinstance(data, dict):

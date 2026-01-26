@@ -3,8 +3,8 @@
 Category B: Orchestrator with file I/O.
 Loads from data/ directory (single source of truth per L017):
 - data/genres/*.yaml
-- data/schemas.yaml
-- data/affects.yaml
+- data/schemas/schemas.yaml
+- data/rhetoric/affects.yaml
 - data/forms/*.yaml
 
 Keys are computed from (tonic, mode) parameters, not loaded from YAML.
@@ -34,8 +34,8 @@ def load_genre(name: str) -> GenreConfig:
 
 
 def load_all_schemas() -> dict[str, SchemaConfig]:
-    """Load all schema definitions from data/schemas.yaml (authoritative source)."""
-    path: Path = DATA_DIR / "schemas.yaml"
+    """Load all schema definitions from data/schemas/schemas.yaml (authoritative source)."""
+    path: Path = DATA_DIR / "schemas" / "schemas.yaml"
     if not path.exists():
         raise FileNotFoundError(f"Schema config not found: {path}")
     data: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -93,11 +93,12 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 def load_affect(name: str) -> AffectConfig:
     """Load affect configuration, merging with default."""
-    path: Path = DATA_DIR / "affects.yaml"
+    path: Path = DATA_DIR / "rhetoric" / "affects.yaml"
     assert path.exists(), f"Affects file not found: {path}"
-    all_affects: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
+    all_affects: dict = data.get("affects", {})
     # Start with default
-    assert "default" in all_affects, "affects.yaml must have 'default' entry"
+    assert "default" in all_affects, "affects.yaml must have 'default' entry in 'affects' section"
     base_data: dict = dict(all_affects["default"])
     # Case-insensitive lookup for requested affect
     name_lower: str = name.lower()

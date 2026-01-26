@@ -1,20 +1,59 @@
 # Counterpoint Rules for CP-SAT Solver
 # Synthesized from Fux, Rameau, C.P.E. Bach, Kirnberger, Koch, Marpurg, Mattheson
 
-# Hard constraints: violation = infeasible solution
-hard_constraints:
+# ============================================================================
+# INTERVALS AND TESSITURAS
+# ============================================================================
 
+intervals:
+  # Melodic interval thresholds (semitones)
+  step_max: 2
+  leap_small: 5
+  leap_large: 7
+  forbidden: [6, 10, 11]
+  # Consonance classification (semitones mod 12)
+  consonant_perfect: [0, 7, 12]
+  consonant_imperfect: [3, 4, 8, 9]
+  dissonant: [1, 2, 5, 6, 10, 11]
+  # Named intervals
+  step: 2
+  third: 4
+  tritone: 6
+  fifth: 7
+  sixth: 9
+  octave: 12
+
+# Voice tessituras (MIDI note numbers) - per L003 no hard ranges
+# Median pitch for each voice; cost increases with distance from median
+voice_tessituras:
+  soprano: 70
+  alto: 64
+  tenor: 57
+  bass: 48
+
+# Interleaved voice tessituras (Goldberg-style shared space)
+interleaved_tessituras:
+  voice_1: 70
+  voice_2: 57
+
+# Voice spacing
+spacing:
+  max_gap: 24
+
+# ============================================================================
+# HARD CONSTRAINTS (violation = infeasible solution)
+# ============================================================================
+
+hard_constraints:
   parallel_motion:
     parallel_fifth:
       description: "Two voices move in parallel perfect fifths"
       detection: "Both intervals = 7 mod 12, same direction, neither stationary"
       source: "Fux I.14, Kirnberger II.3"
-
     parallel_octave:
       description: "Two voices move in parallel octaves"
       detection: "Both intervals = 0 or 12 mod 12, same direction, neither stationary"
       source: "Fux I.14, Kirnberger II.3"
-
     parallel_unison:
       description: "Two voices move in parallel unisons"
       detection: "Both intervals = 0, same direction, neither stationary"
@@ -25,7 +64,6 @@ hard_constraints:
       description: "Outer voices arrive at fifth by similar motion, soprano leaps"
       detection: "Arrive at interval 7, similar motion, upper voice moves > 2 semitones"
       source: "Fux I.15"
-
     direct_octave_outer:
       description: "Outer voices arrive at octave by similar motion, soprano leaps"
       detection: "Arrive at interval 0/12, similar motion, upper voice moves > 2 semitones"
@@ -36,17 +74,14 @@ hard_constraints:
       description: "Dissonance on strong beat without preparation"
       detection: "Strong beat, interval in [1,2,6,10,11], previous beat different pitch"
       source: "Fux II.1"
-
     unresolved_dissonance:
       description: "Dissonance not resolved by step"
       detection: "Dissonant interval, next motion > 2 semitones"
       source: "Fux II.2"
-
     dissonance_resolved_up:
       description: "Dissonance resolved upward (except leading tone)"
       detection: "Dissonant interval, resolves by +1 or +2, not leading tone"
       source: "Fux II.3"
-
     dissonance_by_leap:
       description: "Dissonance approached or left by leap"
       detection: "Dissonant interval, motion > 2 semitones in/out"
@@ -58,15 +93,16 @@ hard_constraints:
       detection: "Current pitch crosses previous pitch of neighbor voice"
       source: "Kirnberger II.5"
 
-# Soft constraints: violation = penalty added to cost
-soft_constraints:
+# ============================================================================
+# SOFT CONSTRAINTS (violation = penalty added to cost)
+# ============================================================================
 
+soft_constraints:
   hidden_parallels:
     hidden_fifth_inner:
       description: "Hidden fifth between inner voices"
       cost: 20
       source: "Kirnberger II.4"
-
     hidden_octave_inner:
       description: "Hidden octave between inner voices"
       cost: 20
@@ -78,12 +114,10 @@ soft_constraints:
       cost: 5
       note: "Acceptable for melodic continuity"
       source: "Marpurg III.2"
-
     crossing_sustained:
       description: "Voice crossing lasting 3+ beats"
       cost: 40
       source: "Kirnberger II.5"
-
     crossing_wide:
       description: "Voice crossing by more than a third"
       cost: 25
@@ -95,19 +129,16 @@ soft_constraints:
       cost: 15
       threshold_semitones: 12
       source: "Kirnberger III.1"
-
     alto_tenor_gap:
       description: "More than octave between alto and tenor"
       cost: 10
       threshold_semitones: 12
       source: "Kirnberger III.1"
-
     tenor_bass_gap:
       description: "More than twelfth between tenor and bass"
       cost: 5
       threshold_semitones: 19
       source: "Traditional"
-
     unison_non_cadential:
       description: "Unison between adjacent voices outside cadence"
       cost: 30
@@ -117,31 +148,26 @@ soft_constraints:
     leap_augmented:
       description: "Melodic augmented interval"
       cost: 30
-      intervals: [1, 3, 6, 8, 10]  # augmented unison, 2nd, 4th, 5th, 6th in semitones
+      intervals: [1, 3, 6, 8, 10]
       source: "Fux I.10"
-
     leap_seventh:
       description: "Melodic seventh (10 or 11 semitones)"
       cost: 25
       intervals: [10, 11]
       source: "Fux I.10"
-
     leap_beyond_octave:
       description: "Melodic leap larger than octave"
       cost: 30
       threshold_semitones: 12
       source: "Fux I.10"
-
     consecutive_leaps_same_direction:
       description: "Two leaps in the same direction"
       cost: 15
       source: "Fux I.11"
-
     leap_not_compensated:
       description: "Leap not followed by contrary stepwise motion"
       cost: 10
       source: "Fux I.11"
-
     tritone_outline:
       description: "Tritone outlined in melodic line within 4 notes"
       cost: 20
@@ -153,13 +179,11 @@ soft_constraints:
       cost: 15
       threshold: 3
       source: "Koch II.3"
-
     rhythm_monotony:
       description: "Same rhythm pattern more than 4 bars"
       cost: 10
       threshold_bars: 4
       source: "Mattheson V.2"
-
     static_bass:
       description: "Bass unchanged for more than 2 bars (non-pedal)"
       cost: 20
@@ -171,65 +195,53 @@ soft_constraints:
       description: "All voices move in similar motion"
       cost: 12
       source: "Fux I.16"
-
     extended_parallel_thirds:
       description: "Parallel thirds for more than 3 beats"
       cost: 8
       threshold_beats: 3
       source: "Kirnberger II.6"
-
     extended_parallel_sixths:
       description: "Parallel sixths for more than 3 beats"
       cost: 8
       threshold_beats: 3
       source: "Kirnberger II.6"
-
     simultaneous_leaps:
       description: "All voices leap simultaneously"
       cost: 15
       source: "Fux I.17"
 
   range:
-    # Per L003: no hard range constraints, use tessitura distance penalty
     outside_comfortable_tessitura:
       description: "Voice far from tessitura median"
       cost_per_semitone: 1
-      tessituras_midi:
-        soprano: 70  # Bb4 median
-        alto: 64     # E4 median
-        tenor: 57    # A3 median
-        bass: 48     # C3 median
       source: "Traditional, adapted per L003"
-
     extended_extreme:
       description: "Voice far from tessitura for more than 2 bars"
       cost: 15
       source: "Traditional"
-
     bass_above_tenor:
       description: "Bass pitch above tenor tessitura median"
       cost: 20
       source: "Kirnberger III.2"
 
-# Rewards: bonus subtracted from cost
-rewards:
+# ============================================================================
+# REWARDS (bonus subtracted from cost)
+# ============================================================================
 
+rewards:
   motion_types:
     contrary_outer:
       description: "Contrary motion between outer voices"
       reward: 12
       source: "Fux I.16"
-
     oblique_motion:
       description: "One voice stationary while other moves"
       reward: 4
       source: "Fux I.16"
-
     stepwise_motion:
       description: "Voice moves by step (1-2 semitones)"
       reward: 10
       source: "Fux I.9"
-
     complementary_rhythm:
       description: "One voice moves while another holds"
       reward: 8
@@ -240,18 +252,15 @@ rewards:
       description: "Leading tone resolves up by step to tonic"
       reward: 15
       source: "Fux III.2"
-
     suspension_4_3:
       description: "4-3 suspension at cadence"
       reward: 12
       source: "Fux III.3"
-
     suspension_chain_7_6:
       description: "Chain of 7-6 suspensions"
       reward: 10
       per_suspension: true
       source: "Fux III.3"
-
     bass_cadential_fifth:
       description: "Bass moves by fifth at cadence (V-I or IV-I)"
       reward: 10
@@ -263,23 +272,19 @@ rewards:
       reward: 20
       min_notes: 4
       source: "Marpurg II.4"
-
     countersubject_fragment:
       description: "Voice contains countersubject fragment"
       reward: 15
       min_notes: 4
       source: "Marpurg II.4"
-
     sequential_repetition:
       description: "Pattern repeated at different pitch level"
       reward: 10
       source: "Mattheson V.4"
-
     imitation_octave:
       description: "Imitation at octave or unison"
       reward: 15
       source: "Marpurg II.1"
-
     imitation_fifth:
       description: "Imitation at fifth or fourth"
       reward: 12
@@ -290,12 +295,10 @@ rewards:
       description: "Each voice has rhythmically distinct profile"
       reward: 8
       source: "Kirnberger IV.2"
-
     staggered_entries:
       description: "Voices enter at different times"
       reward: 6
       source: "Marpurg II.3"
-
     offset_climax:
       description: "Melodic climax occurs at different points per voice"
       reward: 5
@@ -306,34 +309,98 @@ rewards:
       description: "Two voices create coherent implied third voice"
       reward: 25
       source: "Bach analysis"
-
     alternating_register:
       description: "Single voice alternates registers creating polyphonic effect"
       reward: 20
       source: "Bach analysis"
-
     interlocking_fill:
       description: "Voice pair interlocks to fill harmonic space continuously"
       reward: 15
       source: "Traditional"
 
-# Dissonance intervals (semitones mod 12)
-intervals:
-  consonant_perfect: [0, 7, 12]      # unison, fifth, octave
-  consonant_imperfect: [3, 4, 8, 9]  # minor 3rd, major 3rd, minor 6th, major 6th
-  dissonant: [1, 2, 5, 6, 10, 11]    # seconds, fourth, tritone, sevenths
+# ============================================================================
+# SPECIES I COUNTER-SUBJECT RULES
+# Adapted from proven countercpsat rules.json
+# Severity: H=hard (must satisfy), F=firm (high penalty), S=soft (preference)
+# ============================================================================
 
-# Note: fourth (5) is dissonant against bass, consonant between upper voices
+species_i:
+  consonance:
+    perfect: [0, 7]
+    imperfect: [3, 4, 8, 9]
 
-# Voice tessituras (MIDI note numbers) - per L003 no hard ranges
-# Median pitch for each voice; cost increases with distance from median
-voice_tessituras:
-  soprano: 70   # Bb4 - typical baroque soprano center
-  alto: 64      # E4 - typical baroque alto center
-  tenor: 57     # A3 - typical baroque tenor center
-  bass: 48      # C3 - typical baroque bass center
+  hard_constraints:
+    - id: ALL-00
+      brief: No unisons except first/last
+      scope: interior
+    - id: ALL-01
+      brief: All verticals must be consonant
+      scope: global
+    - id: ALL-03
+      brief: No parallel perfect fifths or octaves
+      scope: global
+    - id: I-03
+      brief: Begin with perfect consonance (P5 or P8)
+      scope: first
+    - id: I-04
+      brief: End with perfect consonance (P5 or P8)
+      scope: last
+    - id: INV-01
+      brief: Forbid 5ths between subject and CS (become 4ths when inverted)
+      scope: global
 
-# Doubling rules for chord voicing
+  firm_constraints:
+    - id: ALL-05
+      brief: Avoid direct/hidden perfects (similar motion into perfect)
+      penalty: 250
+    - id: ALL-08
+      brief: Forbid tritone and 7th leaps
+      penalty: 150
+    - id: ALL-09
+      brief: Compensate leaps >= 4th by opposite step
+      penalty: 200
+    - id: ALL-10
+      brief: No two same-direction leaps unless triadic
+      penalty: 180
+    - id: ALL-11
+      brief: Don't outline tritone by successive intervals
+      penalty: 220
+    - id: I-05
+      brief: No interior unisons
+      penalty: 140
+    - id: I-07
+      brief: Don't chain consecutive perfect consonances
+      penalty: 130
+
+  soft_constraints:
+    - id: ALL-07
+      brief: Prefer stepwise motion (70% threshold)
+      penalty: 30
+    - id: ALL-12
+      brief: Avoid immediate pitch repetition
+      penalty: 2
+    - id: ALL-13
+      brief: Avoid frequent return to same pitch within 4 notes
+      penalty: 5
+    - id: ALL-15
+      brief: Voice independence (limit parallel motion spans)
+      penalty: 25
+
+  rhythm_constraints:
+    - id: RHY-01
+      brief: Minimize simultaneous attacks (parallel rhythm)
+      penalty: 100
+    - id: RHY-02
+      brief: Avoid consecutive identical durations
+      penalty: 10
+    - id: RHY-03
+      brief: Limit repetition of any single duration value
+      max_proportion: 0.5
+
+# ============================================================================
+# DOUBLING AND ORNAMENT RULES
+# ============================================================================
+
 doubling:
   priority:
     - root
@@ -345,9 +412,20 @@ doubling:
     - seventh
     - any_tendency_tone
 
-# Document metadata
+ornaments:
+  max_per_phrase: 2
+  min_duration: 1/4
+
+# Contour: prefer small intervals, allow octave displacement for large leaps
+contour:
+  max_interval: 9
+
+# ============================================================================
+# METADATA
+# ============================================================================
+
 metadata:
-  version: "1.0"
+  version: "1.1"
   last_updated: "2025-01"
   sources:
     - "Fux: Gradus ad Parnassum (1725)"

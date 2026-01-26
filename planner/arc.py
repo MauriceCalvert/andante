@@ -35,7 +35,7 @@ def select_tension_curve(brief: Brief) -> str:
 
 def build_tension_curve(brief: Brief, macro_form: MacroForm | None = None) -> TensionCurve:
     """Build tension curve from template."""
-    curves: dict = load_yaml("tension_curves.yaml")
+    curves: dict = load_yaml("rhetoric/tension_curves.yaml")
     curve_name: str = select_tension_curve(brief)
     assert curve_name in curves, f"Unknown tension curve: {curve_name}"
     curve_def: dict = curves[curve_name]

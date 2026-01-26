@@ -1,0 +1,484 @@
+# Episode Types - Functional units within phrases
+# Each episode has: treatment override, rhythm tendency, motif handling
+
+# ============================================================================
+# EPISODES
+# ============================================================================
+
+episodes:
+  arpeggiated:
+    description: Arpeggio-based passage work
+    treatment: sequence
+    rhythm: running
+    motif_portion: 0.25
+    energy_profile: rising
+
+  bass_development:
+    description: Bass develops counter-subject
+    treatment: bass_development
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: rising
+
+  bass_sequence:
+    description: Bass develops head motif in sequence
+    treatment: bass_sequence
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: rising
+
+  bass_statement:
+    description: Bass presents theme while soprano holds
+    treatment: bass_statement
+    rhythm: null
+    motif_portion: 1.0
+    energy_profile: stable
+
+  cadenza:
+    description: Virtuosic quasi-improvisatory passage
+    treatment: fragmentation
+    rhythm: null
+    motif_portion: 0.125
+    energy_profile: peak
+
+  cadential:
+    description: Achieve closure with repose
+    treatment: repose
+    rhythm: straight
+    motif_portion: 1.0
+    energy_profile: resolving
+
+  chromatic:
+    description: Chromatic approach
+    treatment: fragmentation
+    rhythm: running
+    motif_portion: 0.25
+    energy_profile: intensification
+    is_transition: true
+
+  climax:
+    description: Maximum tension point
+    treatment: augmentation
+    rhythm: null
+    motif_portion: 1.0
+    energy_profile: peak
+
+  coda:
+    description: Final closing passage
+    treatment: statement
+    rhythm: straight
+    motif_portion: 0.5
+    energy_profile: resolving
+
+  continuation:
+    description: Spin out from statement, build momentum
+    treatment: sequence
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: rising
+
+  dialogue:
+    description: Call and response between voices
+    treatment: dialogue
+    rhythm: null
+    motif_portion: 1.0
+    energy_profile: stable
+
+  dialogue_invert:
+    description: Dialogue with inverted response
+    treatment: dialogue_invert
+    rhythm: null
+    motif_portion: 1.0
+    energy_profile: rising
+
+  dramatic:
+    description: Dramatic pause and restart
+    treatment: statement
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: suspenseful
+    is_transition: true
+
+  drive:
+    description: Propulsive forward momentum
+    treatment: sequence
+    rhythm: running
+    motif_portion: 0.5
+    energy_profile: rising
+
+  exchange:
+    description: Subject and counter-subject swap voices at midpoint
+    treatment: voice_exchange
+    rhythm: null
+    motif_portion: 1.0
+    energy_profile: rising
+
+  head_motif:
+    description: Development using subject head only
+    treatment: head_sequence
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: rising
+
+  intensification:
+    description: Drive toward climax
+    treatment: stretto
+    rhythm: null
+    motif_portion: 0.25
+    energy_profile: rising
+
+  linking:
+    description: Brief melodic link
+    treatment: diminution
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: stable
+    is_transition: true
+
+  lyrical:
+    description: Singing melodic passage
+    treatment: statement
+    rhythm: dotted
+    motif_portion: 1.0
+    energy_profile: plateau
+
+  pivot:
+    description: Pivot chord modulation
+    treatment: statement
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: stable
+    is_transition: true
+
+  release:
+    description: Dissipate tension after climax
+    treatment: fragmentation
+    rhythm: straight
+    motif_portion: 0.5
+    energy_profile: falling
+
+  response:
+    description: Answer the statement in another voice
+    treatment: inversion
+    rhythm: null
+    motif_portion: 1.0
+    energy_profile: stable
+
+  response_cs:
+    description: Counter-subject in soprano while subject enters in bass
+    treatment: imitation_cs
+    rhythm: null
+    motif_portion: 1.0
+    energy_profile: stable
+
+  retransition:
+    description: Prepare return to tonic
+    treatment: sequence
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: suspenseful
+
+  scalar:
+    description: Scale-based passage work
+    treatment: sequence
+    rhythm: running
+    motif_portion: 0.25
+    energy_profile: rising
+
+  sequential:
+    description: Sequential modulation
+    treatment: sequence
+    rhythm: null
+    motif_portion: 0.25
+    energy_profile: rising
+    is_transition: true
+
+  statement:
+    description: Present thematic material clearly
+    treatment: statement
+    rhythm: null
+    motif_portion: 1.0
+    energy_profile: stable
+
+  tail_motif:
+    description: Development using subject tail
+    treatment: tail_development
+    rhythm: null
+    motif_portion: 0.5
+    energy_profile: rising
+
+  transition:
+    description: Bridge between sections
+    treatment: sequence
+    rhythm: running
+    motif_portion: 0.25
+    energy_profile: suspenseful
+    is_transition: true
+
+  triumphant:
+    description: Victorious closing passage
+    treatment: augmentation
+    rhythm: straight
+    motif_portion: 1.0
+    energy_profile: peak
+
+  turbulent:
+    description: Agitated developmental passage
+    treatment: diminution
+    rhythm: running
+    motif_portion: 0.5
+    energy_profile: rising
+
+  virtuosic:
+    description: Display passage requiring technical skill
+    treatment: diminution
+    rhythm: running
+    motif_portion: 0.25
+    energy_profile: peak
+
+# ============================================================================
+# TRANSITIONS (section-level key changes)
+# ============================================================================
+
+transitions:
+  cadential:
+    description: Strong cadence into new section
+    bars: 2
+    treatment: statement
+    energy: arrival
+    triggers: [climax, resolution]
+
+  chromatic:
+    description: Chromatic motion to new key
+    bars: 4
+    treatment: fragmentation
+    energy: intensification
+    triggers: [dramatic, distant_key]
+
+  dramatic:
+    description: Pause and restart (caesura)
+    bars: 2
+    treatment: hold
+    energy: release
+    triggers: [section_change, contrast]
+
+  linking:
+    description: Brief melodic link
+    bars: 2
+    treatment: diminution
+    energy: stable
+    triggers: [related_key, continuation]
+
+  pivot:
+    description: Single pivot chord modulation
+    bars: 2
+    treatment: statement
+    energy: stable
+    triggers: [related_key, smooth]
+
+  sequential:
+    description: Descending sequence through keys
+    bars: 4
+    treatment: sequence
+    energy: drive
+    triggers: [contrast, distant_key]
+
+# ============================================================================
+# SURPRISES (strategic deviations from expectation)
+# ============================================================================
+
+surprise_placement:
+  min_phrases_before: 2
+  never_on_final: true
+  prefer_before_cadence: true
+
+surprises:
+  deceptive_cadence:
+    description: V resolves to vi instead of I
+    category: harmonic
+    cadence_override: deceptive
+    register_shift: 0
+    magnitude: minor
+
+  evaded_cadence:
+    description: Cadence interrupted, phrase continues
+    category: harmonic
+    cadence_override: null
+    register_shift: 0
+    magnitude: minor
+
+  hemiola:
+    description: Metric grouping shift (half notes against quarters)
+    category: rhythmic
+    cadence_override: null
+    register_shift: 0
+    rhythm_override: hemiola
+    magnitude: minor
+
+  registral_displacement:
+    description: Sudden leap to unexpected register
+    category: melodic
+    cadence_override: null
+    register_shift: 7
+    magnitude: major
+
+  sequence_break:
+    description: Sequential pattern breaks unexpectedly after 2 units
+    category: melodic
+    cadence_override: null
+    register_shift: 0
+    fill_override: sequence_break
+    magnitude: minor
+
+  subito_forte:
+    description: Sudden rise in register (louder)
+    category: textural
+    cadence_override: null
+    register_shift: 5
+    magnitude: minor
+
+  subito_piano:
+    description: Sudden drop in register (softer)
+    category: textural
+    cadence_override: null
+    register_shift: -5
+    magnitude: minor
+
+# ============================================================================
+# SECTION TEMPLATES (episode sequences per section character)
+# ============================================================================
+
+section_templates:
+  arpeggiated:
+    description: Arpeggio-based virtuosity
+    episodes:
+      - { type: arpeggiated, bars: 4 }
+      - { type: continuation, bars: 4 }
+      - { type: arpeggiated, bars: 4 }
+      - { type: intensification, bars: 4 }
+
+  bold:
+    description: Confident opening statement
+    episodes:
+      - { type: statement, bars: 4 }
+      - { type: response_cs, bars: 4 }
+      - { type: continuation, bars: 4 }
+      - { type: cadential, bars: 4 }
+
+  cadenza:
+    description: Quasi-improvisatory virtuosic passage
+    episodes:
+      - { type: cadenza, bars: 4 }
+      - { type: scalar, bars: 4 }
+      - { type: cadenza, bars: 4 }
+      - { type: arpeggiated, bars: 4 }
+      - { type: cadential, bars: 4 }
+
+  climax:
+    description: Peak tension section
+    episodes:
+      - { type: intensification, bars: 4 }
+      - { type: scalar, bars: 4 }
+      - { type: climax, bars: 4 }
+      - { type: arpeggiated, bars: 4 }
+
+  closing:
+    description: Final resolution
+    episodes:
+      - { type: statement, bars: 4 }
+      - { type: continuation, bars: 4 }
+      - { type: cadential, bars: 4 }
+
+  coda:
+    description: Final closing passage
+    episodes:
+      - { type: statement, bars: 4 }
+      - { type: coda, bars: 4 }
+
+  development:
+    description: Thematic exploration
+    episodes:
+      - { type: statement, bars: 4 }
+      - { type: response_cs, bars: 4 }
+      - { type: intensification, bars: 4 }
+      - { type: scalar, bars: 4 }
+      - { type: retransition, bars: 4 }
+      - { type: cadential, bars: 4 }
+
+  lyrical:
+    description: Singing expressive passage
+    episodes:
+      - { type: lyrical, bars: 4 }
+      - { type: continuation, bars: 4 }
+      - { type: lyrical, bars: 4 }
+      - { type: response, bars: 4 }
+      - { type: continuation, bars: 4 }
+      - { type: cadential, bars: 4 }
+
+  opening:
+    description: Initial thematic presentation
+    episodes:
+      - { type: statement, bars: 4 }
+      - { type: response_cs, bars: 4 }
+      - { type: continuation, bars: 4 }
+      - { type: response, bars: 4 }
+
+  return:
+    description: Recapitulation after climax
+    episodes:
+      - { type: release, bars: 4 }
+      - { type: lyrical, bars: 4 }
+      - { type: continuation, bars: 4 }
+      - { type: cadential, bars: 4 }
+
+  scalar:
+    description: Scale-based virtuosity
+    episodes:
+      - { type: scalar, bars: 4 }
+      - { type: continuation, bars: 4 }
+      - { type: scalar, bars: 4 }
+      - { type: intensification, bars: 4 }
+
+  stormy:
+    description: Turbulent dramatic opening
+    episodes:
+      - { type: statement, bars: 4 }
+      - { type: response_cs, bars: 4 }
+      - { type: turbulent, bars: 4 }
+      - { type: intensification, bars: 4 }
+      - { type: climax, bars: 4 }
+      - { type: scalar, bars: 4 }
+      - { type: retransition, bars: 4 }
+      - { type: cadential, bars: 4 }
+
+  triumphant:
+    description: Victorious closing
+    episodes:
+      - { type: statement, bars: 4 }
+      - { type: response_cs, bars: 4 }
+      - { type: triumphant, bars: 4 }
+      - { type: intensification, bars: 4 }
+      - { type: triumphant, bars: 4 }
+      - { type: cadential, bars: 4 }
+
+  turbulent:
+    description: Agitated developmental passage
+    episodes:
+      - { type: turbulent, bars: 4 }
+      - { type: response_cs, bars: 4 }
+      - { type: intensification, bars: 4 }
+      - { type: scalar, bars: 4 }
+      - { type: turbulent, bars: 4 }
+      - { type: retransition, bars: 4 }
+
+  virtuosic:
+    description: Technically demanding passage
+    episodes:
+      - { type: statement, bars: 4 }
+      - { type: scalar, bars: 4 }
+      - { type: arpeggiated, bars: 4 }
+      - { type: scalar, bars: 4 }
+      - { type: intensification, bars: 4 }
+      - { type: arpeggiated, bars: 4 }
+      - { type: climax, bars: 4 }
+      - { type: cadential, bars: 4 }

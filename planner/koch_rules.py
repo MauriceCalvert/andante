@@ -28,9 +28,10 @@ class KochViolation:
 
 
 def load_koch_config() -> dict:
-    """Load Koch rules configuration."""
-    with open(DATA_DIR / "koch_rules.yaml", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    """Load Koch rules configuration from constraints.yaml."""
+    with open(DATA_DIR / "rules" / "constraints.yaml", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+        return config.get("koch", {})
 
 
 def classify_phrase(phrase: Phrase, mode: str) -> str:

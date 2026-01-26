@@ -13,6 +13,11 @@
 #   function: ornament | diminution | cadential | sequential
 #   approach: how pattern begins relative to previous tone (step, leap, repeated, any)
 #   energy: tension level (low, medium, high)
+#   trigger: (optional) context-based conditions for automatic application
+#     position: downbeat | strong_beat | cadence | any
+#     min_duration: minimum note duration (fraction)
+#     meter: duple | triple (optional)
+#   dynamics: (optional) accent_first for appoggiatura-style emphasis
 
 # ============================================================================
 # ORNAMENTAL FIGURES (decoration of single tones)
@@ -26,6 +31,9 @@ mordent:
   function: ornament
   approach: any
   energy: low
+  trigger:
+    position: downbeat
+    min_duration: 1/4
 
 mordent_double:
   description: Extended mordent with two oscillations
@@ -62,6 +70,9 @@ trillo:
   function: ornament
   approach: any
   energy: medium
+  trigger:
+    position: cadence
+    min_duration: 1/2
 
 trillo_con_ribattuta:
   description: Trill with repeated-note preparation (Quantz)
@@ -72,6 +83,18 @@ trillo_con_ribattuta:
   approach: repeated
   energy: medium
 
+trillo_cadential:
+  description: Trill with turn suffix for cadences (CPE Bach)
+  offset_from_target: [1, 0, 1, 0, 1, 0, -1, 0]
+  notes_per_beat: 4
+  metric: strong
+  function: ornament
+  approach: any
+  energy: medium
+  trigger:
+    position: cadence
+    min_duration: 1/2
+
 doppelschlag:
   description: Turn figure - upper-main-lower-main (Quantz groppo)
   offset_from_target: [1, 0, -1, 0]
@@ -80,6 +103,10 @@ doppelschlag:
   function: ornament
   approach: any
   energy: low
+  trigger:
+    position: any
+    min_duration: 1/4
+    interval_down: true
 
 doppelschlag_inverted:
   description: Inverted turn - lower-main-upper-main
@@ -107,6 +134,102 @@ nachschlag:
   function: ornament
   approach: any
   energy: low
+
+# --- Neighbor-tone figures ---
+
+neighbor_upper:
+  description: Upper neighbor and return
+  offset_from_target: [0, 1, 0]
+  notes_per_beat: 4
+  metric: any
+  function: ornament
+  approach: any
+  energy: low
+  trigger:
+    position: any
+    min_duration: 1/4
+
+neighbor_lower:
+  description: Lower neighbor and return
+  offset_from_target: [0, -1, 0]
+  notes_per_beat: 4
+  metric: any
+  function: ornament
+  approach: any
+  energy: low
+  trigger:
+    position: any
+    min_duration: 1/4
+
+passing:
+  description: Passing tone to next degree
+  offset_from_target: [0, 1]
+  notes_per_beat: 4
+  metric: any
+  function: ornament
+  approach: any
+  energy: low
+  trigger:
+    position: any
+    min_duration: 1/4
+
+# --- Appoggiatura figures ---
+
+appoggiatura_upper_duple:
+  description: Upper appoggiatura in duple meter
+  offset_from_target: [1, 0]
+  notes_per_beat: 2
+  metric: strong
+  function: ornament
+  approach: step_above
+  energy: medium
+  trigger:
+    position: strong_beat
+    min_duration: 1/4
+    meter: duple
+  dynamics: accent_first
+
+appoggiatura_upper_triple:
+  description: Upper appoggiatura in triple meter
+  offset_from_target: [1, 0]
+  notes_per_beat: 3
+  metric: strong
+  function: ornament
+  approach: step_above
+  energy: medium
+  trigger:
+    position: strong_beat
+    min_duration: 1/4
+    meter: triple
+  dynamics: accent_first
+
+appoggiatura_lower_duple:
+  description: Lower appoggiatura in duple meter
+  offset_from_target: [-1, 0]
+  notes_per_beat: 2
+  metric: strong
+  function: ornament
+  approach: step_below
+  energy: medium
+  trigger:
+    position: strong_beat
+    min_duration: 1/4
+    meter: duple
+  dynamics: accent_first
+
+appoggiatura_lower_triple:
+  description: Lower appoggiatura in triple meter
+  offset_from_target: [-1, 0]
+  notes_per_beat: 3
+  metric: strong
+  function: ornament
+  approach: step_below
+  energy: medium
+  trigger:
+    position: strong_beat
+    min_duration: 1/4
+    meter: triple
+  dynamics: accent_first
 
 # ============================================================================
 # DIMINUTION FIGURES (connecting two structural tones)

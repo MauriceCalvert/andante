@@ -1,0 +1,332 @@
+# Affektenlehre - Baroque Affect System
+# German terms following baroque treatise conventions
+#
+# Musical characteristics:
+#   interval_profile: Preferred intervals (ascending)
+#     - "stepwise": 2nds and 3rds predominate
+#     - "leaps": 4ths, 5ths, and larger jumps
+#     - "mixed": balance of steps and leaps
+#   contour: Melodic direction tendency
+#     - "ascending": upward motion
+#     - "descending": downward motion (laments)
+#     - "arch": rises then falls
+#     - "wave": undulating
+#   rhythm_density: Note frequency
+#     - "sparse": longer notes, fewer attacks
+#     - "moderate": balanced
+#     - "dense": many short notes
+#   chromaticism: Use of chromatic tones
+#     - "none": diatonic only
+#     - "light": occasional chromatic neighbor
+#     - "heavy": frequent chromatic motion
+
+# ============================================================================
+# AFFECTS
+# ============================================================================
+
+affects:
+  Sehnsucht:
+    description: "Yearning, reaching, unresolved longing"
+    mode: minor
+    tempo: adagio
+    key_character: dark
+    archetype: quest_to_discovery
+    interval_profile: leaps
+    contour: ascending
+    rhythm_density: sparse
+    chromaticism: light
+
+  Klage:
+    description: "Grief, lament, heavy sorrow"
+    mode: minor
+    tempo: adagio
+    key_character: dark
+    archetype: lament_to_acceptance
+    interval_profile: stepwise
+    contour: descending
+    rhythm_density: sparse
+    chromaticism: heavy
+
+  Freudigkeit:
+    description: "Joy, brightness, energetic happiness"
+    mode: major
+    tempo: allegro
+    key_character: bright
+    archetype: playful_dialogue
+    interval_profile: mixed
+    contour: arch
+    rhythm_density: dense
+    chromaticism: none
+
+  Majestaet:
+    description: "Majesty, grandeur, ceremonial nobility"
+    mode: major
+    tempo: allegro
+    key_character: dark
+    archetype: assertion_confirmation
+    interval_profile: leaps
+    contour: ascending
+    rhythm_density: moderate
+    chromaticism: none
+
+  Zaertlichkeit:
+    description: "Tenderness, gentleness, intimate affection"
+    mode: major
+    tempo: andante
+    key_character: bright
+    archetype: meditation_deepening
+    interval_profile: stepwise
+    contour: wave
+    rhythm_density: moderate
+    chromaticism: light
+
+  Zorn:
+    description: "Anger, fury, violent agitation"
+    mode: minor
+    tempo: presto
+    key_character: dark
+    archetype: storm_to_calm
+    interval_profile: leaps
+    contour: wave
+    rhythm_density: dense
+    chromaticism: light
+
+  Verwunderung:
+    description: "Wonder, amazement, questioning surprise"
+    mode: major
+    tempo: andante
+    key_character: bright
+    archetype: quest_to_discovery
+    interval_profile: leaps
+    contour: arch
+    rhythm_density: moderate
+    chromaticism: light
+
+  Entschlossenheit:
+    description: "Resolution, determination, firm decisiveness"
+    mode: major
+    tempo: allegro
+    key_character: bright
+    archetype: assertion_confirmation
+    interval_profile: mixed
+    contour: ascending
+    rhythm_density: moderate
+    chromaticism: none
+
+  Dolore:
+    description: "Pain, suffering, acute sorrow"
+    mode: minor
+    tempo: adagio
+    key_character: dark
+    archetype: lament_to_acceptance
+    interval_profile: stepwise
+    contour: descending
+    rhythm_density: sparse
+    chromaticism: heavy
+
+  default:
+    description: "Resolution, determination, firm decisiveness"
+    mode: major
+    tempo: allegro
+    key_character: bright
+    archetype: assertion_confirmation
+    interval_profile: mixed
+    contour: ascending
+    rhythm_density: moderate
+    chromaticism: none
+    density: high
+    articulation: detached
+    tempo_modifier: 5
+    tonal_path:
+      exordium: [I, V]
+      narratio: [V, vi, IV]
+      confirmatio: [IV, V, I]
+      peroratio: [I]
+    answer_interval: 7
+    anacrusis: false
+    motive_weights:
+      step: 0.2
+      skip: 0.4
+      leap: 0.8
+      large_leap: 1.5
+    direction_limit: 4
+    rhythmic_profile:
+      pattern: ["1/16", "1/16", "1/16", "1/16", "1/8", "1/8"]
+      arrival_duration: ["1/8", "1/4"]
+      decoration: [semiquaver_runs, neighbour_tones]
+    density_minimum: 0.75
+    rhythm_states:
+      RUN:
+        density: 0.75
+        values: ["1/16"]
+      HOLD:
+        density: 0.5
+        values: ["1/8", "1/4"]
+      CADENCE:
+        density: 0.25
+        values: ["1/4", "1/2"]
+      TRANSITION:
+        density: 0.5
+        values: ["1/8", "1/16"]
+
+# ============================================================================
+# DISPOSITIO (Rhetorical Sections)
+# Classical oration structure applied to musical form
+# ============================================================================
+
+dispositio:
+  exordium:
+    description: "Opening - capture attention, establish key and affect"
+    function: introduction
+    typical_proportion: [0.10, 0.15]
+    tension: low_to_moderate
+    tonal_goal: tonic
+    character: statement
+
+  narratio:
+    description: "Exposition - present thematic material, establish discourse"
+    function: statement
+    typical_proportion: [0.20, 0.25]
+    tension: moderate
+    tonal_goal: dominant_or_relative
+    character: development
+
+  propositio:
+    description: "Theme statement - main argument crystallised"
+    function: thesis
+    typical_proportion: [0.05, 0.10]
+    tension: moderate
+    tonal_goal: secondary_key
+    character: arrival
+    note: "Sometimes merged with narratio"
+
+  confutatio:
+    description: "Development/conflict - challenge, contrast, modulation"
+    function: development
+    typical_proportion: [0.25, 0.35]
+    tension: high
+    tonal_goal: remote_keys
+    character: contrast
+
+  confirmatio:
+    description: "Resolution - establish truth of argument, return toward tonic"
+    function: recapitulation
+    typical_proportion: [0.20, 0.25]
+    tension: moderate_to_high
+    tonal_goal: tonic_preparation
+    character: resolution
+
+  peroratio:
+    description: "Conclusion - final cadence, emotional summation"
+    function: coda
+    typical_proportion: [0.10, 0.15]
+    tension: resolving
+    tonal_goal: tonic
+    character: closure
+
+# ============================================================================
+# ENERGY LEVELS
+# ============================================================================
+
+energy_levels:
+  falling:
+    register_shift: -2
+    rhythm_override: straight
+    articulation: legato
+    description: Releasing tension
+
+  low:
+    register_shift: -3
+    rhythm_override: straight
+    articulation: legato
+    description: Calm, grounded
+
+  moderate:
+    register_shift: 0
+    rhythm_override: null
+    articulation: null
+    description: Active but balanced
+
+  peak:
+    register_shift: 5
+    rhythm_override: null
+    articulation: accent
+    description: Maximum intensity
+
+  resolving:
+    register_shift: -2
+    rhythm_override: straight
+    articulation: legato
+    description: Moving toward closure
+
+  rising:
+    register_shift: 2
+    rhythm_override: null
+    articulation: null
+    description: Building momentum
+
+  stable:
+    register_shift: 0
+    rhythm_override: null
+    articulation: null
+    description: Neutral, balanced
+
+  suspenseful:
+    register_shift: 0
+    rhythm_override: null
+    articulation: staccato
+    description: Tension without release
+
+  plateau:
+    register_shift: 1
+    rhythm_override: null
+    articulation: null
+    description: Sustained elevated energy
+
+  intensification:
+    register_shift: 3
+    rhythm_override: null
+    articulation: accent
+    description: Rapid energy increase
+
+# ============================================================================
+# KEY CHARACTERS
+# ============================================================================
+
+key_characters:
+  dark:
+    - A
+    - D
+    - F
+    - Bb
+    - G
+  bright:
+    - C
+    - G
+    - E
+    - A
+
+# ============================================================================
+# RHYTHM PATTERNS
+# ============================================================================
+
+rhythm_patterns:
+  dotted:
+    durations: [3/8, 1/8, 3/8, 1/8]
+    description: Long-short pairs
+
+  hemiola:
+    durations: [1/2, 1/2, 1/2, 1/2]
+    description: Half notes creating 2-against-3 metric shift
+
+  lombardic:
+    durations: [1/8, 3/8, 1/8, 3/8]
+    description: Short-long (Scotch snap)
+
+  running:
+    durations: [1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8, 1/8]
+    description: Continuous eighth notes
+
+  straight:
+    durations: [1/4, 1/4, 1/4, 1/4]
+    description: Even quarter notes

@@ -94,19 +94,30 @@ def _key_config_to_key(key_config: KeyConfig) -> Key:
     return Key(tonic=tonic, mode=mode)
 
 
-def _degree_to_midi_with_octave(key: Key, degree: int, median: int) -> int:
-    """Convert scale degree to MIDI pitch near the median."""
+def _degree_to_midi_with_octave(
+    key: Key,
+    degree: int,
+    median: int,
+    prev_pitch: int | None = None,
+) -> int:
+    """Convert scale degree to MIDI pitch near the median.
+
+    When distances to median are equal, prefers pitch closer to prev_pitch
+    (if provided) to maintain stepwise motion.
+    """
     base_midi: int = key.degree_to_midi(degree, octave=4)
     pc: int = base_midi % 12
-    best_midi: int = base_midi
-    best_dist: int = abs(base_midi - median)
+    candidates: list[tuple[int, int, int]] = []  # (midi, dist_to_median, dist_to_prev)
     for octave in range(2, 7):
         candidate: int = pc + (octave + 1) * 12
-        dist: int = abs(candidate - median)
-        if dist < best_dist:
-            best_dist = dist
-            best_midi = candidate
-    return best_midi
+        dist_median: int = abs(candidate - median)
+        dist_prev: int = abs(candidate - prev_pitch) if prev_pitch is not None else 0
+        candidates.append((candidate, dist_median, dist_prev))
+    if prev_pitch is not None:
+        candidates.sort(key=lambda c: (c[1], c[2]))
+    else:
+        candidates.sort(key=lambda c: c[1])
+    return candidates[0][0]
 
 
 def _bar_beat_to_float(bar_beat: str) -> float:
@@ -205,6 +216,11 @@ def _generate_schema_anchors(
     transposition: int,
 ) -> list[Anchor]:
     """Generate anchors for a single schema with transposition."""
+    if schema_def.sequential:
+        return _generate_sequential_anchors(
+            schema_name, schema_def, start_bar, end_bar,
+            key, soprano_median, bass_median, metre, transposition,
+        )
     anchors: list[Anchor] = []
     soprano_degrees: tuple[int, ...] = schema_def.soprano_degrees
     bass_degrees: tuple[int, ...] = schema_def.bass_degrees
@@ -212,21 +228,102 @@ def _generate_schema_anchors(
         return anchors
     stages: int = len(soprano_degrees)
     bar_beats: list[str] = _distribute_arrivals(stages, start_bar, end_bar, metre)
+    prev_soprano: int | None = None
+    prev_bass: int | None = None
     for stage, bar_beat in enumerate(bar_beats):
         if stage >= len(soprano_degrees) or stage >= len(bass_degrees):
             break
         s_degree: int = soprano_degrees[stage]
         b_degree: int = bass_degrees[stage]
-        s_midi: int = _degree_to_midi_with_octave(key, s_degree, soprano_median) + transposition
-        b_midi: int = _degree_to_midi_with_octave(key, b_degree, bass_median) + transposition
+        s_raw: int = _degree_to_midi_with_octave(key, s_degree, soprano_median, prev_soprano)
+        b_raw: int = _degree_to_midi_with_octave(key, b_degree, bass_median, prev_bass)
+        prev_soprano = s_raw
+        prev_bass = b_raw
         anchors.append(Anchor(
             bar_beat=bar_beat,
-            soprano_midi=s_midi,
-            bass_midi=b_midi,
+            soprano_midi=s_raw + transposition,
+            bass_midi=b_raw + transposition,
             schema=schema_name,
             stage=stage + 1,
         ))
     return anchors
+
+
+def _generate_sequential_anchors(
+    schema_name: str,
+    schema_def: SchemaConfig,
+    start_bar: int,
+    end_bar: int,
+    key: Key,
+    soprano_median: int,
+    bass_median: int,
+    metre: str,
+    base_transposition: int,
+) -> list[Anchor]:
+    """Generate anchors for sequential schema (Monte, Fonte).
+
+    Sequential schemas repeat a clausula cantizans pattern at ascending or
+    descending pitch levels. Each segment produces TWO anchors:
+      - Beat 1: approach (4,7) - passing motion
+      - Beat 3: arrival (3,1) - consonant resolution
+
+    Monte: ascending by step (IV -> V -> vi)
+    Fonte: descending by step (ii -> I)
+    """
+    anchors: list[Anchor] = []
+    available_bars: int = end_bar - start_bar + 1
+    segment_count: int = _determine_segment_count(schema_def, available_bars)
+    direction: str = schema_def.direction or "ascending"
+    step_semitones: int = 2 if direction == "ascending" else -2
+    approach_soprano: int = 4
+    approach_bass: int = 7
+    arrival_soprano: int = 3
+    arrival_bass: int = 1
+    bars_per_segment: int = max(1, available_bars // segment_count)
+    prev_soprano: int | None = None
+    prev_bass: int | None = None
+    for seg_idx in range(segment_count):
+        segment_bar: int = start_bar + (seg_idx * bars_per_segment)
+        if segment_bar > end_bar:
+            segment_bar = end_bar
+        segment_transposition: int = base_transposition + (seg_idx * step_semitones)
+        s_approach_raw: int = _degree_to_midi_with_octave(key, approach_soprano, soprano_median, prev_soprano)
+        b_approach_raw: int = _degree_to_midi_with_octave(key, approach_bass, bass_median, prev_bass)
+        prev_soprano = s_approach_raw
+        prev_bass = b_approach_raw
+        anchors.append(Anchor(
+            bar_beat=f"{segment_bar}.1",
+            soprano_midi=s_approach_raw + segment_transposition,
+            bass_midi=b_approach_raw + segment_transposition,
+            schema=schema_name,
+            stage=(seg_idx * 2) + 1,
+        ))
+        s_arrival_raw: int = _degree_to_midi_with_octave(key, arrival_soprano, soprano_median, prev_soprano)
+        b_arrival_raw: int = _degree_to_midi_with_octave(key, arrival_bass, bass_median, prev_bass)
+        prev_soprano = s_arrival_raw
+        prev_bass = b_arrival_raw
+        anchors.append(Anchor(
+            bar_beat=f"{segment_bar}.3",
+            soprano_midi=s_arrival_raw + segment_transposition,
+            bass_midi=b_arrival_raw + segment_transposition,
+            schema=schema_name,
+            stage=(seg_idx * 2) + 2,
+        ))
+    return anchors
+
+
+def _determine_segment_count(schema_def: SchemaConfig, available_bars: int) -> int:
+    """Determine segment count for sequential schema."""
+    segments: tuple[int, ...] = schema_def.segments
+    if not segments:
+        segments = (2,)
+    min_segments: int = min(segments)
+    max_segments: int = max(segments)
+    if available_bars >= max_segments:
+        return max_segments
+    if available_bars >= min_segments:
+        return available_bars
+    return min_segments
 
 
 def distribute_arrivals(

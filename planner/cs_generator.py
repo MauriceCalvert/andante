@@ -21,7 +21,6 @@ from ortools.sat.python import cp_model
 from shared.constants import MAJOR_SCALE, MINOR_SCALE
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
-RULES_PATH: Path = DATA_DIR / "counterpoint" / "rules.yaml"
 
 # Valid durations in descending order
 VALID_DURATIONS: tuple[Fraction, ...] = (

@@ -22,7 +22,7 @@ DATA_DIR: Path = Path(__file__).parent.parent / "data"
 
 def load_figurae() -> Dict[str, Dict[str, dict]]:
     """Load figure definitions from YAML."""
-    path = DATA_DIR / "figurae.yaml"
+    path = DATA_DIR / "rhetoric" / "figurae.yaml"
     if not path.exists():
         return {}
     with open(path, "r", encoding="utf-8") as f:

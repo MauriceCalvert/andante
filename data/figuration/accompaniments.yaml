@@ -1,9 +1,14 @@
-# Accompaniment Patterns - Baroque bass figures for melody_accompaniment texture
+# Accompaniment Patterns - Baroque bass figures
 # degrees: scale degrees relative to current harmony (1=root, 3=third, 5=fifth, 8=octave)
 # durations: as fractions of a bar
 # per_bar: if true, pattern repeats each bar
+# motion: stepwise | chromatic | arpeggiated (for walking patterns)
+# direction: ascending | descending | alternating | toward_target (for walking patterns)
+# notes_per_bar: rhythmic density (for walking patterns)
 
-# Baroque idioms
+# ============================================================================
+# BAROQUE BASS IDIOMS
+# ============================================================================
 
 arpeggiated_down:
   description: Falling arpeggio
@@ -70,3 +75,31 @@ walking:
   degrees: [1, 2, 3, 4]
   durations: [1/4, 1/4, 1/4, 1/4]
   per_bar: true
+
+# ============================================================================
+# WALKING BASS PATTERNS
+# ============================================================================
+
+walking_arpeggiated:
+  description: Arpeggiated walking bass
+  motion: arpeggiated
+  direction: ascending
+  notes_per_bar: 4
+
+walking_compound:
+  description: Compound walking bass with alternating direction
+  motion: stepwise
+  direction: alternating
+  notes_per_bar: 2
+
+walking_chromatic:
+  description: Chromatic approach to target
+  motion: chromatic
+  direction: toward_target
+  notes_per_bar: 4
+
+walking_scalar:
+  description: Scalar walking bass
+  motion: stepwise
+  direction: alternating
+  notes_per_bar: 4

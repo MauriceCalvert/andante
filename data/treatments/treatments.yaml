@@ -30,6 +30,10 @@
 #   swap_at             For voice_exchange: when voices swap material (fraction of phrase)
 #   schema              For schema treatment: schema name (e.g., romanesca)
 
+# ============================================================================
+# VOICE TREATMENTS
+# ============================================================================
+
 _default:
   soprano_source: subject
   soprano_transform: none
@@ -48,8 +52,6 @@ _default:
   interdictions: []
 
 augmentation:
-  # Augmentation: double note values (slower)
-  # Both voices augmented to preserve CS consonance alignment
   soprano_transform: augment
   soprano_direct: true
   bass_source: counter_subject
@@ -70,18 +72,14 @@ bass_statement:
   soprano_source: sustained
 
 dialogue:
-  # Bass enters 1 bar later with augmented subject
   bass_transform: augment
   bass_delay: 1
 
 dialogue_invert:
-  # Bass enters 1 bar later with inverted subject
   bass_transform: invert
   bass_delay: 1
 
 diminution:
-  # Diminution: halve note values (faster)
-  # Both voices diminished to preserve CS consonance alignment
   soprano_transform: diminish
   soprano_transform_params: { min_duration: 1/16 }
   soprano_direct: true
@@ -92,7 +90,6 @@ diminution:
   interdictions: [ornaments]
 
 fragmentation:
-  # Fragmentation: head motif with bass imitation (not CS - delay breaks alignment)
   soprano_transform: head
   soprano_transform_params: { size: 4 }
   bass_transform: head
@@ -100,39 +97,47 @@ fragmentation:
   bass_delay: 1/8
 
 head_sequence:
-  # Head sequence: head motif with bass imitation
   soprano_transform: head
   soprano_transform_params: { size: 4 }
   bass_transform: head
   bass_transform_params: { size: 4 }
   bass_delay: 1/8
 
+hold:
+  soprano_source: sustained
+  bass_source: sustained
+
 imitation:
-  # Imitation: bass imitates subject at the fifth below (interval -4 = fifth below)
   bass_derivation: imitation
   bass_derivation_params: { interval: -4 }
   bass_delay: 1
 
 imitation_cs:
-  # Soprano plays counter_subject, bass plays subject
   soprano_source: counter_subject
 
 inversion:
-  # Inversion: soprano inverts subject, bass plays counter_subject
   soprano_transform: invert
   bass_source: counter_subject
 
 melody_accompaniment:
   bass_source: accompaniment
 
+pedal_dominant:
+  pedal_type: dominant
+  bass_source: pedal
+  interdictions: [inner_voice_gen]
+
+pedal_tonic:
+  pedal_type: tonic
+  bass_source: pedal
+  interdictions: [inner_voice_gen]
+
 repose:
-  # Repose: slower augmented melody over sustained bass
   soprano_transform: augment
   soprano_direct: true
   bass_source: sustained
 
 retrograde:
-  # Retrograde: subject played backwards
   soprano_transform: retrograde
   bass_source: counter_subject
 
@@ -141,47 +146,59 @@ schema:
   bass_source: schema
 
 sequence:
-  # Sequence: augmented bass imitation (not CS - delay breaks alignment)
   bass_transform: augment
   bass_delay: 1/4
 
 statement:
-  # Statement: subject in soprano, CS in bass
-  # Both use direct mode to preserve CS consonance alignment
   soprano_direct: true
   bass_source: counter_subject
   bass_direct: true
   interdictions: [inner_voice_gen]
 
 stretto:
-  # Stretto: tight overlapping entries (bass enters before soprano finishes)
   bass_derivation: imitation
   bass_derivation_params: { interval: -4 }
   bass_delay: 1/4
   interdictions: [ornaments]
 
-voice_exchange:
-  bass_source: counter_subject
-  swap_at: 1/2
-
 tail_development:
-  # Tail development: tail motif with bass imitation (not CS - delay breaks alignment)
   soprano_transform: tail
   soprano_transform_params: { size: 4 }
   bass_transform: tail
   bass_transform_params: { size: 4 }
   bass_delay: 1/8
 
-hold:
-  soprano_source: sustained
-  bass_source: sustained
+voice_exchange:
+  bass_source: counter_subject
+  swap_at: 1/2
 
-pedal_tonic:
-  pedal_type: tonic
-  bass_source: pedal
-  interdictions: [inner_voice_gen]
+# ============================================================================
+# BAR TREATMENTS (for phrase concatenation)
+# Each bar in a phrase uses a different treatment; cycle guarantees no consecutive repeats
+# ============================================================================
 
-pedal_dominant:
-  pedal_type: dominant
-  bass_source: pedal
-  interdictions: [inner_voice_gen]
+bar_treatments:
+  - name: continuation
+    transform: none
+    shift: -3
+  - name: development
+    transform: head
+    shift: -1
+  - name: fragmentation
+    transform: tail
+    shift: -1
+  - name: inversion_seq
+    transform: invert
+    shift: -2
+  - name: response
+    transform: invert
+    shift: 0
+  - name: retrograde
+    transform: retrograde
+    shift: 0
+  - name: sequence_down
+    transform: none
+    shift: -2
+  - name: statement
+    transform: none
+    shift: 0

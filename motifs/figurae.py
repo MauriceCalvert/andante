@@ -76,7 +76,7 @@ class Figurae:
 
     def _load(self) -> None:
         """Load and parse figurae.yaml."""
-        path = DATA_DIR / "figurae.yaml"
+        path = DATA_DIR / "rhetoric" / "figurae.yaml"
         if not path.exists():
             return
 

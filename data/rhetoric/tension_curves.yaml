@@ -1,0 +1,40 @@
+# Tension Curve Templates
+# Simple named curves for legacy arc.py usage
+# Primary tension curves are in rhetoric/archetypes.yaml
+
+arch:
+  points:
+    - [0.00, 0.3]
+    - [0.25, 0.5]
+    - [0.50, 0.7]
+    - [0.75, 0.9]
+    - [1.00, 0.4]
+
+cumulative:
+  points:
+    - [0.00, 0.2]
+    - [0.33, 0.4]
+    - [0.66, 0.7]
+    - [1.00, 0.9]
+
+dramatic:
+  points:
+    - [0.00, 0.6]
+    - [0.35, 0.85]
+    - [0.50, 0.75]
+    - [0.85, 0.4]
+    - [1.00, 0.3]
+
+calm:
+  points:
+    - [0.00, 0.3]
+    - [0.50, 0.5]
+    - [1.00, 0.3]
+
+episodic:
+  points:
+    - [0.00, 0.4]
+    - [0.25, 0.7]
+    - [0.50, 0.4]
+    - [0.75, 0.8]
+    - [1.00, 0.5]

@@ -23,7 +23,7 @@ from builder.io import write_midi_file, write_note_file
 from builder.realisation import realise
 from builder.types import NoteFile, RhythmPlan, SchemaChain, Solution, TreatmentAssignment
 from planner.dramaturgy import get_suggested_key
-from planner.figuration import layer_6_5_figuration
+
 from planner.melodic import layer_7_melodic
 from planner.metric import layer_4_metric
 from planner.rhetorical import layer_1_rhetorical
@@ -177,61 +177,46 @@ def generate(
     )
     _debug(f"L6 Rhythmic: soprano_active={len(rhythm_plan.soprano_active)}, bass_active={len(rhythm_plan.bass_active)}")
 
-    # Layer 6.5: Figuration (baroque patterns between anchors)
-    _debug(f"L6.5 Figuration: applying baroque patterns")
-    schema_profiles: dict[str, str] = get_schema_profiles()
-
-    # Parse key for figuration
-    key_parts: list[str] = key.split("_")
-    key_tonic: str = key_parts[0].upper() if key_parts[0][0].islower() else key_parts[0]
-    if len(key_tonic) > 1 and key_tonic[1] == "b":
-        key_tonic = key_tonic[0] + "b"
-    key_mode: str = key_parts[1] if len(key_parts) > 1 else "major"
-    figuration_key: Key = Key(tonic=key_tonic, mode=key_mode)
-
-    # Map density string to energy level
-    energy_map: dict[str, str] = {"high": "high", "medium": "medium", "low": "low", "sparse": "low"}
-    energy: str = energy_map.get(density, "medium")
-
-    # Voice registers for counterpoint validation
-    registers: dict[str, tuple[int, int]] = {
-        "soprano": (genre_config.tessitura.get("soprano", 70) - 18, genre_config.tessitura.get("soprano", 70) + 18),
-        "bass": (genre_config.tessitura.get("bass", 48) - 18, genre_config.tessitura.get("bass", 48) + 18),
-    }
-
-    soprano_pitches, soprano_durations, bass_pitches, bass_durations = layer_6_5_figuration(
-        anchors=arrivals,
-        key=figuration_key,
-        schema_profiles=schema_profiles,
-        energy=energy,
-        pitch_class_set=key_config.pitch_class_set,
-        registers=registers,
-        metre=genre_config.metre,
-    )
-    _debug(f"L6.5 Figuration: {len(soprano_pitches)} soprano notes, {len(bass_pitches)} bass notes")
-
-    # Convert note-indexed arrays to slot-indexed arrays for realisation
+    # Simple anchor holds (figuration backed out)
+    _debug(f"Generating held anchors (no figuration)")
+    soprano_pitches: list[int] = []
+    soprano_durations: list[Fraction] = []
+    bass_pitches: list[int] = []
+    bass_durations: list[Fraction] = []
     SLOTS_PER_BAR: int = 16
+    for i, anchor in enumerate(arrivals):
+        soprano_pitches.append(anchor.soprano_midi)
+        bass_pitches.append(anchor.bass_midi)
+        if i < len(arrivals) - 1:
+            next_anchor = arrivals[i + 1]
+            bar_a: int = int(anchor.bar_beat.split(".")[0])
+            beat_a: float = float(anchor.bar_beat.split(".")[1]) if "." in anchor.bar_beat else 1.0
+            bar_b: int = int(next_anchor.bar_beat.split(".")[0])
+            beat_b: float = float(next_anchor.bar_beat.split(".")[1]) if "." in next_anchor.bar_beat else 1.0
+            slot_a: int = (bar_a - 1) * SLOTS_PER_BAR + int((beat_a - 1) * 4)
+            slot_b: int = (bar_b - 1) * SLOTS_PER_BAR + int((beat_b - 1) * 4)
+            duration: Fraction = Fraction(slot_b - slot_a, SLOTS_PER_BAR)
+            soprano_durations.append(duration)
+            bass_durations.append(duration)
+        else:
+            soprano_durations.append(Fraction(1, 4))
+            bass_durations.append(Fraction(1, 4))
+    _debug(f"Anchors: {len(soprano_pitches)} notes per voice")
     total_slots: int = total_bars * SLOTS_PER_BAR
-
-    # Expand note-indexed to slot-indexed
     soprano_slots: list[int] = []
     soprano_slot_durations: list[Fraction] = []
-    _expand_notes_to_slots(soprano_pitches, soprano_durations, soprano_slots, soprano_slot_durations, total_slots, SLOTS_PER_BAR)
-
+    _expand_notes_to_slots(tuple(soprano_pitches), tuple(soprano_durations), soprano_slots, soprano_slot_durations, total_slots, SLOTS_PER_BAR)
     bass_slots: list[int] = []
     bass_slot_durations: list[Fraction] = []
-    _expand_notes_to_slots(bass_pitches, bass_durations, bass_slots, bass_slot_durations, total_slots, SLOTS_PER_BAR)
-
-    # Build Solution from slot-indexed figuration output
+    _expand_notes_to_slots(tuple(bass_pitches), tuple(bass_durations), bass_slots, bass_slot_durations, total_slots, SLOTS_PER_BAR)
     solution: Solution = Solution(
         soprano_pitches=tuple(soprano_slots),
         bass_pitches=tuple(bass_slots),
         soprano_durations=tuple(soprano_slot_durations),
         bass_durations=tuple(bass_slot_durations),
-        cost=0.0,  # Figuration doesn't compute cost
+        cost=0.0,
     )
-    _debug(f"L6.5 Solution: soprano_pitches={len(solution.soprano_pitches)}, bass_pitches={len(solution.bass_pitches)}")
+    _debug(f"Solution: {len(solution.soprano_pitches)} slots per voice")
 
     return realise(
         solution,
