@@ -7,7 +7,7 @@ from planner.metric.constants import (
     CLAUSULA_ARRIVAL_SOPRANO,
 )
 from planner.metric.distribution import distribute_arrivals, get_final_strong_beat
-from planner.metric.pitch import gravitational_pitch, wrap_degree
+from planner.metric.pitch import wrap_degree
 from shared.key import Key
 
 
@@ -16,65 +16,61 @@ def generate_schema_anchors(
     schema_def: SchemaConfig,
     start_bar: int,
     end_bar: int,
-    key: Key,
-    soprano_median: int,
-    bass_median: int,
+    local_key: Key,
     metre: str,
-    transposition: int,
-    prev_soprano: int | None,
-    prev_bass: int | None,
-) -> tuple[list[Anchor], int, int]:
-    """Generate anchors for a single schema with transposition."""
+) -> list[Anchor]:
+    """Generate anchors for a single schema in local key."""
     if schema_def.sequential:
-        return generate_sequential_anchors(
-            schema_name, schema_def, start_bar, end_bar,
-            key, soprano_median, bass_median, metre, transposition,
-            prev_soprano, prev_bass,
+        return _generate_sequential_anchors(
+            schema_name, schema_def, start_bar, end_bar, local_key, metre,
         )
     anchors: list[Anchor] = []
     soprano_degrees: tuple[int, ...] = schema_def.soprano_degrees
     bass_degrees: tuple[int, ...] = schema_def.bass_degrees
     if not soprano_degrees or not bass_degrees:
-        return anchors, prev_soprano or 72, prev_bass or 48
+        return anchors
     stages: int = len(soprano_degrees)
-    bar_beats: list[str] = distribute_arrivals(stages, start_bar, end_bar, metre)
-    if prev_soprano is None:
-        prev_soprano = gravitational_pitch(key, soprano_degrees[0], soprano_median, soprano_median)
-    if prev_bass is None:
-        prev_bass = gravitational_pitch(key, bass_degrees[0], bass_median, bass_median)
+    is_cadential: bool = schema_def.cadential_state == "closed"
+    bar_beats: list[str] = _distribute_schema_arrivals(
+        stages, start_bar, end_bar, metre, is_cadential,
+    )
     for stage, bar_beat in enumerate(bar_beats):
         if stage >= len(soprano_degrees) or stage >= len(bass_degrees):
             break
-        s_degree: int = soprano_degrees[stage]
-        b_degree: int = bass_degrees[stage]
-        s_midi: int = gravitational_pitch(key, s_degree, prev_soprano, soprano_median) + transposition
-        b_midi: int = gravitational_pitch(key, b_degree, prev_bass, bass_median) + transposition
-        prev_soprano = s_midi - transposition
-        prev_bass = b_midi - transposition
         anchors.append(Anchor(
             bar_beat=bar_beat,
-            soprano_midi=s_midi,
-            bass_midi=b_midi,
+            soprano_degree=soprano_degrees[stage],
+            bass_degree=bass_degrees[stage],
+            local_key=local_key,
             schema=schema_name,
             stage=stage + 1,
         ))
-    return anchors, prev_soprano, prev_bass
+    return anchors
 
 
-def generate_sequential_anchors(
+def _distribute_schema_arrivals(
+    stages: int,
+    start_bar: int,
+    end_bar: int,
+    metre: str,
+    anchor_final: bool,
+) -> list[str]:
+    """Distribute arrival beats, optionally anchoring final stage to end_bar."""
+    if not anchor_final or stages < 2:
+        return distribute_arrivals(stages, start_bar, end_bar, metre)
+    preceding: list[str] = distribute_arrivals(stages - 1, start_bar, end_bar - 1, metre)
+    return preceding + [f"{end_bar}.1"]
+
+
+def _generate_sequential_anchors(
     schema_name: str,
     schema_def: SchemaConfig,
     start_bar: int,
     end_bar: int,
-    key: Key,
-    soprano_median: int,
-    bass_median: int,
+    local_key: Key,
     metre: str,
-    base_transposition: int,
-    prev_soprano: int | None,
-    prev_bass: int | None,
-) -> tuple[list[Anchor], int, int]:
-    """Generate anchors for sequential schema (Monte, Fonte)."""
+) -> list[Anchor]:
+    """Generate anchors for sequential schema (Monte, Fonte) in local key."""
     anchors: list[Anchor] = []
     available_bars: int = end_bar - start_bar + 1
     segment_count: int = _determine_segment_count(schema_def, available_bars)
@@ -82,26 +78,20 @@ def generate_sequential_anchors(
     degree_step: int = 1 if direction == "ascending" else -1
     bars_per_segment: int = max(1, available_bars // segment_count)
     arrival_beat: int = get_final_strong_beat(metre)
-    if prev_soprano is None:
-        prev_soprano = gravitational_pitch(key, CLAUSULA_APPROACH_SOPRANO, soprano_median, soprano_median)
-    if prev_bass is None:
-        prev_bass = gravitational_pitch(key, CLAUSULA_APPROACH_BASS, bass_median, bass_median)
     for seg_idx in range(segment_count):
         segment_bar: int = start_bar + (seg_idx * bars_per_segment)
         if segment_bar > end_bar:
             segment_bar = end_bar
         degree_offset: int = seg_idx * degree_step
-        approach_anchors, prev_soprano, prev_bass = _generate_clausula_approach(
-            segment_bar, degree_offset, key, soprano_median, bass_median,
-            base_transposition, prev_soprano, prev_bass, schema_name, seg_idx,
+        approach_anchor: Anchor = _make_clausula_approach(
+            segment_bar, degree_offset, local_key, schema_name, seg_idx,
         )
-        anchors.extend(approach_anchors)
-        arrival_anchors, prev_soprano, prev_bass = _generate_clausula_arrival(
-            segment_bar, arrival_beat, degree_offset, key, soprano_median, bass_median,
-            base_transposition, prev_soprano, prev_bass, schema_name, seg_idx,
+        anchors.append(approach_anchor)
+        arrival_anchor: Anchor = _make_clausula_arrival(
+            segment_bar, arrival_beat, degree_offset, local_key, schema_name, seg_idx,
         )
-        anchors.extend(arrival_anchors)
-    return anchors, prev_soprano, prev_bass
+        anchors.append(arrival_anchor)
+    return anchors
 
 
 def _determine_segment_count(
@@ -121,56 +111,42 @@ def _determine_segment_count(
     return min_segments
 
 
-def _generate_clausula_approach(
+def _make_clausula_approach(
     segment_bar: int,
     degree_offset: int,
-    key: Key,
-    soprano_median: int,
-    bass_median: int,
-    transposition: int,
-    prev_soprano: int,
-    prev_bass: int,
+    local_key: Key,
     schema_name: str,
     seg_idx: int,
-) -> tuple[list[Anchor], int, int]:
-    """Generate approach anchor for clausula cantizans."""
+) -> Anchor:
+    """Create approach anchor for clausula cantizans."""
     s_deg: int = wrap_degree(CLAUSULA_APPROACH_SOPRANO + degree_offset)
     b_deg: int = wrap_degree(CLAUSULA_APPROACH_BASS + degree_offset)
-    s_midi: int = gravitational_pitch(key, s_deg, prev_soprano, soprano_median) + transposition
-    b_midi: int = gravitational_pitch(key, b_deg, prev_bass, bass_median) + transposition
-    anchor: Anchor = Anchor(
+    return Anchor(
         bar_beat=f"{segment_bar}.1",
-        soprano_midi=s_midi,
-        bass_midi=b_midi,
+        soprano_degree=s_deg,
+        bass_degree=b_deg,
+        local_key=local_key,
         schema=schema_name,
         stage=(seg_idx * 2) + 1,
     )
-    return [anchor], s_midi - transposition, b_midi - transposition
 
 
-def _generate_clausula_arrival(
+def _make_clausula_arrival(
     segment_bar: int,
     arrival_beat: int,
     degree_offset: int,
-    key: Key,
-    soprano_median: int,
-    bass_median: int,
-    transposition: int,
-    prev_soprano: int,
-    prev_bass: int,
+    local_key: Key,
     schema_name: str,
     seg_idx: int,
-) -> tuple[list[Anchor], int, int]:
-    """Generate arrival anchor for clausula cantizans."""
+) -> Anchor:
+    """Create arrival anchor for clausula cantizans."""
     s_deg: int = wrap_degree(CLAUSULA_ARRIVAL_SOPRANO + degree_offset)
     b_deg: int = wrap_degree(CLAUSULA_ARRIVAL_BASS + degree_offset)
-    s_midi: int = gravitational_pitch(key, s_deg, prev_soprano, soprano_median) + transposition
-    b_midi: int = gravitational_pitch(key, b_deg, prev_bass, bass_median) + transposition
-    anchor: Anchor = Anchor(
+    return Anchor(
         bar_beat=f"{segment_bar}.{arrival_beat}",
-        soprano_midi=s_midi,
-        bass_midi=b_midi,
+        soprano_degree=s_deg,
+        bass_degree=b_deg,
+        local_key=local_key,
         schema=schema_name,
         stage=(seg_idx * 2) + 2,
     )
-    return [anchor], s_midi - transposition, b_midi - transposition

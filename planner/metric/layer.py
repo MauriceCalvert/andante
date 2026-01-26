@@ -1,9 +1,7 @@
 """Layer 4: Metric planning orchestration."""
 from builder.types import Anchor, FormConfig, GenreConfig, KeyConfig, SchemaConfig
 from planner.metric.bridge_anchors import generate_bridge_anchors
-from planner.metric.constants import KEY_AREA_SEMITONES
-from planner.metric.distribution import bar_beat_to_float, get_final_strong_beat
-from planner.metric.pitch import compute_base_octave, degree_to_midi
+from planner.metric.distribution import bar_beat_to_float
 from planner.metric.schema_anchors import generate_schema_anchors
 from shared.key import Key
 
@@ -23,24 +21,19 @@ def layer_4_metric(
     if key_config is None or schemas is None:
         return bar_assignments, [], total_bars
     key: Key = _key_config_to_key(key_config)
-    soprano_median: int = genre_config.tessitura.get("soprano", 70)
-    bass_median: int = genre_config.tessitura.get("bass", 48)
     if tonal_plan is None:
         tonal_plan = {}
     section_anchors: list[Anchor] = _generate_section_anchors(
-        genre_config.sections, schemas, key, soprano_median, bass_median,
+        genre_config.sections, schemas, key,
         genre_config.metre, tonal_plan, answer_interval,
     )
-    final_anchor: Anchor = _generate_final_cadence_anchor(
-        total_bars, key, soprano_median, bass_median, genre_config.metre,
-    )
-    anchors: list[Anchor] = section_anchors + [final_anchor]
+    anchors: list[Anchor] = section_anchors
     covered_bars: set[int] = _get_covered_bars(anchors)
     bridge_anchors: list[Anchor] = generate_bridge_anchors(
-        total_bars, covered_bars, anchors, key, soprano_median, bass_median, genre_config.metre,
+        total_bars, covered_bars, anchors, key, genre_config.metre,
     )
     anchors.extend(bridge_anchors)
-    anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.soprano_midi))
+    anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.soprano_degree))
     return bar_assignments, anchors, total_bars
 
 
@@ -54,34 +47,10 @@ def _build_bar_assignments(genre_config: GenreConfig) -> dict[str, tuple[int, in
     return assignments
 
 
-def _generate_final_cadence_anchor(
-    total_bars: int,
-    key: Key,
-    soprano_median: int,
-    bass_median: int,
-    metre: str,
-) -> Anchor:
-    """Generate final tonic cadence anchor."""
-    s_octave: int = compute_base_octave(key, 1, soprano_median)
-    b_octave: int = compute_base_octave(key, 1, bass_median)
-    s_midi: int = degree_to_midi(key, 1, s_octave)
-    b_midi: int = degree_to_midi(key, 1, b_octave)
-    final_beat: int = get_final_strong_beat(metre)
-    return Anchor(
-        bar_beat=f"{total_bars}.{final_beat}",
-        soprano_midi=s_midi,
-        bass_midi=b_midi,
-        schema="final_cadence",
-        stage=1,
-    )
-
-
 def _generate_section_anchors(
     sections: tuple[dict, ...],
     schemas: dict[str, SchemaConfig],
     key: Key,
-    soprano_median: int,
-    bass_median: int,
     metre: str,
     tonal_plan: dict[str, tuple[str, ...]],
     answer_interval: int,
@@ -90,8 +59,7 @@ def _generate_section_anchors(
     anchors: list[Anchor] = []
     for section in sections:
         section_anchors: list[Anchor] = _generate_single_section_anchors(
-            section, schemas, key, soprano_median, bass_median,
-            metre, tonal_plan, answer_interval,
+            section, schemas, key, metre, tonal_plan, answer_interval,
         )
         anchors.extend(section_anchors)
     return anchors
@@ -100,9 +68,7 @@ def _generate_section_anchors(
 def _generate_single_section_anchors(
     section: dict,
     schemas: dict[str, SchemaConfig],
-    key: Key,
-    soprano_median: int,
-    bass_median: int,
+    home_key: Key,
     metre: str,
     tonal_plan: dict[str, tuple[str, ...]],
     answer_interval: int,
@@ -118,28 +84,55 @@ def _generate_single_section_anchors(
         return []
     key_areas: tuple[str, ...] = tonal_plan.get(section_name, ("I",))
     is_exordium: bool = section_name == "exordium"
-    section_bars: int = end_bar - start_bar + 1
-    bars_per_schema: int = max(1, section_bars // len(real_schemas))
+    bar_ranges: list[tuple[int, int]] = _allocate_bars_by_stages(
+        real_schemas, schemas, start_bar, end_bar,
+    )
     anchors: list[Anchor] = []
-    current_bar: int = start_bar
-    prev_soprano: int | None = None
-    prev_bass: int | None = None
     for i, schema_name in enumerate(real_schemas):
         if schema_name not in schemas:
             continue
-        schema_start: int = current_bar
-        schema_end: int = end_bar if i == len(real_schemas) - 1 else min(current_bar + bars_per_schema - 1, end_bar)
-        transposition: int = _get_transposition(i, is_exordium, key_areas, answer_interval)
-        schema_anchors, prev_soprano, prev_bass = generate_schema_anchors(
+        schema_start, schema_end = bar_ranges[i]
+        local_key: Key = _get_local_key(home_key, i, is_exordium, key_areas, answer_interval)
+        schema_anchors: list[Anchor] = generate_schema_anchors(
             schema_name, schemas[schema_name], schema_start, schema_end,
-            key, soprano_median, bass_median, metre, transposition,
-            prev_soprano, prev_bass,
+            local_key, metre,
         )
         anchors.extend(schema_anchors)
-        current_bar = schema_end + 1
-        if current_bar > end_bar:
-            break
     return anchors
+
+
+def _allocate_bars_by_stages(
+    schema_names: list[str],
+    schemas: dict[str, SchemaConfig],
+    start_bar: int,
+    end_bar: int,
+) -> list[tuple[int, int]]:
+    """Allocate bars to schemas proportional to stage count."""
+    stage_counts: list[int] = []
+    for name in schema_names:
+        if name not in schemas:
+            stage_counts.append(1)
+            continue
+        schema_def: SchemaConfig = schemas[name]
+        if schema_def.sequential:
+            segments: tuple[int, ...] = schema_def.segments or (2,)
+            stage_counts.append(max(segments) * 2)
+        else:
+            stage_counts.append(len(schema_def.soprano_degrees))
+    total_stages: int = sum(stage_counts)
+    section_bars: int = end_bar - start_bar + 1
+    bar_ranges: list[tuple[int, int]] = []
+    current_bar: int = start_bar
+    for i, stages in enumerate(stage_counts):
+        is_last: bool = i == len(stage_counts) - 1
+        if is_last:
+            schema_bars = end_bar - current_bar + 1
+        else:
+            schema_bars = max(1, round(section_bars * stages / total_stages))
+        schema_end: int = min(current_bar + schema_bars - 1, end_bar)
+        bar_ranges.append((current_bar, schema_end))
+        current_bar = schema_end + 1
+    return bar_ranges
 
 
 def _get_covered_bars(anchors: list[Anchor]) -> set[int]:
@@ -151,18 +144,25 @@ def _get_covered_bars(anchors: list[Anchor]) -> set[int]:
     return covered
 
 
-def _get_transposition(
+def _get_local_key(
+    home_key: Key,
     schema_index: int,
     is_exordium: bool,
     key_areas: tuple[str, ...],
     answer_interval: int,
-) -> int:
-    """Determine transposition for schema at given index."""
+) -> Key:
+    """Determine local key for schema at given index."""
     if is_exordium and schema_index == 1:
-        return answer_interval
+        return home_key.modulate_to("V")
     if schema_index < len(key_areas):
-        return KEY_AREA_SEMITONES.get(key_areas[schema_index], 0)
-    return KEY_AREA_SEMITONES.get(key_areas[-1], 0)
+        area: str = key_areas[schema_index]
+        if area == "I":
+            return home_key
+        return home_key.modulate_to(area)
+    area = key_areas[-1]
+    if area == "I":
+        return home_key
+    return home_key.modulate_to(area)
 
 
 def _key_config_to_key(key_config: KeyConfig) -> Key:

@@ -19,6 +19,7 @@ from builder.types import (
     Anchor, AffectConfig, FormConfig, GenreConfig, KeyConfig,
     MotiveWeights, Note, NoteFile,
 )
+from shared.key import Key
 
 
 class TestBarBeatConversions:
@@ -39,6 +40,10 @@ class TestBarBeatConversions:
 
 class TestRealise:
     """Integration tests for realise function."""
+
+    @pytest.fixture
+    def c_major(self) -> Key:
+        return Key("C", "major")
 
     @pytest.fixture
     def minimal_configs(self):
@@ -83,12 +88,12 @@ class TestRealise:
         )
         return key_config, affect_config, genre_config, form_config
 
-    def test_realise_produces_note_file(self, minimal_configs) -> None:
+    def test_realise_produces_note_file(self, minimal_configs, c_major) -> None:
         """Realise returns valid NoteFile."""
         key_config, affect_config, genre_config, form_config = minimal_configs
         anchors = [
-            Anchor("1.1", 60, 48, "test", 1),
-            Anchor("1.3", 62, 50, "test", 2),
+            Anchor("1.1", 1, 1, c_major, "test", 1),
+            Anchor("1.3", 2, 2, c_major, "test", 2),
         ]
         result = realise(
             anchors,
@@ -103,10 +108,10 @@ class TestRealise:
         assert len(result.bass) == 2
         assert result.bass[0].voice == 3
 
-    def test_realise_sets_tempo(self, minimal_configs) -> None:
+    def test_realise_sets_tempo(self, minimal_configs, c_major) -> None:
         """Realise applies tempo modifier."""
         key_config, affect_config, genre_config, form_config = minimal_configs
-        anchors = [Anchor("1.1", 60, 48, "test", 1)]
+        anchors = [Anchor("1.1", 1, 1, c_major, "test", 1)]
         result = realise(
             anchors,
             None,
@@ -118,13 +123,13 @@ class TestRealise:
         base_tempo = (72 + 88) // 2
         assert result.tempo == base_tempo + 5
 
-    def test_realise_duration_to_next_anchor(self, minimal_configs) -> None:
+    def test_realise_duration_to_next_anchor(self, minimal_configs, c_major) -> None:
         """Duration extends from anchor to next anchor."""
         key_config, affect_config, genre_config, form_config = minimal_configs
         anchors = [
-            Anchor("1.1", 60, 48, "test", 1),
-            Anchor("1.3", 62, 50, "test", 2),
-            Anchor("2.1", 64, 52, "test", 3),
+            Anchor("1.1", 1, 1, c_major, "test", 1),
+            Anchor("1.3", 2, 2, c_major, "test", 2),
+            Anchor("2.1", 3, 3, c_major, "test", 3),
         ]
         result = realise(
             anchors,
@@ -136,13 +141,12 @@ class TestRealise:
         )
         assert result.soprano[0].duration == Fraction(1, 2)
         assert result.soprano[1].duration == Fraction(1, 2)
-        # Last anchor extends to end of piece (20 bars at 4/4 = offset 20, anchor at 2.1 = offset 1)
         assert result.soprano[2].duration == Fraction(19)
 
-    def test_realise_adds_lyrics(self, minimal_configs) -> None:
+    def test_realise_adds_lyrics(self, minimal_configs, c_major) -> None:
         """Lyrics are added at anchor positions."""
         key_config, affect_config, genre_config, form_config = minimal_configs
-        anchors = [Anchor("1.1", 60, 48, "do_re_mi", 1)]
+        anchors = [Anchor("1.1", 1, 1, c_major, "do_re_mi", 1)]
         result = realise(
             anchors,
             None,
@@ -153,12 +157,12 @@ class TestRealise:
         )
         assert result.soprano[0].lyric == "do_re_mi"
 
-    def test_realise_sorts_anchors(self, minimal_configs) -> None:
+    def test_realise_sorts_anchors(self, minimal_configs, c_major) -> None:
         """Anchors are sorted by time."""
         key_config, affect_config, genre_config, form_config = minimal_configs
         anchors = [
-            Anchor("2.1", 64, 52, "test", 2),
-            Anchor("1.1", 60, 48, "test", 1),
+            Anchor("2.1", 3, 3, c_major, "test", 2),
+            Anchor("1.1", 1, 1, c_major, "test", 1),
         ]
         result = realise(
             anchors,
@@ -168,5 +172,6 @@ class TestRealise:
             genre_config,
             form_config,
         )
-        assert result.soprano[0].pitch == 60
-        assert result.soprano[1].pitch == 64
+        # Degree 1 in C major at soprano median (70) -> C5 (72)
+        # Degree 3 in C major -> E5 (76)
+        assert result.soprano[0].offset < result.soprano[1].offset

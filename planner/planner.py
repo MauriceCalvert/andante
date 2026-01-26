@@ -92,7 +92,7 @@ def generate(
     _debug(f"L4 Metric: total_bars={total_bars}, anchors={len(anchors)}")
     _debug(f"  bar_assignments: {bar_assignments}")
     for a in anchors[:10]:
-        _debug(f"  anchor {a.bar_beat}: S={a.soprano_midi} B={a.bass_midi} ({a.schema})")
+        _debug(f"  anchor {a.bar_beat}: S={a.soprano_degree} B={a.bass_degree} key={a.local_key.tonic} ({a.schema})")
     if len(anchors) > 10:
         _debug(f"  ... and {len(anchors) - 10} more anchors")
     treatment_assignments: list[TreatmentAssignment] = layer_5_textural(

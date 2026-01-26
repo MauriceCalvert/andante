@@ -18,18 +18,19 @@ from builder.greedy_solver import (
 )
 from builder.types import (
     AffectConfig,
-    Anchor as LegacyAnchor,
+    Anchor,
     GenreConfig,
     KeyConfig,
     MotiveWeights,
     RhythmPlan,
     SchemaChain,
     SchemaConfig,
-    Solution as LegacySolution,
+    Solution,
 )
 
 SLOTS_PER_BAR: int = 16
 TESSITURA_SPAN: int = 18
+DRIFT_THRESHOLD: int = 12
 DEBUG: bool = True
 
 
@@ -49,29 +50,59 @@ def _bar_beat_to_offset(bar_beat: str) -> Fraction:
     return Fraction(slot, SLOTS_PER_BAR)
 
 
+def _gravitational_pitch(
+    key: "Key",
+    degree: int,
+    prev_pitch: int,
+    median: int,
+) -> int:
+    """Find pitch of given degree using gravitational voice leading."""
+    from shared.key import Key
+    candidates: list[int] = []
+    for octave in range(1, 8):
+        midi: int = key.degree_to_midi(degree, octave=octave)
+        candidates.append(midi)
+    candidates.sort(key=lambda m: abs(m - prev_pitch))
+    nearest: int = candidates[0]
+    nearest_drift: int = abs(nearest - median)
+    if nearest_drift <= DRIFT_THRESHOLD:
+        return nearest
+    candidates.sort(key=lambda m: abs(m - median))
+    for alt in candidates:
+        if alt != nearest:
+            return alt
+    return nearest
+
+
 def _convert_anchors_to_dict(
-    legacy_anchors: list[LegacyAnchor],
+    anchors: list[Anchor],
+    soprano_median: int,
+    bass_median: int,
 ) -> dict[tuple[Fraction, int], int]:
-    """Convert legacy anchors to dict mapping (offset, voice) -> midi."""
+    """Convert anchors to dict mapping (offset, voice) -> midi."""
     anchor_dict: dict[tuple[Fraction, int], int] = {}
-    for anchor in legacy_anchors:
+    sorted_anchors: list[Anchor] = sorted(anchors, key=lambda a: _bar_beat_to_offset(a.bar_beat))
+    prev_soprano: int = soprano_median
+    prev_bass: int = bass_median
+    for anchor in sorted_anchors:
         offset: Fraction = _bar_beat_to_offset(anchor.bar_beat)
-        anchor_dict[(offset, 0)] = anchor.soprano_midi
-        anchor_dict[(offset, 1)] = anchor.bass_midi
+        s_midi: int = _gravitational_pitch(
+            anchor.local_key, anchor.soprano_degree, prev_soprano, soprano_median,
+        )
+        b_midi: int = _gravitational_pitch(
+            anchor.local_key, anchor.bass_degree, prev_bass, bass_median,
+        )
+        anchor_dict[(offset, 0)] = s_midi
+        anchor_dict[(offset, 1)] = b_midi
+        prev_soprano = s_midi
+        prev_bass = b_midi
     return anchor_dict
 
 
 def _rhythm_plan_to_active_slots(
     rhythm_plan: RhythmPlan,
 ) -> dict[int, frozenset[int]]:
-    """Convert RhythmPlan to active_slots format for solver.
-
-    Args:
-        rhythm_plan: RhythmPlan with soprano_active and bass_active
-
-    Returns:
-        Dict mapping voice (0=soprano, 1=bass) to frozenset of slot indices
-    """
+    """Convert RhythmPlan to active_slots format for solver."""
     return {
         0: rhythm_plan.soprano_active,
         1: rhythm_plan.bass_active,
@@ -98,27 +129,18 @@ def _convert_solution(
     greedy_solution: GreedySolution,
     rhythm_plan: RhythmPlan,
     total_bars: int,
-) -> LegacySolution:
-    """Convert greedy solution to legacy solution format.
-
-    Uses rhythm plan to determine durations per slot.
-    """
+) -> Solution:
+    """Convert greedy solution to Solution format."""
     total_slots: int = total_bars * SLOTS_PER_BAR
     default_duration: Fraction = Fraction(1, SLOTS_PER_BAR)
-
     soprano_pitches: list[int] = []
     bass_pitches: list[int] = []
     soprano_durations: list[Fraction] = []
     bass_durations: list[Fraction] = []
-
-    # Track last known pitch per voice for hold behavior
     last_soprano: int = 60
     last_bass: int = 48
-
     for slot_idx in range(total_slots):
         offset: Fraction = Fraction(slot_idx, SLOTS_PER_BAR)
-
-        # Soprano: use pitch from solution if active, otherwise hold previous
         if slot_idx in rhythm_plan.soprano_active:
             pitch = greedy_solution.pitches.get((offset, 0), last_soprano)
             last_soprano = pitch
@@ -127,8 +149,6 @@ def _convert_solution(
         else:
             soprano_pitches.append(last_soprano)
             soprano_durations.append(default_duration)
-
-        # Bass: use pitch from solution if active, otherwise hold previous
         if slot_idx in rhythm_plan.bass_active:
             pitch = greedy_solution.pitches.get((offset, 1), last_bass)
             last_bass = pitch
@@ -137,8 +157,7 @@ def _convert_solution(
         else:
             bass_pitches.append(last_bass)
             bass_durations.append(default_duration)
-
-    return LegacySolution(
+    return Solution(
         soprano_pitches=tuple(soprano_pitches),
         bass_pitches=tuple(bass_pitches),
         soprano_durations=tuple(soprano_durations),
@@ -156,70 +175,45 @@ def layer_7_melodic(
     genre_config: GenreConfig,
     schemas: dict[str, SchemaConfig],
     total_bars: int,
-    anchors: list[LegacyAnchor],
+    anchors: list[Anchor],
     rhythm_plan: RhythmPlan | None = None,
-) -> LegacySolution:
-    """Execute Layer 7: greedy pitch filling for active slots only.
-
-    Args:
-        schema_chain: Schema chain from L3
-        rhythm_vocab: Rhythmic vocabulary from L1
-        density: Density level from L2
-        affect_config: Affect configuration
-        key_config: Key configuration with pitch class set
-        genre_config: Genre configuration with tessitura
-        schemas: Schema definitions
-        total_bars: Total bars in piece
-        anchors: Anchors from L4
-        rhythm_plan: RhythmPlan specifying active slots per voice (optional for backward compat)
-
-    Returns:
-        Solution with pitches and durations for all slots
-    """
+) -> Solution:
+    """Execute Layer 7: greedy pitch filling for active slots only."""
     voice_count: int = genre_config.voices
     tessitura_medians: dict[int, int] = _build_tessitura_medians(genre_config, voice_count)
-
     _debug(f"tessitura_medians={tessitura_medians}, span={TESSITURA_SPAN}")
-
-    # Build solver config
     config = GreedyConfig(
         voice_count=voice_count,
         pitch_class_set=key_config.pitch_class_set,
         tessitura_medians=tessitura_medians,
         tessitura_span=TESSITURA_SPAN,
     )
-
-    # Convert anchors to dict
-    anchor_dict: dict[tuple[Fraction, int], int] = _convert_anchors_to_dict(anchors)
-
+    soprano_median: int = tessitura_medians.get(0, 70)
+    bass_median: int = tessitura_medians.get(1, 48)
+    anchor_dict: dict[tuple[Fraction, int], int] = _convert_anchors_to_dict(
+        anchors, soprano_median, bass_median,
+    )
     if rhythm_plan is not None:
-        # New path: use per-voice active slots
         active_slots: dict[int, frozenset[int]] = _rhythm_plan_to_active_slots(rhythm_plan)
         _debug(f"Using rhythm plan: {len(rhythm_plan.soprano_active)} soprano slots, {len(rhythm_plan.bass_active)} bass slots")
         _debug(f"Using greedy solver for {total_bars} bars, {len(anchors)} anchors")
-
-        # Solve with per-voice active slots
         greedy_solution: GreedySolution = solve_greedy(anchor_dict, active_slots, config)
         _debug(f"Greedy solution cost: {greedy_solution.cost:.2f}")
-
         return _convert_solution(greedy_solution, rhythm_plan, total_bars)
     else:
-        # Legacy path: fill all slots
         total_slots: int = total_bars * SLOTS_PER_BAR
         offsets: list[Fraction] = [Fraction(slot_idx, SLOTS_PER_BAR) for slot_idx in range(total_slots)]
         _debug(f"No rhythm plan: filling all {len(offsets)} slots (legacy mode)")
         _debug(f"Using greedy solver for {total_bars} bars, {len(anchors)} anchors")
-
         greedy_solution = solve_greedy_legacy(anchor_dict, offsets, config)
         _debug(f"Greedy solution cost: {greedy_solution.cost:.2f}")
-
         return _convert_solution_legacy(greedy_solution, total_bars)
 
 
 def _convert_solution_legacy(
     greedy_solution: GreedySolution,
     total_bars: int,
-) -> LegacySolution:
+) -> Solution:
     """Legacy conversion for backward compatibility (fills all slots)."""
     total_slots: int = total_bars * SLOTS_PER_BAR
     slot_duration: Fraction = Fraction(1, SLOTS_PER_BAR)
@@ -233,7 +227,7 @@ def _convert_solution_legacy(
         bass_pitches.append(greedy_solution.pitches.get((offset, 1), 48))
         soprano_durations.append(slot_duration)
         bass_durations.append(slot_duration)
-    return LegacySolution(
+    return Solution(
         soprano_pitches=tuple(soprano_pitches),
         bass_pitches=tuple(bass_pitches),
         soprano_durations=tuple(soprano_durations),

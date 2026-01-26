@@ -5,7 +5,9 @@ Durations are Fraction. Pitches are MIDI integers.
 """
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Any
+from typing import TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from shared.key import Key
 
 
 @dataclass(frozen=True)
@@ -31,8 +33,9 @@ class NoteFile:
 class Anchor:
     """Schema arrival constraint at specific bar.beat position."""
     bar_beat: str
-    soprano_midi: int
-    bass_midi: int
+    soprano_degree: int
+    bass_degree: int
+    local_key: "Key"
     schema: str
     stage: int
 

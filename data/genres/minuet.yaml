@@ -10,7 +10,7 @@ texture: homophonic
 
 # Voice tessituras
 tessitura:
-  soprano: 74      # D5 - median
+  soprano: 71      # B4 - median
   bass: 50         # D3 - median
 
 # Schema selection by formal position

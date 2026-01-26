@@ -204,7 +204,7 @@ def write_midi_notes(
         midi_track.append(MetaMessage('track_name', name=name, time=0))
         midi_track.append(Message('program_change', channel=track_num % 16, program=0, time=0))
 
-        # L013: 75% gate time to avoid legato/slur rendering in MuseScore
+        # L013: 95% gate time to avoid legato/slur rendering in players
         GATE_TIME = 0.95
 
         # Build events list (on/off with absolute times)
