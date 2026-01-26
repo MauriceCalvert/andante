@@ -10,10 +10,14 @@ rhythmic_unit: "1/16"
 imitation: mandatory
 texture: imitative
 
-# Voice tessituras: median pitch for each voice (per L003 - no range constraints)
+# Voice tessituras: range and median for each voice
 tessitura:
-  soprano: 70  # Bb4 - gravity centre (midpoint of typical 60-79 range)
-  bass: 48     # C3 - gravity centre (midpoint of typical 36-60 range)
+  soprano: 70      # Bb4 - median
+  soprano_low: 60  # C4
+  soprano_high: 79 # G5
+  bass: 48         # C3 - median
+  bass_low: 36     # C2
+  bass_high: 60    # C4
 
 # Tonal journey: key area proportions through the piece
 tonal_journey:

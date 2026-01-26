@@ -109,6 +109,9 @@ def collect_definitions(type_spec: dict[str, Any]) -> dict[str, set[str]]:
         elif file_key == "cadences":
             data = load_yaml(DATA_DIR / "cadences" / "cadences.yaml")
             values = get_nested(data, "internal.keys") | get_nested(data, "final.keys")
+        elif file_key == "treatments":
+            data = load_yaml(DATA_DIR / "treatments" / "treatments.yaml")
+            values = get_nested(data, path)
         else:
             yaml_path: Path = DATA_DIR / f"{file_key}.yaml"
             if not yaml_path.exists():

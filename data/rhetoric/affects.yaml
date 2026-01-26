@@ -124,6 +124,32 @@ affects:
     rhythm_density: sparse
     chromaticism: heavy
 
+  Zierlich:
+    description: "Graceful, elegant, refined charm"
+    mode: major
+    tempo: moderato
+    key_character: bright
+    archetype: playful_dialogue
+    interval_profile: stepwise
+    contour: arch
+    rhythm_density: moderate
+    chromaticism: none
+    density: medium
+    articulation: legato
+    tempo_modifier: 0
+    tonal_path:
+      A: [I]
+      B: [V, I]
+    answer_interval: 5
+    anacrusis: false
+    motive_weights:
+      step: 0.2
+      skip: 0.4
+      leap: 0.8
+      large_leap: 1.5
+    direction_limit: 4
+    density_minimum: 0.5
+
   default:
     description: "Resolution, determination, firm decisiveness"
     mode: major

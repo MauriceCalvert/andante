@@ -1,0 +1,13 @@
+# Bach Minuet
+# Affect: Zierlich (graceful, elegant)
+# Simple binary dance form
+brief:
+  affect: Zierlich
+  genre: minuet
+  forces: keyboard
+  bars: 16
+frame:
+  key: G
+  mode: major
+  metre: 3/4
+  tempo: moderato

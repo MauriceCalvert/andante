@@ -1,60 +1,76 @@
 # Minuet (GenreTemplate format)
-# Stately triple-metre dance in binary form
+# Elegant binary dance in 3/4
 
-name: Minuet
+name: minuet
 voices: 2
 form: binary
 metre: 3/4
-rhythmic_unit: "1/8"
-texture: melody_bass
+rhythmic_unit: "1/4"
+texture: homophonic
+
+# Voice tessituras
+tessitura:
+  soprano: 74      # D5 - median
+  bass: 50         # D3 - median
 
 # Schema selection by formal position
 schema_preferences:
   opening:
     - do_re_mi
-    - romanesca
   riposte:
     - prinner
   continuation:
-    - fonte
+    - monte
   pre_cadential:
     - indugio
   cadential:
-    - prinner
-    - sol_fa_mi
+    - cadenza_semplice
 
 # Cadence planning rules
 cadence_template:
-  density: low               # Every 8+ bars
-  first_cadence_bar: 8       # Typical first cadence location
-  first_cadence_type: half   # Usually half cadence
-  section_end_type: half     # At section boundary
-  final_type: authentic      # Piece ends PAC on I
+  density: medium
+  first_cadence_bar: 8
+  first_cadence_type: half
+  section_end_type: authentic
+  final_type: authentic
 
-# Section structure (binary form with repeats)
+# Section structure (binary form)
 sections:
-  - label: A
+  - name: A
+    bars: [1, 8]
     key_area: I
-    proportion: 0.5
+    schema_sequence: [do_re_mi, prinner]
     end_cadence: half
-  - label: B
+  - name: B
+    bars: [9, 16]
     key_area: V
-    proportion: 0.5
+    schema_sequence: [monte, cadenza_semplice]
     end_cadence: authentic
 
-# Subject constraints for validation and derivation
+# Subject constraints
 subject_constraints:
-  min_notes: 3
+  min_notes: 4
   max_notes: 8
   max_bars: 2
-  require_invertible: false  # Dance melodies less strict
+  require_invertible: false
   require_answerable: false
   first_degree: [1, 3, 5]
   last_degree: [1, 2, 3, 5]
 
+# Rhythmic vocabulary
+rhythmic_vocabulary:
+  primary: "1/4"
+  characteristic_figures:
+    - dotted_crotchet_quaver
+    - crotchet_two_quavers
+  tempo_range: [100, 120]
+
 # Treatment vocabulary
 treatments:
-  required: [statement]
-  optional: [transposition]
-  opening: statement
-  answer: statement
+  required: [melody_accompaniment]
+  optional: []
+  opening: melody_accompaniment
+  answer: melody_accompaniment
+
+# Bass pattern: oom-pah-pah
+bass_pattern: oom_pah_pah

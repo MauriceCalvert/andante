@@ -22,7 +22,8 @@ from builder.types import (
     MotiveWeights, SchemaChain, SchemaConfig, Solution, TreatmentAssignment,
 )
 from planner.melodic import layer_7_melodic
-from planner.metric import layer_4_metric, distribute_arrivals
+from planner.metric import layer_4_metric
+from planner.metric.distribution import distribute_arrivals
 from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic, _check_connection
 from planner.textural import layer_5_textural
@@ -232,20 +233,20 @@ class TestDistributeArrivals:
     """Tests for distribute_arrivals function."""
 
     def test_three_stages_two_bars_4_4(self) -> None:
-        arrivals = distribute_arrivals("test", 3, 1, 2, "4/4")
+        arrivals = distribute_arrivals(3, 1, 2, "4/4")
         assert len(arrivals) == 3
         assert arrivals[0] == "1.1"
         assert arrivals[1] == "1.3"
         assert arrivals[2] == "2.1"
 
     def test_four_stages_two_bars(self) -> None:
-        arrivals = distribute_arrivals("test", 4, 1, 2, "4/4")
+        arrivals = distribute_arrivals(4, 1, 2, "4/4")
         assert len(arrivals) == 4
         assert "1.1" in arrivals
         assert "2.3" in arrivals
 
     def test_three_quarter_time(self) -> None:
-        arrivals = distribute_arrivals("test", 3, 1, 3, "3/4")
+        arrivals = distribute_arrivals(3, 1, 3, "3/4")
         assert len(arrivals) == 3
 
 

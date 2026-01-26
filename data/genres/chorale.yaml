@@ -31,14 +31,17 @@ cadence_template:
   final_type: authentic
 
 # Section structure (binary form)
+# TODO: support proportion as alternative to explicit bars
 sections:
-  - label: A
+  - name: A
+    bars: [1, 4]
     key_area: I
-    proportion: 0.5
+    schema_sequence: [do_re_mi, prinner]
     end_cadence: half
-  - label: B
-    key_area: V
-    proportion: 0.5
+  - name: B
+    bars: [5, 8]
+    key_area: I
+    schema_sequence: [fonte, cadenza_semplice]
     end_cadence: authentic
 
 # Subject constraints for validation and derivation

@@ -1,13 +1,13 @@
-# Freude Minuet
+# Freude Chorale
 # Affect: Freudigkeit (joy, brightness)
-# Subject: derived from opening schema
+# Simple strophic hymn texture
 brief:
   affect: Freudigkeit
-  genre: minuet
+  genre: chorale
   forces: keyboard
-  bars: 16
+  bars: 8
 frame:
   key: C
   mode: major
-  metre: 3/4
-  tempo: allegro
+  metre: 4/4
+  tempo: andante

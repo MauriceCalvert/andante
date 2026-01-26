@@ -37,7 +37,7 @@ cadence_template:
 
 # Section structure (through-composed, single section)
 sections:
-  - label: A
+  - name: A
     key_area: I
     proportion: 1.0
     end_cadence: authentic

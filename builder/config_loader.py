@@ -163,6 +163,11 @@ def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
 
 def _validate_genre(data: dict) -> GenreConfig:
     """Validate genre YAML against schema."""
+    sections: list[dict] = data.get("sections", [])
+    for section in sections:
+        section_name: str = section.get("name", "<unnamed>")
+        assert "bars" in section, f"Section '{section_name}' missing 'bars'"
+        assert "schema_sequence" in section, f"Section '{section_name}' missing 'schema_sequence'"
     tessitura_raw: dict = data.get("tessitura", {})
     tessitura: dict[str, int] = {}
     for voice, median in tessitura_raw.items():

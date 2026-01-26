@@ -32,13 +32,13 @@ def _default_texture(
     genre_config: GenreConfig,
     bar_assignments: dict[str, tuple[int, int]],
 ) -> list[TreatmentAssignment]:
-    """Default texture: schematic treatment for all sections."""
+    """Default texture: statement treatment for all sections."""
     assignments: list[TreatmentAssignment] = []
     for section_name, (start_bar, end_bar) in bar_assignments.items():
         assignments.append(TreatmentAssignment(
             start_bar=start_bar,
             end_bar=end_bar,
-            treatment="schematic",
+            treatment="statement",
             subject_voice=None,
         ))
     return assignments
@@ -118,7 +118,7 @@ def _invention_texture(
             assignments.append(TreatmentAssignment(
                 start_bar=start_bar,
                 end_bar=end_bar,
-                treatment="schematic",
+                treatment="statement",
                 subject_voice=None,
             ))
 
@@ -130,7 +130,7 @@ def _invention_texture(
         assignments.append(TreatmentAssignment(
             start_bar=start_bar,
             end_bar=end_bar,
-            treatment="schematic",
+            treatment="statement",
             subject_voice=None,
         ))
         section_idx += 1

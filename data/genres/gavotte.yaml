@@ -34,11 +34,11 @@ cadence_template:
 
 # Section structure (binary form)
 sections:
-  - label: A
+  - name: A
     key_area: I
     proportion: 0.5
     end_cadence: authentic
-  - label: B
+  - name: B
     key_area: V
     proportion: 0.5
     end_cadence: authentic

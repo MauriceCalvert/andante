@@ -1,4 +1,4 @@
-"""I/O utilities for MIDI and note file export.
+"""I/O utilities for MIDI, MusicXML, and note file export.
 
 Category A: Pure functions for formatting.
 Category B: File I/O operations.
@@ -80,6 +80,15 @@ def write_midi_file(notes: NoteFile, path: Path) -> None:
             offset=float(note.offset),
             duration=float(note.duration),
             velocity=80,
-            track=1,
+            track=3,
         ))
     write_midi_notes(str(path), midi_notes, tempo=notes.tempo)
+
+
+def write_musicxml_file(notes: NoteFile, path: Path, tonic: str = "C", mode: str = "major") -> bool:
+    """Write notes to MusicXML file.
+    
+    Returns True if successful, False if music21 not available.
+    """
+    from builder.musicxml_writer import write_musicxml_file as _write_xml
+    return _write_xml(notes, path, tonic, mode)
