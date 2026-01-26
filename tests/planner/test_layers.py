@@ -52,11 +52,11 @@ class TestLayer1Rhetorical:
     def test_returns_rhythm_vocab(self, genre_config: GenreConfig) -> None:
         _, rhythm_vocab, _ = layer_1_rhetorical(genre_config)
         assert isinstance(rhythm_vocab, dict)
-        assert "primary_value" in rhythm_vocab
+        assert "rhythmic_unit" in rhythm_vocab
 
     def test_invention_primary_value(self, genre_config: GenreConfig) -> None:
         _, rhythm_vocab, _ = layer_1_rhetorical(genre_config)
-        assert rhythm_vocab["primary_value"] == "1/16"
+        assert rhythm_vocab["rhythmic_unit"] == "1/16"
 
     def test_returns_tempo(self, genre_config: GenreConfig) -> None:
         _, _, tempo = layer_1_rhetorical(genre_config)

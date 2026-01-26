@@ -205,7 +205,7 @@ class TestRealise:
             voices=2,
             form="through_composed",
             metre="4/4",
-            primary_value="1/16",
+            rhythmic_unit="1/16",
             sections=(),
             imitation="mandatory",
             treatment_sequence=(),

@@ -89,7 +89,7 @@ class GenreConfig:
     voices: int
     form: str
     metre: str
-    primary_value: str
+    rhythmic_unit: str
     sections: tuple[dict[str, Any], ...]
     imitation: str
     treatment_sequence: tuple[dict[str, Any], ...]

@@ -5,7 +5,7 @@ name: Minuet
 voices: 2
 form: binary
 metre: 3/4
-primary_value: "1/8"
+rhythmic_unit: "1/8"
 texture: melody_bass
 
 # Schema selection by formal position

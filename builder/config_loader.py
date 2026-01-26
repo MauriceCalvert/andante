@@ -126,13 +126,13 @@ def load_form(name: str) -> FormConfig:
     return _validate_form(data)
 
 
-def _compute_slots_per_bar(metre: str, primary_value: str) -> int:
+def _compute_slots_per_bar(metre: str, rhythmic_unit: str) -> int:
     """Compute slots per bar from metre and primary value."""
     num_str, den_str = metre.split("/")
     bar_length: Fraction = Fraction(int(num_str), int(den_str))
-    slot_size: Fraction = Fraction(primary_value)
+    slot_size: Fraction = Fraction(rhythmic_unit)
     slots: Fraction = bar_length / slot_size
-    assert slots.denominator == 1, f"Non-integer slots: {metre} / {primary_value} = {slots}"
+    assert slots.denominator == 1, f"Non-integer slots: {metre} / {rhythmic_unit} = {slots}"
     return int(slots)
 
 
@@ -147,7 +147,7 @@ def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
     base_tempo: int = (tempo_range[0] + tempo_range[1]) // 2
     tempo: int = base_tempo + affect_config.tempo_modifier
     total_bars: int = form_config.minimum_bars
-    slots_per_bar: int = _compute_slots_per_bar(genre_config.metre, genre_config.primary_value)
+    slots_per_bar: int = _compute_slots_per_bar(genre_config.metre, genre_config.rhythmic_unit)
     total_slots: int = total_bars * slots_per_bar
     return {
         "genre": genre_config,
@@ -172,7 +172,7 @@ def _validate_genre(data: dict) -> GenreConfig:
         voices=data["voices"],
         form=data["form"],
         metre=data["metre"],
-        primary_value=data["primary_value"],
+        rhythmic_unit=data["rhythmic_unit"],
         sections=tuple(data.get("sections", [])),
         imitation=data.get("imitation", "none"),
         treatment_sequence=tuple(data.get("treatment_sequence", [])),

@@ -23,7 +23,7 @@ def layer_1_rhetorical(
     """
     trajectory: list[str] = [s["name"] for s in genre_config.sections]
     rhythm_vocab: dict[str, Any] = {
-        "primary_value": genre_config.primary_value,
+        "rhythmic_unit": genre_config.rhythmic_unit,
         "characteristic_figures": genre_config.rhythmic_vocabulary.get(
             "characteristic_figures", []
         ),

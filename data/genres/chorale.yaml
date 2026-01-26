@@ -5,7 +5,7 @@ name: Chorale
 voices: 4
 form: strophic
 metre: 4/4
-primary_value: "1/4"
+rhythmic_unit: "1/4"
 texture: homophonic
 
 # Schema selection by formal position
