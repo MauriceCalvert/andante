@@ -134,8 +134,15 @@ def run_from_brief(
         mode: str = frame_data.get("mode", "major").lower()
         key = f"{tonic}_{mode}"
     affect: str = brief_data.get("affect", "default")
-    # Tempo can be in brief.tempo or frame.tempo
-    tempo: int | None = brief_data.get("tempo") or frame_data.get("tempo")
+    # Tempo can be in brief.tempo or frame.tempo (must be integer BPM)
+    raw_tempo = brief_data.get("tempo") or frame_data.get("tempo")
+    tempo: int | None = None
+    if raw_tempo is not None:
+        assert isinstance(raw_tempo, int), (
+            f"tempo must be integer BPM, got '{raw_tempo}' ({type(raw_tempo).__name__}). "
+            f"Use e.g. 'tempo: 100' not 'tempo: allegro'"
+        )
+        tempo = raw_tempo
 
     output_name: str = brief_path.stem
 

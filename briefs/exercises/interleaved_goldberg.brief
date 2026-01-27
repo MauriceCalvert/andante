@@ -6,7 +6,7 @@ frame:
   key: C
   mode: major
   metre: 4/4
-  tempo: allegro
+  tempo: 120
   voices: 3
 material:
   subject:

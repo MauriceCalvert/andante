@@ -6,7 +6,7 @@ frame:
   key: G
   mode: major
   metre: 4/4
-  tempo: allegro
+  tempo: 120
   voices: 4
 structure:
   arc: chorale_4voice
