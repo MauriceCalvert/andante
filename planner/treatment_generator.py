@@ -3,18 +3,15 @@
 Generates structurally-appropriate treatment sequences based on:
 - phrase_count: number of phrases to fill
 - climax_position: where the climax falls (0.0-1.0)
-- genre: optional genre-specific constraints
+- genre: optional genre-specific constraints from TreatmentsConfig
 
 Replaces static `treatments: [...]` arrays in arcs.yaml with
 dynamically generated sequences that respect musical structure.
 """
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable
 
-import yaml
+from builder.types import GenreConfig, TreatmentsConfig
 
-DATA_DIR = Path(__file__).parent.parent / "data"
 
 # Structural regions as fraction of piece
 REGIONS = {
@@ -25,7 +22,7 @@ REGIONS = {
     "close": (0.85, 1.0),         # Final statement and cadence
 }
 
-# Treatment pools by region
+# Treatment pools by region (used when genre has optional treatments)
 TREATMENT_POOLS: dict[str, list[str]] = {
     "exposition": ["statement"],
     "development_1": ["imitation", "transposition", "inversion", "dialogue"],
@@ -35,7 +32,6 @@ TREATMENT_POOLS: dict[str, list[str]] = {
 }
 
 # Transition rules: what can follow what
-# Format: treatment -> list of valid next treatments
 TRANSITIONS: dict[str, list[str]] = {
     "statement": ["imitation", "transposition", "stretto", "inversion", "dialogue", "statement"],
     "imitation": ["transposition", "inversion", "statement", "stretto", "fragmentation"],
@@ -46,6 +42,7 @@ TRANSITIONS: dict[str, list[str]] = {
     "augmentation": ["diminution", "transposition", "statement"],
     "diminution": ["transposition", "statement", "stretto"],
     "dialogue": ["imitation", "transposition", "statement", "inversion"],
+    "melody_accompaniment": ["melody_accompaniment"],
 }
 
 # Treatments that should appear at most N times
@@ -56,39 +53,24 @@ MAX_OCCURRENCES: dict[str, int] = {
     "diminution": 1,
 }
 
-# Koch's phrase type transitions (sections 34-37)
-# I-phrase = caesura on tonic, V-phrase = caesura on dominant
-# These guide tonal_target selection during structure generation
-TONAL_TRANSITIONS: dict[str, list[str]] = {
-    "I": ["V", "cadence"],      # I-phrase can go to V-phrase or cadence
-    "V": ["cadence"],           # V-phrase should go to cadence (not I at start)
-    "cadence": ["I", "V"],      # After cadence, new period can start either way
-}
-
 
 @dataclass
 class TreatmentProfile:
     """Profile for treatment generation."""
     phrase_count: int
-    climax_position: float = 0.7  # late climax by default
+    climax_position: float = 0.7
     must_include: list[str] | None = None
     must_avoid: list[str] | None = None
     start_with: str = "statement"
     end_with: str = "statement"
-    second_phrase: str | None = None  # Force second phrase treatment (e.g., imitation for invention)
+    second_phrase: str | None = None
+    available_pool: list[str] | None = None
 
 
 def get_region_for_position(position: float, climax_pos: float) -> str:
-    """Determine structural region for a given position.
-
-    Adjusts regions based on climax_position:
-    - Early climax (0.3-0.5): shorter development_1, longer development_2
-    - Late climax (0.7-0.9): longer development_1, shorter development_2
-    """
-    # Adjust climax region center based on climax_position
+    """Determine structural region for a given position."""
     climax_start = max(0.2, climax_pos - 0.15)
     climax_end = min(0.85, climax_pos + 0.15)
-
     if position < 0.15:
         return "exposition"
     elif position < climax_start:
@@ -121,13 +103,11 @@ def filter_by_occurrences(
     counts: dict[str, int] = {}
     for t in history:
         counts[t] = counts.get(t, 0) + 1
-
     filtered = []
     for c in candidates:
         max_occ = MAX_OCCURRENCES.get(c, 999)
         if counts.get(c, 0) < max_occ:
             filtered.append(c)
-
     return filtered if filtered else candidates[:1]
 
 
@@ -150,15 +130,10 @@ def select_treatment(
     """Select treatment from candidates with some variety bias."""
     if not candidates:
         return "statement"
-
-    # Prefer treatments not recently used
     recent = set(history[-3:]) if len(history) >= 3 else set(history)
     preferred = [c for c in candidates if c not in recent]
-
     if preferred:
-        # Simple deterministic selection based on seed and position
         return preferred[(seed + len(history)) % len(preferred)]
-
     return candidates[(seed + len(history)) % len(candidates)]
 
 
@@ -166,22 +141,11 @@ def generate_treatment_sequence(
     profile: TreatmentProfile,
     seed: int = 0,
 ) -> list[str]:
-    """Generate a treatment sequence for the given profile.
-
-    Args:
-        profile: TreatmentProfile with phrase_count, climax_position, etc.
-        seed: Random seed for deterministic generation
-
-    Returns:
-        List of treatment names, one per phrase
-    """
+    """Generate a treatment sequence for the given profile."""
     treatments: list[str] = []
     n = profile.phrase_count
-
     for i in range(n):
         position = i / max(1, n - 1) if n > 1 else 0.5
-
-        # Force start and end treatments
         if i == 0:
             treatments.append(profile.start_with)
             continue
@@ -191,55 +155,51 @@ def generate_treatment_sequence(
         if i == n - 1:
             treatments.append(profile.end_with)
             continue
-
-        # Get region and pool
-        region = get_region_for_position(position, profile.climax_position)
-        pool = TREATMENT_POOLS.get(region, ["statement"])
-
-        # Apply filters
-        candidates = list(pool)
+        if profile.available_pool:
+            candidates = list(profile.available_pool)
+        else:
+            region = get_region_for_position(position, profile.climax_position)
+            candidates = list(TREATMENT_POOLS.get(region, ["statement"]))
         candidates = filter_by_transitions(candidates, treatments[-1] if treatments else None)
         candidates = filter_by_occurrences(candidates, treatments)
         candidates = filter_by_avoid(candidates, profile.must_avoid)
-
-        # Add must_include if we're running out of opportunities
-        remaining = n - i - 1  # phrases left (excluding this one)
+        remaining = n - i - 1
         if profile.must_include:
             missing = [t for t in profile.must_include if t not in treatments]
             if missing and remaining <= len(missing):
-                # Force a missing treatment
                 for m in missing:
                     if m in TRANSITIONS.get(treatments[-1], [m]):
                         candidates = [m]
                         break
-
-        # Select
         treatment = select_treatment(candidates, treatments, seed)
         treatments.append(treatment)
-
     return treatments
 
 
-def load_genre_constraints(genre: str) -> dict:
-    """Load genre-specific treatment constraints."""
-    try:
-        with open(DATA_DIR / "genres" / f"{genre}.yaml", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-            return data.get("treatment_constraints", {})
-    except FileNotFoundError:
-        return {}
+def profile_from_genre(genre_config: GenreConfig) -> TreatmentProfile:
+    """Create TreatmentProfile from genre's TreatmentsConfig."""
+    tc: TreatmentsConfig = genre_config.treatments
+    available: list[str] = list(tc.required) + list(tc.optional)
+    return TreatmentProfile(
+        phrase_count=0,
+        must_include=list(tc.required),
+        start_with=tc.opening,
+        end_with=tc.opening,
+        second_phrase=tc.answer if tc.answer != tc.opening else None,
+        available_pool=available if available else None,
+    )
 
 
 def generate_for_genre(
-    genre: str,
+    genre_config: GenreConfig,
     phrase_count: int,
     climax_position: float = 0.7,
     seed: int = 0,
 ) -> list[str]:
-    """Generate treatment sequence with genre-specific constraints.
+    """Generate treatment sequence using genre's TreatmentsConfig.
 
     Args:
-        genre: Genre name (e.g., "invention", "fugue")
+        genre_config: Genre configuration with treatments
         phrase_count: Number of phrases
         climax_position: Where climax falls (0.0-1.0)
         seed: Random seed
@@ -247,16 +207,15 @@ def generate_for_genre(
     Returns:
         List of treatment names
     """
-    constraints = load_genre_constraints(genre)
-
+    profile = profile_from_genre(genre_config)
     profile = TreatmentProfile(
         phrase_count=phrase_count,
         climax_position=climax_position,
-        must_include=constraints.get("must_include"),
-        must_avoid=constraints.get("must_avoid"),
-        start_with=constraints.get("start_with", "statement"),
-        end_with=constraints.get("end_with", "statement"),
-        second_phrase=constraints.get("second_phrase"),
+        must_include=profile.must_include,
+        must_avoid=profile.must_avoid,
+        start_with=profile.start_with,
+        end_with=profile.end_with,
+        second_phrase=profile.second_phrase,
+        available_pool=profile.available_pool,
     )
-
     return generate_treatment_sequence(profile, seed)

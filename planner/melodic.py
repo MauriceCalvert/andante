@@ -27,7 +27,8 @@ from builder.types import (
     SchemaConfig,
     Solution,
 )
-from shared.pitch import gravitational_pitch
+from shared.constants import DEFAULT_TESSITURA_MEDIANS
+from shared.pitch import select_octave
 
 SLOTS_PER_BAR: int = 16
 TESSITURA_SPAN: int = 18
@@ -58,15 +59,15 @@ def _convert_anchors_to_dict(
     """Convert anchors to dict mapping (offset, voice) -> midi."""
     anchor_dict: dict[tuple[Fraction, int], int] = {}
     sorted_anchors: list[Anchor] = sorted(anchors, key=lambda a: _bar_beat_to_offset(a.bar_beat))
-    prev_soprano: int = soprano_median
-    prev_bass: int = bass_median
+    prev_soprano: int | None = None
+    prev_bass: int | None = None
     for anchor in sorted_anchors:
         offset: Fraction = _bar_beat_to_offset(anchor.bar_beat)
-        s_midi: int = gravitational_pitch(
-            anchor.local_key, anchor.soprano_degree, prev_soprano, soprano_median,
+        s_midi: int = select_octave(
+            anchor.local_key, anchor.soprano_degree, soprano_median, prev_soprano,
         )
-        b_midi: int = gravitational_pitch(
-            anchor.local_key, anchor.bass_degree, prev_bass, bass_median,
+        b_midi: int = select_octave(
+            anchor.local_key, anchor.bass_degree, bass_median, prev_bass,
         )
         anchor_dict[(offset, 0)] = s_midi
         anchor_dict[(offset, 1)] = b_midi
@@ -85,16 +86,9 @@ def _rhythm_plan_to_active_slots(
     }
 
 
-def _build_tessitura_medians(
-    genre_config: GenreConfig,
-    voice_count: int,
-) -> dict[int, int]:
-    """Build tessitura medians dict from genre config."""
-    tessitura_medians: dict[int, int] = {}
-    if "soprano" in genre_config.tessitura:
-        tessitura_medians[0] = genre_config.tessitura["soprano"]
-    if "bass" in genre_config.tessitura:
-        tessitura_medians[1] = genre_config.tessitura["bass"]
+def _build_tessitura_medians(voice_count: int) -> dict[int, int]:
+    """Build tessitura medians dict from defaults."""
+    tessitura_medians: dict[int, int] = dict(DEFAULT_TESSITURA_MEDIANS)
     for v in range(voice_count):
         if v not in tessitura_medians:
             tessitura_medians[v] = 60
@@ -156,7 +150,7 @@ def layer_7_melodic(
 ) -> Solution:
     """Execute Layer 7: greedy pitch filling for active slots only."""
     voice_count: int = genre_config.voices
-    tessitura_medians: dict[int, int] = _build_tessitura_medians(genre_config, voice_count)
+    tessitura_medians: dict[int, int] = _build_tessitura_medians(voice_count)
     _debug(f"tessitura_medians={tessitura_medians}, span={TESSITURA_SPAN}")
     config = GreedyConfig(
         voice_count=voice_count,

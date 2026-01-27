@@ -25,9 +25,11 @@ from builder.costs import (
     cost_bass_motion,
     cost_directional,
     compute_total_cost,
-    TESSITURA_SPAN,
-    TESSITURA_BEYOND_COST,
     DIRECTION_THRESHOLD,
+)
+from shared.constants import (
+    TESSITURA_COMFORTABLE_SPAN as TESSITURA_SPAN,
+    TESSITURA_DEVIATION_COST as TESSITURA_BEYOND_COST,
 )
 from builder.slice import Slice, extract_slices
 

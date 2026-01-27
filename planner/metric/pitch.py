@@ -1,24 +1,6 @@
 """Pitch calculation utilities for metric planning."""
-from shared.constants import TESSITURA_DRIFT_THRESHOLD
 from shared.key import Key
-from shared.pitch import gravitational_pitch
-
-
-def compute_base_octave(
-    key: Key,
-    degree: int,
-    median: int,
-) -> int:
-    """Compute octave that places degree closest to median."""
-    best_octave: int = 4
-    best_dist: int = 999
-    for octave in range(2, 7):
-        midi: int = key.degree_to_midi(degree, octave=octave)
-        dist: int = abs(midi - median)
-        if dist < best_dist:
-            best_dist = dist
-            best_octave = octave
-    return best_octave
+from shared.pitch import select_octave
 
 
 def degree_to_midi(
@@ -54,9 +36,8 @@ def wrap_degree(degree: int) -> int:
 
 
 __all__ = [
-    "compute_base_octave",
     "degree_to_midi",
-    "gravitational_pitch",
+    "select_octave",
     "snap_to_key",
     "wrap_degree",
 ]

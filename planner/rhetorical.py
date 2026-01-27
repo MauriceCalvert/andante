@@ -24,10 +24,5 @@ def layer_1_rhetorical(
     trajectory: list[str] = [s["name"] for s in genre_config.sections]
     rhythm_vocab: dict[str, Any] = {
         "rhythmic_unit": genre_config.rhythmic_unit,
-        "characteristic_figures": genre_config.rhythmic_vocabulary.get(
-            "characteristic_figures", []
-        ),
     }
-    tempo_range: list[int] = genre_config.rhythmic_vocabulary.get("tempo_range", [72, 88])
-    tempo: int = (tempo_range[0] + tempo_range[1]) // 2
-    return trajectory, rhythm_vocab, tempo
+    return trajectory, rhythm_vocab, genre_config.tempo

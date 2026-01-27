@@ -6,25 +6,12 @@ voices: 2
 form: through_composed
 metre: "4/4"
 rhythmic_unit: "1/16"
-imitation: mandatory
+tempo: 75
 bass_treatment: contrapuntal
 
 sections:
   - name: A
     schema_sequence: [romanesca, fonte, prinner]
-
-rhythmic_vocabulary:
-  primary: "1/16"
-  tempo_range: [66, 84]
-
-subject_constraints:
-  min_notes: 4
-  max_notes: 16
-  max_bars: 2
-  require_invertible: true
-  require_answerable: true
-  first_degree: [1, 3, 5]
-  last_degree: [2, 3, 5, 7]
 
 treatments:
   required: [statement, imitation]

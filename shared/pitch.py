@@ -117,37 +117,41 @@ def cycle_pitch_with_variety(pitches: tuple[Pitch, ...], idx: int) -> Pitch:
     return FloatingNote(wrap_degree(p.degree + cycle))
 
 
-def gravitational_pitch(
+def select_octave(
     key: "Key",
     degree: int,
-    prev_pitch: int,
     median: int,
-    allow_register_reset: bool = True,
+    prev_pitch: int | None = None,
+    alter: int = 0,
 ) -> int:
-    """Find pitch of given degree using gravitational voice leading.
-    
-    Default: pure voice leading (nearest to prev_pitch).
-    If nearest pitch would exceed TESSITURA_DRIFT_THRESHOLD from median,
-    select the octave closer to median instead.
-    
+    """Select octave for a scale degree — canonical pitch placement.
+
+    Two modes:
+        Initial (prev_pitch=None): Place degree in octave nearest to median.
+        Voice-leading (prev_pitch given): Place nearest to prev_pitch,
+            but snap back to median if drift exceeds threshold.
+
     Args:
         key: Musical key
         degree: Scale degree (1-7)
-        prev_pitch: Previous MIDI pitch
-        median: Tessitura median pitch
-        allow_register_reset: If False, prefer stepwise motion regardless of drift.
-                              Use False for mid-figure notes to prevent octave drops.
+        median: Tessitura median (gravity centre)
+        prev_pitch: Previous MIDI pitch, or None for initial placement
+        alter: Chromatic alteration in semitones (default 0)
+
+    Returns:
+        MIDI pitch for the degree in the selected octave.
     """
+    assert 1 <= degree <= 7, f"degree must be 1-7, got {degree}"
     candidates: list[int] = []
     for octave in range(1, 8):
-        midi: int = key.degree_to_midi(degree, octave=octave)
+        midi: int = key.degree_to_midi(degree, octave=octave) + alter
         candidates.append(midi)
+    if prev_pitch is None:
+        candidates.sort(key=lambda m: abs(m - median))
+        return candidates[0]
     candidates.sort(key=lambda m: abs(m - prev_pitch))
     nearest: int = candidates[0]
-    if not allow_register_reset:
-        return nearest
-    nearest_drift: int = abs(nearest - median)
-    if nearest_drift <= TESSITURA_DRIFT_THRESHOLD:
+    if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
         return nearest
     candidates.sort(key=lambda m: abs(m - median))
     return candidates[0]

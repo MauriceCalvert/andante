@@ -281,6 +281,15 @@ DEFAULT_TESSITURA_MEDIANS: dict[int, int] = {
     3: 48,  # C3 - bass
 }
 
+# Fixed voice ranges (MIDI pitch): (low, high) - standard Baroque ranges
+# Used for tessitura checking instead of median-based approach
+VOICE_RANGES: dict[int, tuple[int, int]] = {
+    0: (60, 81),  # Soprano: C4 to A5
+    1: (53, 72),  # Alto: F3 to C5
+    2: (48, 67),  # Tenor: C3 to G4
+    3: (40, 62),  # Bass: E2 to D4
+}
+
 # Soft tessitura span: semitones from median before cost increases
 # Notes within this span incur no penalty; beyond incurs graduated cost
 TESSITURA_COMFORTABLE_SPAN: int = 7

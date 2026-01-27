@@ -1,13 +1,12 @@
 # Default genre settings
-# Used as fallback when genre-specific YAML lacks a field
-# All genre files should deep-merge over these defaults
+# All genre files should provide these fields
 
 name: default
 voices: 2
 form: binary
 metre: "4/4"
 rhythmic_unit: "1/8"
-imitation: none
+tempo: 80
 bass_treatment: contrapuntal
 
 sections:
@@ -15,19 +14,6 @@ sections:
     schema_sequence: [do_re_mi, prinner]
   - name: B
     schema_sequence: [fonte, cadenza_semplice]
-
-rhythmic_vocabulary:
-  primary: "1/8"
-  tempo_range: [72, 88]
-
-subject_constraints:
-  min_notes: 4
-  max_notes: 12
-  max_bars: 2
-  require_invertible: false
-  require_answerable: false
-  first_degree: [1, 3, 5]
-  last_degree: [1, 2, 3, 5]
 
 treatments:
   required: [statement]

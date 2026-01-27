@@ -1,0 +1,13 @@
+# Gavotte
+# Affect: Freudigkeit (joy, brightness)
+# Duple-metre dance with half-bar upbeat
+brief:
+  affect: Freudigkeit
+  genre: gavotte
+  forces: keyboard
+  tempo: 100
+frame:
+  key: D
+  mode: major
+  metre: 4/4
+  tempo: allegro

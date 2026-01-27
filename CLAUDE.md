@@ -64,9 +64,10 @@ manifest constants must be in shared\constants.py
 
 ## Tests
 
-Do not run the full test suite yourself.
-When i ask you to run it, update overage.md and show the final %.
-When implementing a phased plan, don't test after every change, test only at the end.
+Do not write or run tests yourself.
+When i ask you to run them, add missing tests, fix as needed. 
+when done, update coverage.md and show the final %.
+
 
 ---
 

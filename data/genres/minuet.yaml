@@ -6,7 +6,7 @@ voices: 2
 form: binary
 metre: "3/4"
 rhythmic_unit: "1/4"
-imitation: none
+tempo: 110
 bass_treatment: patterned
 bass_pattern: arpeggiated_3_4
 
@@ -15,19 +15,6 @@ sections:
     schema_sequence: [do_re_mi, prinner]
   - name: B
     schema_sequence: [monte, cadenza_semplice]
-
-rhythmic_vocabulary:
-  primary: "1/4"
-  tempo_range: [100, 120]
-
-subject_constraints:
-  min_notes: 4
-  max_notes: 8
-  max_bars: 2
-  require_invertible: false
-  require_answerable: false
-  first_degree: [1, 3, 5]
-  last_degree: [1, 2, 3, 5]
 
 treatments:
   required: [melody_accompaniment]

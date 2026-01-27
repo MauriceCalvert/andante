@@ -10,11 +10,12 @@ Bass treatment is explicit per genre:
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import yaml
 
 from shared.key import Key
+from shared.pitch import select_octave
 
 DATA_PATH: Path = Path(__file__).parent.parent.parent / "data" / "figuration" / "bass_patterns.yaml"
 MIN_BASS_MIDI: int = 36  # C2 - lowest acceptable bass note
@@ -50,13 +51,7 @@ def _parse_duration(
     dur: str | int | float,
     metre: str,
 ) -> Fraction:
-    """Parse duration token to Fraction.
-
-    Tokens:
-        "bar" -> full bar duration (sentinel -1)
-        "half" -> half bar duration (sentinel -2)
-        numeric -> literal beat count
-    """
+    """Parse duration token to Fraction."""
     if dur == "bar":
         return Fraction(-1)
     if dur == "half":
@@ -148,16 +143,7 @@ def validate_bass_treatment(
     bass_pattern: str | None,
     genre_name: str,
 ) -> None:
-    """Validate bass treatment configuration.
-
-    Args:
-        bass_treatment: Must be 'contrapuntal' or 'patterned'
-        bass_pattern: Required if bass_treatment is 'patterned'
-        genre_name: For error messages
-
-    Raises:
-        AssertionError if configuration is invalid.
-    """
+    """Validate bass treatment configuration."""
     assert bass_treatment is not None, (
         f"Genre '{genre_name}' must specify bass_treatment: 'contrapuntal' or 'patterned'"
     )
@@ -183,8 +169,11 @@ def realise_bass_pattern(
     bar_offset: Fraction,
     bar_duration: Fraction,
     bass_median: int,
+    prev_pitch: int | None = None,
 ) -> list[tuple[Fraction, int, Fraction]]:
     """Realise a bass pattern into (offset, midi, duration) tuples.
+
+    Uses select_octave for canonical pitch placement with voice-leading.
 
     Args:
         pattern: Bass pattern to realise
@@ -193,6 +182,7 @@ def realise_bass_pattern(
         bar_offset: Start offset of the bar (whole notes)
         bar_duration: Duration of the bar (whole notes)
         bass_median: Median pitch for bass voice
+        prev_pitch: Previous bass pitch for voice-leading (None for first bar)
 
     Returns:
         List of (offset, midi_pitch, duration) tuples.
@@ -200,17 +190,18 @@ def realise_bass_pattern(
     result: list[tuple[Fraction, int, Fraction]] = []
     beats_per_bar = _get_beats_per_bar(pattern.metre) if pattern.metre != "any" else 4
     beat_duration = bar_duration / beats_per_bar
+    current_prev: int | None = prev_pitch
     for pattern_beat in pattern.beats:
         bar_index = pattern_beat.bar - 1
         beat_offset = (pattern_beat.beat - 1) * beat_duration
         note_offset = bar_offset + (bar_index * bar_duration) + beat_offset
-        target_degree = bass_degree + pattern_beat.degree_offset
-        while target_degree < 1:
-            target_degree += 7
-        while target_degree > 7:
-            target_degree -= 7
-        midi_pitch = _degree_to_bass_pitch(key, target_degree, bass_median, pattern_beat.degree_offset)
-        midi_pitch += pattern_beat.semitone_offset
+        target_degree = _wrap_degree(bass_degree + pattern_beat.degree_offset)
+        midi_pitch = select_octave(
+            key, target_degree, bass_median, current_prev, pattern_beat.semitone_offset,
+        )
+        if midi_pitch < MIN_BASS_MIDI:
+            midi_pitch += 12
+        current_prev = midi_pitch
         if pattern_beat.duration == Fraction(-1):
             note_duration = bar_duration
         elif pattern_beat.duration == Fraction(-2):
@@ -229,31 +220,9 @@ def _get_beats_per_bar(metre: str) -> int:
     return int(parts[0])
 
 
-def _degree_to_bass_pitch(
-    key: Key,
-    degree: int,
-    bass_median: int,
-    degree_offset: int,
-) -> int:
-    """Convert degree to MIDI pitch, preferring bass register."""
-    candidates: list[int] = []
-    for octave in range(1, 6):
-        midi = key.degree_to_midi(degree, octave=octave)
-        if midi >= MIN_BASS_MIDI:
-            candidates.append(midi)
-    if not candidates:
-        return key.degree_to_midi(degree, octave=3)
-    if degree_offset < 0:
-        candidates.sort(key=lambda m: abs(m - bass_median) + (0.5 if m > bass_median else 0))
-    else:
-        candidates.sort(key=lambda m: abs(m - bass_median))
-    selected = candidates[0]
-    max_bass = bass_median + 12
-    if selected > max_bass and len(candidates) > 1:
-        lower_candidates = [c for c in candidates if c <= max_bass]
-        if lower_candidates:
-            selected = min(lower_candidates, key=lambda m: abs(m - bass_median))
-    return selected
+def _wrap_degree(degree: int) -> int:
+    """Wrap scale degree to 1-7 range."""
+    return ((degree - 1) % 7) + 1
 
 
 def clear_cache() -> None:

@@ -8,7 +8,6 @@ from builder.faults import (
     print_faults,
     _bar_duration,
     _beat_duration,
-    _default_medians_for_voice_count,
     _extract_bar_pitches,
     _extract_bar_rhythm,
     _get_bar_count,
@@ -65,22 +64,6 @@ class TestHelperFunctions:
 
     def test_beat_duration_6_8(self) -> None:
         assert _beat_duration("6/8") == Fraction(1, 8)
-
-    def test_default_medians_1_voice(self) -> None:
-        m = _default_medians_for_voice_count(1)
-        assert m == {0: 70}
-
-    def test_default_medians_2_voices(self) -> None:
-        m = _default_medians_for_voice_count(2)
-        assert m == {0: 70, 1: 48}
-
-    def test_default_medians_3_voices(self) -> None:
-        m = _default_medians_for_voice_count(3)
-        assert m == {0: 70, 1: 60, 2: 48}
-
-    def test_default_medians_4_voices(self) -> None:
-        m = _default_medians_for_voice_count(4)
-        assert m == {0: 70, 1: 60, 2: 54, 3: 48}
 
     def test_interval_semitones(self) -> None:
         assert _interval_semitones(60, 67) == 7
@@ -231,6 +214,19 @@ class TestParallelPerfect:
         bass = [
             Note(Fraction(0), 48, Fraction(1, 4), 1),
             Note(Fraction(1, 4), 48, Fraction(1, 4), 1),
+        ]
+        faults = _check_parallel_perfect([soprano, bass], "4/4")
+        assert len(faults) == 0
+
+    def test_parallel_octaves_at_final_cadence_exempt(self) -> None:
+        """Parallel octaves approaching final note should be permitted."""
+        soprano = [
+            Note(Fraction(0), 60, Fraction(1, 4), 0),
+            Note(Fraction(1, 4), 62, Fraction(1, 4), 0),
+        ]
+        bass = [
+            Note(Fraction(0), 48, Fraction(1, 4), 1),
+            Note(Fraction(1, 4), 50, Fraction(1, 4), 1),
         ]
         faults = _check_parallel_perfect([soprano, bass], "4/4")
         assert len(faults) == 0
@@ -450,7 +446,7 @@ class TestConsecutiveLeaps:
 
 
 class TestUnreversedLeap:
-    """Tests for leap recovery."""
+    """Tests for leap recovery. Only applies to soprano (voice 0)."""
 
     def test_leap_not_recovered(self) -> None:
         notes = [
@@ -480,20 +476,60 @@ class TestUnreversedLeap:
         faults = _check_unreversed_leap(notes, 0, "4/4")
         assert len(faults) == 0
 
+    def test_bass_leaps_not_checked_in_find_faults(self) -> None:
+        """Bass voice should not have unreversed_leap check in find_faults."""
+        soprano = [
+            Note(Fraction(0), 67, Fraction(1, 4), 0),
+            Note(Fraction(1, 4), 69, Fraction(1, 4), 0),
+            Note(Fraction(1, 2), 71, Fraction(1, 4), 0),
+        ]
+        bass = [
+            Note(Fraction(0), 48, Fraction(1, 4), 1),
+            Note(Fraction(1, 4), 40, Fraction(1, 4), 1),
+            Note(Fraction(1, 2), 45, Fraction(1, 4), 1),
+        ]
+        faults = find_faults([soprano, bass], "4/4")
+        unreversed = [f for f in faults if f.category == "unreversed_leap"]
+        bass_unreversed = [f for f in unreversed if 1 in f.voices]
+        assert len(bass_unreversed) == 0
+
 
 class TestTessitura:
-    """Tests for tessitura excursions."""
+    """Tests for tessitura excursions using fixed voice ranges."""
 
-    def test_note_beyond_span(self) -> None:
-        notes = [Note(Fraction(0), 50, Fraction(1, 4), 0)]
-        faults = _check_tessitura(notes, 0, "4/4", median=70)
+    def test_soprano_below_range(self) -> None:
+        """Soprano below C4 (60) should trigger fault."""
+        notes = [Note(Fraction(0), 55, Fraction(1, 4), 0)]
+        faults = _check_tessitura(notes, 0, "4/4", voice_count=2)
         assert len(faults) == 1
         assert faults[0].category == "tessitura_excursion"
-        assert "13 semitones beyond" in faults[0].message
+        assert "below" in faults[0].message
 
-    def test_note_within_span(self) -> None:
-        notes = [Note(Fraction(0), 68, Fraction(1, 4), 0)]
-        faults = _check_tessitura(notes, 0, "4/4", median=70)
+    def test_soprano_above_range(self) -> None:
+        """Soprano above A5 (81) should trigger fault."""
+        notes = [Note(Fraction(0), 85, Fraction(1, 4), 0)]
+        faults = _check_tessitura(notes, 0, "4/4", voice_count=2)
+        assert len(faults) == 1
+        assert faults[0].category == "tessitura_excursion"
+        assert "above" in faults[0].message
+
+    def test_soprano_within_range(self) -> None:
+        """Soprano within C4-A5 should be fine."""
+        notes = [Note(Fraction(0), 70, Fraction(1, 4), 0)]
+        faults = _check_tessitura(notes, 0, "4/4", voice_count=2)
+        assert len(faults) == 0
+
+    def test_bass_below_range(self) -> None:
+        """Bass below E2 (40) should trigger fault."""
+        notes = [Note(Fraction(0), 35, Fraction(1, 4), 1)]
+        faults = _check_tessitura(notes, 1, "4/4", voice_count=2)
+        assert len(faults) == 1
+        assert "below" in faults[0].message
+
+    def test_bass_within_range(self) -> None:
+        """Bass within E2-D4 should be fine."""
+        notes = [Note(Fraction(0), 50, Fraction(1, 4), 1)]
+        faults = _check_tessitura(notes, 1, "4/4", voice_count=2)
         assert len(faults) == 0
 
 
@@ -591,19 +627,29 @@ class TestCrossRelation:
 
 
 class TestSpacing:
-    """Tests for voice spacing errors."""
+    """Tests for voice spacing errors. Disabled for 2-voice texture."""
 
-    def test_spacing_too_wide(self) -> None:
+    def test_spacing_skipped_for_two_voices(self) -> None:
+        """Two-voice texture should not check spacing."""
         soprano = [Note(Fraction(0), 84, Fraction(1, 4), 0)]
         bass = [Note(Fraction(0), 48, Fraction(1, 4), 1)]
         faults = _check_spacing([soprano, bass], "4/4")
-        assert len(faults) == 1
+        assert len(faults) == 0
+
+    def test_spacing_too_wide_three_voices(self) -> None:
+        """Three voices should check spacing."""
+        soprano = [Note(Fraction(0), 84, Fraction(1, 4), 0)]
+        alto = [Note(Fraction(0), 55, Fraction(1, 4), 1)]
+        bass = [Note(Fraction(0), 48, Fraction(1, 4), 2)]
+        faults = _check_spacing([soprano, alto, bass], "4/4")
+        assert len(faults) >= 1
         assert faults[0].category == "spacing_error"
 
-    def test_spacing_ok(self) -> None:
-        soprano = [Note(Fraction(0), 67, Fraction(1, 4), 0)]
-        bass = [Note(Fraction(0), 48, Fraction(1, 4), 1)]
-        faults = _check_spacing([soprano, bass], "4/4")
+    def test_spacing_ok_three_voices(self) -> None:
+        soprano = [Note(Fraction(0), 72, Fraction(1, 4), 0)]
+        alto = [Note(Fraction(0), 64, Fraction(1, 4), 1)]
+        bass = [Note(Fraction(0), 48, Fraction(1, 4), 2)]
+        faults = _check_spacing([soprano, alto, bass], "4/4")
         assert len(faults) == 0
 
     def test_single_voice_no_spacing(self) -> None:
@@ -869,10 +915,11 @@ class TestFindFaults:
         faults = find_faults([soprano, bass], "4/4")
         assert isinstance(faults, list)
 
-    def test_custom_tessitura(self) -> None:
-        soprano = [Note(Fraction(0), 60, Fraction(1, 4), 0)]
-        bass = [Note(Fraction(0), 48, Fraction(1, 4), 1)]
-        faults = find_faults([soprano, bass], "4/4", tessitura_medians={0: 60, 1: 48})
+    def test_tessitura_with_fixed_ranges(self) -> None:
+        """Pitches within standard ranges should have no tessitura faults."""
+        soprano = [Note(Fraction(0), 70, Fraction(1, 4), 0)]
+        bass = [Note(Fraction(0), 50, Fraction(1, 4), 1)]
+        faults = find_faults([soprano, bass], "4/4")
         tess_faults = [f for f in faults if f.category == "tessitura_excursion"]
         assert len(tess_faults) == 0
 

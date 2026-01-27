@@ -45,6 +45,11 @@ WARNINGS (Bob complains but plays - voice-leading problems):
                         Includes: tritone (6), minor 9th (13), major 7th (11),
                         minor 7th (10) when larger than a step.
 
+    grotesque_leap      Melodic leap exceeding playable/singable range.
+                        >12 semitones (octave) = warning.
+                        >19 semitones (octave + fifth) = error.
+                        Two octaves is unplayable on most instruments.
+
     consecutive_leaps   Two leaps (>4 semitones) in same direction.
                         Creates awkward melodic outline. Example: C4-G4-D5.
 
@@ -64,9 +69,10 @@ WARNINGS (Bob complains but plays - voice-leading problems):
                         Example: Soprano on G4, bass moves to G4 as soprano
                         leaves. Creates momentary voice identity confusion.
 
-    cross_relation      Chromatic contradiction between voices.
-                        Example: F# in soprano against F natural in bass
-                        on adjacent beats. Creates harmonic "false relation".
+    cross_relation      Same letter name chromatically altered between voices.
+                        Example: F natural in bass, then F# in soprano on
+                        adjacent beat. F#/G is NOT cross-relation (different
+                        letter names). Creates harmonic "false relation".
 
     spacing_error       Adjacent voices more than two octaves apart.
                         Standard spacing: upper voices within octave,
@@ -121,9 +127,8 @@ from typing import Sequence
 
 from builder.types import Note
 from shared.constants import (
-    DEFAULT_TESSITURA_MEDIANS,
     NOTE_NAMES_SHARP,
-    TESSITURA_COMFORTABLE_SPAN,
+    VOICE_RANGES,
 )
 
 
@@ -138,10 +143,19 @@ class Fault:
 STEP_MAX: int = 2
 SKIP_MAX: int = 4
 LEAP_MAX: int = 7
+LARGE_LEAP_WARNING: int = 12
+GROTESQUE_LEAP_ERROR: int = 19
 CONSECUTIVE_IMPERFECT_LIMIT: int = 4
 CONSECUTIVE_SAME_DIRECTION_LIMIT: int = 6
-HOMORHYTHM_BAR_LIMIT: int = 2
+HOMORHYTHM_BAR_LIMIT: int = 8
 SEQUENCE_REPEAT_LIMIT: int = 2
+CROSS_RELATION_PAIRS: frozenset[tuple[int, int]] = frozenset({
+    (0, 1),   # C / C#
+    (2, 3),   # D / D#
+    (5, 6),   # F / F#
+    (7, 8),   # G / G#
+    (9, 10),  # A / A#
+})
 
 
 def _bar_duration(metre: str) -> Fraction:
@@ -240,6 +254,12 @@ def _offset_to_bar_beat(offset: Fraction, metre: str) -> str:
     return f"{bar}.{beat}"
 
 
+def _parse_bar_beat(bar_beat: str) -> tuple[int, int]:
+    """Parse bar.beat string to (bar, beat) tuple for numeric sorting."""
+    parts: list[str] = bar_beat.split(".")
+    return (int(parts[0]), int(parts[1]))
+
+
 def _simple_interval(pitch_a: int, pitch_b: int) -> int:
     """Interval in semitones, reduced to single octave."""
     return abs(pitch_a - pitch_b) % 12
@@ -276,7 +296,12 @@ def _check_cross_relation(
     voices: Sequence[Sequence[Note]],
     metre: str,
 ) -> list[Fault]:
-    """Check for chromatic contradiction between voices."""
+    """Check for chromatic contradiction between voices.
+
+    Cross-relation: same letter name with different accidentals in
+    different voices on adjacent beats. E.g. F natural then F# is
+    a cross-relation; F# then G is not (different letter names).
+    """
     faults: list[Fault] = []
     all_notes: list[tuple[Fraction, int, int]] = []
     for v_idx, voice in enumerate(voices):
@@ -297,18 +322,20 @@ def _check_cross_relation(
         for pitch, v_idx in by_offset[offsets[i + 1]]:
             pc: int = pitch % 12
             for other_pc, (other_pitch, other_v) in curr_pcs.items():
-                if other_v != v_idx and abs(pc - other_pc) == 1:
-                    if (pc in {1, 3, 6, 8, 10} or other_pc in {1, 3, 6, 8, 10}):
-                        loc: str = _offset_to_bar_beat(offsets[i + 1], metre)
-                        n1: str = _midi_to_name(other_pitch)
-                        n2: str = _midi_to_name(pitch)
-                        faults.append(Fault(
-                            severity="warning",
-                            category="cross_relation",
-                            bar_beat=loc,
-                            voices=(other_v, v_idx),
-                            message=f"Chromatic clash: {n1} against {n2}",
-                        ))
+                if other_v == v_idx:
+                    continue
+                pair: tuple[int, int] = (min(pc, other_pc), max(pc, other_pc))
+                if pair in CROSS_RELATION_PAIRS:
+                    loc: str = _offset_to_bar_beat(offsets[i + 1], metre)
+                    n1: str = _midi_to_name(other_pitch)
+                    n2: str = _midi_to_name(pitch)
+                    faults.append(Fault(
+                        severity="warning",
+                        category="cross_relation",
+                        bar_beat=loc,
+                        voices=(other_v, v_idx),
+                        message=f"Cross-relation: {n1} against {n2}",
+                    ))
     return faults
 
 
@@ -440,6 +467,40 @@ def _check_excessive_leaps(
             voices=(voice_idx,),
             message=f"Leap ratio {ratio:.0%} exceeds 40% threshold",
         ))
+    return faults
+
+
+def _check_grotesque_leap(
+    voice_notes: Sequence[Note],
+    voice_idx: int,
+    metre: str,
+) -> list[Fault]:
+    """Check for leaps exceeding playable range."""
+    faults: list[Fault] = []
+    for i in range(len(voice_notes) - 1):
+        interval: int = abs(voice_notes[i + 1].pitch - voice_notes[i].pitch)
+        if interval > GROTESQUE_LEAP_ERROR:
+            loc: str = _offset_to_bar_beat(voice_notes[i + 1].offset, metre)
+            n1: str = _midi_to_name(voice_notes[i].pitch)
+            n2: str = _midi_to_name(voice_notes[i + 1].pitch)
+            faults.append(Fault(
+                severity="error",
+                category="grotesque_leap",
+                bar_beat=loc,
+                voices=(voice_idx,),
+                message=f"Grotesque leap of {interval} semitones: {n1} to {n2}",
+            ))
+        elif interval > LARGE_LEAP_WARNING:
+            loc = _offset_to_bar_beat(voice_notes[i + 1].offset, metre)
+            n1 = _midi_to_name(voice_notes[i].pitch)
+            n2 = _midi_to_name(voice_notes[i + 1].pitch)
+            faults.append(Fault(
+                severity="warning",
+                category="grotesque_leap",
+                bar_beat=loc,
+                voices=(voice_idx,),
+                message=f"Large leap of {interval} semitones: {n1} to {n2}",
+            ))
     return faults
 
 
@@ -607,10 +668,19 @@ def _check_parallel_perfect(
     voices: Sequence[Sequence[Note]],
     metre: str,
 ) -> list[Fault]:
-    """Check for parallel fifths, octaves, unisons."""
+    """Check for parallel fifths, octaves, unisons. Downgrade at final cadence."""
     faults: list[Fault] = []
     if len(voices) < 2:
         return faults
+    bar_dur: Fraction = _bar_duration(metre)
+    all_offsets: set[Fraction] = set()
+    for voice in voices:
+        for note in voice:
+            all_offsets.add(note.offset)
+    if not all_offsets:
+        return faults
+    final_offset: Fraction = max(all_offsets)
+    final_bar: int = int(final_offset // bar_dur) + 1
     for v_a in range(len(voices)):
         for v_b in range(v_a + 1, len(voices)):
             a_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in voices[v_a]}
@@ -629,18 +699,23 @@ def _check_parallel_perfect(
                 int2: int = _simple_interval(a2, b2)
                 if int1 == int2 and int1 in {0, 7}:
                     loc: str = _offset_to_bar_beat(off2, metre)
+                    dest_bar: int = int(off2 // bar_dur) + 1
+                    at_final_cadence: bool = dest_bar == final_bar
                     if int1 == 0:
                         cat: str = "parallel_unison" if abs(a2 - b2) < 12 else "parallel_octave"
                     else:
                         cat = "parallel_fifth"
+                    msg: str = (f"Parallel {cat.split('_')[1]}s: "
+                                f"{_midi_to_name(a1)}/{_midi_to_name(b1)} to "
+                                f"{_midi_to_name(a2)}/{_midi_to_name(b2)}")
+                    if at_final_cadence:
+                        msg += " (at final cadence)"
                     faults.append(Fault(
-                        severity="error",
+                        severity="info" if at_final_cadence else "error",
                         category=cat,
                         bar_beat=loc,
                         voices=(v_a, v_b),
-                        message=f"Parallel {cat.split('_')[1]}s: "
-                                f"{_midi_to_name(a1)}/{_midi_to_name(b1)} to "
-                                f"{_midi_to_name(a2)}/{_midi_to_name(b2)}",
+                        message=msg,
                     ))
     return faults
 
@@ -728,9 +803,9 @@ def _check_spacing(
     voices: Sequence[Sequence[Note]],
     metre: str,
 ) -> list[Fault]:
-    """Check for spacing errors between adjacent voices."""
+    """Check for spacing errors between adjacent voices. Skip for 2-voice texture."""
     faults: list[Fault] = []
-    if len(voices) < 2:
+    if len(voices) <= 2:
         return faults
     for v_idx in range(len(voices) - 1):
         upper: Sequence[Note] = voices[v_idx]
@@ -756,28 +831,43 @@ def _check_tessitura(
     voice_notes: Sequence[Note],
     voice_idx: int,
     metre: str,
-    median: int,
+    voice_count: int,
 ) -> list[Fault]:
-    """Check for notes outside comfortable tessitura (one fault per bar)."""
+    """Check for notes outside fixed voice range (one fault per bar)."""
     faults: list[Fault] = []
+    if voice_count == 2:
+        ranges: dict[int, tuple[int, int]] = {
+            0: (60, 81),
+            1: (40, 62),
+        }
+    else:
+        ranges = VOICE_RANGES
+    if voice_idx not in ranges:
+        return faults
+    low, high = ranges[voice_idx]
     bar_dur: Fraction = _bar_duration(metre)
-    bar_worst: dict[int, tuple[int, int, Fraction]] = {}
+    bar_worst: dict[int, tuple[int, int, Fraction, str]] = {}
     for note in voice_notes:
-        deviation: int = abs(note.pitch - median)
-        if deviation > TESSITURA_COMFORTABLE_SPAN:
-            bar: int = int(note.offset // bar_dur) + 1
-            beyond: int = deviation - TESSITURA_COMFORTABLE_SPAN
-            if bar not in bar_worst or beyond > bar_worst[bar][0]:
-                bar_worst[bar] = (beyond, note.pitch, note.offset)
+        if note.pitch < low:
+            beyond: int = low - note.pitch
+            direction: str = "below"
+        elif note.pitch > high:
+            beyond = note.pitch - high
+            direction = "above"
+        else:
+            continue
+        bar: int = int(note.offset // bar_dur) + 1
+        if bar not in bar_worst or beyond > bar_worst[bar][0]:
+            bar_worst[bar] = (beyond, note.pitch, note.offset, direction)
     for bar in sorted(bar_worst.keys()):
-        beyond, pitch, offset = bar_worst[bar]
+        beyond, pitch, offset, direction = bar_worst[bar]
         faults.append(Fault(
             severity="warning",
             category="tessitura_excursion",
             bar_beat=_offset_to_bar_beat(offset, metre),
             voices=(voice_idx,),
-            message=f"{_midi_to_name(pitch)} is {beyond} semitones beyond "
-                    f"comfortable range (median {_midi_to_name(median)})",
+            message=f"{_midi_to_name(pitch)} is {beyond} semitones {direction} "
+                    f"voice range ({_midi_to_name(low)}-{_midi_to_name(high)})",
         ))
     return faults
 
@@ -923,7 +1013,11 @@ def _check_weak_cadence(
     voices: Sequence[Sequence[Note]],
     metre: str,
 ) -> list[Fault]:
-    """Check if final notes form a proper cadence."""
+    """Check if final notes form a proper cadence.
+
+    Accepts cadence if any bass note in the final bar forms
+    unison/octave/fifth with the soprano's final pitch.
+    """
     faults: list[Fault] = []
     if len(voices) < 2:
         return faults
@@ -932,50 +1026,49 @@ def _check_weak_cadence(
     if not soprano or not bass:
         return faults
     final_s: Note = max(soprano, key=lambda n: n.offset)
-    final_b: Note = max(bass, key=lambda n: n.offset)
-    interval: int = _simple_interval(final_s.pitch, final_b.pitch)
-    if interval not in {0, 7}:
-        faults.append(Fault(
-            severity="info",
-            category="weak_cadence",
-            bar_beat=_offset_to_bar_beat(final_s.offset, metre),
-            voices=(0, len(voices) - 1),
-            message=f"Final interval is {interval} semitones, not unison/octave/fifth",
-        ))
+    bar_dur: Fraction = _bar_duration(metre)
+    final_bar: int = int(final_s.offset // bar_dur) + 1
+    final_bar_start: Fraction = (final_bar - 1) * bar_dur
+    final_bar_bass: list[Note] = [n for n in bass if n.offset >= final_bar_start]
+    if not final_bar_bass:
+        return faults
+    valid_intervals: frozenset[int] = frozenset({0, 7})
+    for b_note in final_bar_bass:
+        interval: int = _simple_interval(final_s.pitch, b_note.pitch)
+        if interval in valid_intervals:
+            return faults
+    final_b: Note = max(final_bar_bass, key=lambda n: n.offset)
+    interval = _simple_interval(final_s.pitch, final_b.pitch)
+    faults.append(Fault(
+        severity="info",
+        category="weak_cadence",
+        bar_beat=_offset_to_bar_beat(final_s.offset, metre),
+        voices=(0, len(voices) - 1),
+        message=f"Final interval is {interval} semitones, not unison/octave/fifth",
+    ))
     return faults
-
-
-def _default_medians_for_voice_count(voice_count: int) -> dict[int, int]:
-    """Return appropriate tessitura medians for given voice count."""
-    if voice_count == 1:
-        return {0: 70}
-    if voice_count == 2:
-        return {0: 70, 1: 48}
-    if voice_count == 3:
-        return {0: 70, 1: 60, 2: 48}
-    return {0: 70, 1: 60, 2: 54, 3: 48}
 
 
 def find_faults(
     voices: Sequence[Sequence[Note]],
     metre: str,
-    tessitura_medians: dict[int, int] | None = None,
 ) -> list[Fault]:
     """Find all faults in a multi-voice composition."""
     assert 1 <= len(voices) <= 4, f"Expected 1-4 voices, got {len(voices)}"
     assert "/" in metre, f"Invalid metre format: {metre}"
-    medians: dict[int, int] = tessitura_medians or _default_medians_for_voice_count(len(voices))
+    voice_count: int = len(voices)
     faults: list[Fault] = []
     for v_idx, voice in enumerate(voices):
-        median: int = medians.get(v_idx, medians.get(0, 70))
         faults.extend(_check_consecutive_leaps(voice, v_idx, metre))
         faults.extend(_check_excessive_leaps(voice, v_idx, metre))
+        faults.extend(_check_grotesque_leap(voice, v_idx, metre))
         faults.extend(_check_melodic_repetition(voice, v_idx, metre))
         faults.extend(_check_monotonous_contour(voice, v_idx, metre))
         faults.extend(_check_sequence_overuse(voice, v_idx, metre))
-        faults.extend(_check_tessitura(voice, v_idx, metre, median))
+        faults.extend(_check_tessitura(voice, v_idx, metre, voice_count))
         faults.extend(_check_ugly_leaps(voice, v_idx, metre))
-        faults.extend(_check_unreversed_leap(voice, v_idx, metre))
+        if v_idx == 0:
+            faults.extend(_check_unreversed_leap(voice, v_idx, metre))
     faults.extend(_check_cross_relation(voices, metre))
     faults.extend(_check_direct_motion(voices, metre))
     faults.extend(_check_dissonance(voices, metre))
@@ -989,7 +1082,7 @@ def find_faults(
     faults.extend(_check_weak_cadence(voices, metre))
     faults.sort(key=lambda f: (
         {"error": 0, "warning": 1, "info": 2}[f.severity],
-        f.bar_beat,
+        _parse_bar_beat(f.bar_beat),
         f.category,
     ))
     return faults
@@ -1009,4 +1102,4 @@ def print_faults(faults: list[Fault]) -> None:
     for fault in faults:
         sev: str = fault.severity.upper()
         voices_str: str = ",".join(str(v) for v in fault.voices)
-        print(f"[{sev}] {fault.bar_beat} v{voices_str} {fault.category}: {fault.message}")
+        print(f"[{sev}] {fault.bar_beat} voices {voices_str} {fault.category}: {fault.message}")

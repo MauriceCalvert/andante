@@ -96,6 +96,15 @@ class SchemaConfig:
 
 
 @dataclass(frozen=True)
+class TreatmentsConfig:
+    """Treatment constraints from genre YAML."""
+    required: tuple[str, ...]
+    optional: tuple[str, ...]
+    opening: str
+    answer: str
+
+
+@dataclass(frozen=True)
 class GenreConfig:
     """Genre definition from YAML."""
     name: str
@@ -103,13 +112,12 @@ class GenreConfig:
     form: str
     metre: str
     rhythmic_unit: str
-    sections: tuple[dict[str, Any], ...]
-    imitation: str
-    treatment_sequence: tuple[dict[str, Any], ...]
-    rhythmic_vocabulary: dict[str, Any]
-    subject_constraints: dict[str, Any]
+    tempo: int
     bass_treatment: str  # 'contrapuntal' or 'patterned'
-    bass_pattern: str | None = None  # required if bass_treatment='patterned'
+    bass_pattern: str | None
+    treatments: TreatmentsConfig
+    sections: tuple[dict[str, Any], ...]
+    treatment_sequence: tuple[dict[str, Any], ...]
 
 
 @dataclass(frozen=True)

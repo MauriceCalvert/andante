@@ -74,6 +74,7 @@ def run_from_args(
     key: str | None = None,
     output_name: str | None = None,
     verbose: bool = False,
+    tempo: int | None = None,
 ) -> NoteFile:
     """Generate from explicit genre/affect arguments.
 
@@ -93,7 +94,7 @@ def run_from_args(
 
     key_display: str = key if key else "(derived from affect)"
     print(f"Generating {genre} with {affect} affect in {key_display}...")
-    result = generate_to_files(genre, affect, output_dir, name, key)
+    result = generate_to_files(genre, affect, output_dir, name, key, tempo)
 
     print(f"  Soprano: {len(result.soprano)} notes")
     print(f"  Bass: {len(result.bass)} notes")
@@ -133,10 +134,12 @@ def run_from_brief(
         mode: str = frame_data.get("mode", "major").lower()
         key = f"{tonic}_{mode}"
     affect: str = brief_data.get("affect", "default")
+    # Tempo can be in brief.tempo or frame.tempo
+    tempo: int | None = brief_data.get("tempo") or frame_data.get("tempo")
 
     output_name: str = brief_path.stem
 
-    return run_from_args(genre, affect, output_dir, key, output_name, verbose)
+    return run_from_args(genre, affect, output_dir, key, output_name, verbose, tempo)
 
 
 def run_from_directory(

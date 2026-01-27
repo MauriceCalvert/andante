@@ -18,7 +18,7 @@ import yaml
 
 from builder.types import (
     AffectConfig, FormConfig, GenreConfig,
-    KeyConfig, MotiveWeights, SchemaConfig,
+    KeyConfig, MotiveWeights, SchemaConfig, TreatmentsConfig,
 )
 from shared.key import Key
 
@@ -207,9 +207,7 @@ def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
     affect_config: AffectConfig = load_affect(affect)
     form_config: FormConfig = load_form(genre_config.form)
     schemas: dict[str, SchemaConfig] = load_all_schemas()
-    tempo_range: list[int] = genre_config.rhythmic_vocabulary.get("tempo_range", [72, 88])
-    base_tempo: int = (tempo_range[0] + tempo_range[1]) // 2
-    tempo: int = base_tempo + affect_config.tempo_modifier
+    tempo: int = genre_config.tempo + affect_config.tempo_modifier
     total_bars: int = _compute_total_bars(genre_config, schemas)
     slots_per_bar: int = _compute_slots_per_bar(genre_config.metre, genre_config.rhythmic_unit)
     total_slots: int = total_bars * slots_per_bar
@@ -225,34 +223,46 @@ def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
     }
 
 
+def _validate_treatments(data: dict, genre_name: str) -> TreatmentsConfig:
+    """Validate treatments block from genre YAML."""
+    treatments_data: dict = data.get("treatments", {})
+    assert "required" in treatments_data, f"Genre '{genre_name}' missing treatments.required"
+    assert "opening" in treatments_data, f"Genre '{genre_name}' missing treatments.opening"
+    assert "answer" in treatments_data, f"Genre '{genre_name}' missing treatments.answer"
+    return TreatmentsConfig(
+        required=tuple(treatments_data.get("required", [])),
+        optional=tuple(treatments_data.get("optional", [])),
+        opening=treatments_data["opening"],
+        answer=treatments_data["answer"],
+    )
+
+
 def _validate_genre(data: dict) -> GenreConfig:
     """Validate genre YAML against schema."""
     from builder.figuration.bass import validate_bass_treatment
     genre_name: str = data.get("name", "<unknown>")
+    assert "tempo" in data, f"Genre '{genre_name}' missing 'tempo'"
     sections: list[dict] = data.get("sections", [])
     for section in sections:
         section_name: str = section.get("name", "<unnamed>")
         assert "schema_sequence" in section, f"Section '{section_name}' missing 'schema_sequence'"
         assert len(section["schema_sequence"]) > 0, f"Section '{section_name}' has empty schema_sequence"
-    rhythmic_vocabulary: dict[str, Any] = dict(data.get("rhythmic_vocabulary", {}))
     bass_treatment: str | None = data.get("bass_treatment")
     bass_pattern: str | None = data.get("bass_pattern")
     validate_bass_treatment(bass_treatment, bass_pattern, genre_name)
-    if bass_pattern is not None:
-        rhythmic_vocabulary["bass_pattern"] = bass_pattern
+    treatments: TreatmentsConfig = _validate_treatments(data, genre_name)
     return GenreConfig(
         name=genre_name,
         voices=data["voices"],
         form=data["form"],
         metre=data["metre"],
         rhythmic_unit=data["rhythmic_unit"],
-        sections=tuple(data.get("sections", [])),
-        imitation=data.get("imitation", "none"),
-        treatment_sequence=tuple(data.get("treatment_sequence", [])),
-        rhythmic_vocabulary=rhythmic_vocabulary,
-        subject_constraints=data.get("subject_constraints", {}),
+        tempo=data["tempo"],
         bass_treatment=bass_treatment,
         bass_pattern=bass_pattern,
+        treatments=treatments,
+        sections=tuple(data.get("sections", [])),
+        treatment_sequence=tuple(data.get("treatment_sequence", [])),
     )
 
 

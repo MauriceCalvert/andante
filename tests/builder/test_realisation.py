@@ -13,11 +13,11 @@ import pytest
 
 from builder.realisation import (
     _bar_beat_to_offset,
-    realise,
+    _realise,
 )
 from builder.types import (
     Anchor, AffectConfig, FormConfig, GenreConfig, KeyConfig,
-    MotiveWeights, Note, NoteFile,
+    MotiveWeights, Note, NoteFile, TreatmentsConfig,
 )
 from shared.key import Key
 
@@ -39,7 +39,7 @@ class TestBarBeatConversions:
 
 
 class TestRealise:
-    """Integration tests for realise function."""
+    """Integration tests for _realise function."""
 
     @pytest.fixture
     def c_major(self) -> Key:
@@ -72,19 +72,20 @@ class TestRealise:
             form="through_composed",
             metre="4/4",
             rhythmic_unit="1/16",
+            tempo=80,
+            bass_treatment="contrapuntal",
+            bass_pattern=None,
+            treatments=TreatmentsConfig(
+                required=("statement", "imitation"),
+                optional=("transposition",),
+                opening="statement",
+                answer="imitation",
+            ),
             sections=(),
-            imitation="mandatory",
             treatment_sequence=(),
-            rhythmic_vocabulary={"tempo_range": [72, 88]},
-            subject_constraints={},
-            tessitura={"soprano": 70, "bass": 48},
         )
         form_config = FormConfig(
             name="through_composed",
-            bar_allocation={"exordium": (1, 4)},
-            schema_allocation={},
-            phrase_boundaries=(),
-            minimum_bars=20,
         )
         return key_config, affect_config, genre_config, form_config
 
@@ -95,13 +96,14 @@ class TestRealise:
             Anchor("1.1", 1, 1, c_major, "test", 1),
             Anchor("1.3", 2, 2, c_major, "test", 2),
         ]
-        result = realise(
+        result = _realise(
             anchors,
             None,
             key_config,
             affect_config,
             genre_config,
             form_config,
+            total_bars=20,
         )
         assert isinstance(result, NoteFile)
         assert len(result.soprano) == 2
@@ -112,16 +114,17 @@ class TestRealise:
         """Realise applies tempo modifier."""
         key_config, affect_config, genre_config, form_config = minimal_configs
         anchors = [Anchor("1.1", 1, 1, c_major, "test", 1)]
-        result = realise(
+        result = _realise(
             anchors,
             None,
             key_config,
             affect_config,
             genre_config,
             form_config,
+            total_bars=20,
         )
-        base_tempo = (72 + 88) // 2
-        assert result.tempo == base_tempo + 5
+        # tempo = genre_config.tempo (80) + affect_config.tempo_modifier (5) = 85
+        assert result.tempo == 85
 
     def test_realise_duration_to_next_anchor(self, minimal_configs, c_major) -> None:
         """Duration extends from anchor to next anchor."""
@@ -131,13 +134,14 @@ class TestRealise:
             Anchor("1.3", 2, 2, c_major, "test", 2),
             Anchor("2.1", 3, 3, c_major, "test", 3),
         ]
-        result = realise(
+        result = _realise(
             anchors,
             None,
             key_config,
             affect_config,
             genre_config,
             form_config,
+            total_bars=20,
         )
         assert result.soprano[0].duration == Fraction(1, 2)
         assert result.soprano[1].duration == Fraction(1, 2)
@@ -147,13 +151,14 @@ class TestRealise:
         """Lyrics are added at anchor positions."""
         key_config, affect_config, genre_config, form_config = minimal_configs
         anchors = [Anchor("1.1", 1, 1, c_major, "do_re_mi", 1)]
-        result = realise(
+        result = _realise(
             anchors,
             None,
             key_config,
             affect_config,
             genre_config,
             form_config,
+            total_bars=20,
         )
         assert result.soprano[0].lyric == "do_re_mi"
 
@@ -164,14 +169,13 @@ class TestRealise:
             Anchor("2.1", 3, 3, c_major, "test", 2),
             Anchor("1.1", 1, 1, c_major, "test", 1),
         ]
-        result = realise(
+        result = _realise(
             anchors,
             None,
             key_config,
             affect_config,
             genre_config,
             form_config,
+            total_bars=20,
         )
-        # Degree 1 in C major at soprano median (70) -> C5 (72)
-        # Degree 3 in C major -> E5 (76)
         assert result.soprano[0].offset < result.soprano[1].offset

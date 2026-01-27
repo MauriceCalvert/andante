@@ -6,7 +6,7 @@ voices: 3
 form: binary
 metre: "4/4"
 rhythmic_unit: "1/8"
-imitation: mandatory
+tempo: 75
 bass_treatment: contrapuntal
 
 sections:
@@ -14,19 +14,6 @@ sections:
     schema_sequence: [romanesca, prinner]
   - name: B
     schema_sequence: [fonte, cadenza_semplice]
-
-rhythmic_vocabulary:
-  primary: "1/8"
-  tempo_range: [66, 84]
-
-subject_constraints:
-  min_notes: 4
-  max_notes: 12
-  max_bars: 2
-  require_invertible: true
-  require_answerable: true
-  first_degree: [1, 3, 5]
-  last_degree: [2, 3, 5, 7]
 
 treatments:
   required: [statement, imitation]

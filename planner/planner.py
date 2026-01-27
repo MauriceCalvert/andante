@@ -56,8 +56,9 @@ def generate(
     genre: str,
     affect: str,
     key: str | None = None,
+    tempo_override: int | None = None,
 ) -> NoteFile:
-    """Generate composition from genre and affect, with optional key."""
+    """Generate composition from genre and affect, with optional key and tempo."""
     if key is None:
         key = _derive_key_from_affect(affect)
     _debug(f"Config: genre={genre}, affect={affect}, key={key}")
@@ -68,6 +69,11 @@ def generate(
     form_config = config["form"]
     schemas = config["schemas"]
     trajectory, rhythm_vocab, tempo = layer_1_rhetorical(genre_config)
+    # Apply tempo priority: brief > affect > genre
+    if tempo_override is not None:
+        tempo = tempo_override
+    else:
+        tempo = tempo + affect_config.tempo_modifier
     _debug(f"L1 Rhetorical: trajectory={trajectory}, tempo={tempo}")
     tonal_plan, density, modality = layer_2_tonal(affect_config)
     _debug(f"L2 Tonal: tonal_plan={tonal_plan}, density={density}, modality={modality}")
