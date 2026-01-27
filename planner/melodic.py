@@ -27,10 +27,10 @@ from builder.types import (
     SchemaConfig,
     Solution,
 )
+from shared.pitch import gravitational_pitch
 
 SLOTS_PER_BAR: int = 16
 TESSITURA_SPAN: int = 18
-DRIFT_THRESHOLD: int = 12
 DEBUG: bool = True
 
 
@@ -50,30 +50,6 @@ def _bar_beat_to_offset(bar_beat: str) -> Fraction:
     return Fraction(slot, SLOTS_PER_BAR)
 
 
-def _gravitational_pitch(
-    key: "Key",
-    degree: int,
-    prev_pitch: int,
-    median: int,
-) -> int:
-    """Find pitch of given degree using gravitational voice leading."""
-    from shared.key import Key
-    candidates: list[int] = []
-    for octave in range(1, 8):
-        midi: int = key.degree_to_midi(degree, octave=octave)
-        candidates.append(midi)
-    candidates.sort(key=lambda m: abs(m - prev_pitch))
-    nearest: int = candidates[0]
-    nearest_drift: int = abs(nearest - median)
-    if nearest_drift <= DRIFT_THRESHOLD:
-        return nearest
-    candidates.sort(key=lambda m: abs(m - median))
-    for alt in candidates:
-        if alt != nearest:
-            return alt
-    return nearest
-
-
 def _convert_anchors_to_dict(
     anchors: list[Anchor],
     soprano_median: int,
@@ -86,10 +62,10 @@ def _convert_anchors_to_dict(
     prev_bass: int = bass_median
     for anchor in sorted_anchors:
         offset: Fraction = _bar_beat_to_offset(anchor.bar_beat)
-        s_midi: int = _gravitational_pitch(
+        s_midi: int = gravitational_pitch(
             anchor.local_key, anchor.soprano_degree, prev_soprano, soprano_median,
         )
-        b_midi: int = _gravitational_pitch(
+        b_midi: int = gravitational_pitch(
             anchor.local_key, anchor.bass_degree, prev_bass, bass_median,
         )
         anchor_dict[(offset, 0)] = s_midi

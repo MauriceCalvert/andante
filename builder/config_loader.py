@@ -9,6 +9,7 @@ Loads from data/ directory (single source of truth per L017):
 
 Keys are computed from (tonic, mode) parameters, not loaded from YAML.
 """
+import re
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,46 @@ from shared.key import Key
 
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
+_genre_cache: dict[str, dict] = {}
+
+
+def load_genre_raw(name: str) -> dict:
+    """Load genre YAML as raw dict (cached).
+
+    Use this for simple field access without validation.
+    For typed access, use load_genre() instead.
+    """
+    if name in _genre_cache:
+        return _genre_cache[name]
+    path: Path = DATA_DIR / "genres" / f"{name}.yaml"
+    if path.exists():
+        data: dict = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    else:
+        data = {}
+    _genre_cache[name] = data
+    return data
+
+
+def clear_genre_cache() -> None:
+    """Clear genre cache. Used in tests."""
+    _genre_cache.clear()
+
+
+def _parse_typical_keys(raw: str | None) -> tuple[str, ...] | None:
+    """Parse typical_keys string into tuple of key areas.
+    
+    Examples:
+        "IV -> V (-> vi)" -> ("IV", "V", "vi")
+        "ii -> I" -> ("ii", "I")
+        None -> None
+    """
+    if raw is None:
+        return None
+    pattern = r'[iIvV]+|[iI]{1,3}|[vV]{1,3}'
+    matches: list[str] = re.findall(pattern, raw)
+    if not matches:
+        return None
+    return tuple(matches)
 
 
 def load_genre(name: str) -> GenreConfig:
@@ -186,17 +227,21 @@ def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
 
 def _validate_genre(data: dict) -> GenreConfig:
     """Validate genre YAML against schema."""
+    from builder.figuration.bass import validate_bass_treatment
+    genre_name: str = data.get("name", "<unknown>")
     sections: list[dict] = data.get("sections", [])
     for section in sections:
         section_name: str = section.get("name", "<unnamed>")
         assert "schema_sequence" in section, f"Section '{section_name}' missing 'schema_sequence'"
         assert len(section["schema_sequence"]) > 0, f"Section '{section_name}' has empty schema_sequence"
-    tessitura_raw: dict = data.get("tessitura", {})
-    tessitura: dict[str, int] = {}
-    for voice, median in tessitura_raw.items():
-        tessitura[voice] = int(median)
+    rhythmic_vocabulary: dict[str, Any] = dict(data.get("rhythmic_vocabulary", {}))
+    bass_treatment: str | None = data.get("bass_treatment")
+    bass_pattern: str | None = data.get("bass_pattern")
+    validate_bass_treatment(bass_treatment, bass_pattern, genre_name)
+    if bass_pattern is not None:
+        rhythmic_vocabulary["bass_pattern"] = bass_pattern
     return GenreConfig(
-        name=data["name"],
+        name=genre_name,
         voices=data["voices"],
         form=data["form"],
         metre=data["metre"],
@@ -204,9 +249,10 @@ def _validate_genre(data: dict) -> GenreConfig:
         sections=tuple(data.get("sections", [])),
         imitation=data.get("imitation", "none"),
         treatment_sequence=tuple(data.get("treatment_sequence", [])),
-        rhythmic_vocabulary=data.get("rhythmic_vocabulary", {}),
+        rhythmic_vocabulary=rhythmic_vocabulary,
         subject_constraints=data.get("subject_constraints", {}),
-        tessitura=tessitura,
+        bass_treatment=bass_treatment,
+        bass_pattern=bass_pattern,
     )
 
 
@@ -224,6 +270,7 @@ def _validate_schema(name: str, data: dict) -> SchemaConfig:
         segment: dict = data["segment"]
         soprano_degrees = segment.get("soprano_degrees", [])
         bass_degrees = segment.get("bass_degrees", [])
+    typical_keys: tuple[str, ...] | None = _parse_typical_keys(data.get("typical_keys"))
     return SchemaConfig(
         name=name,
         soprano_degrees=tuple(soprano_degrees),
@@ -239,6 +286,7 @@ def _validate_schema(name: str, data: dict) -> SchemaConfig:
         sequential=data.get("sequential", False),
         segments=tuple(segments),
         direction=data.get("direction"),
+        typical_keys=typical_keys,
     )
 
 

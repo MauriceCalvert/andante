@@ -3,6 +3,7 @@
 Schemas are galante harmonic blueprints encoding soprano/bass degrees at each
 stage. Format conforms to architecture.md and schemas.yaml.
 """
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -39,6 +40,7 @@ class Schema:
     chromatic: bool  # has chromatic alterations
     figuration_profile: str  # figuration profile name from figuration_profiles.yaml
     cadence_approach: bool  # whether final connection uses cadential patterns
+    typical_keys: tuple[str, ...] | None  # key journey for sequential schemas
 
     @property
     def stage_count(self) -> int:
@@ -55,6 +57,12 @@ def _load_yaml(name: str) -> dict[str, Any]:
     assert path.exists(), f"YAML file not found: {path}"
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+@lru_cache(maxsize=1)
+def _load_transitions() -> dict[str, Any]:
+    """Load schema transitions YAML (cached)."""
+    return _load_yaml("schemas/schema_transitions.yaml")
 
 
 def _parse_degree(value: int | float) -> int:
@@ -85,6 +93,24 @@ def _parse_segments(data: Any) -> int:
     return 1
 
 
+def _parse_typical_keys(raw: str | None) -> tuple[str, ...] | None:
+    """Parse typical_keys string into tuple of key areas.
+    
+    Examples:
+        "IV -> V (-> vi)" -> ("IV", "V", "vi")
+        "ii -> I" -> ("ii", "I")
+        None -> None
+    """
+    if raw is None:
+        return None
+    # Extract Roman numerals (uppercase or lowercase, with optional flats/sharps)
+    pattern = r'[iIvV]+|[iI]{1,3}|[vV]{1,3}'
+    matches: list[str] = re.findall(pattern, raw)
+    if not matches:
+        return None
+    return tuple(matches)
+
+
 def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
     """Parse a single schema entry from YAML."""
     # Handle sequential schemas with segment sub-structure
@@ -111,6 +137,7 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
         chromatic=data.get("chromatic", False),
         figuration_profile=data.get("figuration_profile", "galant_general"),
         cadence_approach=data.get("cadence_approach", False),
+        typical_keys=_parse_typical_keys(data.get("typical_keys")),
     )
 
 
@@ -210,28 +237,25 @@ def can_connect_direct(from_schema: str, to_schema: str) -> bool:
 
 
 def get_allowed_next(schema_name: str) -> list[str]:
-    """Return valid successor schemas based on connection rules.
-
-    Uses bass degree connection rules from architecture.md:
-    1. Identity: exit.bass == entry.bass
-    2. Step: |exit.bass - entry.bass| == 1
-    3. Dominant: exit.bass == 5 and entry.bass == 1
-
-    Returns all schemas that can connect, or all schemas if none connect.
+    """Return valid successor schemas from transitions YAML.
+    
+    Reads allowed_next from schema_transitions.yaml.
+    Asserts if schema not defined — missing definitions are errors.
     """
-    schemas = load_schemas()
-    from_schema = get_schema(schema_name)
-    exit_bass = from_schema.exit.bass
-    allowed: list[str] = []
-    for name, to_schema in schemas.items():
-        entry_bass = to_schema.entry.bass
-        if exit_bass == entry_bass:
-            allowed.append(name)
-        elif abs(exit_bass - entry_bass) == 1:
-            allowed.append(name)
-        elif exit_bass == 5 and entry_bass == 1:
-            allowed.append(name)
-    return allowed if allowed else list(schemas.keys())
+    transitions = _load_transitions()
+    assert schema_name in transitions, (
+        f"Schema '{schema_name}' not in schema_transitions.yaml. "
+        f"Add allowed_next definition for this schema."
+    )
+    schema_data = transitions[schema_name]
+    assert isinstance(schema_data, dict), (
+        f"Schema '{schema_name}' in schema_transitions.yaml is not a dict"
+    )
+    assert "allowed_next" in schema_data, (
+        f"Schema '{schema_name}' missing 'allowed_next' in schema_transitions.yaml"
+    )
+    allowed = schema_data["allowed_next"]
+    return [s for s in allowed if isinstance(s, str) and not s.startswith("#")]
 
 
 def get_schema_figuration_profile(schema_name: str) -> str:
@@ -278,3 +302,9 @@ def get_arrival_beats(schema_name: str, bars: int, metre: tuple[int, int] = (4, 
     while len(positions) < num_arrivals:
         positions.append(float(f"{bars}.4"))
     return positions[:num_arrivals]
+
+
+def get_typical_keys(schema_name: str) -> tuple[str, ...] | None:
+    """Get key journey for a sequential schema."""
+    schema = get_schema(schema_name)
+    return schema.typical_keys

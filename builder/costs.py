@@ -2,6 +2,11 @@
 
 from enum import Enum
 
+from shared.constants import (
+    TESSITURA_COMFORTABLE_SPAN,
+    TESSITURA_DEVIATION_COST,
+    TESSITURA_EXTREME_COST,
+)
 from builder.slice import (
     Slice,
     melodic_interval,
@@ -170,25 +175,23 @@ def cost_leap_recovery(
 #   81% of baroque melody notes fall within 7 semitones of median
 #   Only 19% venture beyond, with gradual drop-off
 #
-# Two-tier model:
+# Two-tier model (L003: soft hints only, no hard constraints):
 #   Within span (<=7 from median): no penalty (no gravity well)
-#   Beyond span: 100 per semitone past boundary (soft fence)
+#   Beyond span: graduated soft cost per semitone past boundary
+#   Extreme (>2x span): additional penalty but still not hard constraint
 #
 # This allows natural melodic exploration within tessitura while
 # discouraging stepwise drift outside the intended range.
-
-TESSITURA_SPAN: int = 7  # Semitones from median (9th = 14 semitones total)
-TESSITURA_BEYOND_COST: float = 100.0  # Per semitone beyond span
 
 
 def cost_tessitura_deviation(
     slices: list[Slice],
     voice: int,
     median: int,
-    span: int = TESSITURA_SPAN,
+    span: int = TESSITURA_COMFORTABLE_SPAN,
 ) -> float:
     """
-    S06: Two-tier penalty for pitches outside tessitura span.
+    S06: Two-tier soft penalty for pitches outside tessitura span.
 
     Args:
         slices: All slices in phrase
@@ -199,9 +202,11 @@ def cost_tessitura_deviation(
     Returns:
         Sum of penalties for notes beyond span.
         Within span: 0 cost (no gravity toward median).
-        Beyond span: 100 per semitone past boundary.
+        Beyond span: graduated soft cost per semitone.
+        Extreme (>2x span): additional penalty.
     """
     cost: float = 0.0
+    extreme_threshold: int = span * 2
     for slice_ in slices:
         pitch = slice_.pitches[voice]
         if pitch is None:
@@ -209,7 +214,9 @@ def cost_tessitura_deviation(
         deviation: int = abs(pitch - median)
         if deviation > span:
             beyond: int = deviation - span
-            cost += beyond * TESSITURA_BEYOND_COST
+            cost += beyond * TESSITURA_DEVIATION_COST
+            if deviation > extreme_threshold:
+                cost += TESSITURA_EXTREME_COST
     return cost
 
 

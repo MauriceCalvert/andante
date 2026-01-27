@@ -1,4 +1,4 @@
-# Andante Lessons
+# Andante Laws
 
 ## Coding Rules
 
@@ -6,7 +6,7 @@
 |-------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | L001  | Try blocks forbidden — use membership test or let it raise                                                                                                                                          |
 | L002  | No magic numbers — named constants or data-driven                                                                                                                                                   |
-| L003  | No range constraints — floors, ceilings, tessituras forbidden; fix upstream                                                                                                                         |
+| L003  | No hard range constraints — floors, ceilings, hard tessituras forbidden; soft tessitura hints allowed; hard limits indicate upstream error                                                          |
 | L004  | Voice crossing allowed — Bach crosses freely in counterpoint                                                                                                                                        |
 | L005  | Arithmetic on durations forbidden — use music_math functions                                                                                                                                        |
 | L006  | All durations must be in VALID_DURATIONS — no division                                                                                                                                              |
@@ -21,6 +21,7 @@
 | L015  | Avoid tuples for structured data — use NamedTuple or dataclass instead; tuples obscure field meaning and cause order-dependent bugs                                                                 |
 | L016  | No print statements — use logging module instead; print is reserved for CLI progress messages and explicit debug output                                                                             |
 | L017  | Single source of truth. Definitions must not be repeated, they must be inherited and over-ridden                                                                                                    |
+| L018  | `__init__.py` files must be empty — no re-exports; use direct imports from modules                                                                                                                  |
 
 ## Design Rules
 

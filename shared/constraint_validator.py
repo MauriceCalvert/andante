@@ -7,9 +7,11 @@ from typing import Any
 
 import yaml
 
+from builder.config_loader import load_genre_raw
+
+
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
 _constraints_cache: dict[str, Any] | None = None
-_genres_cache: dict[str, Any] = {}
 
 
 def load_constraints() -> dict[str, Any]:
@@ -21,33 +23,21 @@ def load_constraints() -> dict[str, Any]:
     return _constraints_cache
 
 
-def load_genre(genre: str) -> dict[str, Any]:
-    """Load genre definition with caching."""
-    if genre not in _genres_cache:
-        path: Path = DATA_DIR / "genres" / f"{genre}.yaml"
-        if path.exists():
-            with open(path) as f:
-                _genres_cache[genre] = yaml.safe_load(f)
-        else:
-            _genres_cache[genre] = {}
-    return _genres_cache[genre]
-
-
 def get_genre_metre(genre: str) -> str | None:
     """Get metre from genre definition."""
-    data: dict[str, Any] = load_genre(genre)
+    data: dict[str, Any] = load_genre_raw(genre)
     return data.get("metre")
 
 
 def get_genre_voices(genre: str) -> int | None:
     """Get voice count from genre definition."""
-    data: dict[str, Any] = load_genre(genre)
+    data: dict[str, Any] = load_genre_raw(genre)
     return data.get("voices")
 
 
 def get_genre_form(genre: str) -> str | None:
     """Get form from genre definition."""
-    data: dict[str, Any] = load_genre(genre)
+    data: dict[str, Any] = load_genre_raw(genre)
     return data.get("form")
 
 
@@ -85,7 +75,7 @@ def validate_brief(
     """Validate Brief parameters. Returns (valid, errors)."""
     constraints: dict[str, Any] = load_constraints()
     errors: list[str] = []
-    genre_def: dict[str, Any] = load_genre(genre)
+    genre_def: dict[str, Any] = load_genre_raw(genre)
     metre: str | None = genre_def.get("metre")
     voices: int | None = genre_def.get("voices")
     form: str | None = genre_def.get("form")

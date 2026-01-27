@@ -31,8 +31,9 @@ from pathlib import Path
 
 import yaml
 
-from planner.planner import generate_to_files
+from builder.faults import find_faults, print_faults
 from builder.types import NoteFile
+from planner.planner import generate_to_files
 
 
 SCRIPT_DIR: Path = Path(__file__).resolve().parent
@@ -98,6 +99,12 @@ def run_from_args(
     print(f"  Bass: {len(result.bass)} notes")
     print(f"  Tempo: {result.tempo} BPM")
     print(f"Output: {output_dir / name}.note, {output_dir / name}.midi")
+
+    # Run fault detection
+    print()
+    voices: list = [result.soprano, result.bass]
+    faults = find_faults(voices, result.metre)
+    print_faults(faults)
 
     return result
 

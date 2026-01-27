@@ -18,6 +18,7 @@ from builder.figuration.selector import (
     select_figure_for_bar,
     sort_by_weight,
 )
+from shared.constants import MISBEHAVIOUR_PROBABILITY
 from builder.figuration.types import Figure, SelectionContext
 from builder.types import Anchor
 from shared.key import Key
@@ -529,3 +530,37 @@ class TestGetFiguresForInterval:
         """Invalid interval should raise AssertionError."""
         with pytest.raises(AssertionError, match="Invalid interval"):
             get_figures_for_interval("invalid_interval")
+
+
+class TestApplyMisbehaviour:
+    """Tests for apply_misbehaviour function."""
+
+    def test_returns_filtered_normally(self) -> None:
+        """With low misbehaviour probability, should return filtered list."""
+        filtered = [make_figure("a")]
+        all_figs = [make_figure("a"), make_figure("b"), make_figure("c")]
+        # Use seed that doesn't trigger misbehaviour (probability 5%)
+        result = apply_misbehaviour(filtered, all_figs, seed=42, probability=0.0)
+        assert len(result) == 1
+        assert result[0].name == "a"
+
+    def test_returns_all_on_misbehaviour(self) -> None:
+        """With 100% probability, should return all figures."""
+        filtered = [make_figure("a")]
+        all_figs = [make_figure("a"), make_figure("b"), make_figure("c")]
+        result = apply_misbehaviour(filtered, all_figs, seed=42, probability=1.0)
+        assert len(result) == 3
+
+    def test_empty_filtered_returns_empty(self) -> None:
+        """Empty filtered list should return empty."""
+        all_figs = [make_figure("a"), make_figure("b")]
+        result = apply_misbehaviour([], all_figs, seed=42, probability=1.0)
+        assert result == []
+
+    def test_deterministic_with_same_seed(self) -> None:
+        """Same seed should produce same result."""
+        filtered = [make_figure("a")]
+        all_figs = [make_figure("a"), make_figure("b"), make_figure("c")]
+        result1 = apply_misbehaviour(filtered, all_figs, seed=123)
+        result2 = apply_misbehaviour(filtered, all_figs, seed=123)
+        assert len(result1) == len(result2)

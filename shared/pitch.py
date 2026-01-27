@@ -1,6 +1,11 @@
 """Pitch representation for scale degrees and rests."""
 from dataclasses import dataclass
-from typing import Union
+from typing import TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    from shared.key import Key
+
+from shared.constants import TESSITURA_DRIFT_THRESHOLD
 
 
 @dataclass(frozen=True)
@@ -110,3 +115,39 @@ def cycle_pitch_with_variety(pitches: tuple[Pitch, ...], idx: int) -> Pitch:
     if cycle == 0 or not isinstance(p, FloatingNote):
         return p
     return FloatingNote(wrap_degree(p.degree + cycle))
+
+
+def gravitational_pitch(
+    key: "Key",
+    degree: int,
+    prev_pitch: int,
+    median: int,
+    allow_register_reset: bool = True,
+) -> int:
+    """Find pitch of given degree using gravitational voice leading.
+    
+    Default: pure voice leading (nearest to prev_pitch).
+    If nearest pitch would exceed TESSITURA_DRIFT_THRESHOLD from median,
+    select the octave closer to median instead.
+    
+    Args:
+        key: Musical key
+        degree: Scale degree (1-7)
+        prev_pitch: Previous MIDI pitch
+        median: Tessitura median pitch
+        allow_register_reset: If False, prefer stepwise motion regardless of drift.
+                              Use False for mid-figure notes to prevent octave drops.
+    """
+    candidates: list[int] = []
+    for octave in range(1, 8):
+        midi: int = key.degree_to_midi(degree, octave=octave)
+        candidates.append(midi)
+    candidates.sort(key=lambda m: abs(m - prev_pitch))
+    nearest: int = candidates[0]
+    if not allow_register_reset:
+        return nearest
+    nearest_drift: int = abs(nearest - median)
+    if nearest_drift <= TESSITURA_DRIFT_THRESHOLD:
+        return nearest
+    candidates.sort(key=lambda m: abs(m - median))
+    return candidates[0]

@@ -135,12 +135,6 @@ class TestLoadForm:
     def test_load_through_composed(self) -> None:
         form = load_form("through_composed")
         assert form.name == "through_composed"
-        assert form.minimum_bars == 20
-
-    def test_through_composed_bar_allocation(self) -> None:
-        form = load_form("through_composed")
-        assert "exordium" in form.bar_allocation
-        assert form.bar_allocation["exordium"] == (1, 4)
 
     def test_missing_form_raises(self) -> None:
         with pytest.raises(AssertionError):
@@ -169,8 +163,10 @@ class TestLoadConfigs:
         config = load_configs("invention", "c_major", "default")
         assert "tempo" in config
         assert "total_slots" in config
-        # invention: 20 bars * (4/4 metre / 1/16 primary) = 20 * 16 = 320
-        assert config["total_slots"] == 20 * 16
+        assert "total_bars" in config
+        # invention: 22 bars * 16 slots/bar = 352 slots
+        assert config["total_bars"] == 22
+        assert config["total_slots"] == 22 * 16
 
 
 class TestComputeSlotsPerBar:

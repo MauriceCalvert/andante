@@ -16,19 +16,16 @@ from shared.constants import MAX_SEQUENCE_REPETITIONS
 class SequencerState:
     """State for tracking sequential repetitions.
 
-    Tracks how many times a figure has been repeated in sequence
-    and the transposition interval.
+    Tracks how many times a figure has been repeated in sequence.
     """
     current_figure: Figure | None = None
     repetition_count: int = 0
-    transposition_interval: int = 0
     last_start_degree: int = 1
 
     def reset(self) -> None:
         """Reset sequencer state."""
         self.current_figure = None
         self.repetition_count = 0
-        self.transposition_interval = 0
         self.last_start_degree = 1
 
 
@@ -157,36 +154,34 @@ def apply_fortspinnung(
     """
     if not target_degrees:
         return []
-
     figures: list[Figure] = []
-    current_figure = initial_figure
+    base_figure = initial_figure  # Keep original for transposition
+    base_degree = target_degrees[0]  # Degree the base figure starts on
     state.current_figure = initial_figure
     state.last_start_degree = target_degrees[0]
-
     for i, target in enumerate(target_degrees):
+        # Compute transposition from base degree to target
+        interval = target - base_degree
         if i == 0:
-            # First bar: use initial figure
-            figures.append(current_figure)
+            # First bar: use initial figure as-is
+            figures.append(initial_figure)
             state.repetition_count = 0
         else:
-            # Compute transposition from previous bar
-            prev_target = target_degrees[i - 1]
-            interval = compute_transposition_interval(prev_target, target)
-
             # Check Rule of Three
             if should_break_sequence(state.repetition_count):
-                # Break with fragmentation
-                current_figure = fragment_figure(current_figure)
+                # Break with fragmentation and reset base
+                base_figure = fragment_figure(base_figure)
+                base_degree = target  # Reset base degree to current target
+                interval = 0  # No transposition needed after reset
                 state.repetition_count = 0
-
-            # Transpose figure and update current for next iteration
-            transposed = transpose_figure(current_figure, interval)
-            figures.append(transposed)
-            current_figure = transposed  # Accumulate transpositions
+            # Transpose from base figure (not accumulated)
+            if interval == 0:
+                figures.append(base_figure)
+            else:
+                transposed = transpose_figure(base_figure, interval)
+                figures.append(transposed)
             state.repetition_count += 1
-
         state.last_start_degree = target
-
     return figures
 
 

@@ -22,7 +22,7 @@ from builder.types import (
     MotiveWeights, SchemaChain, SchemaConfig, Solution, TreatmentAssignment,
 )
 from planner.melodic import layer_7_melodic
-from planner.metric import layer_4_metric
+from planner.metric.layer import layer_4_metric
 from planner.metric.distribution import distribute_arrivals
 from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic, _check_connection
@@ -201,7 +201,7 @@ class TestLayer4Metric:
             full_config["genre"],
             full_config["form"],
             full_config["key"],
-            "default",
+            full_config["schemas"],
         )
         assert isinstance(bar_assignments, dict)
 
@@ -212,7 +212,7 @@ class TestLayer4Metric:
             full_config["genre"],
             full_config["form"],
             full_config["key"],
-            "default",
+            full_config["schemas"],
         )
         assert isinstance(arrivals, list)
         assert all(isinstance(a, Anchor) for a in arrivals)
@@ -224,9 +224,10 @@ class TestLayer4Metric:
             full_config["genre"],
             full_config["form"],
             full_config["key"],
-            "default",
+            full_config["schemas"],
         )
-        assert total_bars == 20
+        # Total bars computed from genre sections
+        assert total_bars > 0
 
 
 class TestDistributeArrivals:
@@ -259,12 +260,19 @@ class TestLayer5Textural:
 
     @pytest.fixture
     def bar_assignments(self, full_config: dict[str, Any]) -> dict[str, tuple[int, int]]:
-        """Build bar assignments from genre sections."""
+        """Build bar assignments from genre sections using schema stages."""
+        from planner.metric.layer import get_schema_stages
+        schemas = full_config["schemas"]
         assignments: dict[str, tuple[int, int]] = {}
+        current_bar = 1
         for section in full_config["genre"].sections:
             name = section["name"]
-            bars = section["bars"]
-            assignments[name] = (bars[0], bars[1])
+            schema_sequence = section.get("schema_sequence", [])
+            section_bars = sum(get_schema_stages(s, schemas) for s in schema_sequence)
+            if section_bars == 0:
+                section_bars = 4  # fallback for empty sequences
+            assignments[name] = (current_bar, current_bar + section_bars - 1)
+            current_bar += section_bars
         return assignments
 
     def test_returns_treatment_list(

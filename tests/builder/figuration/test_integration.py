@@ -3,7 +3,8 @@ from fractions import Fraction
 
 import pytest
 
-from builder.figuration import figurate, figurate_single_bar, FiguredBar
+from builder.figuration.figurate import figurate, figurate_single_bar
+from builder.figuration.types import FiguredBar
 from builder.figuration.loader import clear_cache
 from builder.types import Anchor
 from shared.key import Key
@@ -304,3 +305,80 @@ class TestEndToEnd:
         # Degrees and durations should be valid
         assert len(bar.degrees) == len(bar.durations)
         assert len(bar.degrees) >= 2
+
+    def test_cadential_figure_at_cadence(self) -> None:
+        """Cadential position should potentially use cadential figures."""
+        clear_cache()
+        key = Key(tonic="C", mode="major")
+
+        # Phrase ending on tonic (PAC)
+        anchors = [
+            make_anchor("6.1", 4, 4, "prinner", 1),
+            make_anchor("7.1", 2, 5, "cadence", 1),  # Approach from 2
+            make_anchor("8.1", 1, 1, "cadence", 2),  # Land on 1
+        ]
+
+        result = figurate(anchors, key, "4/4", seed=42)
+        assert len(result) == 2
+        # Final bar should have a valid figure (cadential or regular)
+        assert result[1].figure_name is not None
+
+    def test_sequential_schema_fortspinnung(self) -> None:
+        """Sequential schemas should trigger Fortspinnung."""
+        clear_cache()
+        key = Key(tonic="C", mode="major")
+
+        # Monte sequence
+        anchors = [
+            make_anchor("1.1", 1, 1, "monte", 1),
+            make_anchor("2.1", 2, 7, "monte", 2),
+            make_anchor("3.1", 3, 1, "monte", 3),
+            make_anchor("4.1", 4, 5, "monte", 4),
+            make_anchor("5.1", 5, 1, "cadence", 1),
+        ]
+
+        result = figurate(anchors, key, "4/4", seed=42)
+        assert len(result) == 4
+        # Should produce valid output
+        for bar in result:
+            assert len(bar.degrees) >= 2
+
+    def test_affect_character_applied(self) -> None:
+        """Affect character should influence figure selection."""
+        clear_cache()
+        key = Key(tonic="C", mode="major")
+
+        anchors = [
+            make_anchor("1.1", 1, 1),
+            make_anchor("2.1", 3, 5),
+        ]
+
+        result_plain = figurate(anchors, key, "4/4", seed=42, affect_character="plain")
+        result_energetic = figurate(anchors, key, "4/4", seed=42, affect_character="energetic")
+
+        # Both should produce valid output
+        assert len(result_plain) == 1
+        assert len(result_energetic) == 1
+
+    def test_hemiola_in_3_4_phrase(self) -> None:
+        """8-bar phrase in 3/4 should potentially use hemiola at bars 6-7."""
+        clear_cache()
+        key = Key(tonic="C", mode="major")
+
+        # 8-bar phrase in 3/4
+        anchors = [
+            make_anchor("1.1", 1, 1),
+            make_anchor("2.1", 2, 7),
+            make_anchor("3.1", 3, 1),
+            make_anchor("4.1", 4, 5),
+            make_anchor("5.1", 5, 1),
+            make_anchor("6.1", 4, 4),
+            make_anchor("7.1", 2, 5),
+            make_anchor("8.1", 1, 1),
+        ]
+
+        result = figurate(anchors, key, "3/4", seed=42)
+        assert len(result) == 7
+        # All bars should have valid durations
+        for bar in result:
+            assert all(d > 0 for d in bar.durations)

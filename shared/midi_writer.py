@@ -58,7 +58,7 @@ def write_midi(
     pitches: Sequence[int],
     durations: Sequence[float],
     *,
-    tempo: int = 80,
+    tempo: int = 120,
     velocity: int = 80,
     time_signature: tuple[int, int] = (4, 4),
     tonic: Optional[str] = None,

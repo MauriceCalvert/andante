@@ -82,7 +82,14 @@ def write_midi_file(notes: NoteFile, path: Path) -> None:
             velocity=80,
             track=3,
         ))
-    write_midi_notes(str(path), midi_notes, tempo=notes.tempo)
+    time_sig = _parse_time_signature(notes.metre)
+    write_midi_notes(str(path), midi_notes, tempo=notes.tempo, time_signature=time_sig)
+
+
+def _parse_time_signature(metre: str) -> tuple[int, int]:
+    """Parse metre string to time signature tuple."""
+    parts = metre.split("/")
+    return (int(parts[0]), int(parts[1]))
 
 
 def write_musicxml_file(notes: NoteFile, path: Path, tonic: str = "C", mode: str = "major") -> bool:

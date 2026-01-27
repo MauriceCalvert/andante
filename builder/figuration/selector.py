@@ -64,12 +64,15 @@ def compute_interval(degree_a: int, degree_b: int) -> str:
         return "sixth_up"
     elif diff == -5:
         return "sixth_down"
-    elif diff in (6, 7):
+    elif diff == 6:
+        return "octave_up"  # 7th scale degree span = octave in diatonic
+    elif diff == -6:
+        return "octave_down"
+    elif diff == 7:
         return "octave_up"
-    elif diff in (-6, -7):
+    elif diff == -7:
         return "octave_down"
     else:
-        # Default to closest interval
         assert False, f"Unexpected interval diff: {diff}"
 
 
@@ -300,6 +303,7 @@ def filter_cadential_safe(figures: list[Figure], near_cadence: bool) -> list[Fig
 
 def apply_misbehaviour(
     figures: list[Figure],
+    all_figures_for_interval: list[Figure],
     seed: int,
     probability: float = MISBEHAVIOUR_PROBABILITY,
 ) -> list[Figure]:
@@ -309,7 +313,8 @@ def apply_misbehaviour(
     This prevents over-regular, textbook surfaces.
 
     Args:
-        figures: List of figures to filter
+        figures: List of filtered figures
+        all_figures_for_interval: Unfiltered figures for this interval
         seed: RNG seed for determinism
         probability: Probability of misbehaviour (default 5%)
 
@@ -318,17 +323,10 @@ def apply_misbehaviour(
     """
     if not figures:
         return figures
-
     rng = random.Random(seed)
-    if rng.random() < probability:
-        # Misbehaviour: return all figures for this interval
-        diminutions = get_diminutions()
-        # Find which interval these figures belong to
-        # (figures already filtered by interval, so check first figure)
-        if figures:
-            # Return original unfiltered list
-            return figures  # In practice, would need interval context
-
+    if rng.random() < probability and all_figures_for_interval:
+        # Misbehaviour: return all figures for this interval, ignoring filters
+        return list(all_figures_for_interval)
     return figures
 
 
@@ -474,55 +472,41 @@ def select_figure_for_bar(
         Selected figure, or None if no valid candidates.
     """
     diminutions = get_diminutions()
-
     # Step 1: Get figures for interval
     interval = context.interval
     if interval not in diminutions:
         return None
-
-    candidates = list(diminutions[interval])
-
+    all_figures = list(diminutions[interval])
+    candidates = list(all_figures)
     # Step 2: Already filtered by interval
-
     # Step 3: Filter by direction
     candidates = filter_by_direction(candidates, context.ascending)
-
     # Step 4: Filter by harmonic tension
     candidates = filter_by_tension(candidates, context.harmonic_tension)
-
     # Step 5: Filter by character
     candidates = filter_by_character(candidates, context.character)
-
     # Step 6: Filter by density
     candidates = filter_by_density(candidates, context.density)
-
     # Step 7: Filter by minor safety
     candidates = filter_by_minor_safety(candidates, context.is_minor)
-
     # Step 8: Filter by compensation
     candidates = filter_by_compensation(
         candidates,
         context.prev_leaped,
         context.leap_direction,
     )
-
     # Check if near cadence
     near_cadence = (
         context.bar_in_phrase >= context.total_bars_in_phrase - 1
     )
     candidates = filter_cadential_safe(candidates, near_cadence)
-
-    # Step 9: Apply misbehaviour
-    candidates = apply_misbehaviour(candidates, context.seed)
-
+    # Step 9: Apply misbehaviour (pass unfiltered list for relaxation)
+    candidates = apply_misbehaviour(candidates, all_figures, context.seed)
     # Step 10: Sort by weight
     candidates = sort_by_weight(candidates)
-
     # Step 11: Select via seeded RNG
     selected = select_figure(candidates, context.seed)
-
     # Steps 12-13 (junction check) handled by junction.py
-
     return selected
 
 

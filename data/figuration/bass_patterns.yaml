@@ -1,0 +1,339 @@
+# Bass Pattern Definitions
+# Accompaniment patterns for baroque genres organised by texture type
+#
+# Each pattern specifies:
+#   texture: functional category (continuo, arpeggiated, ostinato, pedal)
+#   harmonic_rhythm: how often harmony changes (per_bar, per_half, per_beat)
+#   metre: time signature ("any" for universal patterns)
+#   beats: note events with beat position, degree offset, duration
+#
+# degree_offset: relative to bass anchor (0 = root, positive = up, negative = down)
+# duration: in beats (quarter notes for x/4, eighth notes for x/8)
+
+# =============================================================================
+# CONTINUO PATTERNS
+# Standard basso continuo figures: provide harmonic foundation with melodic interest
+# =============================================================================
+
+continuo_sustained:
+  texture: continuo
+  harmonic_rhythm: per_bar
+  metre: "any"
+  description: "Sustained root for slow harmonic rhythm"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: "bar"
+
+continuo_root_fifth:
+  texture: continuo
+  harmonic_rhythm: per_half
+  metre: "any"
+  description: "Root-fifth alternation, standard continuo"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: "half"
+    - beat: "half"
+      degree_offset: 4
+      duration: "half"
+
+continuo_walking:
+  texture: continuo
+  harmonic_rhythm: per_beat
+  metre: "any"
+  description: "Stepwise quarter notes connecting harmonies"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 1
+    - beat: 2
+      degree_offset: 1
+      duration: 1
+    - beat: 3
+      degree_offset: 2
+      duration: 1
+    - beat: 4
+      degree_offset: 3
+      duration: 1
+
+continuo_octave_leap:
+  texture: continuo
+  harmonic_rhythm: per_half
+  metre: "any"
+  description: "Root with octave below, energetic"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: "half"
+    - beat: "half"
+      degree_offset: -7
+      duration: "half"
+
+# =============================================================================
+# ARPEGGIATED PATTERNS
+# Broken chord textures for preludes, toccatas, free sections
+# =============================================================================
+
+arpeggiated_ascending:
+  texture: arpeggiated
+  harmonic_rhythm: per_bar
+  metre: "4/4"
+  description: "Ascending broken triad"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 1
+    - beat: 2
+      degree_offset: 2
+      duration: 1
+    - beat: 3
+      degree_offset: 4
+      duration: 1
+    - beat: 4
+      degree_offset: 2
+      duration: 1
+
+arpeggiated_descending:
+  texture: arpeggiated
+  harmonic_rhythm: per_bar
+  metre: "4/4"
+  description: "Descending broken triad"
+  beats:
+    - beat: 1
+      degree_offset: 4
+      duration: 1
+    - beat: 2
+      degree_offset: 2
+      duration: 1
+    - beat: 3
+      degree_offset: 0
+      duration: 1
+    - beat: 4
+      degree_offset: 2
+      duration: 1
+
+arpeggiated_full:
+  texture: arpeggiated
+  harmonic_rhythm: per_bar
+  metre: "4/4"
+  description: "Full arpeggio up and down in eighths"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 0.5
+    - beat: 1.5
+      degree_offset: 2
+      duration: 0.5
+    - beat: 2
+      degree_offset: 4
+      duration: 0.5
+    - beat: 2.5
+      degree_offset: 6
+      duration: 0.5
+    - beat: 3
+      degree_offset: 4
+      duration: 0.5
+    - beat: 3.5
+      degree_offset: 2
+      duration: 0.5
+    - beat: 4
+      degree_offset: 0
+      duration: 0.5
+    - beat: 4.5
+      degree_offset: -1
+      duration: 0.5
+
+arpeggiated_compound:
+  texture: arpeggiated
+  harmonic_rhythm: per_bar
+  metre: "6/8"
+  description: "Compound metre arpeggio"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 0.5
+    - beat: 1.5
+      degree_offset: 2
+      duration: 0.5
+    - beat: 2
+      degree_offset: 4
+      duration: 0.5
+    - beat: 2.5
+      degree_offset: 0
+      duration: 0.5
+    - beat: 3
+      degree_offset: 2
+      duration: 0.5
+    - beat: 3.5
+      degree_offset: 4
+      duration: 0.5
+
+arpeggiated_3_4:
+  texture: arpeggiated
+  harmonic_rhythm: per_bar
+  metre: "3/4"
+  description: "Triple metre broken chord"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 1
+    - beat: 2
+      degree_offset: 2
+      duration: 1
+    - beat: 3
+      degree_offset: 4
+      duration: 1
+
+# =============================================================================
+# OSTINATO PATTERNS
+# Repeating ground bass figures for chaconnes, passacaglias, grounds
+# =============================================================================
+
+ostinato_descending_fourth:
+  texture: ostinato
+  harmonic_rhythm: per_beat
+  metre: "3/4"
+  description: "Descending tetrachord (lament bass)"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 1
+    - beat: 2
+      degree_offset: -1
+      duration: 1
+    - beat: 3
+      degree_offset: -2
+      duration: 1
+
+ostinato_descending_fourth_chromatic:
+  texture: ostinato
+  harmonic_rhythm: per_beat
+  metre: "3/4"
+  description: "Chromatic descending fourth"
+  chromatic: true
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 1
+    - beat: 2
+      degree_offset: 0
+      semitone_offset: -1
+      duration: 1
+    - beat: 3
+      degree_offset: -1
+      duration: 1
+
+ostinato_chaconne:
+  texture: ostinato
+  harmonic_rhythm: per_bar
+  metre: "3/4"
+  description: "Standard chaconne bass: I-IV-V-I over 4 bars"
+  multi_bar: 4
+  beats:
+    - beat: 1
+      bar: 1
+      degree_offset: 0
+      duration: 3
+    - beat: 1
+      bar: 2
+      degree_offset: 3
+      duration: 3
+    - beat: 1
+      bar: 3
+      degree_offset: 4
+      duration: 3
+    - beat: 1
+      bar: 4
+      degree_offset: 0
+      duration: 3
+
+ostinato_passacaglia:
+  texture: ostinato
+  harmonic_rhythm: per_bar
+  metre: "3/4"
+  description: "Descending scale bass over 4 bars"
+  multi_bar: 4
+  beats:
+    - beat: 1
+      bar: 1
+      degree_offset: 0
+      duration: 3
+    - beat: 1
+      bar: 2
+      degree_offset: -1
+      duration: 3
+    - beat: 1
+      bar: 3
+      degree_offset: -2
+      duration: 3
+    - beat: 1
+      bar: 4
+      degree_offset: -3
+      duration: 3
+
+# =============================================================================
+# PEDAL PATTERNS
+# Sustained or repeated bass note (dominant or tonic pedal)
+# =============================================================================
+
+pedal_sustained:
+  texture: pedal
+  harmonic_rhythm: none
+  metre: "any"
+  description: "Sustained pedal tone"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: "bar"
+
+pedal_pulsing:
+  texture: pedal
+  harmonic_rhythm: none
+  metre: "4/4"
+  description: "Repeated pedal tone on each beat"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 1
+    - beat: 2
+      degree_offset: 0
+      duration: 1
+    - beat: 3
+      degree_offset: 0
+      duration: 1
+    - beat: 4
+      degree_offset: 0
+      duration: 1
+
+pedal_with_octave:
+  texture: pedal
+  harmonic_rhythm: none
+  metre: "4/4"
+  description: "Pedal alternating with octave"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 1
+    - beat: 2
+      degree_offset: -7
+      duration: 1
+    - beat: 3
+      degree_offset: 0
+      duration: 1
+    - beat: 4
+      degree_offset: -7
+      duration: 1
+
+pedal_compound:
+  texture: pedal
+  harmonic_rhythm: none
+  metre: "6/8"
+  description: "Compound metre pedal pulse"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 1.5
+    - beat: 2.5
+      degree_offset: 0
+      duration: 1.5

@@ -2,63 +2,24 @@
 # Used as fallback when genre-specific YAML lacks a field
 # All genre files should deep-merge over these defaults
 
-name: Default
+name: default
 voices: 2
 form: binary
-metre: 4/4
+metre: "4/4"
 rhythmic_unit: "1/8"
-texture: melody_bass
+imitation: none
+bass_treatment: contrapuntal
 
-# Tonal journey: key area proportions through the piece
-# Must start and end on tonic (I/i)
-tonal_journey:
-  major:
-    - {proportion: 0.40, area: I, relationship: tonic}
-    - {proportion: 0.30, area: V, relationship: dominant}
-    - {proportion: 0.30, area: I, relationship: tonic}
-  minor:
-    - {proportion: 0.40, area: i, relationship: tonic}
-    - {proportion: 0.25, area: III, relationship: relative}
-    - {proportion: 0.35, area: i, relationship: tonic}
-
-# Schema selection by formal position
-# Only use schemas that exist in schemas.yaml
-schema_preferences:
-  opening:
-    - romanesca
-    - do_re_mi
-  riposte:
-    - prinner
-  continuation:
-    - fonte
-    - monte
-  pre_cadential:
-    - indugio
-    - ponte
-  cadential:
-    - prinner
-    - sol_fa_mi
-
-# Cadence planning rules
-cadence_template:
-  density: medium
-  first_cadence_bar: 4
-  first_cadence_type: half
-  section_end_type: half
-  final_type: authentic
-
-# Section structure
 sections:
   - name: A
-    key_area: I
-    proportion: 0.5
-    end_cadence: half
+    schema_sequence: [do_re_mi, prinner]
   - name: B
-    key_area: V
-    proportion: 0.5
-    end_cadence: authentic
+    schema_sequence: [fonte, cadenza_semplice]
 
-# Subject constraints for validation and derivation
+rhythmic_vocabulary:
+  primary: "1/8"
+  tempo_range: [72, 88]
+
 subject_constraints:
   min_notes: 4
   max_notes: 12
@@ -68,9 +29,8 @@ subject_constraints:
   first_degree: [1, 3, 5]
   last_degree: [1, 2, 3, 5]
 
-# Treatment vocabulary
 treatments:
   required: [statement]
-  optional: [transposition, inversion]
+  optional: []
   opening: statement
   answer: statement

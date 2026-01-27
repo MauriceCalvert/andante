@@ -20,7 +20,7 @@ def parse_note_name(note_str: str) -> int:
     if not match:
         raise ValueError(f"Invalid note name: {note_str}")
     note, octave = match.groups()
-    pc = NOTE_TO_PC[note]
+    pc = NOTE_NAME_MAP[note]
     return pc + (int(octave) + 1) * 12
 
 

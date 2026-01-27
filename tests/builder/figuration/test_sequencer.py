@@ -298,17 +298,17 @@ class TestSequencerState:
         state = SequencerState()
         assert state.current_figure is None
         assert state.repetition_count == 0
-        assert state.transposition_interval == 0
+        assert state.last_start_degree == 1
 
     def test_reset(self) -> None:
         """Reset should clear state."""
         state = SequencerState()
         state.current_figure = make_figure()
         state.repetition_count = 5
-        state.transposition_interval = 3
+        state.last_start_degree = 3
 
         state.reset()
 
         assert state.current_figure is None
         assert state.repetition_count == 0
-        assert state.transposition_interval == 0
+        assert state.last_start_degree == 1

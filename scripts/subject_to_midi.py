@@ -1,4 +1,5 @@
 """Convert .subject YAML file to MIDI format."""
+import argparse
 import sys
 from fractions import Fraction
 from pathlib import Path
@@ -19,11 +20,13 @@ TONIC_TO_MIDI = {
 
 def degrees_to_midi(
     degrees: Sequence[int],
-    tonic: str = 'G',
-    mode: str = 'major',
+    tonic: str,
+    mode: str,
     start_octave: int = 4,
 ) -> list[int]:
     """Convert degrees to MIDI, choosing octave to minimise leaps."""
+    assert tonic in TONIC_TO_MIDI, f"Unknown tonic: {tonic}"
+    assert mode in ('major', 'minor'), f"Mode must be 'major' or 'minor', got {mode}"
     intervals = MAJOR_INTERVALS if mode == 'major' else MINOR_INTERVALS
     base = TONIC_TO_MIDI[tonic]
     pitches: list[int] = []
@@ -48,8 +51,9 @@ def parse_duration(d: str | float | int) -> float:
 
 def convert_subject_to_midi(
     subject_path: Path,
-    tonic: str = 'G',
-    mode: str = 'major',
+    tonic: str,
+    mode: str,
+    tempo: int,
     octave: int = 4,
 ) -> None:
     """Convert .subject file to MIDI."""
@@ -70,7 +74,7 @@ def convert_subject_to_midi(
         str(output_path),
         pitches,
         durations,
-        tempo=90,
+        tempo=tempo,
         tonic=tonic,
         mode=mode,
     )
@@ -79,20 +83,25 @@ def convert_subject_to_midi(
 
 def main() -> None:
     """Convert .subject to MIDI."""
-    if len(sys.argv) < 2:
-        print("Usage: python subject_to_midi.py <subject_file> [key] [mode] [octave]")
-        print("  key: C, D, Eb, F#, G, etc. (default: G)")
-        print("  mode: major, minor (default: major)")
-        print("  octave: 3, 4, 5 (default: 4)")
+    parser = argparse.ArgumentParser(description='Convert .subject YAML to MIDI')
+    parser.add_argument('subject_file', type=Path, help='Path to .subject file')
+    parser.add_argument('--tonic', '-k', type=str, help='Tonic (C, D, Eb, F#, G, etc.)')
+    parser.add_argument('--mode', '-m', type=str, choices=['major', 'minor'], help='Mode')
+    parser.add_argument('--tempo', '-t', type=int, help='Tempo in BPM')
+    parser.add_argument('--octave', '-o', type=int, default=4, help='Starting octave (default: 4)')
+    args = parser.parse_args()
+    if not args.subject_file.exists():
+        print(f"File not found: {args.subject_file}")
         sys.exit(1)
-    subject_path = Path(sys.argv[1])
-    if not subject_path.exists():
-        print(f"File not found: {subject_path}")
-        sys.exit(1)
-    key = sys.argv[2] if len(sys.argv) > 2 else 'G'
-    mode = sys.argv[3] if len(sys.argv) > 3 else 'major'
-    octave = int(sys.argv[4]) if len(sys.argv) > 4 else 4
-    convert_subject_to_midi(subject_path, key, mode, octave)
+    with open(args.subject_file, encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+    tonic = args.tonic or data.get('tonic')
+    mode = args.mode or data.get('mode')
+    tempo = args.tempo or data.get('tempo')
+    assert tonic is not None, "tonic must be specified in YAML or via --tonic"
+    assert mode is not None, "mode must be specified in YAML or via --mode"
+    assert tempo is not None, "tempo must be specified in YAML or via --tempo"
+    convert_subject_to_midi(args.subject_file, tonic, mode, tempo, args.octave)
 
 
 if __name__ == "__main__":

@@ -17,9 +17,6 @@ KEY_AREA_SEMITONES: dict[str, int] = {
     "vii": 11,
 }
 
-# Maximum semitones from median before octave snap-back triggers
-DRIFT_THRESHOLD: int = 16  # octave + major third
-
 # Clausula cantizans pattern for sequential schemas (Monte, Fonte)
 # Approach: suspended fourth over dominant (scale degrees)
 CLAUSULA_APPROACH_SOPRANO: int = 4

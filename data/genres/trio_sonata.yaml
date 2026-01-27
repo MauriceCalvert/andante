@@ -1,50 +1,24 @@
-# Trio Sonata (GenreTemplate format)
+# Trio Sonata
 # Three-voice imitative dialogue (two upper + continuo)
 
-name: Trio Sonata
+name: trio_sonata
 voices: 3
 form: binary
-metre: 4/4
+metre: "4/4"
 rhythmic_unit: "1/8"
-texture: imitative
+imitation: mandatory
+bass_treatment: contrapuntal
 
-# Schema selection by formal position
-schema_preferences:
-  opening:
-    - romanesca
-    - do_re_mi
-  riposte:
-    - prinner
-  continuation:
-    - fonte
-    - monte
-  pre_cadential:
-    - indugio
-    - ponte
-  cadential:
-    - prinner
-    - sol_fa_mi
-
-# Cadence planning rules
-cadence_template:
-  density: medium            # Every 4-8 bars
-  first_cadence_bar: 4       # Typical first cadence location
-  first_cadence_type: half
-  section_end_type: half
-  final_type: authentic
-
-# Section structure (binary form)
 sections:
   - name: A
-    key_area: I
-    proportion: 0.5
-    end_cadence: half
+    schema_sequence: [romanesca, prinner]
   - name: B
-    key_area: V
-    proportion: 0.5
-    end_cadence: authentic
+    schema_sequence: [fonte, cadenza_semplice]
 
-# Subject constraints for validation and derivation
+rhythmic_vocabulary:
+  primary: "1/8"
+  tempo_range: [66, 84]
+
 subject_constraints:
   min_notes: 4
   max_notes: 12
@@ -54,7 +28,6 @@ subject_constraints:
   first_degree: [1, 3, 5]
   last_degree: [2, 3, 5, 7]
 
-# Treatment vocabulary
 treatments:
   required: [statement, imitation]
   optional: [transposition, inversion]

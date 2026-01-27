@@ -1,6 +1,7 @@
 """Pitch calculation utilities for metric planning."""
-from planner.metric.constants import DRIFT_THRESHOLD
+from shared.constants import TESSITURA_DRIFT_THRESHOLD
 from shared.key import Key
+from shared.pitch import gravitational_pitch
 
 
 def compute_base_octave(
@@ -29,35 +30,6 @@ def degree_to_midi(
     return key.degree_to_midi(degree, octave=octave)
 
 
-def gravitational_pitch(
-    key: Key,
-    degree: int,
-    prev_pitch: int,
-    median: int,
-) -> int:
-    """Find pitch of given degree using gravitational voice leading.
-    
-    Default: pure voice leading (nearest to prev_pitch).
-    If nearest pitch would exceed DRIFT_THRESHOLD from median,
-    select the octave closer to median instead.
-    """
-    candidates: list[int] = []
-    for octave in range(1, 8):
-        midi: int = key.degree_to_midi(degree, octave=octave)
-        candidates.append(midi)
-    candidates.sort(key=lambda m: abs(m - prev_pitch))
-    nearest: int = candidates[0]
-    nearest_drift: int = abs(nearest - median)
-    if nearest_drift <= DRIFT_THRESHOLD:
-        return nearest
-    # Nearest exceeds threshold — find best alternative
-    candidates.sort(key=lambda m: abs(m - median))
-    for alt in candidates:
-        if alt != nearest:
-            return alt
-    return nearest
-
-
 def snap_to_key(
     midi: int,
     key: Key,
@@ -79,3 +51,12 @@ def snap_to_key(
 def wrap_degree(degree: int) -> int:
     """Wrap scale degree to 1-7 range."""
     return ((degree - 1) % 7) + 1
+
+
+__all__ = [
+    "compute_base_octave",
+    "degree_to_midi",
+    "gravitational_pitch",
+    "snap_to_key",
+    "wrap_degree",
+]

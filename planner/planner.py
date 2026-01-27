@@ -18,10 +18,10 @@ from typing import Any
 
 from builder.config_loader import load_configs
 from builder.io import write_midi_file, write_musicxml_file, write_note_file
-from builder.realisation import realise
+from builder.realisation import realise_with_figuration
 from builder.types import NoteFile, SchemaChain, TreatmentAssignment
 from planner.dramaturgy import get_suggested_key
-from planner.metric import layer_4_metric
+from planner.metric.layer import layer_4_metric
 from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic
 from planner.textural import layer_5_textural
@@ -103,7 +103,7 @@ def generate(
     _debug(f"L5 Textural: {len(treatment_assignments)} treatment assignments")
     for ta in treatment_assignments:
         _debug(f"  bars {ta.start_bar}-{ta.end_bar}: {ta.treatment}, voice={ta.subject_voice}")
-    return realise(
+    return realise_with_figuration(
         anchors,
         treatment_assignments,
         key_config,

@@ -84,9 +84,20 @@ class TestIsStepwiseApproach:
         """Same note is stepwise (interval 0)."""
         assert is_stepwise_approach(5, 5)
 
-    def test_near_octave(self) -> None:
-        """Near-octave (6-7 steps) counts as stepwise."""
-        assert is_stepwise_approach(1, 7)
+    def test_octave_is_stepwise(self) -> None:
+        """Octave (interval 7) counts as stepwise (octave equivalence)."""
+        assert is_stepwise_approach(1, 8)  # 8-1=7
+        assert is_stepwise_approach(0, 7)  # 7-0=7
+
+    def test_sixth_not_stepwise(self) -> None:
+        """Sixth (interval 5-6) is NOT stepwise."""
+        assert not is_stepwise_approach(1, 6)  # interval 5
+        assert not is_stepwise_approach(1, 7)  # interval 6, NOT octave equivalence
+
+    def test_third_not_stepwise(self) -> None:
+        """Third is not stepwise."""
+        assert not is_stepwise_approach(1, 3)  # interval 2
+        assert not is_stepwise_approach(5, 3)  # interval 2
 
 
 class TestIsCommonTone:

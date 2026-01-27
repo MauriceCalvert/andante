@@ -122,6 +122,41 @@ TONAL_ROOTS: dict[str, int] = {
     "vi": 6, "VI": 6, "ii": 2, "iii": 3, "III": 3, "VII": 7, "vii": 7,
 }
 
+# Key area semitone offsets from tonic (for tonal journey planning)
+KEY_AREA_OFFSETS: dict[str, int] = {
+    "I": 0, "i": 0,
+    "II": 2, "ii": 2,
+    "III": 3, "iii": 4,  # minor 3rd for minor mode, major 3rd for major
+    "IV": 5, "iv": 5,
+    "V": 7, "v": 7,
+    "VI": 8, "vi": 9,  # minor 6th for minor mode, major 6th for major
+    "VII": 10, "vii": 11,
+}
+
+
+def normalise_key_area(area: str) -> str:
+    """Normalise key area notation to standard form.
+
+    Accepts various notations and returns uppercase Roman numeral.
+    Examples: 'tonic' -> 'I', 'dominant' -> 'V', 'v' -> 'V'
+    """
+    area_lower = area.lower().strip()
+    aliases: dict[str, str] = {
+        "tonic": "I",
+        "dominant": "V",
+        "subdominant": "IV",
+        "relative": "VI",
+        "relative_major": "III",
+        "relative_minor": "VI",
+        "supertonic": "II",
+        "mediant": "III",
+        "submediant": "VI",
+        "leading": "VII",
+    }
+    if area_lower in aliases:
+        return aliases[area_lower]
+    return area.upper()
+
 VALID_DURATION_OPS: frozenset[str] = frozenset({'reverse', 'augment', 'diminish'})
 
 VALID_DURATIONS: tuple[Fraction, ...] = (
@@ -232,3 +267,32 @@ FIGURE_ARRIVALS: tuple[str, ...] = ("direct", "stepwise", "accented")
 
 # Figure placement options
 FIGURE_PLACEMENTS: tuple[str, ...] = ("start", "end", "span")
+
+# =============================================================================
+# Tessitura Constants (L003: soft hints only, no hard constraints)
+# =============================================================================
+
+# Default tessitura medians by voice index (MIDI pitch)
+# Voice 0 = soprano, 1 = alto, 2 = tenor, 3 = bass
+DEFAULT_TESSITURA_MEDIANS: dict[int, int] = {
+    0: 70,  # Bb4 - soprano
+    1: 60,  # C4 - alto
+    2: 54,  # F#3 - tenor
+    3: 48,  # C3 - bass
+}
+
+# Soft tessitura span: semitones from median before cost increases
+# Notes within this span incur no penalty; beyond incurs graduated cost
+TESSITURA_COMFORTABLE_SPAN: int = 7
+
+# Cost multiplier for notes beyond comfortable span (soft penalty)
+# Applied per semitone beyond the span
+TESSITURA_DEVIATION_COST: float = 2.0
+
+# Cost for notes far beyond comfortable range (additional penalty)
+# Applied when note is more than 2x the comfortable span from median
+TESSITURA_EXTREME_COST: float = 100.0
+
+# Maximum semitones from median before octave reset triggers in voice leading
+# One octave allows natural melodic exploration; beyond risks runaway drift
+TESSITURA_DRIFT_THRESHOLD: int = 12

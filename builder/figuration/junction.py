@@ -54,15 +54,12 @@ def is_stepwise_approach(final_degree: int, next_degree: int) -> bool:
         next_degree: Next anchor degree
 
     Returns:
-        True if stepwise (±1).
+        True if stepwise (±1 or unison).
     """
-    # For relative degrees approaching an absolute degree,
-    # we check if the motion would be stepwise
-    # This is a simplification; actual check needs context
-
-    # If final_degree is 0 (returns to start), check against next
     interval = abs(next_degree - final_degree)
-    return interval <= 1 or interval >= 6  # Step or near-octave
+    # Stepwise means interval of 0 (unison) or 1 (second)
+    # Also handle octave equivalence: 7 maps to unison
+    return interval <= 1 or interval == 7
 
 
 def is_common_tone(final_degree: int, next_degree: int) -> bool:

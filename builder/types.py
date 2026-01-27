@@ -21,6 +21,15 @@ class Note:
 
 
 @dataclass(frozen=True)
+class CollectedNote:
+    """Note collected for dissonance analysis."""
+    offset: Fraction
+    duration: Fraction
+    diatonic: int
+    role: str
+
+
+@dataclass(frozen=True)
 class NoteFile:
     """Collection of notes for export."""
     soprano: tuple[Note, ...]
@@ -83,6 +92,7 @@ class SchemaConfig:
     sequential: bool = False
     segments: tuple[int, ...] = (1,)
     direction: str | None = None
+    typical_keys: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -98,7 +108,8 @@ class GenreConfig:
     treatment_sequence: tuple[dict[str, Any], ...]
     rhythmic_vocabulary: dict[str, Any]
     subject_constraints: dict[str, Any]
-    tessitura: dict[str, int]
+    bass_treatment: str  # 'contrapuntal' or 'patterned'
+    bass_pattern: str | None = None  # required if bass_treatment='patterned'
 
 
 @dataclass(frozen=True)
