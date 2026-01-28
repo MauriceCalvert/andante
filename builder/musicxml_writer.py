@@ -8,7 +8,8 @@ from pathlib import Path
 from builder.types import Note, NoteFile
 
 try:
-    from music21 import clef, expressions, key, meter, note, stream, tempo
+    from music21 import clef, key, meter, note, stream, tempo
+    from music21.note import Lyric
     MUSIC21_AVAILABLE: bool = True
 except ImportError:
     MUSIC21_AVAILABLE = False
@@ -17,17 +18,7 @@ BASS_CLEF_THRESHOLD: int = 60
 
 
 def write_musicxml_file(notes: NoteFile, path: Path, tonic: str = "C", mode: str = "major") -> bool:
-    """Write notes to MusicXML file.
-    
-    Args:
-        notes: NoteFile with soprano and bass
-        path: Output path (will use .musicxml extension)
-        tonic: Key tonic (e.g., "C", "G", "Bb")
-        mode: Key mode ("major" or "minor")
-    
-    Returns:
-        True if successful, False if music21 not available
-    """
+    """Write notes to MusicXML file."""
     if not MUSIC21_AVAILABLE:
         print(f"Warning: music21 not installed, cannot write {path}")
         return False
@@ -71,6 +62,21 @@ def _build_score(notes: NoteFile, tonic: str, mode: str) -> stream.Score:
     return score
 
 
+def _add_stacked_lyrics(m21_note: note.Note, lyric_text: str) -> None:
+    """Add multiple lyrics as stacked verses.
+    
+    When lyric contains '/' separators, each part becomes a separate
+    verse (syllable number 1, 2, 3...) so they stack vertically in notation.
+    """
+    if not lyric_text:
+        return
+    parts: list[str] = lyric_text.split("/")
+    for i, part in enumerate(parts):
+        if part:
+            lyric_obj = Lyric(text=part, number=i + 1)
+            m21_note.lyrics.append(lyric_obj)
+
+
 def _build_part(
     notes: tuple[Note, ...],
     part_id: str,
@@ -102,7 +108,7 @@ def _build_part(
         m21_note: note.Note = note.Note(n.pitch)
         m21_note.quarterLength = float(n.duration) * 4
         if n.lyric:
-            m21_note.lyric = n.lyric
+            _add_stacked_lyrics(m21_note, n.lyric)
         _clean_accidental(m21_note, ky)
         offset_quarters: float = float(n.offset + shift) * 4
         part.insert(offset_quarters, m21_note)

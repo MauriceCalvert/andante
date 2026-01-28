@@ -119,6 +119,8 @@ class Anchor:
     Fields renamed per voices.md:
     - upper_degree: degree for schema_upper role (was soprano_degree)
     - lower_degree: degree for schema_lower role (was bass_degree)
+    - upper_direction: voice motion to reach this anchor (up/down/same/None for first)
+    - lower_direction: voice motion to reach this anchor (up/down/same/None for first)
     """
     bar_beat: str
     upper_degree: int
@@ -126,6 +128,8 @@ class Anchor:
     local_key: "Key"
     schema: str
     stage: int
+    upper_direction: str | None = None  # up, down, same, or None for first anchor
+    lower_direction: str | None = None  # up, down, same, or None for first anchor
 
 
 @dataclass(frozen=True)
@@ -159,11 +163,13 @@ class SchemaConfig:
     """Schema definition from YAML."""
     name: str
     soprano_degrees: tuple[int, ...]
+    soprano_directions: tuple[str | None, ...]  # up/down/same/None per degree
     bass_degrees: tuple[int, ...]
-    entry_soprano: int
-    entry_bass: int
-    exit_soprano: int
-    exit_bass: int
+    bass_directions: tuple[str | None, ...]  # up/down/same/None per degree
+    entry_soprano: int  # derived from soprano_degrees[0]
+    entry_bass: int  # derived from bass_degrees[0]
+    exit_soprano: int  # derived from soprano_degrees[-1]
+    exit_bass: int  # derived from bass_degrees[-1]
     bars_min: int
     bars_max: int
     position: str
@@ -171,6 +177,7 @@ class SchemaConfig:
     sequential: bool = False
     segments: tuple[int, ...] = (1,)
     direction: str | None = None
+    segment_direction: str | None = None  # up/down between segments for sequential
     typical_keys: tuple[str, ...] | None = None
 
 

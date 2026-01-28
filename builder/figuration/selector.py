@@ -76,8 +76,72 @@ def compute_interval(degree_a: int, degree_b: int) -> str:
         assert False, f"Unexpected interval diff: {diff}"
 
 
+def compute_interval_with_direction(
+    degree_a: int,
+    degree_b: int,
+    direction: str | None,
+) -> str:
+    """Compute interval name using explicit direction.
+
+    When schema specifies direction (up/down/same), use it to resolve
+    ambiguity in degree-only computation. E.g., degree 1->7 with direction
+    'down' is step_down, not sixth_up.
+
+    Args:
+        degree_a: Starting degree (1-7)
+        degree_b: Ending degree (1-7)
+        direction: Explicit direction (up/down/same) or None
+
+    Returns:
+        Interval name like "step_up", "third_down", etc.
+    """
+    if direction == "same" or degree_a == degree_b:
+        return "unison"
+    diff = degree_b - degree_a
+    # Adjust diff to match explicit direction
+    if direction == "down" and diff > 0:
+        diff = diff - 7
+    elif direction == "up" and diff < 0:
+        diff = diff + 7
+    # Handle remaining octave wrapping for None direction
+    while diff > 7:
+        diff -= 7
+    while diff < -7:
+        diff += 7
+    if diff == 0:
+        return "unison"
+    elif diff == 1:
+        return "step_up"
+    elif diff == -1:
+        return "step_down"
+    elif diff == 2:
+        return "third_up"
+    elif diff == -2:
+        return "third_down"
+    elif diff == 3:
+        return "fourth_up"
+    elif diff == -3:
+        return "fourth_down"
+    elif diff == 4:
+        return "fifth_up"
+    elif diff == -4:
+        return "fifth_down"
+    elif diff == 5:
+        return "sixth_up"
+    elif diff == -5:
+        return "sixth_down"
+    elif diff in (6, 7):
+        return "octave_up"
+    elif diff in (-6, -7):
+        return "octave_down"
+    else:
+        assert False, f"Unexpected interval diff: {diff}"
+
+
 def compute_interval_from_anchors(anchor_a: Anchor, anchor_b: Anchor) -> str:
     """Compute interval name between two anchors (upper voice).
+
+    Uses anchor_b's direction field to resolve ambiguous degree intervals.
 
     Args:
         anchor_a: Starting anchor
@@ -86,7 +150,11 @@ def compute_interval_from_anchors(anchor_a: Anchor, anchor_b: Anchor) -> str:
     Returns:
         Interval name.
     """
-    return compute_interval(anchor_a.upper_degree, anchor_b.upper_degree)
+    return compute_interval_with_direction(
+        anchor_a.upper_degree,
+        anchor_b.upper_degree,
+        anchor_b.upper_direction,
+    )
 
 
 def filter_by_interval(figures: list[Figure], interval: str) -> list[Figure]:

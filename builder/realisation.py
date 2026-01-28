@@ -7,38 +7,6 @@ Each anchor becomes a note; duration extends to next anchor.
 
 Layer 6.5 (Figuration) can be enabled to produce baroque melodic patterns
 instead of simple block-chord output.
-
-Realisation Order (per voices.md)
-=================================
-Voices are realised in dependency order:
-
-1. Schema-bound voices first (schema_upper, schema_lower)
-   - These read directly from anchor.upper_degree / anchor.lower_degree
-   - No dependencies on other voices
-
-2. Imitative voices second (depend on their source)
-   - Transform from their source voice with delay/transposition
-   - Order determined by follows chain
-
-3. Harmony-fill voices last (depend on outer voices)
-   - Derived from chord implied by outer voices
-   - Cannot be realised until outer voices exist
-
-This order comes from the dependency graph, NOT from voice list position.
-
-Expansion System (per vocabulary.md)
-====================================
-Each passage has a function (subject, answer, episode...). The genre's
-function_map maps this to a voice expansion (statement, imitation, schema...).
-The expansion config (from treatments.yaml) specifies:
-- soprano_source / bass_source: where material comes from
-- soprano_transform / bass_transform: melodic transformations
-- bass_derivation: if 'imitation', bass derives from soprano
-- interdictions: disabled features (ornaments, inner_voice_gen)
-
-Currently supported sources:
-- 'schema': Use anchor degrees (default)
-- Others: Fall back to schema (future implementation)
 """
 from fractions import Fraction
 from typing import Sequence
@@ -50,6 +18,7 @@ from builder.types import (
 )
 from shared.constants import DEFAULT_TESSITURA_MEDIANS
 from shared.pitch import select_octave
+from shared.tracer import get_tracer
 
 
 def _get_function_for_bar(
@@ -71,14 +40,10 @@ def _get_expansion_for_bar(
     genre_config: GenreConfig,
     expansions: dict[str, VoiceExpansionConfig],
 ) -> VoiceExpansionConfig:
-    """Get voice expansion config for a given bar.
-    
-    Looks up passage function, maps to expansion name, returns config.
-    Falls back to 'schema' expansion if function not found.
-    """
+    """Get voice expansion config for a given bar."""
     function: str | None = _get_function_for_bar(bar, assignments)
     if function is None:
-        function = "episode"  # Default for unassigned bars
+        function = "episode"
     return get_expansion_for_function(
         function=function,
         function_map=genre_config.function_map,
@@ -206,7 +171,6 @@ def _shift_notes_by_upbeat(notes: list[Note], upbeat: Fraction) -> list[Note]:
     ]
 
 
-# Schema stage counts for detecting final bars (for bass pattern variation)
 SCHEMA_STAGE_COUNTS: dict[str, int] = {
     "prinner": 4,
     "romanesca": 6,
@@ -216,8 +180,6 @@ SCHEMA_STAGE_COUNTS: dict[str, int] = {
     "cadenza_composta": 4,
 }
 
-
-# Schemas where final stage should use sustained bass to avoid boundary issues
 SCHEMAS_NEEDING_SUSTAINED_FINAL: frozenset[str] = frozenset({"prinner", "romanesca"})
 
 
@@ -244,24 +206,10 @@ def realise_with_figuration(
     seed: int = 42,
     tempo_override: int | None = None,
 ) -> NoteFile:
-    """Convert anchors to notes using baroque figuration patterns.
-
-    This function uses the Layer 6.5 figuration system to produce
-    idiomatic melodic motion instead of simple whole-note output.
-    Soprano uses melodic figures; bass uses accompaniment patterns.
-    
-    Voice expansion configs (from treatments.yaml via function_map) control:
-    - Source material (schema, subject, counter_subject, etc.)
-    - Transformations (invert, augment, etc.)
-    - Derivations (imitation with delay)
-    - Interdictions (disable ornaments, etc.)
-    
-    Currently, only 'schema' source is implemented. Other sources fall back
-    to schema behavior.
-    """
+    """Convert anchors to notes using baroque figuration patterns."""
     from builder.figuration.figurate import figurate
     from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
-    # Load voice expansions for function-to-expansion mapping
+    tracer = get_tracer()
     expansions: dict[str, VoiceExpansionConfig] = load_expansions()
     if not anchors:
         return NoteFile(soprano=(), bass=(), metre=genre_config.metre, tempo=72, upbeat=genre_config.upbeat)
@@ -272,6 +220,7 @@ def realise_with_figuration(
         character = "energetic"
     elif density == "medium":
         character = "expressive"
+    tracer.L6("Figuration", density=density, character=character, anchor_count=len(anchors))
     figured_bars = figurate(
         anchors=anchors,
         key=key,
@@ -298,7 +247,6 @@ def realise_with_figuration(
         bar_offset: Fraction = _bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
         current_offset = bar_offset
         function: str | None = _get_function_for_bar(bar, passage_assignments)
-        # Get expansion config for this bar
         expansion: VoiceExpansionConfig = _get_expansion_for_bar(
             bar=bar,
             assignments=passage_assignments,
@@ -306,6 +254,8 @@ def realise_with_figuration(
             expansions=expansions,
         )
         expansion_name: str = expansion.name
+        tracer.figure_selection(bar, figured_bar.figure_name or "none", density)
+        tracer.expansion(bar, function or "none", expansion_name)
         for j, (degree, duration) in enumerate(zip(figured_bar.degrees, figured_bar.durations)):
             s_midi: int = select_octave(
                 anchor.local_key, degree, soprano_median,
@@ -315,7 +265,6 @@ def realise_with_figuration(
             if current_offset == bar_offset:
                 schema_part: str | None = anchor.schema if anchor.stage == 1 else None
                 function_part: str | None = function if function != prev_function else None
-                # Include expansion name in lyric when it changes
                 exp_part: str | None = expansion_name if expansion_name != prev_expansion_name else None
                 prev_function = function
                 prev_expansion_name = expansion_name
@@ -334,6 +283,7 @@ def realise_with_figuration(
                 voice=0,
                 lyric=lyric,
             ))
+            tracer.note_output("soprano", current_offset, s_midi, duration)
             current_offset += duration
     if sorted_anchors:
         final_anchor = sorted_anchors[-1]
@@ -381,6 +331,7 @@ def realise_with_figuration(
                     voice=3,
                     lyric="",
                 ))
+                tracer.note_output("bass", current_offset, b_midi, dur)
                 current_offset += dur
         if sorted_anchors:
             final_anchor = sorted_anchors[-1]
@@ -398,7 +349,6 @@ def realise_with_figuration(
                     lyric="",
                 ))
     elif genre_config.bass_mode == "schema":
-        # Schema mode: pitches from schema degrees, pattern controls rhythm only
         from builder.figuration.bass import get_rhythm_pattern, realise_bass_schema
         rhythm_pattern = get_rhythm_pattern(genre_config.bass_pattern)
         assert rhythm_pattern is not None, f"Rhythm pattern '{genre_config.bass_pattern}' not found"
@@ -417,6 +367,8 @@ def realise_with_figuration(
             if _is_schema_final_stage(anchor.schema, anchor.stage):
                 if sustained_pattern is not None:
                     pattern = sustained_pattern
+            bar: int = int(anchor.bar_beat.split(".")[0])
+            tracer.bass_pattern(bar, pattern.name, anchor.lower_degree)
             metre_matches = pattern.metre == genre_config.metre or pattern.metre == "any"
             if metre_matches and duration >= bar_duration:
                 pattern_notes = realise_bass_schema(
@@ -437,6 +389,7 @@ def realise_with_figuration(
                         voice=3,
                         lyric="",
                     ))
+                    tracer.note_output("bass", note_offset, midi_pitch, note_duration)
                     prev_bass = midi_pitch
             else:
                 b_midi: int = select_octave(
@@ -451,7 +404,6 @@ def realise_with_figuration(
                     lyric="",
                 ))
     else:
-        # Pattern mode: pitches from pattern degree_offset
         default_pattern = get_bass_pattern(genre_config.bass_pattern)
         assert default_pattern is not None, f"Bass pattern '{genre_config.bass_pattern}' not found"
         cadence_pattern = get_bass_pattern("continuo_sustained")
@@ -468,6 +420,8 @@ def realise_with_figuration(
             if _is_schema_final_stage(anchor.schema, anchor.stage):
                 if cadence_pattern is not None:
                     bass_pattern = cadence_pattern
+            bar: int = int(anchor.bar_beat.split(".")[0])
+            tracer.bass_pattern(bar, bass_pattern.name, anchor.lower_degree)
             metre_matches = bass_pattern.metre == genre_config.metre or bass_pattern.metre == "any"
             if metre_matches and duration >= bar_duration:
                 pattern_notes = realise_bass_pattern(
@@ -488,6 +442,7 @@ def realise_with_figuration(
                         voice=3,
                         lyric="",
                     ))
+                    tracer.note_output("bass", note_offset, midi_pitch, note_duration)
                     prev_prev_bass = prev_bass
                     prev_bass = midi_pitch
             else:

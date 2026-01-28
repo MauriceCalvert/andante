@@ -2,9 +2,12 @@
 # AUTHORITATIVE — derived from Gjerdingen (2007), Sanguinetti (2012), partimento pedagogy
 #
 # Notation:
-#   soprano_degrees: scale degrees in melody (Gjerdingen's filled circles)
-#   bass_degrees: scale degrees in bass (Gjerdingen's open circles)
+#   soprano_degrees / bass_degrees: signed scale degrees indicating voice motion
+#     First degree: unsigned (starting point)
+#     Subsequent degrees: -N = down to N, N = same degree, +N = up to N
 #   Degrees are relative to local key unless sequential: true
+#
+# Entry/exit derived from first/last degrees (absolute value).
 #
 # References:
 #   - Gjerdingen, Robert O. Music in the Galant Style. Oxford, 2007.
@@ -17,11 +20,9 @@
 
 do_re_mi:
   description: Opening gambit with stepwise soprano ascent
-  soprano_degrees: [1, 2, 3]
-  bass_degrees: [1, 7, 1]
-  bass_alt: [1, 5, 1]  # Alternative harmonisation
-  entry: {soprano: 1, bass: 1}
-  exit: {soprano: 3, bass: 1}
+  soprano_degrees: ["1", "+2", "+3"]
+  bass_degrees: ["1", "-7", "+1"]
+  bass_alt: [1, 5, 1]
   bars: [1, 2]
   cadential_state: open
   position: opening
@@ -31,11 +32,8 @@ do_re_mi:
 
 romanesca:
   description: Six-stage opening with alternating strong/weak
-  soprano_degrees: [3, 5, 1, 3, 6, 5]
-  bass_degrees: [1, 7, 6, 5, 4, 3]
-  stages: 6
-  entry: {soprano: 3, bass: 1}
-  exit: {soprano: 5, bass: 3}
+  soprano_degrees: ["3", "+5", "-1", "+3", "+6", "-5"]
+  bass_degrees: ["1", "-7", "-6", "-5", "-4", "-3"]
   bars: [2, 4]
   cadential_state: open
   position: opening
@@ -46,11 +44,9 @@ romanesca:
 
 meyer:
   description: Two dyads with accented dissonance on scale-degree 7
-  soprano_degrees: [1, 7, 4, 3]  # Two dyads: 1-7, 4-3
-  bass_degrees: [1, 2, 7, 1]     # Two dyads: 1-2, 7-1
+  soprano_degrees: ["1", "-7", "-4", "-3"]
+  bass_degrees: ["1", "+2", "-7", "+1"]
   structure: two_dyads
-  entry: {soprano: 1, bass: 1}
-  exit: {soprano: 3, bass: 1}
   bars: [1, 2]
   cadential_state: open
   position: opening
@@ -60,11 +56,9 @@ meyer:
 
 sol_fa_mi:
   description: Lyrical opening, less bold than Meyer
-  soprano_degrees: [5, 4, 4, 3]  # Two dyads: 5-4, 4-3
-  bass_degrees: [1, 2, 7, 1]     # Two dyads: 1-2, 7-1
+  soprano_degrees: ["5", "-4", "4", "-3"]
+  bass_degrees: ["1", "+2", "-7", "+1"]
   structure: two_dyads
-  entry: {soprano: 5, bass: 1}
-  exit: {soprano: 3, bass: 1}
   bars: [1, 2]
   cadential_state: open
   position: opening
@@ -78,11 +72,9 @@ sol_fa_mi:
 
 prinner:
   description: Archetypal riposte; parallel tenths descending
-  soprano_degrees: [6, 5, 4, 3]
-  bass_degrees: [4, 3, 2, 1]
-  bass_alt: [4, 3, 2, 5, 1]  # Cadential variant with dominant
-  entry: {soprano: 6, bass: 4}
-  exit: {soprano: 3, bass: 1}
+  soprano_degrees: ["6", "-5", "-4", "-3"]
+  bass_degrees: ["4", "-3", "-2", "-1"]
+  bass_alt: [4, 3, 2, 5, 1]
   bars: [1, 2]
   cadential_state: closed
   position: riposte
@@ -97,16 +89,13 @@ prinner:
 
 fonte:
   description: Descending sequence; clausula cantizans per segment
-  # Degrees are per segment, relative to local tonicisation
-  # Note: (4,7) is passing motion; arrival is (3,1)
   segment:
-    soprano_degrees: [4, 3]
-    bass_degrees: [7, 1]
+    soprano_degrees: ["4", "-3"]
+    bass_degrees: ["7", "+1"]
   segments: 2
+  segment_direction: down
   direction: descending
   typical_keys: "ii -> I"
-  entry: {soprano: 4, bass: 7}  # Approach (passing)
-  exit: {soprano: 3, bass: 1}   # Arrival (consonant)
   bars: [2, 4]
   cadential_state: open
   position: continuation
@@ -117,16 +106,13 @@ fonte:
 
 monte:
   description: Ascending sequence; clausula cantizans per segment
-  # Degrees are per segment, relative to local tonicisation
-  # Note: (4,7) is passing motion; arrival is (3,1)
   segment:
-    soprano_degrees: [4, 3]  # Variable; often same as Fonte
-    bass_degrees: [7, 1]
-  segments: [2, 3]  # Can be 2 or 3 segments
+    soprano_degrees: ["4", "-3"]
+    bass_degrees: ["7", "+1"]
+  segments: [2, 3]
+  segment_direction: up
   direction: ascending
   typical_keys: "IV -> V (-> vi)"
-  entry: {soprano: 4, bass: 7}  # Approach (passing)
-  exit: {soprano: 3, bass: 1}   # Arrival (consonant)
   bars: [2, 4]
   cadential_state: open
   position: continuation
@@ -138,10 +124,8 @@ monte:
 
 fenaroli:
   description: Interior schema; bass 7-1-2-3 with soprano 4-3-7-1
-  soprano_degrees: [4, 3, 7, 1]
-  bass_degrees: [7, 1, 2, 3]
-  entry: {soprano: 4, bass: 7}
-  exit: {soprano: 1, bass: 3}
+  soprano_degrees: ["4", "-3", "-7", "+1"]
+  bass_degrees: ["7", "+1", "+2", "+3"]
   bars: [1, 2]
   cadential_state: open
   position: continuation
@@ -156,10 +140,8 @@ fenaroli:
 
 ponte:
   description: Dominant pedal prolongation
-  soprano_degrees: [2, 2, 2]  # Or 7-7-7; sustained/repeated
-  bass_degrees: [5, 5, 5]     # Pedal
-  entry: {soprano: 2, bass: 5}
-  exit: {soprano: 2, bass: 5}
+  soprano_degrees: ["2", "2", "2"]
+  bass_degrees: ["5", "5", "5"]
   bars: [1, 2]
   cadential_state: open
   position: pre_cadential
@@ -170,10 +152,8 @@ ponte:
 
 passo_indietro:
   description: Pre-cadential approach; first two stages of Prinner
-  soprano_degrees: [6, 5]
-  bass_degrees: [4, 4.5, 5]  # 4-#4-5 (fa-fi-sol); 4.5 = raised 4
-  entry: {soprano: 6, bass: 4}
-  exit: {soprano: 5, bass: 5}
+  soprano_degrees: ["6", "-5"]
+  bass_degrees: ["4", "+4.5", "+5"]
   bars: [1, 2]
   cadential_state: open
   position: pre_cadential
@@ -185,10 +165,8 @@ passo_indietro:
 
 indugio:
   description: Pre-cadential delay; prolongs 4
-  soprano_degrees: [2, 1, 7]
-  bass_degrees: [4, 4, 4]  # Prolonged, often as 6/5 chord
-  entry: {soprano: 2, bass: 4}
-  exit: {soprano: 7, bass: 4}
+  soprano_degrees: ["2", "-1", "-7"]
+  bass_degrees: ["4", "4", "4"]
   bars: [1, 2]
   cadential_state: open
   position: pre_cadential
@@ -204,10 +182,8 @@ indugio:
 
 cadenza_semplice:
   description: Simple authentic cadence
-  soprano_degrees: [2, 7, 1]
-  bass_degrees: [5, 5, 1]  # Can also be just [5, 1]
-  entry: {soprano: 2, bass: 5}
-  exit: {soprano: 1, bass: 1}
+  soprano_degrees: ["2", "-7", "+1"]
+  bass_degrees: ["5", "5", "-1"]
   bars: [1, 1]
   cadential_state: closed
   position: cadential
@@ -217,10 +193,8 @@ cadenza_semplice:
 
 cadenza_composta:
   description: Strong authentic cadence with IV-V-I
-  soprano_degrees: [4, 3, 2, 1]
-  bass_degrees: [4, 5, 5, 1]
-  entry: {soprano: 4, bass: 4}
-  exit: {soprano: 1, bass: 1}
+  soprano_degrees: ["4", "-3", "-2", "-1"]
+  bass_degrees: ["4", "+5", "5", "-1"]
   bars: [1, 2]
   cadential_state: closed
   position: cadential
@@ -230,10 +204,8 @@ cadenza_composta:
 
 comma:
   description: Brief cadential gesture
-  soprano_degrees: [4, 3]  # Or [1, 7] in dominant context
-  bass_degrees: [5, 1]
-  entry: {soprano: 4, bass: 5}
-  exit: {soprano: 3, bass: 1}
+  soprano_degrees: ["4", "-3"]
+  bass_degrees: ["5", "-1"]
   bars: [1, 1]
   cadential_state: closed
   position: cadential
@@ -244,10 +216,8 @@ comma:
 
 half_cadence:
   description: Cadence on dominant
-  soprano_degrees: [2, 2]  # Or approach from various degrees
-  bass_degrees: [5, 5]
-  entry: {soprano: 2, bass: 5}
-  exit: {soprano: 2, bass: 5}
+  soprano_degrees: ["2", "2"]
+  bass_degrees: ["5", "5"]
   bars: [1, 1]
   cadential_state: half_closed
   position: cadential
@@ -261,10 +231,8 @@ half_cadence:
 
 quiescenza:
   description: Tonic pedal with chromatic neighbour motion
-  soprano_degrees: [1, -7, 6, 7, 1]  # 1-b7-6-#7-1; -7 = flat, 7 = natural
-  bass_degrees: [1, 1, 1, 1, 1]      # Pedal
-  entry: {soprano: 1, bass: 1}
-  exit: {soprano: 1, bass: 1}
+  soprano_degrees: ["1", "-7", "-6", "+7", "+1"]
+  bass_degrees: ["1", "1", "1", "1", "1"]
   bars: [1, 2]
   cadential_state: closed
   position: post_cadential
@@ -272,7 +240,7 @@ quiescenza:
   chromatic: true
   figuration_profile: pedal
   cadence_approach: false
-  notes: "Framing function; used to begin pieces or confirm cadences"
+  notes: "Framing function; used to begin pieces or confirm cadences. -7 is flat 7."
   source: "Gjerdingen Ch.17"
 
 # =============================================================================

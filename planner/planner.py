@@ -26,15 +26,7 @@ from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic
 from planner.textural import layer_5_textural
 from planner.tonal import layer_2_tonal
-
-
-DEBUG: bool = True
-
-
-def _debug(msg: str) -> None:
-    """Print debug message if DEBUG is enabled."""
-    if DEBUG:
-        print(f"[DEBUG] {msg}")
+from shared.tracer import get_tracer
 
 
 def _derive_key_from_affect(affect: str) -> str:
@@ -59,9 +51,10 @@ def generate(
     tempo_override: int | None = None,
 ) -> NoteFile:
     """Generate composition from genre and affect, with optional key and tempo."""
+    tracer = get_tracer()
     if key is None:
         key = _derive_key_from_affect(affect)
-    _debug(f"Config: genre={genre}, affect={affect}, key={key}")
+    tracer.config(genre, affect, key)
     config: dict[str, Any] = load_configs(genre, key, affect)
     genre_config = config["genre"]
     key_config = config["key"]
@@ -69,23 +62,22 @@ def generate(
     form_config = config["form"]
     schemas = config["schemas"]
     trajectory, rhythm_vocab, tempo = layer_1_rhetorical(genre_config)
-    # Apply tempo priority: brief > affect > genre
     if tempo_override is not None:
         tempo = tempo_override
     else:
         tempo = tempo + affect_config.tempo_modifier
-    _debug(f"L1 Rhetorical: trajectory={trajectory}, tempo={tempo}")
+    tracer.L1("Rhetorical", trajectory=trajectory, tempo=tempo)
     tonal_plan, density, modality = layer_2_tonal(affect_config)
-    _debug(f"L2 Tonal: tonal_plan={tonal_plan}, density={density}, modality={modality}")
+    tracer.L2("Tonal", density=density, modality=modality)
+    tracer.tonal_plan(tonal_plan)
     schema_chain: SchemaChain = layer_3_schematic(
         tonal_plan,
         genre_config,
         form_config,
         schemas,
     )
-    _debug(f"L3 Schematic: schema_chain has {len(schema_chain.schemas)} schemas")
-    for i, s in enumerate(schema_chain.schemas):
-        _debug(f"  [{i}] {s}")
+    tracer.L3("Schematic", schema_count=len(schema_chain.schemas))
+    tracer.schema_chain(schema_chain.schemas)
     bar_assignments, anchors, total_bars = layer_4_metric(
         schema_chain,
         genre_config,
@@ -96,19 +88,15 @@ def generate(
         affect_config.answer_interval,
         modality,
     )
-    _debug(f"L4 Metric: total_bars={total_bars}, anchors={len(anchors)}")
-    _debug(f"  bar_assignments: {bar_assignments}")
-    for a in anchors[:10]:
-        _debug(f"  anchor {a.bar_beat}: U={a.upper_degree} L={a.lower_degree} key={a.local_key.tonic} ({a.schema})")
-    if len(anchors) > 10:
-        _debug(f"  ... and {len(anchors) - 10} more anchors")
+    tracer.L4("Metric", total_bars=total_bars, anchor_count=len(anchors))
+    tracer.bar_assignments(bar_assignments)
+    tracer.anchors_summary(anchors)
     passage_assignments: list[PassageAssignment] = layer_5_textural(
         genre_config,
         bar_assignments,
     )
-    _debug(f"L5 Textural: {len(passage_assignments)} passage assignments")
-    for pa in passage_assignments:
-        _debug(f"  bars {pa.start_bar}-{pa.end_bar}: {pa.function}, lead={pa.lead_voice}")
+    tracer.L5("Textural", passage_count=len(passage_assignments))
+    tracer.passage_assignments(passage_assignments)
     return realise_with_figuration(
         anchors,
         passage_assignments,

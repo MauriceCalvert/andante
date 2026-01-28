@@ -123,13 +123,15 @@ def select_octave(
     median: int,
     prev_pitch: int | None = None,
     alter: int = 0,
+    direction: str | None = None,
 ) -> int:
     """Select octave for a scale degree — canonical pitch placement.
 
     Two modes:
         Initial (prev_pitch=None): Place degree in octave nearest to median.
         Voice-leading (prev_pitch given): Place nearest to prev_pitch,
-            but snap back to median if drift exceeds threshold.
+            respecting direction hint, but snap back to median if drift
+            exceeds threshold.
 
     Args:
         key: Musical key
@@ -137,6 +139,9 @@ def select_octave(
         median: Tessitura median (gravity centre)
         prev_pitch: Previous MIDI pitch, or None for initial placement
         alter: Chromatic alteration in semitones (default 0)
+        direction: Voice-leading hint: "up", "down", "same", or None.
+            When provided with prev_pitch, biases selection toward
+            the indicated direction.
 
     Returns:
         MIDI pitch for the degree in the selected octave.
@@ -149,8 +154,22 @@ def select_octave(
     if prev_pitch is None:
         candidates.sort(key=lambda m: abs(m - median))
         return candidates[0]
+    if direction == "down":
+        below: list[int] = [m for m in candidates if m < prev_pitch]
+        if below:
+            below.sort(key=lambda m: abs(m - prev_pitch))
+            nearest = below[0]
+            if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
+                return nearest
+    elif direction == "up":
+        above: list[int] = [m for m in candidates if m > prev_pitch]
+        if above:
+            above.sort(key=lambda m: abs(m - prev_pitch))
+            nearest = above[0]
+            if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
+                return nearest
     candidates.sort(key=lambda m: abs(m - prev_pitch))
-    nearest: int = candidates[0]
+    nearest = candidates[0]
     if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
         return nearest
     candidates.sort(key=lambda m: abs(m - median))

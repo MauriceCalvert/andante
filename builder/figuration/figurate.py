@@ -40,6 +40,43 @@ DEFORMATION_PROBABILITY: float = 0.15
 CADENTIAL_UNDERSTATEMENT_PROBABILITY: float = 0.10
 
 
+def _get_direction(anchor: Anchor, role: Role) -> str | None:
+    """Get the direction to reach this anchor based on voice role.
+    
+    Args:
+        anchor: Schema anchor with upper_direction and lower_direction.
+        role: Voice role determining which direction to select.
+    
+    Returns:
+        Direction string (up/down/same) or None for first anchor.
+    """
+    if role == Role.SCHEMA_LOWER:
+        return anchor.lower_direction
+    return anchor.upper_direction
+
+
+def _direction_to_ascending(direction: str | None, degree_a: int, degree_b: int) -> bool:
+    """Convert direction to ascending boolean.
+    
+    If direction is explicit, use it directly.
+    If direction is None or same, fall back to degree comparison.
+    
+    Args:
+        direction: Explicit direction (up/down/same) or None.
+        degree_a: Starting degree (1-7).
+        degree_b: Ending degree (1-7).
+    
+    Returns:
+        True if ascending motion, False otherwise.
+    """
+    if direction == "up":
+        return True
+    if direction == "down":
+        return False
+    # For 'same' or None, use degree comparison as fallback
+    return degree_b > degree_a
+
+
 def _get_degree(anchor: Anchor, role: Role) -> int:
     """Get the appropriate degree from anchor based on voice role.
     
@@ -118,7 +155,10 @@ def figurate(
                 prev_figure_name = seq_bars[-1].figure_name
             continue
         interval = compute_interval(_get_degree(anchor_a, role), _get_degree(anchor_b, role))
-        ascending = _get_degree(anchor_b, role) > _get_degree(anchor_a, role)
+        direction = _get_direction(anchor_b, role)
+        ascending = _direction_to_ascending(
+            direction, _get_degree(anchor_a, role), _get_degree(anchor_b, role),
+        )
         phrase_pos = _determine_position_with_deformation(
             bar_num, total_bars, anchor_a.schema, phrase_deformation,
         )
@@ -205,7 +245,10 @@ def figurate_single_bar(
     """Figurate a single bar between two anchors."""
     role: Role = _role_from_voice_string(voice)
     interval = compute_interval(_get_degree(anchor_a, role), _get_degree(anchor_b, role))
-    ascending = _get_degree(anchor_b, role) > _get_degree(anchor_a, role)
+    direction = _get_direction(anchor_b, role)
+    ascending = _direction_to_ascending(
+        direction, _get_degree(anchor_a, role), _get_degree(anchor_b, role),
+    )
     is_minor = key.mode == "minor"
     phrase_pos = determine_phrase_position(bar_num, total_bars, anchor_a.schema)
     harmonic_tension = _compute_harmonic_tension(anchor_a, phrase_pos, role)
@@ -405,7 +448,10 @@ def _apply_fortspinnung_to_section(
     anchor_a = anchors[0]
     anchor_b = anchors[1]
     interval = compute_interval(_get_degree(anchor_a, role), _get_degree(anchor_b, role))
-    ascending = _get_degree(anchor_b, role) > _get_degree(anchor_a, role)
+    direction = _get_direction(anchor_b, role)
+    ascending = _direction_to_ascending(
+        direction, _get_degree(anchor_a, role), _get_degree(anchor_b, role),
+    )
     initial_figure = _select_figure_with_filters(
         interval=interval,
         ascending=ascending,

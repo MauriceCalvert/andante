@@ -1,126 +1,228 @@
-"""Pipeline Tracer - Minimal logging for andante pipeline debugging.
+"""Pipeline Tracer - Hierarchical logging for andante pipeline debugging.
 
-Disabled by default. Enable with TRACE_ENABLED=True or tracer.enable().
-Only logs errors and warnings unless explicitly enabled.
+Trace levels:
+    0: No tracing
+    1: High-level layer summaries (config, layer outputs)
+    2: Mid-level details (schema chains, bar assignments, anchors)
+    3: Fine-grained details (individual notes, figure selections)
+
+Usage:
+    from shared.tracer import get_tracer, set_trace_level
+    set_trace_level(2)
+    tracer = get_tracer()
+    tracer.L1("Rhetorical", trajectory=trajectory, tempo=tempo)
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
 from fractions import Fraction
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
-MAX_EVENTS: int = 500  # Limit events to prevent memory bloat
-MAX_DETAIL_LEN: int = 50  # Truncate long detail values
+TRACE_LEVEL: int = 0
+MAX_LIST_ITEMS: int = 10
+MAX_VALUE_LEN: int = 80
 
 
-@dataclass
-class TraceEvent:
-    """Single trace event."""
-    stage: str
-    location: str
-    event: str
-    details: dict[str, Any] = field(default_factory=dict)
-    level: int = 0
+def set_trace_level(level: int) -> None:
+    """Set global trace level (0-3)."""
+    global TRACE_LEVEL
+    assert 0 <= level <= 3, f"Trace level must be 0-3, got {level}"
+    TRACE_LEVEL = level
+
+
+def get_trace_level() -> int:
+    """Get current trace level."""
+    return TRACE_LEVEL
 
 
 class PipelineTracer:
-    """Collects trace information during pipeline execution."""
+    """Hierarchical tracer with indentation for nested output."""
 
     def __init__(self) -> None:
-        self.events: list[TraceEvent] = []
-        self.indent_level: int = 0
-        self._enabled: bool = False
+        self._buffer: StringIO = StringIO()
+        self._indent: int = 0
 
-    def enable(self) -> None:
-        self._enabled = True
+    def _format_value(self, value: Any) -> str:
+        """Format a value for output, truncating if needed."""
+        if isinstance(value, Fraction):
+            return f"{float(value):.3g}"
+        if isinstance(value, dict):
+            items = [f"{k}={self._format_value(v)}" for k, v in list(value.items())[:MAX_LIST_ITEMS]]
+            suffix = f"...+{len(value) - MAX_LIST_ITEMS}" if len(value) > MAX_LIST_ITEMS else ""
+            return "{" + ", ".join(items) + suffix + "}"
+        if isinstance(value, (list, tuple)):
+            if len(value) > MAX_LIST_ITEMS:
+                items = [self._format_value(v) for v in value[:MAX_LIST_ITEMS]]
+                return "[" + ", ".join(items) + f"...+{len(value) - MAX_LIST_ITEMS}]"
+            return "[" + ", ".join(self._format_value(v) for v in value) + "]"
+        result = str(value)
+        if len(result) > MAX_VALUE_LEN:
+            return result[:MAX_VALUE_LEN] + "..."
+        return result
 
-    def disable(self) -> None:
-        self._enabled = False
-
-    def trace(self, stage: str, location: str, event: str, **details: Any) -> None:
-        if not self._enabled:
+    def _write(self, min_level: int, prefix: str, message: str, **kwargs: Any) -> None:
+        """Write a trace line if current level >= min_level."""
+        if TRACE_LEVEL < min_level:
             return
-        # Limit total events
-        if len(self.events) >= MAX_EVENTS:
+        indent_str = "  " * self._indent
+        if kwargs:
+            parts = [f"{k}={self._format_value(v)}" for k, v in kwargs.items()]
+            detail = ", ".join(parts)
+            line = f"{indent_str}[{prefix}] {message}: {detail}"
+        else:
+            line = f"{indent_str}[{prefix}] {message}"
+        self._buffer.write(line + "\n")
+
+    def _write_sub(self, min_level: int, message: str) -> None:
+        """Write a sub-item line (indented, no prefix)."""
+        if TRACE_LEVEL < min_level:
             return
-        clean: dict[str, Any] = {}
-        for k, v in details.items():
-            if isinstance(v, Fraction):
-                clean[k] = f"{float(v):.2f}"
-            elif isinstance(v, (list, tuple)):
-                if len(v) > 5:
-                    clean[k] = f"[{len(v)} items]"
-                else:
-                    clean[k] = [f"{float(x):.2f}" if isinstance(x, Fraction) else str(x)[:MAX_DETAIL_LEN] for x in v]
-            elif isinstance(v, str) and len(v) > MAX_DETAIL_LEN:
-                clean[k] = v[:MAX_DETAIL_LEN] + "..."
-            else:
-                clean[k] = v
-        self.events.append(TraceEvent(stage, location, event, clean, self.indent_level))
+        indent_str = "  " * (self._indent + 1)
+        self._buffer.write(f"{indent_str}{message}\n")
 
-    def enter(self, stage: str, location: str, **details: Any) -> None:
-        self.trace(stage, location, "ENTER", **details)
-        self.indent_level += 1
+    # Level 1: High-level summaries
+    def config(self, genre: str, affect: str, key: str) -> None:
+        """L1: Configuration summary."""
+        self._write(1, "Config", f"genre={genre}, affect={affect}, key={key}")
 
-    def exit(self, stage: str, location: str, **details: Any) -> None:
-        self.indent_level = max(0, self.indent_level - 1)
-        self.trace(stage, location, "EXIT", **details)
+    def L1(self, layer: str, **kwargs: Any) -> None:
+        """L1: Layer output summary."""
+        self._write(1, f"L1 {layer}", "output", **kwargs)
 
-    def phrase(self, index: int, treatment: str, bars: int, **details: Any) -> None:
-        self.trace("EXPAND", f"p{index}", f"{treatment}/{bars}b")
+    def L2(self, layer: str, **kwargs: Any) -> None:
+        """L1: Layer 2 output summary."""
+        self._write(1, f"L2 {layer}", "output", **kwargs)
 
-    def voice(self, location: str, voice: str, pitches: list, durations: list) -> None:
-        self.trace("VOICE", f"{location}/{voice}", f"n={len(pitches)}")
+    def L3(self, layer: str, **kwargs: Any) -> None:
+        """L1: Layer 3 output summary."""
+        self._write(1, f"L3 {layer}", "output", **kwargs)
 
-    def realise(self, location: str, voice: str, notes: int, **details: Any) -> None:
-        self.trace("REALISE", f"{location}/{voice}", f"n={notes}")
+    def L4(self, layer: str, **kwargs: Any) -> None:
+        """L1: Layer 4 output summary."""
+        self._write(1, f"L4 {layer}", "output", **kwargs)
 
-    def fix(self, location: str, event: str, **details: Any) -> None:
-        self.trace("FIX", location, event, **details)
+    def L5(self, layer: str, **kwargs: Any) -> None:
+        """L1: Layer 5 output summary."""
+        self._write(1, f"L5 {layer}", "output", **kwargs)
 
-    def guard(self, guard_id: str, severity: str, message: str, location: str) -> None:
-        self.trace("GUARD", location, f"{severity}: {guard_id} - {message}")
+    def L6(self, layer: str, **kwargs: Any) -> None:
+        """L1: Layer 6 output summary."""
+        self._write(1, f"L6 {layer}", "output", **kwargs)
 
-    def warning(self, location: str, message: str, **details: Any) -> None:
-        self.trace("WARNING", location, message, **details)
+    # Level 2: Mid-level details
+    def schema_chain(self, schemas: tuple[str, ...]) -> None:
+        """L2: Schema chain listing."""
+        self._write(2, "L3 Detail", f"schema_chain has {len(schemas)} schemas")
+        for i, s in enumerate(schemas):
+            self._write_sub(2, f"[{i}] {s}")
 
-    def error(self, location: str, message: str, **details: Any) -> None:
-        self.trace("ERROR", location, message, **details)
+    def bar_assignments(self, assignments: dict[str, tuple[int, int]]) -> None:
+        """L2: Bar assignments per section."""
+        self._write(2, "L4 Detail", "bar_assignments")
+        for name, (start, end) in assignments.items():
+            self._write_sub(2, f"{name}: bars {start}-{end}")
 
-    def format_log(self) -> str:
-        """Format log concisely - one line per event."""
-        lines: list[str] = [f"TRACE ({len(self.events)} events)"]
-        for evt in self.events:
-            detail_str = " ".join(f"{k}={v}" for k, v in evt.details.items()) if evt.details else ""
-            lines.append(f"{'  '*evt.level}{evt.stage}:{evt.location} {evt.event} {detail_str}".rstrip())
-        return "\n".join(lines)
+    def anchors_summary(self, anchors: list, limit: int = 10) -> None:
+        """L2: Anchor summary with limit."""
+        self._write(2, "L4 Detail", f"anchors={len(anchors)}")
+        for a in anchors[:limit]:
+            self._write_sub(2, f"bar {a.bar_beat}: U={a.upper_degree} L={a.lower_degree} key={a.local_key.tonic} ({a.schema})")
+        if len(anchors) > limit:
+            self._write_sub(2, f"...and {len(anchors) - limit} more anchors")
 
-    def write_log(self, path: str) -> None:
-        Path(path).write_text(self.format_log(), encoding="utf-8")
+    def passage_assignments(self, assignments: list) -> None:
+        """L2: Passage assignments listing."""
+        self._write(2, "L5 Detail", f"{len(assignments)} passage assignments")
+        for pa in assignments:
+            self._write_sub(2, f"bars {pa.start_bar}-{pa.end_bar}: {pa.function}, lead={pa.lead_voice}")
+
+    def tonal_plan(self, plan: dict[str, tuple[str, ...]]) -> None:
+        """L2: Tonal plan per section."""
+        self._write(2, "L2 Detail", "tonal_plan")
+        for section, areas in plan.items():
+            self._write_sub(2, f"{section}: {' -> '.join(areas)}")
+
+    # Level 3: Fine-grained details
+    def anchor(self, bar_beat: str, upper: int, lower: int, key: str, schema: str, stage: int) -> None:
+        """L3: Individual anchor detail."""
+        self._write(3, "Anchor", f"{bar_beat}", upper=upper, lower=lower, key=key, schema=schema, stage=stage)
+
+    def figure_selection(self, bar: int, figure: str, density: str) -> None:
+        """L3: Figure selection for bar."""
+        self._write(3, "Figure", f"bar {bar}", figure=figure, density=density)
+
+    def bass_pattern(self, bar: int, pattern: str, degree: int) -> None:
+        """L3: Bass pattern for bar."""
+        self._write(3, "Bass", f"bar {bar}", pattern=pattern, degree=degree)
+
+    def note_output(self, voice: str, offset: Fraction, pitch: int, duration: Fraction) -> None:
+        """L3: Individual note output."""
+        self._write(3, "Note", voice, offset=offset, pitch=pitch, duration=duration)
+
+    def expansion(self, bar: int, function: str, expansion: str) -> None:
+        """L3: Voice expansion for bar."""
+        self._write(3, "Expansion", f"bar {bar}", function=function, expansion=expansion)
+
+    def warning(self, location: str, message: str, **kwargs: Any) -> None:
+        """Any level: Warning message."""
+        self._write(1, "WARN", f"{location}: {message}", **kwargs)
+
+    def error(self, location: str, message: str, **kwargs: Any) -> None:
+        """Any level: Error message."""
+        self._write(1, "ERROR", f"{location}: {message}", **kwargs)
+
+    # Context managers for nested sections
+    def section(self, name: str, min_level: int = 2) -> "TracerSection":
+        """Create a nested section with increased indentation."""
+        return TracerSection(self, name, min_level)
+
+    # Output methods
+    def get_output(self) -> str:
+        """Get accumulated trace output."""
+        return self._buffer.getvalue()
+
+    def write_to_file(self, path: Path | str) -> None:
+        """Write trace output to file."""
+        Path(path).write_text(self._buffer.getvalue(), encoding="utf-8")
 
     def clear(self) -> None:
-        self.events = []
-        self.indent_level = 0
+        """Clear the trace buffer."""
+        self._buffer = StringIO()
+        self._indent = 0
+
+
+class TracerSection:
+    """Context manager for nested trace sections."""
+
+    def __init__(self, tracer: PipelineTracer, name: str, min_level: int) -> None:
+        self._tracer = tracer
+        self._name = name
+        self._min_level = min_level
+
+    def __enter__(self) -> "TracerSection":
+        if TRACE_LEVEL >= self._min_level:
+            self._tracer._write(self._min_level, "Section", self._name)
+            self._tracer._indent += 1
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if TRACE_LEVEL >= self._min_level:
+            self._tracer._indent -= 1
 
 
 _tracer: PipelineTracer | None = None
-TRACE_ENABLED: bool = False  # Disabled by default; enable for debugging
 
 
 def get_tracer() -> PipelineTracer:
+    """Get the global tracer instance."""
     global _tracer
     if _tracer is None:
         _tracer = PipelineTracer()
-        if TRACE_ENABLED:
-            _tracer.enable()
     return _tracer
 
 
 def reset_tracer() -> PipelineTracer:
+    """Reset and return a fresh tracer instance."""
     global _tracer
     _tracer = PipelineTracer()
     return _tracer
-
-
-def trace(stage: str, location: str, event: str, **details: Any) -> None:
-    get_tracer().trace(stage, location, event, **details)

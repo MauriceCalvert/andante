@@ -82,7 +82,13 @@ def load_all_schemas() -> dict[str, SchemaConfig]:
     data: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
     result: dict[str, SchemaConfig] = {}
     for name, schema_data in data.items():
-        result[name] = _validate_schema(name, schema_data)
+        if not isinstance(schema_data, dict):
+            continue
+        if "soprano_degrees" not in schema_data and "segment" not in schema_data:
+            continue
+        schema: SchemaConfig | None = _validate_schema(name, schema_data)
+        if schema is not None:
+            result[name] = schema
     return result
 
 
@@ -387,29 +393,99 @@ def _validate_genre(data: dict) -> GenreConfig:
     )
 
 
+VALID_DIRECTIONS: frozenset[str] = frozenset({"up", "down", "same"})
+
+
+def _parse_signed_degree(raw: str | int | float, is_first: bool) -> tuple[int, str | None]:
+    """Parse a signed degree string into (degree, direction).
+    
+    Format:
+        First degree: unsigned (starting point), direction=None
+        Subsequent: -N = down to N, N = same, +N = up to N
+    
+    Args:
+        raw: Degree value as string ("+2", "-7", "1") or number.
+        is_first: True if this is the first degree (no direction).
+    
+    Returns:
+        (degree, direction) where degree is 1-7 and direction is up/down/same/None.
+    """
+    if isinstance(raw, (int, float)):
+        # Numeric value - treat as unsigned
+        degree = int(abs(raw))
+        direction = None if is_first else "same"
+        return degree, direction
+    # String value
+    raw_str = str(raw).strip()
+    if not raw_str:
+        return 1, None
+    if raw_str.startswith("+"):
+        degree_str = raw_str[1:]
+        direction = None if is_first else "up"
+    elif raw_str.startswith("-"):
+        degree_str = raw_str[1:]
+        direction = None if is_first else "down"
+    else:
+        degree_str = raw_str
+        direction = None if is_first else "same"
+    # Handle chromatic (e.g., "4.5" for raised 4)
+    degree = int(float(degree_str))
+    return degree, direction
+
+
+def _parse_signed_degrees(raw_list: list) -> tuple[tuple[int, ...], tuple[str | None, ...]]:
+    """Parse a list of signed degrees into degrees and directions.
+    
+    Args:
+        raw_list: List of signed degree values.
+    
+    Returns:
+        (degrees, directions) tuples.
+    """
+    degrees: list[int] = []
+    directions: list[str | None] = []
+    for i, raw in enumerate(raw_list):
+        degree, direction = _parse_signed_degree(raw, is_first=(i == 0))
+        degrees.append(degree)
+        directions.append(direction)
+    return tuple(degrees), tuple(directions)
+
+
 def _validate_schema(name: str, data: dict) -> SchemaConfig:
     """Validate schema YAML against schema."""
-    entry: dict = data.get("entry", {})
-    exit_data: dict = data.get("exit", {})
+    if not isinstance(data, dict):
+        # Skip non-dict entries (comments, etc.)
+        return None
     bars: list = data.get("bars", [1, 2])
     segments: Any = data.get("segments", [1])
     if isinstance(segments, int):
         segments = [segments]
-    soprano_degrees: list = data.get("soprano_degrees", [])
-    bass_degrees: list = data.get("bass_degrees", [])
-    if not soprano_degrees and "segment" in data:
+    # Handle sequential schemas with segment sub-structure
+    if "segment" in data:
         segment: dict = data["segment"]
-        soprano_degrees = segment.get("soprano_degrees", [])
-        bass_degrees = segment.get("bass_degrees", [])
+        raw_soprano = segment.get("soprano_degrees", [])
+        raw_bass = segment.get("bass_degrees", [])
+    else:
+        raw_soprano = data.get("soprano_degrees", [])
+        raw_bass = data.get("bass_degrees", [])
+    soprano_degrees, soprano_directions = _parse_signed_degrees(raw_soprano)
+    bass_degrees, bass_directions = _parse_signed_degrees(raw_bass)
     typical_keys: tuple[str, ...] | None = _parse_typical_keys(data.get("typical_keys"))
+    # Derive entry/exit from first/last degrees (single source of truth)
+    entry_soprano: int = soprano_degrees[0] if soprano_degrees else 1
+    entry_bass: int = bass_degrees[0] if bass_degrees else 1
+    exit_soprano: int = soprano_degrees[-1] if soprano_degrees else 1
+    exit_bass: int = bass_degrees[-1] if bass_degrees else 1
     return SchemaConfig(
         name=name,
-        soprano_degrees=tuple(soprano_degrees),
-        bass_degrees=tuple(bass_degrees),
-        entry_soprano=entry.get("soprano", 1),
-        entry_bass=entry.get("bass", 1),
-        exit_soprano=exit_data.get("soprano", 1),
-        exit_bass=exit_data.get("bass", 1),
+        soprano_degrees=soprano_degrees,
+        soprano_directions=soprano_directions,
+        bass_degrees=bass_degrees,
+        bass_directions=bass_directions,
+        entry_soprano=entry_soprano,
+        entry_bass=entry_bass,
+        exit_soprano=exit_soprano,
+        exit_bass=exit_bass,
         bars_min=bars[0],
         bars_max=bars[1] if len(bars) > 1 else bars[0],
         position=data.get("position", "continuation"),
@@ -417,6 +493,7 @@ def _validate_schema(name: str, data: dict) -> SchemaConfig:
         sequential=data.get("sequential", False),
         segments=tuple(segments),
         direction=data.get("direction"),
+        segment_direction=data.get("segment_direction"),
         typical_keys=typical_keys,
     )
 

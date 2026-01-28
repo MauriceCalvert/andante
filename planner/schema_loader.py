@@ -27,14 +27,17 @@ class Schema:
     """Schema definition from schemas.yaml."""
     name: str
     soprano_degrees: tuple[int, ...]
+    soprano_directions: tuple[str | None, ...]  # up/down/same/None per degree
     bass_degrees: tuple[int, ...]
-    entry: Arrival
-    exit: Arrival
+    bass_directions: tuple[str | None, ...]  # up/down/same/None per degree
+    entry: Arrival  # derived from first degrees
+    exit: Arrival  # derived from last degrees
     min_bars: int
     max_bars: int
     position: str  # opening, riposte, continuation, pre_cadential, cadential, post_cadential
     sequential: bool
     direction: str | None  # ascending, descending for sequential schemas
+    segment_direction: str | None  # up/down between segments for sequential schemas
     segments: int  # number of segments for sequential schemas
     pedal: str | None  # dominant, tonic, subdominant
     chromatic: bool  # has chromatic alterations
@@ -65,16 +68,42 @@ def _load_transitions() -> dict[str, Any]:
     return _load_yaml("schemas/schema_transitions.yaml")
 
 
-def _parse_degree(value: int | float) -> int:
-    """Parse degree, handling float encoding for chromatic (e.g., 4.5 = #4)."""
-    if isinstance(value, float):
-        return int(value)  # 4.5 -> 4; chromatic flag handles alteration
-    return value
+def _parse_signed_degree(raw: str | int | float, is_first: bool) -> tuple[int, str | None]:
+    """Parse a signed degree string into (degree, direction).
+    
+    Format:
+        First degree: unsigned (starting point), direction=None
+        Subsequent: -N = down to N, N = same, +N = up to N
+    """
+    if isinstance(raw, (int, float)):
+        degree = int(abs(raw))
+        direction = None if is_first else "same"
+        return degree, direction
+    raw_str = str(raw).strip()
+    if not raw_str:
+        return 1, None
+    if raw_str.startswith("+"):
+        degree_str = raw_str[1:]
+        direction = None if is_first else "up"
+    elif raw_str.startswith("-"):
+        degree_str = raw_str[1:]
+        direction = None if is_first else "down"
+    else:
+        degree_str = raw_str
+        direction = None if is_first else "same"
+    degree = int(float(degree_str))
+    return degree, direction
 
 
-def _parse_arrival(data: dict[str, Any]) -> Arrival:
-    """Parse entry/exit dict to Arrival."""
-    return Arrival(soprano=data["soprano"], bass=data["bass"])
+def _parse_signed_degrees(raw_list: list) -> tuple[tuple[int, ...], tuple[str | None, ...]]:
+    """Parse a list of signed degrees into degrees and directions."""
+    degrees: list[int] = []
+    directions: list[str | None] = []
+    for i, raw in enumerate(raw_list):
+        degree, direction = _parse_signed_degree(raw, is_first=(i == 0))
+        degrees.append(degree)
+        directions.append(direction)
+    return tuple(degrees), tuple(directions)
 
 
 def _parse_bars(data: Any) -> tuple[int, int]:
@@ -103,7 +132,6 @@ def _parse_typical_keys(raw: str | None) -> tuple[str, ...] | None:
     """
     if raw is None:
         return None
-    # Extract Roman numerals (uppercase or lowercase, with optional flats/sharps)
     pattern = r'[iIvV]+|[iI]{1,3}|[vV]{1,3}'
     matches: list[str] = re.findall(pattern, raw)
     if not matches:
@@ -115,23 +143,32 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
     """Parse a single schema entry from YAML."""
     # Handle sequential schemas with segment sub-structure
     if "segment" in data:
-        soprano_degrees = tuple(_parse_degree(d) for d in data["segment"]["soprano_degrees"])
-        bass_degrees = tuple(_parse_degree(d) for d in data["segment"]["bass_degrees"])
+        segment = data["segment"]
+        raw_soprano = segment.get("soprano_degrees", [])
+        raw_bass = segment.get("bass_degrees", [])
     else:
-        soprano_degrees = tuple(_parse_degree(d) for d in data["soprano_degrees"])
-        bass_degrees = tuple(_parse_degree(d) for d in data["bass_degrees"])
+        raw_soprano = data.get("soprano_degrees", [])
+        raw_bass = data.get("bass_degrees", [])
+    soprano_degrees, soprano_directions = _parse_signed_degrees(raw_soprano)
+    bass_degrees, bass_directions = _parse_signed_degrees(raw_bass)
     min_bars, max_bars = _parse_bars(data["bars"])
+    # Derive entry/exit from first/last degrees
+    entry = Arrival(soprano=soprano_degrees[0], bass=bass_degrees[0])
+    exit = Arrival(soprano=soprano_degrees[-1], bass=bass_degrees[-1])
     return Schema(
         name=name,
         soprano_degrees=soprano_degrees,
+        soprano_directions=soprano_directions,
         bass_degrees=bass_degrees,
-        entry=_parse_arrival(data["entry"]),
-        exit=_parse_arrival(data["exit"]),
+        bass_directions=bass_directions,
+        entry=entry,
+        exit=exit,
         min_bars=min_bars,
         max_bars=max_bars,
         position=data.get("position", "continuation"),
         sequential=data.get("sequential", False),
         direction=data.get("direction"),
+        segment_direction=data.get("segment_direction"),
         segments=_parse_segments(data.get("segments", 1)),
         pedal=data.get("pedal"),
         chromatic=data.get("chromatic", False),

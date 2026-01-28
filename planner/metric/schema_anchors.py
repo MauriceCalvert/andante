@@ -62,10 +62,15 @@ def _generate_regular_anchors(
     
     With upbeat: first anchor at (bar 0, beat 3), then bar 1, bar 2, etc.
     Without upbeat: anchors at bar 1, bar 2, bar 3, etc.
+    
+    Directions come from schema definition, same length as degrees.
+    First degree has direction=None; subsequent degrees have explicit direction.
     """
     anchors: list[Anchor] = []
     soprano_degrees: tuple[int, ...] = schema_def.soprano_degrees
     bass_degrees: tuple[int, ...] = schema_def.bass_degrees
+    soprano_directions: tuple[str | None, ...] = schema_def.soprano_directions
+    bass_directions: tuple[str | None, ...] = schema_def.bass_directions
     if not soprano_degrees or not bass_degrees:
         return anchors
     stages: int = len(soprano_degrees)
@@ -75,6 +80,9 @@ def _generate_regular_anchors(
         else:
             bar = start_bar + stage - (1 if upbeat > 0 else 0)
             beat = 1
+        # Get direction for this stage (None for first, explicit for rest)
+        upper_dir: str | None = soprano_directions[stage] if stage < len(soprano_directions) else None
+        lower_dir: str | None = bass_directions[stage] if stage < len(bass_directions) else None
         anchors.append(Anchor(
             bar_beat=f"{bar}.{beat}",
             upper_degree=soprano_degrees[stage],
@@ -82,6 +90,8 @@ def _generate_regular_anchors(
             local_key=local_key,
             schema=schema_name,
             stage=stage + 1,
+            upper_direction=upper_dir,
+            lower_direction=lower_dir,
         ))
     return anchors
 
@@ -114,10 +124,14 @@ def _generate_sequential_anchors(
         Segment 3: key=Em (vi), degree 3 -> G
     
     With upbeat: first anchor at (bar 0, beat 3), then bar 1, bar 2, etc.
+    
+    For sequential schemas, segment_direction indicates motion between segments.
+    First segment has None direction; subsequent segments use segment_direction.
     """
     anchors: list[Anchor] = []
     segment_count: int = _get_segment_count(schema_def)
     typical_keys: tuple[str, ...] | None = schema_def.typical_keys
+    segment_direction: str | None = schema_def.segment_direction
     for seg_idx in range(segment_count):
         if seg_idx == 0 and upbeat > 0:
             bar, beat = _compute_upbeat_bar_beat(start_bar, upbeat, metre)
@@ -129,6 +143,9 @@ def _generate_sequential_anchors(
             seg_idx,
             typical_keys,
         )
+        # First segment has no direction; subsequent segments use segment_direction
+        upper_dir: str | None = segment_direction if seg_idx > 0 else None
+        lower_dir: str | None = segment_direction if seg_idx > 0 else None
         anchors.append(Anchor(
             bar_beat=f"{bar}.{beat}",
             upper_degree=CLAUSULA_ARRIVAL_SOPRANO,
@@ -136,6 +153,8 @@ def _generate_sequential_anchors(
             local_key=local_key,
             schema=schema_name,
             stage=seg_idx + 1,
+            upper_direction=upper_dir,
+            lower_direction=lower_dir,
         ))
     return anchors
 

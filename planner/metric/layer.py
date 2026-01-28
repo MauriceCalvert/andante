@@ -5,6 +5,7 @@ from builder.types import Anchor, FormConfig, GenreConfig, KeyConfig, SchemaConf
 from planner.metric.distribution import bar_beat_to_float
 from planner.metric.schema_anchors import generate_schema_anchors
 from shared.key import Key
+from shared.tracer import get_tracer
 
 
 def get_schema_stages(schema_name: str, schemas: dict[str, SchemaConfig]) -> int:
@@ -29,6 +30,7 @@ def layer_4_metric(
     modality: str = "diatonic",
 ) -> tuple[dict[str, tuple[int, int]], list[Anchor], int]:
     """Execute Layer 4 metric planning."""
+    tracer = get_tracer()
     if schemas is None:
         schemas = {}
     bar_assignments: dict[str, tuple[int, int]] = _build_bar_assignments(
@@ -46,6 +48,8 @@ def layer_4_metric(
         bar_assignments, genre_config.upbeat,
     )
     anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.upper_degree))
+    for a in anchors:
+        tracer.anchor(a.bar_beat, a.upper_degree, a.lower_degree, a.local_key.tonic, a.schema, a.stage)
     return bar_assignments, anchors, total_bars
 
 
@@ -68,7 +72,7 @@ def _build_bar_assignments(
         start_bar: int = current_bar
         end_bar: int = current_bar + section_bars - 1
         if is_first_section and genre_config.upbeat > 0:
-            end_bar -= 1  # Upbeat shifts anchors back by 1 bar
+            end_bar -= 1
         assignments[section_name] = (start_bar, end_bar)
         current_bar = end_bar + 1
         is_first_section = False
@@ -135,7 +139,7 @@ def _generate_single_section_anchors(
         )
         schema_upbeat: Fraction = upbeat if is_first_schema else Fraction(0)
         if schema_upbeat > 0:
-            schema_end -= 1  # Upbeat anchors span [start_bar-1, start_bar+stages-2]
+            schema_end -= 1
         schema_anchors: list[Anchor] = generate_schema_anchors(
             schema_name, schema_def, current_bar, schema_end,
             local_key, metre, schema_upbeat,

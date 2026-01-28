@@ -423,4 +423,54 @@ if phrase.cadence not in tonic_cadences:
 
 ---
 
-*Last updated: 2026-01-16*
+## Direction-Aware Interval Computation
+
+### The Problem: Degree-Only Interval Ambiguity
+
+Schema degrees alone cannot determine interval direction unambiguously:
+
+- Degree 1→7: could be sixth_up (+6 steps) or step_down (-1 step)
+- Degree 7→1: could be step_up (+1 step) or sixth_down (-6 steps)
+
+The original `compute_interval()` assumed the shortest path, which was wrong when schemas specified contrary motion.
+
+**Example bug**: Bass schema do_re_mi with degrees `[1, 7, 1]` should descend C→B→C. But `compute_interval(1, 7)` returned `sixth_up` (diff=6), causing bass to leap up an octave instead of stepping down.
+
+### The Fix: Signed Degrees in Schema YAML
+
+Schemas now use signed degree notation:
+
+```yaml
+do_re_mi:
+  soprano_degrees: ["1", "+2", "+3"]  # ascending
+  bass_degrees: ["1", "-7", "1"]       # descending to 7, then up to 1
+```
+
+First degree is unsigned (entry point). Subsequent degrees use:
+- `+N` = ascending to degree N
+- `-N` = descending to degree N
+- `N` (no sign) = same pitch class, direction from previous
+
+### Implementation Chain
+
+1. **schemas.yaml**: Signed degree strings
+2. **config_loader.py**: `_parse_signed_degrees()` extracts directions tuple
+3. **types.py**: `SchemaConfig` and `Anchor` have `*_directions` fields
+4. **schema_anchors.py**: Propagates directions to each Anchor
+5. **selector.py**: `compute_interval_with_direction()` uses direction to resolve ambiguity
+
+### Key Function: compute_interval_with_direction()
+
+```python
+def compute_interval_with_direction(degree_a, degree_b, direction):
+    if direction == "down" and diff > 0:
+        diff = diff - 7  # Wrap to negative
+    elif direction == "up" and diff < 0:
+        diff = diff + 7  # Wrap to positive
+```
+
+This ensures degree 1→7 with direction="down" yields diff=-1 (step_down), not diff=6 (sixth_up).
+
+---
+
+*Last updated: 2026-01-28*
