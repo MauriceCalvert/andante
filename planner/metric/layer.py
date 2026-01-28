@@ -49,7 +49,7 @@ def layer_4_metric(
     )
     anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.upper_degree))
     for a in anchors:
-        tracer.anchor(a.bar_beat, a.upper_degree, a.lower_degree, a.local_key.tonic, a.schema, a.stage)
+        tracer.anchor(a.bar_beat, a.upper_degree, a.lower_degree, a.local_key.tonic, a.schema, a.stage, a.section)
     return bar_assignments, anchors, total_bars
 
 
@@ -142,7 +142,7 @@ def _generate_single_section_anchors(
             schema_end -= 1
         schema_anchors: list[Anchor] = generate_schema_anchors(
             schema_name, schema_def, current_bar, schema_end,
-            local_key, metre, schema_upbeat,
+            local_key, metre, schema_upbeat, section_name,
         )
         anchors.extend(schema_anchors)
         current_bar = schema_end + 1

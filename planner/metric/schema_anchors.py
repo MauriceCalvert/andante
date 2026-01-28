@@ -29,6 +29,7 @@ def generate_schema_anchors(
     home_key: Key,
     metre: str,
     upbeat: Fraction = Fraction(0),
+    section: str = "",
 ) -> list[Anchor]:
     """Generate anchors for a schema: one anchor per bar, one stage per bar."""
     if schema_def.sequential:
@@ -39,6 +40,7 @@ def generate_schema_anchors(
             home_key,
             upbeat,
             metre,
+            section,
         )
     return _generate_regular_anchors(
         schema_name,
@@ -47,6 +49,7 @@ def generate_schema_anchors(
         home_key,
         upbeat,
         metre,
+        section,
     )
 
 
@@ -57,6 +60,7 @@ def _generate_regular_anchors(
     local_key: Key,
     upbeat: Fraction = Fraction(0),
     metre: str = "4/4",
+    section: str = "",
 ) -> list[Anchor]:
     """Generate anchors for regular (non-sequential) schema.
     
@@ -92,6 +96,7 @@ def _generate_regular_anchors(
             stage=stage + 1,
             upper_direction=upper_dir,
             lower_direction=lower_dir,
+            section=section,
         ))
     return anchors
 
@@ -111,6 +116,7 @@ def _generate_sequential_anchors(
     home_key: Key,
     upbeat: Fraction = Fraction(0),
     metre: str = "4/4",
+    section: str = "",
 ) -> list[Anchor]:
     """Generate anchors for sequential schema (Monte, Fonte).
     
@@ -155,6 +161,7 @@ def _generate_sequential_anchors(
             stage=seg_idx + 1,
             upper_direction=upper_dir,
             lower_direction=lower_dir,
+            section=section,
         ))
     return anchors
 

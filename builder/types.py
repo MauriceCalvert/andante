@@ -130,6 +130,7 @@ class Anchor:
     stage: int
     upper_direction: str | None = None  # up, down, same, or None for first anchor
     lower_direction: str | None = None  # up, down, same, or None for first anchor
+    section: str = ""  # rhetorical section (exordium, narratio, etc.)
 
 
 @dataclass(frozen=True)

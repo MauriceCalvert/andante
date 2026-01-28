@@ -52,12 +52,15 @@ def _get_expansion_for_bar(
 
 
 def _build_stacked_lyric(
+    section: str | None,
     schema: str | None,
     function: str | None,
     figure: str | None,
 ) -> str:
-    """Build stacked lyric from schema, passage function, and figure name."""
+    """Build stacked lyric from section, schema, passage function, and figure name."""
     parts: list[str] = []
+    if section:
+        parts.append(section)
     if schema:
         parts.append(schema)
     if function:
@@ -87,6 +90,7 @@ def _realise(
     prev_soprano: int | None = None
     prev_bass: int | None = None
     prev_function: str | None = None
+    prev_section: str | None = None
     for i, anchor in enumerate(sorted_anchors):
         offset: Fraction = _bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
         if i < len(sorted_anchors) - 1:
@@ -106,8 +110,10 @@ def _realise(
         function: str | None = _get_function_for_bar(bar, passage_assignments)
         schema_part: str | None = anchor.schema if anchor.stage == 1 else None
         function_part: str | None = function if function != prev_function else None
+        section_part: str | None = anchor.section if anchor.section != prev_section else None
         prev_function = function
-        lyric: str = _build_stacked_lyric(schema_part, function_part, None)
+        prev_section = anchor.section
+        lyric: str = _build_stacked_lyric(section_part, schema_part, function_part, None)
         soprano_notes.append(Note(
             offset=offset,
             pitch=s_midi,
@@ -239,6 +245,7 @@ def realise_with_figuration(
     prev_soprano: int | None = None
     prev_function: str | None = None
     prev_expansion_name: str | None = None
+    prev_section: str | None = None
     for i, figured_bar in enumerate(figured_bars):
         if i >= len(sorted_anchors):
             break
@@ -266,10 +273,12 @@ def realise_with_figuration(
                 schema_part: str | None = anchor.schema if anchor.stage == 1 else None
                 function_part: str | None = function if function != prev_function else None
                 exp_part: str | None = expansion_name if expansion_name != prev_expansion_name else None
+                section_part: str | None = anchor.section if anchor.section != prev_section else None
                 prev_function = function
                 prev_expansion_name = expansion_name
+                prev_section = anchor.section
                 figure_part: str | None = figured_bar.figure_name
-                lyric = _build_stacked_lyric(schema_part, function_part, figure_part)
+                lyric = _build_stacked_lyric(section_part, schema_part, function_part, figure_part)
                 if exp_part and lyric:
                     lyric = f"{lyric}[{exp_part}]"
                 elif exp_part:

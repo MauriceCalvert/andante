@@ -143,9 +143,9 @@ class PipelineTracer:
             self._write_sub(2, f"{section}: {' -> '.join(areas)}")
 
     # Level 3: Fine-grained details
-    def anchor(self, bar_beat: str, upper: int, lower: int, key: str, schema: str, stage: int) -> None:
+    def anchor(self, bar_beat: str, upper: int, lower: int, key: str, schema: str, stage: int, section: str = "") -> None:
         """L3: Individual anchor detail."""
-        self._write(3, "Anchor", f"{bar_beat}", upper=upper, lower=lower, key=key, schema=schema, stage=stage)
+        self._write(3, "Anchor", f"{bar_beat}", upper=upper, lower=lower, key=key, schema=schema, stage=stage, section=section)
 
     def figure_selection(self, bar: int, figure: str, density: str) -> None:
         """L3: Figure selection for bar."""
