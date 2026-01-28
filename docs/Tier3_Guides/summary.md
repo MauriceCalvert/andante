@@ -6,9 +6,9 @@
 
 ## What Is Andante?
 
-Baroque music composition system with symmetric Planner/Executor architecture:
+Baroque music composition system with a 7-layer architecture:
 - **Planner**: Brief → YAML plan (what to compose)
-- **Executor**: YAML → MIDI/MusicXML (how to realise it)
+- **Builder**: YAML → MIDI/MusicXML (how to realise it)
 
 ---
 
@@ -16,96 +16,168 @@ Baroque music composition system with symmetric Planner/Executor architecture:
 
 ```
 andante/
-├── engine/                 # Executor: YAML → playable notes
-│   ├── guards/             # Voice-leading constraint checkers
-│   ├── pipeline.py         # E1-E6 orchestrator
-│   ├── plan_parser.py      # YAML → PieceAST
-│   ├── expander.py         # Phrases → bar-level pitches (orchestrator)
-│   ├── expand_phrase.py    # Single phrase expansion
-│   ├── phrase_builder.py   # Budget-aware bar treatment concatenation
-│   ├── voice_pipeline.py   # Data-driven voice generation from treatment config
-│   ├── voice_expander.py   # N-voice expansion with figured bass, schemas
-│   ├── n_voice_expander.py # N-voice with arc and voice_entries
-│   ├── realiser.py         # Degrees → MIDI pitches with ornaments
-│   ├── slice_solver.py     # Slice-based voice resolution (CP-SAT)
-│   ├── cpsat_slice_solver.py # CP-SAT constraint satisfaction solver
-│   ├── inner_voice.py      # Branch-and-bound inner voice search
-│   ├── formatter.py        # Notes → track/bar/beat
-│   └── output.py           # Export to MIDI/MusicXML/CSV
+├── builder/                # Builder: Anchors → playable notes
+│   ├── figuration/         # Baroque melodic patterns (L6.5)
+│   │   ├── bass.py         # Bass pattern realisation
+│   │   ├── figurate.py     # Main figuration engine
+│   │   ├── loader.py       # Load figures from YAML
+│   │   ├── melodic_minor.py # Melodic minor handling
+│   │   ├── junction.py     # Transitions between figures
+│   │   ├── realiser.py     # Figures → note sequences
+│   │   ├── selector.py     # Context-aware figure selection
+│   │   ├── sequencer.py    # Order figures into sequences
+│   │   └── types.py        # Figure, CadentialFigure, PhrasePosition
+│   ├── config_loader.py    # Load YAML configs (genres, schemas, affects)
+│   ├── constraints.py      # Hard constraint definitions
+│   ├── costs.py            # Soft constraint cost functions
+│   ├── counterpoint.py     # Two-part counterpoint rules
+│   ├── faults.py           # 11+ fault categories detection
+│   ├── greedy_solver.py    # Greedy solving approach
+│   ├── io.py               # .note, MIDI, MusicXML output
+│   ├── musicxml_writer.py  # MusicXML export
+│   ├── realisation.py      # Anchors → Note objects
+│   ├── slice.py            # Interval/motion analysis
+│   ├── solver.py           # CP-SAT solver entry point
+│   └── types.py            # Note, Anchor, Solution, etc.
 │
-├── planner/                # Planner: Brief → YAML
-│   ├── planner.py          # 7-stage pipeline orchestrator
+├── planner/                # Planner: Brief → YAML plan
+│   ├── metric/             # Layer 4: Metric planning
+│   │   ├── layer.py        # Metric orchestration
+│   │   ├── distribution.py # Bar/beat distribution
+│   │   ├── schema_anchors.py # Schema anchor generation
+│   │   ├── pitch.py        # Pitch calculation utilities
+│   │   └── constants.py    # Metric constants
+│   ├── planner.py          # 7-layer pipeline orchestrator
 │   ├── plannertypes.py     # Brief, Frame, Material, Plan, etc.
+│   ├── rhetorical.py       # L1: Trajectory, rhythm vocab, tempo
+│   ├── tonal.py            # L2: Key areas, density, modality
+│   ├── schematic.py        # L3: Schema chain generation
+│   ├── textural.py         # L5: Treatment assignments
+│   ├── rhythmic.py         # L6: Active slots, durations
+│   ├── melodic.py          # L7: Greedy pitch solver (orphaned)
 │   ├── frame.py            # Resolve key/mode/metre/tempo
-│   ├── material.py         # Subject acquisition with affect-driven generation
-│   ├── subject.py          # Subject with lazy counter-subject
+│   ├── material.py         # Subject acquisition
+│   ├── subject.py          # Subject with counter-subjects
 │   ├── cs_generator.py     # CP-SAT counter-subject solver
-│   ├── structure.py        # Build SectionSchema from schema chain
-│   ├── cadence_planner.py  # Plan cadence points from frame/genre
-│   ├── schema_generator.py # Generate schema chain from cadence plan
-│   ├── schema_loader.py    # Load and query schema definitions
-│   ├── subject_validator.py # Validate subject against opening schema
-│   ├── subject_deriver.py  # Derive subject from opening schema
-│   ├── dramaturgy.py       # Rhetorical structure & tension curves
-│   ├── harmony.py          # Harmonic architecture planning
-│   ├── devices.py          # Figurenlehre device assignment
-│   ├── coherence.py        # Callbacks, surprises, golden ratio
-│   ├── constraints.py      # Plan → bar-level constraint synthesis
-│   ├── treatment_generator.py # Dynamic treatment sequences
+│   ├── structure.py        # SectionSchema hierarchy
+│   ├── harmony.py          # Key scheme, modulations, cadences
+│   ├── phrase_harmony.py   # Bar-level chord progressions
+│   ├── dramaturgy.py       # Rhetorical structure, tension
+│   ├── coherence.py        # Callbacks, surprises, proportions
 │   ├── arc.py              # Tension curve management
-│   ├── validator.py        # Plan structural validation
-│   └── serializer.py       # Plan → YAML output
+│   ├── schema_loader.py    # Load schema definitions
+│   ├── schema_generator.py # Schema chain from cadence plan
+│   ├── subject_validator.py # Validate against opening schema
+│   ├── subject_deriver.py  # Derive subject from schema
+│   ├── treatment_generator.py # Dynamic treatment sequences
+│   ├── devices.py          # Figurenlehre assignment
+│   ├── constraints.py      # Plan → constraint synthesis
+│   ├── koch_rules.py       # Koch mechanical rules
+│   ├── plan_validator.py   # Plan structural validation
+│   ├── serializer.py       # Plan → YAML output
+│   ├── motif_loader.py     # Load .note files as motifs
+│   └── types.py            # Legacy alias for plannertypes
 │
-├── motifs/                 # Subject generation (music cognition research)
+├── motifs/                 # Subject generation (music cognition)
+│   ├── frequencies/        # Corpus analysis
+│   │   └── analyse_intervals.py # Interval/tessitura distributions
 │   ├── subject_generator.py # 2-bar subjects via head+tail
 │   ├── head_generator.py   # Leap + gap-fill heads (3-5 notes)
-│   ├── tail_generator.py   # Contrary-motion tails (43 melodic cells)
-│   ├── figurae.py          # Baroque rhetorical figures (Figurenlehre)
-│   ├── melodic_features.py # 40+ research-backed melody features
-│   ├── memorable_generator.py # 3-axis generation model
-│   └── enumerator.py       # Exhaustive candidate enumeration
+│   ├── tail_generator.py   # Contrary-motion tails (43 cells)
+│   ├── figurae.py          # Baroque rhetorical figures
+│   ├── melodic_features.py # 40+ melody features
+│   ├── enumerator.py       # Exhaustive candidate enumeration
+│   └── affect_loader.py    # Load affects, score subjects
 │
 ├── shared/                 # Cross-cutting types and utilities
-│   ├── pitch.py            # FloatingNote, MidiPitch, Rest
-│   ├── types.py            # VoiceMaterial, ExpandedVoices, Motif, Frame
+│   ├── pitch.py            # FloatingNote (scale degree without octave)
+│   ├── typedefs.py         # Motif and shared data structures
 │   ├── key.py              # Key class with scale conversion
+│   ├── voice_role.py       # TOP, BOTTOM, INNER_1, INNER_2
 │   ├── timed_material.py   # Budget-first duration handling
-│   ├── parallels.py        # Parallel fifth/octave detection (canonical)
+│   ├── parallels.py        # Parallel fifth/octave detection
+│   ├── dissonance.py       # Harsh interval detection
 │   ├── music_math.py       # Exact fractional duration arithmetic
 │   ├── constants.py        # Scales, note names, valid durations
 │   ├── tracer.py           # Pipeline execution tracing
-│   ├── constraint_validator.py # Brief/Frame YAML validation
+│   ├── validate.py         # Typed validation exceptions
+│   ├── errors.py           # AndanteError exception hierarchy
+│   ├── constraint_validator.py # Brief/Frame validation
+│   ├── yaml_validator.py   # Cross-file YAML validation
 │   └── midi_writer.py      # Standalone MIDI generation
 │
 ├── data/                   # YAML configuration (all musical knowledge)
-│   ├── genres/*.yaml       # invention, chorale, fantasia, minuet...
-│   ├── affects.yaml        # Affektenlehre (8 baroque affects)
-│   ├── archetypes.yaml     # Dramaturgical archetypes (6 types)
-│   ├── figurae.yaml        # Rhetorical figures (20+ figures)
-│   ├── arcs.yaml           # Tension curves and treatments (12 arcs)
-│   ├── treatments.yaml     # Voice expansion specs (21 treatments)
-│   ├── episodes.yaml       # Episode types (32+ types)
-│   ├── cadences.yaml       # Cadential formulas
-│   ├── schemas.yaml        # Partimento patterns (fonte, monte, prinner)
-│   ├── counterpoint_rules.yaml  # Hard/soft constraints and rewards
-│   └── predicates.yaml     # Intervals, registers, consonance
+│   ├── genres/             # Genre templates
+│   │   ├── _default.yaml   # Default genre settings
+│   │   ├── invention.yaml
+│   │   ├── chorale.yaml
+│   │   ├── fantasia.yaml
+│   │   ├── minuet.yaml
+│   │   ├── gavotte.yaml
+│   │   ├── bourree.yaml
+│   │   ├── sarabande.yaml
+│   │   └── trio_sonata.yaml
+│   ├── rhetoric/           # Rhetorical system
+│   │   ├── affects.yaml    # 8 Affektenlehre affects
+│   │   ├── archetypes.yaml # 6 dramaturgical archetypes
+│   │   ├── figurae.yaml    # 20+ rhetorical figures
+│   │   ├── episodes.yaml   # Episode types
+│   │   └── tension_curves.yaml
+│   ├── schemas/            # Partimento patterns
+│   │   ├── schemas.yaml    # fonte, monte, prinner, etc.
+│   │   └── schema_transitions.yaml
+│   ├── figuration/         # Melodic ornamentation
+│   │   ├── figurations.yaml
+│   │   ├── figuration_profiles.yaml
+│   │   ├── accompaniments.yaml
+│   │   ├── diminutions.yaml
+│   │   ├── cadential.yaml
+│   │   ├── rhythm_templates.yaml
+│   │   └── bass_patterns.yaml
+│   ├── instruments/        # Instrument definitions
+│   │   ├── violin.yaml
+│   │   ├── piano.yaml
+│   │   ├── flute_concert.yaml
+│   │   └── recorder_*.yaml # soprano, alto, tenor, bass
+│   ├── rules/              # Counterpoint constraints
+│   │   ├── counterpoint_rules.yaml
+│   │   └── constraints.yaml
+│   ├── treatments/         # Voice expansion specs
+│   │   └── treatments.yaml
+│   ├── cadences/           # Cadential formulas
+│   │   └── cadences.yaml
+│   ├── voicing/            # Texture definitions
+│   │   └── textures.yaml
+│   ├── forms/              # Form templates
+│   │   ├── binary.yaml
+│   │   ├── strophic.yaml
+│   │   └── through_composed.yaml
+│   ├── humanisation/       # Performance nuance
+│   │   ├── metric_weights.yaml
+│   │   ├── performance/    # harpsichord, piano, clavichord
+│   │   └── styles/         # baroque
+│   └── yaml_types.yaml     # Type registry
 │
 ├── scripts/                # CLI entry points
 │   ├── run_pipeline.py     # Full pipeline execution
-│   ├── run_exercises.py    # Run test exercises
-│   ├── generate_subjects.py # Subject generation
-│   └── generate_heads.py   # Head enumeration
+│   ├── run_showcase.py     # Generate showcase piece
+│   ├── note_to_subject.py  # .note → .subject YAML
+│   ├── subject_to_midi.py  # .subject → MIDI
+│   ├── note_to_midi.py     # .note CSV → MIDI
+│   ├── midi_to_note.py     # MIDI → .note CSV
+│   ├── generate_subjects.py # DEPRECATED
+│   └── generate_heads.py   # DEPRECATED
 │
-├── briefs/exercises/     # Test YAML files
+├── briefs/                 # Test YAML brief files
 ├── output/                 # Generated MIDI/MusicXML
-├── tests/                  # Pytest suites (2700+ tests)
+├── tests/                  # Pytest suites
+├── UI/                     # User interface components
 └── docs/                   # Architecture and guides
-    ├── Tier1_Normative/    # grammar.md, vocabulary.md, lessons.md
-    ├── Tier2_Architecture/ # architecture.md
-    ├── Tier3_Guides/       # walkthrough.md, learnings.md, bob.md
-    ├── Tier4_Reference/    # grounding.md, motif_study.md, violin.md
-    ├── Tier5_Roadmap/      # roadmap.md, TODO_period_styles.md
-    ├── counterpoint_rules.md  # Treatise synthesis (Fux, Rameau, etc.)
+    ├── Tier1_Normative/    # laws.md, grammar.md, vocabulary.md, ontology.md
+    ├── Tier2_Architecture/ # architecture.md, figuration.md, solver_specs.md
+    ├── Tier3_Guides/       # summary.md, bob.md, learnings.md, composerguide.md
+    ├── Tier4_Reference/    # counterpoint_rules.md, grounding.md, motif_study.md
+    ├── Instruments/        # violin.md
     └── bugs.md             # Bug tracking
 ```
 
@@ -115,41 +187,64 @@ andante/
 
 ```
 Brief (affect, genre, forces, bars)
-    ↓
-╔═══════════ PLANNER ═══════════╗
-║                               ║
-║  Frame (key, mode, metre, tempo, voices)
-║      ↓                        ║
-║  Dramaturgy (archetype, rhetoric, tension curve)
-║      ↓                        ║
-║  Material (subject, counter-subject, derived motifs)
-║      ↓                        ║
-║  Structure (sections → episodes → phrases)
-║      ↓                        ║
-║  Harmony (key scheme, cadences)
-║      ↓                        ║
-║  Devices (Figurenlehre assignment)
-║      ↓                        ║
-║  Coherence (callbacks, surprises, proportions)
-║                               ║
-╚═══════════════════════════════╝
-    ↓
+    │
+╔═══════════ PLANNER (7 Layers) ════════════╗
+║                                           ║
+║  L1 Rhetorical → trajectory, rhythm, tempo║
+║      │                                    ║
+║  L2 Tonal → key areas, density, modality  ║
+║      │                                    ║
+║  L3 Schematic → schema chain              ║
+║      │                                    ║
+║  L4 Metric → bar assignments, anchors     ║
+║      │                                    ║
+║  L5 Textural → treatment assignments      ║
+║      │                                    ║
+║  L6 Rhythmic → active slots, durations    ║
+║      │                                    ║
+║  L6.5 Figuration → pitch sequences        ║
+║      │                                    ║
+║  L7 Melodic → (orphaned, kept for future) ║
+║                                           ║
+╚═══════════════════════════════════════════╝
+    │
 YAML Plan
-    ↓
-╔═══════════ ENGINE ════════════╗
-║                               ║
-║  E1 Parse     → PieceAST      ║
-║      ↓                        ║
-║  E3 Expand    → ExpandedPhrase (bar-level FloatingNotes)
-║      ↓                        ║
-║  E4 Realise   → RealisedPhrase (MIDI pitches)
-║      ↓                        ║
-║  E6 Format    → Note (track/bar/beat)
-║                               ║
-╚═══════════════════════════════╝
-    ↓
+    │
+╔═══════════ BUILDER ══════════════════════╗
+║                                          ║
+║  config_loader → Load genres, schemas    ║
+║      │                                   ║
+║  solver/greedy_solver → Constraint solving║
+║      │                                   ║
+║  realisation → Anchors → Notes           ║
+║      │                                   ║
+║  figuration/ → Baroque ornaments         ║
+║      │                                   ║
+║  counterpoint → Rule validation          ║
+║      │                                   ║
+║  faults → 11+ fault detection            ║
+║      │                                   ║
+║  io → Format output                      ║
+║                                          ║
+╚══════════════════════════════════════════╝
+    │
 Export → .midi / .musicxml / .note
 ```
+
+---
+
+## The Seven Layers
+
+| Layer | Input | Output | Mechanism |
+|-------|-------|--------|-----------|
+| 1. Rhetorical | Genre | Trajectory + rhythm vocab + tempo | Fixed per genre |
+| 2. Tonal | Affect | Tonal plan + density + modality | Lookup |
+| 3. Schematic | Tonal plan | Schema chain | Enumerate from rules |
+| 4. Metric | Schema chain | Bar assignments + anchors | Enumerate from rules |
+| 5. Textural | Genre + sections | Treatment assignments | Lookup by convention |
+| 6. Rhythmic | Anchors + treatments + density | Active slots + durations | Rule-based |
+| 6.5 Figuration | Anchors + texture roles | Pitch sequences | Selection + chaining |
+| 7. Melodic | *(orphaned)* | *(was: pitches via solver)* | *(kept for future)* |
 
 ---
 
@@ -165,61 +260,42 @@ Export → .midi / .musicxml / .note
 
 **Conversion flow:**
 ```
-YAML degrees → FloatingNote → (slice solver) → MIDI int
+YAML degrees → FloatingNote → (realisation) → MIDI int
 ```
 
 ---
 
-## Slice-Based Voice Resolution (Core Algorithm)
+## Key Builder Functions
 
-**Location:** `engine/slice_solver.py` + `engine/inner_voice.py`
+### solver.py / greedy_solver.py
+- CP-SAT and greedy solving for pitch selection
+- Uses constraints.py for hard rules, costs.py for soft rules
 
-At each vertical slice where outer voices sound:
+### counterpoint.py
+- `is_consonant()` - Interval consonance check
+- `is_perfect()` - Perfect consonance check
+- `check_parallels()` - Parallel motion detection
+- `check_voice_range()` - Tessitura validation
 
-1. **Resolve outer voices** (soprano/bass) to MIDI
-2. **Infer harmony** from outer voices (chord tones)
-3. **For each inner voice**, left-to-right:
-   - Generate candidates (texture-dependent)
-   - Filter by constraints (parallels, crossing)
-   - Select best by voice-leading cost
-4. **Build solved voices** back to ExpandedVoices
+### realisation.py
+- `realise_with_figuration()` - Anchors → Notes with baroque patterns
+- `select_octave()` - Tessitura-centered octave placement
 
-**Candidate generation varies by texture:**
-| Texture | Candidates |
-|---------|------------|
-| Polyphonic | Octave variants of thematic pitch, chord-tone fallback |
-| Homophonic | Chord tones directly |
+### faults.py
+- `find_faults()` - Detect 11+ fault categories
+- `print_faults()` - Human-readable fault reports
+- Categories: parallel_fifth, parallel_octave, unprepared_dissonance, grotesque_leap, tessitura_excursion, voice_overlap, spacing_error, cross_relation, ugly_leap, direct_motion, consecutive_leaps
 
-**Steps 2-3 are IDENTICAL for all textures.** This is the key invariant.
-
----
-
-## Key Engine Functions
-
-### slice_solver.py / cpsat_slice_solver.py
-- `solve_phrase_cpsat()` - CP-SAT solver for inner voices
-- `filter_candidates()` - Removes parallel fifths/octaves, voice crossing
-- `rank_candidates()` - Voice-leading cost (unison, leaps, median distance)
-
-### inner_voice.py
-- `add_inner_voices_with_backtracking()` - Branch-and-bound search
-- `add_inner_voices_cpsat()` - CP-SAT with branch-and-bound fallback
-- `_score_phrase_combination()` - Holistic scoring across all slices
-
-### realiser.py
-- `realise_phrase()` - FloatingNote → MIDI with ornaments
-- `realise_voice_against()` - Voice realisation checking parallels
-
-### expander.py
-- `expand_piece()` - Orchestrates guard-based backtracking
-- Handles 2/3/4-voice expansion with inner voice insertion
+### figuration/figurate.py
+- Main figuration engine for baroque melodic patterns
+- Gap filling via ornament + diminution chaining
 
 ---
 
 ## Key Planner Functions
 
 ### planner.py
-- `build_plan()` - 7-stage pipeline: frame → dramaturgy → material → structure → harmony → devices → coherence
+- `build_plan()` - 7-layer pipeline orchestrator
 
 ### cs_generator.py
 - `generate_countersubject()` - CP-SAT solver with 7 constraint groups:
@@ -231,204 +307,144 @@ At each vertical slice where outer voices sound:
   - Invertibility (avoid inversely-dissonant intervals)
   - Climax (offset from subject peak)
 
-### subject_generator.py (in motifs/)
-- `generate_subject()` - Head + tail construction with figurae scoring
-- Uses music cognition research (leap + gap-fill pattern)
-
----
-
-## Guards System
-
-**Location:** `engine/guards/`
-
-Guards detect violations AFTER generation. Generators must PREVENT violations.
-
-| Guard | Checks |
-|-------|--------|
-| `registry.py` | Orchestrates all guards, creates diagnostics |
-| `spacing.py` | Voice spacing limits (adjacent, bass gap, outer) |
-| `voice_checks.py` | Parallel fifths/octaves, bar duplication, endless trill |
-
-**Backtracking:** If guards fail, increment seed and retry phrase expansion.
+### Layer modules
+- `rhetorical.py` - L1: Genre → trajectory, rhythm vocab, tempo
+- `tonal.py` - L2: Affect → key areas, density, modality
+- `schematic.py` - L3: Tonal plan → schema chain
+- `metric/layer.py` - L4: Schema chain → bar assignments, anchors
+- `textural.py` - L5: Genre → treatment assignments
+- `rhythmic.py` - L6: Active slots, durations per voice
 
 ---
 
 ## Module Categories
 
-### Engine Core (Pipeline)
+### Builder Core
 ```
-pipeline.py        E1-E6 orchestrator, exports to MIDI/MusicXML/note
-plan_parser.py     YAML → PieceAST with validation
-validate.py        Validate YAML against normative vocabulary
-engine_types.py    PieceAST, SectionAST, ExpandedPhrase, RealisedNote
-```
-
-### Engine Expansion
-```
-expander.py        Piece-level expansion with guard backtracking
-expand_phrase.py   Single phrase expansion entry point
-phrase_builder.py  Bar treatment concatenation with budget enforcement
-phrase_expander.py Alternative expansion path with overrides
-voice_pipeline.py  Data-driven voice generation from treatment specs
-voice_expander.py  N-voice expansion (figured bass, pedal, schema, walking)
-n_voice_expander.py N-voice with arc voice_entries
-expander_util.py   Constants and helper functions
+config_loader.py   Load YAML configs (genres, schemas, affects, forms)
+types.py           Note, Anchor, Solution, RhythmState, etc.
+io.py              Export to .note CSV, MIDI, MusicXML
+musicxml_writer.py MusicXML-specific export
 ```
 
-### Engine Voice System
+### Builder Solver
 ```
-slice_solver.py    Slice-based constraint solver (imported by inner_voice)
-cpsat_slice_solver.py CP-SAT solver via OR-Tools
-inner_voice.py     Branch-and-bound phrase-level inner voice search
-voice_realiser.py  FloatingNote → MIDI with octave selection
-voice_config.py    VoiceSet factory (2/3/4-voice configurations)
-voice_material.py  VoiceMaterial, ExpandedVoices types
-voice_pair.py      Voice pair enumeration for constraint checking
-voice_entry.py     N-voice per-phrase specifications
-voice_checks.py    Parallel motion, bar duplication, endless trill detection
-subdivision.py     VerticalSlice extraction at attack points
-octave.py          Octave placement heuristics
+solver.py          CP-SAT solver entry point
+greedy_solver.py   Greedy alternative solver
+constraints.py     Hard constraint definitions
+costs.py           Soft constraint cost functions
+counterpoint.py    Two-part rule checker
+slice.py           Interval/motion analysis utilities
 ```
 
-### Engine Musical Techniques
+### Builder Figuration
 ```
-cadence.py         Cadential approach/resolution patterns
-cadenza.py         Quasi-improvisatory virtuosic passages
-schema.py          Partimento schemas (fonte, monte, prinner)
-texture.py         Texture system (polyphonic, interleaved, canon, hocket)
-transform.py       Melodic transforms (invert, retrograde, augment)
-harmonic_context.py Infer chord tones from outer voices
-ornament.py        Trill, mordent, turn application
-figuration.py      Figuration patterns for melodic variation
-sequence.py        Sequential repetition with transposition/variation
-pedal.py           Pedal point bass generation
-walking_bass.py    Pattern-based walking bass
-figured_bass.py    Figured bass realisation
-hemiola.py         Metric displacement for rhythmic tension
-passage.py         Virtuosic passage patterns (scalar, arpeggiated, tremolo)
-episode.py         Episode-specific treatment and rhythm overrides
+figuration/figurate.py     Main figuration engine
+figuration/loader.py       Load figures from YAML
+figuration/realiser.py     Figures → note sequences
+figuration/selector.py     Context-aware figure selection
+figuration/sequencer.py    Order figures into coherent sequences
+figuration/bass.py         Bass pattern realisation
+figuration/melodic_minor.py Melodic minor handling
+figuration/junction.py     Figure transitions
+figuration/types.py        Figure, CadentialFigure, PhrasePosition
 ```
 
-### Engine Character & Expression
+### Builder Quality
 ```
-energy.py          Dynamic character effects on phrases
-surprise.py        Strategic deviations from expectation
-episode_registry.py Episode generator registry (decorator pattern)
-arc_loader.py      Parse arcs.yaml with voice_entries
-```
-
-### Engine Realisation & Output
-```
-realiser.py        E4 Realiser (pitch types → MIDI pitches)
-realiser_passes.py Bass-specific post-processing
-realiser_guards.py Guard checking for realiser
-formatter.py       RealisedPhrase → Note with track/bar/beat
-output.py          Export to MIDI/MusicXML/CSV via music21
-serializer.py      ExpandedPhrase list → Expanded YAML
-```
-
-### Engine Analysis
-```
-metrics.py         Thematic_ratio and variety_ratio calculation
-annotate.py        Extract annotations from piece structure
+realisation.py     Anchors → Note objects
+faults.py          11+ fault category detection
 ```
 
 ### Planner Core
 ```
-planner.py         Brief → Plan orchestrator (7 stages)
-plannertypes.py    Brief, Frame, Material, Structure, Plan, etc.
-types.py           Legacy alias for plannertypes.py
-frame.py           Resolve key/mode/metre/tempo from genre/affect
-material.py        Subject acquisition with affect-driven generation
-subject.py         Subject class with lazy counter-subject
-cs_generator.py    CP-SAT counter-subject solver
-validator.py       Plan structural integrity checks
+planner.py         Brief → Plan orchestrator (7 layers)
+plannertypes.py    Brief, Frame, Material, Structure, Plan
+frame.py           Resolve key/mode/metre/tempo
 serializer.py      Plan → YAML with Fraction formatting
+plan_validator.py  Plan structural integrity checks
 ```
 
-### Planner Structure (Schema-First)
+### Planner Layers
 ```
-structure.py       Build SectionSchema hierarchy from schema chain
-cadence_planner.py Plan cadence points from frame and genre
-schema_generator.py Generate schema chain from cadence plan
+rhetorical.py      L1: Trajectory, rhythm vocab, tempo
+tonal.py           L2: Key areas, density, modality
+schematic.py       L3: Schema chain generation
+metric/layer.py    L4: Metric orchestration
+metric/distribution.py Bar/beat distribution
+metric/schema_anchors.py Schema anchor generation
+textural.py        L5: Treatment assignments
+rhythmic.py        L6: Active slots, durations
+melodic.py         L7: Greedy pitch solver (orphaned)
+```
+
+### Planner Structure
+```
+structure.py       SectionSchema hierarchy from schema chain
 schema_loader.py   Load and query schema definitions
+schema_generator.py Schema chain from cadence plan
 subject_validator.py Validate subject against opening schema
 subject_deriver.py Derive subject from opening schema
-treatment_generator.py Dynamic treatment sequences by genre
+treatment_generator.py Dynamic treatment sequences
 arc.py             Tension curve management
 ```
 
-### Planner Dramaturgy
+### Planner Material
 ```
-dramaturgy.py      Rhetorical structure & tension curves
-harmony.py         Harmonic architecture (key scheme, cadences)
-devices.py         Figurenlehre device assignment
-coherence.py       Callbacks, surprises, golden ratio scoring
-constraints.py     Plan → bar-level constraint synthesis
+material.py        Subject acquisition with affect-driven generation
+subject.py         Subject class with N counter-subjects
+cs_generator.py    CP-SAT counter-subject solver
+motif_loader.py    Load .note files as motifs
 ```
 
-### Planner Utilities
+### Planner Harmony
 ```
-motif_loader.py    Load .note files as motifs
+harmony.py         Key scheme, modulations, cadences
+phrase_harmony.py  Bar-level chord progressions
+dramaturgy.py      Rhetorical structure, tension curves
+devices.py         Figurenlehre device assignment
+coherence.py       Callbacks, surprises, proportions
+constraints.py     Plan → bar-level constraint synthesis
+koch_rules.py      Koch's mechanical rules
 ```
 
 ### Motifs (Subject Generation)
 ```
-subject_generator.py 2-bar subjects via head+tail with figurae
+subject_generator.py 2-bar subjects via head+tail
 head_generator.py  Leap + gap-fill heads (music cognition)
 tail_generator.py  Contrary-motion tails (43 melodic cells)
-figurae.py         Baroque rhetorical figures (26+ constraints)
+figurae.py         Baroque rhetorical figures
 melodic_features.py 40+ research-backed melody features
-memorable_generator.py 3-axis generation (pitch/rhythm/contour)
-enumerator.py      Exhaustive candidate enumeration with caching
+enumerator.py      Exhaustive candidate enumeration
+affect_loader.py   Load affects, score subjects
+frequencies/analyse_intervals.py Corpus interval analysis
 ```
 
 ### Shared
 ```
-pitch.py           FloatingNote, MidiPitch, Rest types
-types.py           VoiceMaterial, ExpandedVoices, Motif, Frame
+pitch.py           FloatingNote (scale degree without octave)
+typedefs.py        Motif and shared data structures
 key.py             Key class with degree_to_midi, floating_to_midi
+voice_role.py      TOP, BOTTOM, INNER_1, INNER_2 roles
 timed_material.py  Budget-first duration enforcement
-parallels.py       Parallel fifth/octave detection (canonical source)
-music_math.py      Fractional duration arithmetic, fill_slot
+parallels.py       Parallel fifth/octave detection (canonical)
+dissonance.py      Harsh interval detection
+music_math.py      Fractional duration arithmetic
 constants.py       Scales, note names, valid durations
 tracer.py          Pipeline execution tracing
+validate.py        Typed validation exceptions
+errors.py          AndanteError exception hierarchy
 constraint_validator.py Brief/Frame YAML validation
-yaml_validator.py  Cross-file type reference validation + usage report
+yaml_validator.py  Cross-file type reference validation
 midi_writer.py     Standalone MIDI generation
 ```
-
----
-
-## Treatment vs Texture
-
-Two orthogonal concerns that compose independently:
-
-| Concept | Question | Examples |
-|---------|----------|----------|
-| **Treatment** | What notes? | inversion, fragmentation, augmentation |
-| **Texture** | How do voices interact? | polyphonic, interleaved, canon, hocket |
-
-In YAML plans:
-```yaml
-- {treatment: inversion, texture: interleaved}   # inverted subject, Goldberg-style
-- {treatment: fragmentation, texture: canon}     # head motif in canon
-```
-
-Treatment applies melodic transformation to source material. Texture arranges voices.
-
-**Key files:**
-- `data/treatments.yaml` - melodic transforms
-- `data/textures.yaml` - voice relationships
-- `engine/texture.py` - TextureSpec and apply_texture()
-- `docs/Tier2_Architecture/texture_design.md` - full design doc
 
 ---
 
 ## Key Invariants
 
 1. **Budget-first:** `sum(durations) == budget` always
-2. **Slice resolution:** All textures use same filter/select logic
+2. **Valid by construction:** Every layer draws from pre-validated options
 3. **Guards detect, generators prevent:** Don't fix downstream
 4. **Vocabulary is normative:** Terms must match vocabulary.md
 5. **Fractions for music, integers for counts**
@@ -442,21 +458,21 @@ Treatment applies melodic transformation to source material. Texture arranges vo
 
 ## Common Gotchas
 
-1. **Two code paths = bugs.** If polyphonic/homophonic have different logic beyond candidate generation, that's wrong.
+1. **MidiPitch bypasses octave selection.** If you see weird octaves, check if something is creating MidiPitch when it should be FloatingNote.
 
-2. **MidiPitch bypasses octave selection.** If you see weird octaves, check if something is creating MidiPitch when it should be FloatingNote.
+2. **Layer 7 Melodic is orphaned.** Figuration (L6.5) now provides pitch sequences. L7 code exists but is not called.
 
-3. **Inner voices are solved left-to-right.** Voice 1 (alto) is constrained against soprano+bass. Voice 2 (tenor) is constrained against soprano+bass+alto.
+3. **Backtracking is per-phrase.** If exhausted, it's a spec error, not a code bug.
 
-4. **Backtracking is per-phrase.** If exhausted, it's a spec error, not a code bug.
+4. **Leading tone (degree 7) reserved for subject cadences only.** Don't use elsewhere.
 
-5. **Arc voice_entries may be incomplete.** Check if all phrases have entries for all voices.
+5. **Tonal targets are functions, not modulations.** V means dominant function in home key.
 
-6. **Leading tone (degree 7) reserved for subject cadences only.** Don't use elsewhere.
+6. **Natural minor for melodic content.** Only raise 6/7 at cadences.
 
-7. **Tonal targets are functions, not modulations.** V means dominant function in home key.
+7. **Diatonic vs Chromatic modality.** The flag propagates from L2 to realisation.
 
-8. **Natural minor for melodic content.** Only raise 6/7 at cadences.
+8. **Schema arrivals vs degrees.** `entry`/`exit` are derived from first/last of `soprano_degrees`/`bass_degrees`.
 
 ---
 
@@ -469,17 +485,17 @@ cd /d/projects/Barok/barok && source .venv/Scripts/activate && cd source/andante
 # Run tests
 python -m pytest
 
-# Run specific exercise
-python -m scripts.run_exercises
-
-# Run planner
-python -m scripts.run_planner
-
 # Run full pipeline
 python -m scripts.run_pipeline
 
-# Generate subjects
-python -m scripts.generate_subjects
+# Run showcase
+python -m scripts.run_showcase
+
+# Convert formats
+python -m scripts.midi_to_note input.mid
+python -m scripts.note_to_midi input.note
+python -m scripts.note_to_subject input.note
+python -m scripts.subject_to_midi input.subject
 ```
 
 ---
@@ -488,39 +504,30 @@ python -m scripts.generate_subjects
 
 1. **This file** (summary.md)
 2. **bugs.md** - Known issues and fixes
-3. **docs/Tier1_Normative/lessons.md** - Coding rules and anti-patterns
-4. **docs/Tier2_Architecture/architecture.md** - Full pipeline details
-5. **engine/slice_solver.py** - The core algorithm
-6. **counterpoint_rules.md** - Treatise-based rule catalog
-7. **data/counterpoint_rules.yaml** - Machine-readable rules for solver
+3. **docs/Tier1_Normative/laws.md** - Coding rules and anti-patterns
+4. **docs/Tier2_Architecture/architecture.md** - 7-layer pipeline details
+5. **docs/Tier2_Architecture/figuration.md** - L6.5 figuration spec
+6. **docs/Tier4_Reference/counterpoint_rules.md** - Treatise-based rule catalog
+7. **data/rules/counterpoint_rules.yaml** - Machine-readable rules
 
 ---
 
 ## YAML Data Files Quick Reference
 
-| File | Purpose |
-|------|---------|
-| affects.yaml | 8 Affektenlehre affects (Sehnsucht, Klage, etc.) |
-| archetypes.yaml | 6 dramaturgical archetypes with rhetoric proportions |
-| figurae.yaml | 20+ baroque rhetorical figures by category |
-| arcs.yaml | 12 arc templates (simple, invention, fugue, dance) |
-| treatments.yaml | Voice expansion treatments (melodic transforms) |
-| textures.yaml | Texture specs (polyphonic, interleaved, canon, hocket) |
-| episodes.yaml | 32+ episode types with energy profiles |
-| cadences.yaml | Internal (half-bar) and final (2-bar) formulas |
-| schemas.yaml | Partimento patterns (fonte, monte, prinner) |
-| counterpoint_rules.yaml | Hard/soft constraints and rewards (CP-SAT) |
-| predicates.yaml | Intervals, registers, consonance classification |
-| genres/*.yaml | Genre templates (invention, fantasia, minuet, etc.) |
+| Directory | Files | Purpose |
+|-----------|-------|---------|
+| genres/ | 9 files | Genre templates (invention, minuet, gavotte, etc.) |
+| rhetoric/ | 5 files | affects, archetypes, figurae, episodes, tension_curves |
+| schemas/ | 2 files | Partimento patterns, transitions |
+| figuration/ | 7 files | Ornaments, diminutions, accompaniments, bass patterns |
+| instruments/ | 7 files | Violin, piano, recorders, flute |
+| rules/ | 2 files | Counterpoint rules, constraints |
+| treatments/ | 1 file | Voice expansion treatments |
+| cadences/ | 1 file | Cadential formulas |
+| voicing/ | 1 file | Texture specs |
+| forms/ | 3 files | binary, strophic, through_composed |
+| humanisation/ | 4+ files | Metric weights, performance styles |
 
 ---
 
-## Test Coverage
-
-- **2700+ tests** across engine, planner, and shared modules
-- **95%+ coverage** on all production modules
-- Tests follow specification-based methodology (validate against truths, not implementation)
-
----
-
-*Last updated: 2026-01-14*
+*Last updated: 2026-01-28*
