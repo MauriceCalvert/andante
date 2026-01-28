@@ -23,8 +23,8 @@ def layer_5_textural(
     Returns:
         List of TreatmentAssignment with bar ranges and voice assignments.
     """
-    if genre_config.name == "invention":
-        return _invention_texture(genre_config, bar_assignments)
+    if genre_config.treatment_sequence:
+        return _sequence_texture(genre_config, bar_assignments)
     return _default_texture(genre_config, bar_assignments)
 
 
@@ -44,14 +44,17 @@ def _default_texture(
     return assignments
 
 
-def _invention_texture(
+def _sequence_texture(
     genre_config: GenreConfig,
     bar_assignments: dict[str, tuple[int, int]],
 ) -> list[TreatmentAssignment]:
-    """Generate texture sequence for invention.
+    """Generate texture from treatment_sequence in YAML.
 
-    Sequence: S → A → episode₁ → S'/A' → episode₂ → S'' → coda
-    Maps treatment_sequence entries to bar ranges from sections.
+    Each entry in treatment_sequence specifies:
+      - treatment: str (subject, answer, episode, development, cadential, statement)
+      - subject_voice: int|null (0=soprano, 1=bass, null=both)
+
+    Maps entries to sections by index order.
     """
     assignments: list[TreatmentAssignment] = []
     treatment_seq: list[dict] = list(genre_config.treatment_sequence)
@@ -59,69 +62,21 @@ def _invention_texture(
         (section["name"], *bar_assignments[section["name"]])
         for section in genre_config.sections
     ]
-
-    # Match treatments to sections
     section_idx: int = 0
-    for treatment in treatment_seq:
+    for entry in treatment_seq:
         if section_idx >= len(sections):
             break
-
-        symbol: str = treatment.get("symbol", "schematic")
         section_name, start_bar, end_bar = sections[section_idx]
-
-        if symbol == "S":
-            assignments.append(TreatmentAssignment(
-                start_bar=start_bar,
-                end_bar=end_bar,
-                treatment="subject",
-                subject_voice=0,  # soprano
-            ))
-        elif symbol == "A":
-            assignments.append(TreatmentAssignment(
-                start_bar=start_bar,
-                end_bar=end_bar,
-                treatment="answer",
-                subject_voice=1,  # bass
-            ))
-        elif symbol.startswith("episode"):
-            assignments.append(TreatmentAssignment(
-                start_bar=start_bar,
-                end_bar=end_bar,
-                treatment="episode",
-                subject_voice=None,
-            ))
-        elif symbol == "development":
-            assignments.append(TreatmentAssignment(
-                start_bar=start_bar,
-                end_bar=end_bar,
-                treatment="development",
-                subject_voice=None,
-            ))
-        elif symbol == "return":
-            assignments.append(TreatmentAssignment(
-                start_bar=start_bar,
-                end_bar=end_bar,
-                treatment="subject",
-                subject_voice=0,
-            ))
-        elif symbol == "coda":
-            assignments.append(TreatmentAssignment(
-                start_bar=start_bar,
-                end_bar=end_bar,
-                treatment="cadential",
-                subject_voice=None,
-            ))
-        else:
-            assignments.append(TreatmentAssignment(
-                start_bar=start_bar,
-                end_bar=end_bar,
-                treatment="statement",
-                subject_voice=None,
-            ))
-
+        treatment: str = entry.get("treatment", "statement")
+        subject_voice_raw = entry.get("subject_voice")
+        subject_voice: int | None = None if subject_voice_raw is None else int(subject_voice_raw)
+        assignments.append(TreatmentAssignment(
+            start_bar=start_bar,
+            end_bar=end_bar,
+            treatment=treatment,
+            subject_voice=subject_voice,
+        ))
         section_idx += 1
-
-    # Handle remaining sections not covered by treatment_seq
     while section_idx < len(sections):
         section_name, start_bar, end_bar = sections[section_idx]
         assignments.append(TreatmentAssignment(
@@ -131,7 +86,6 @@ def _invention_texture(
             subject_voice=None,
         ))
         section_idx += 1
-
     return assignments
 
 

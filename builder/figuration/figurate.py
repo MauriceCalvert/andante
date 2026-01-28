@@ -41,6 +41,13 @@ DEFORMATION_PROBABILITY: float = 0.15
 CADENTIAL_UNDERSTATEMENT_PROBABILITY: float = 0.10
 
 
+def _get_degree(anchor: Anchor, voice: str) -> int:
+    """Get the appropriate degree from anchor based on voice."""
+    if voice == "bass":
+        return anchor.bass_degree
+    return anchor.soprano_degree
+
+
 def figurate(
     anchors: Sequence[Anchor],
     key: Key,
@@ -48,8 +55,13 @@ def figurate(
     seed: int,
     density: str = "medium",
     affect_character: str = "plain",
+    voice: str = "soprano",
 ) -> list[FiguredBar]:
-    """Main entry point: Convert anchors to figured bars."""
+    """Main entry point: Convert anchors to figured bars.
+    
+    Args:
+        voice: Which anchor degree to use - "soprano" or "bass".
+    """
     if len(anchors) < 2:
         return []
     rng = random.Random(seed)
@@ -63,6 +75,7 @@ def figurate(
     sequencer_state = SequencerState()
     prev_leaped = False
     leap_direction: str | None = None
+    prev_figure_name: str | None = None
     i = 0
     while i < len(sorted_anchors) - 1:
         anchor_a = sorted_anchors[i]
@@ -73,15 +86,16 @@ def figurate(
             seq_start, seq_end = seq_info
             seq_anchors = sorted_anchors[seq_start:seq_end + 1]
             seq_bars = _apply_fortspinnung_to_section(
-                seq_anchors, metre, seed + i, density, is_minor, sequencer_state,
+                seq_anchors, metre, seed + i, density, is_minor, sequencer_state, voice,
             )
             figured_bars.extend(seq_bars)
             i = seq_end
             if seq_bars:
                 prev_leaped = _is_leap_from_figured_bar(seq_bars[-1])
+                prev_figure_name = seq_bars[-1].figure_name
             continue
-        interval = compute_interval(anchor_a.soprano_degree, anchor_b.soprano_degree)
-        ascending = anchor_b.soprano_degree > anchor_a.soprano_degree
+        interval = compute_interval(_get_degree(anchor_a, voice), _get_degree(anchor_b, voice))
+        ascending = _get_degree(anchor_b, voice) > _get_degree(anchor_a, voice)
         phrase_pos = _determine_position_with_deformation(
             bar_num, total_bars, anchor_a.schema, phrase_deformation,
         )
@@ -91,7 +105,7 @@ def figurate(
         next_anchor_strength = _compute_next_anchor_strength(i, sorted_anchors, total_bars)
         if phrase_pos.position == "cadence":
             figure = _select_cadential_figure(
-                anchor_b.soprano_degree, interval, is_minor, seed + i, rng,
+                _get_degree(anchor_b, voice), interval, is_minor, seed + i, rng,
             )
         else:
             figure = None
@@ -107,9 +121,10 @@ def figurate(
                 leap_direction=leap_direction,
                 near_cadence=phrase_pos.position == "cadence",
                 seed=seed + i,
+                avoid_figure=prev_figure_name,
             )
         if figure is None:
-            figure = _create_direct_figure(interval, anchor_a.soprano_degree, anchor_b.soprano_degree)
+            figure = _create_direct_figure(interval, _get_degree(anchor_a, voice), _get_degree(anchor_b, voice))
         if bar_num == 1 and figure.is_compound:
             compound_melody_active = True
         elif bar_num == 1:
@@ -122,9 +137,9 @@ def figurate(
                 figure = compound_fig
         if i + 2 < len(sorted_anchors):
             next_anchor = sorted_anchors[i + 2]
-            if not check_junction(figure, next_anchor.soprano_degree):
+            if not check_junction(figure, _get_degree(next_anchor, voice)):
                 candidates = get_figures_for_interval(interval)
-                alt_figure = find_valid_figure(candidates, next_anchor.soprano_degree)
+                alt_figure = find_valid_figure(candidates, _get_degree(next_anchor, voice))
                 if alt_figure:
                     figure = alt_figure
         offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
@@ -133,7 +148,7 @@ def figurate(
         figured_bar = realise_figure_to_bar(
             figure=figure,
             bar=bar_num,
-            start_degree=anchor_a.soprano_degree,
+            start_degree=_get_degree(anchor_a, voice),
             gap_duration=gap,
             metre=metre,
             bar_function=bar_function,
@@ -145,6 +160,7 @@ def figurate(
         figured_bars.append(figured_bar)
         prev_leaped = _is_leap(figure)
         leap_direction = "up" if ascending else "down"
+        prev_figure_name = figure.name
         i += 1
     return figured_bars
 
@@ -161,10 +177,11 @@ def figurate_single_bar(
     character: str = "plain",
     prev_leaped: bool = False,
     leap_direction: str | None = None,
+    voice: str = "soprano",
 ) -> FiguredBar | None:
     """Figurate a single bar between two anchors."""
-    interval = compute_interval(anchor_a.soprano_degree, anchor_b.soprano_degree)
-    ascending = anchor_b.soprano_degree > anchor_a.soprano_degree
+    interval = compute_interval(_get_degree(anchor_a, voice), _get_degree(anchor_b, voice))
+    ascending = _get_degree(anchor_b, voice) > _get_degree(anchor_a, voice)
     is_minor = key.mode == "minor"
     phrase_pos = determine_phrase_position(bar_num, total_bars, anchor_a.schema)
     harmonic_tension = _compute_harmonic_tension(anchor_a, phrase_pos)
@@ -173,7 +190,7 @@ def figurate_single_bar(
     figure: Figure | None = None
     if phrase_pos.position == "cadence":
         figure = _select_cadential_figure(
-            anchor_b.soprano_degree, interval, is_minor, seed, rng,
+            _get_degree(anchor_b, voice), interval, is_minor, seed, rng,
         )
     if figure is None:
         figure = _select_figure_with_filters(
@@ -196,7 +213,7 @@ def figurate_single_bar(
     return realise_figure_to_bar(
         figure=figure,
         bar=bar_num,
-        start_degree=anchor_a.soprano_degree,
+        start_degree=_get_degree(anchor_a, voice),
         gap_duration=gap,
         metre=metre,
         bar_function=bar_function,
@@ -218,8 +235,13 @@ def _select_figure_with_filters(
     leap_direction: str | None,
     near_cadence: bool,
     seed: int,
+    avoid_figure: str | None = None,
 ) -> Figure | None:
-    """Apply full filter pipeline and select figure."""
+    """Apply full filter pipeline and select figure.
+    
+    Args:
+        avoid_figure: Name of figure to avoid (for variety).
+    """
     all_figures = get_figures_for_interval(interval)
     if not all_figures:
         return None
@@ -231,6 +253,9 @@ def _select_figure_with_filters(
     candidates = filter_by_minor_safety(candidates, is_minor)
     candidates = filter_by_compensation(candidates, prev_leaped, leap_direction)
     candidates = filter_cadential_safe(candidates, near_cadence)
+    # Avoid repeating the same figure consecutively
+    if avoid_figure and len(candidates) > 1:
+        candidates = [f for f in candidates if f.name != avoid_figure] or candidates
     candidates = apply_misbehaviour(candidates, all_figures, seed)
     candidates = sort_by_weight(candidates)
     return select_figure(candidates, seed)
@@ -348,14 +373,15 @@ def _apply_fortspinnung_to_section(
     density: str,
     is_minor: bool,
     state: SequencerState,
+    voice: str = "soprano",
 ) -> list[FiguredBar]:
     """Apply Fortspinnung (spinning out) to a sequential section."""
     if len(anchors) < 2:
         return []
     anchor_a = anchors[0]
     anchor_b = anchors[1]
-    interval = compute_interval(anchor_a.soprano_degree, anchor_b.soprano_degree)
-    ascending = anchor_b.soprano_degree > anchor_a.soprano_degree
+    interval = compute_interval(_get_degree(anchor_a, voice), _get_degree(anchor_b, voice))
+    ascending = _get_degree(anchor_b, voice) > _get_degree(anchor_a, voice)
     initial_figure = _select_figure_with_filters(
         interval=interval,
         ascending=ascending,
@@ -369,8 +395,8 @@ def _apply_fortspinnung_to_section(
         seed=seed,
     )
     if initial_figure is None:
-        initial_figure = _create_direct_figure(interval, anchor_a.soprano_degree, anchor_b.soprano_degree)
-    target_degrees = [a.soprano_degree for a in anchors[:-1]]
+        initial_figure = _create_direct_figure(interval, _get_degree(anchor_a, voice), _get_degree(anchor_b, voice))
+    target_degrees = [_get_degree(a, voice) for a in anchors[:-1]]
     figures = apply_fortspinnung(initial_figure, target_degrees, state)
     result: list[FiguredBar] = []
     for i, figure in enumerate(figures):
@@ -385,7 +411,7 @@ def _apply_fortspinnung_to_section(
         figured_bar = realise_figure_to_bar(
             figure=figure,
             bar=bar_num,
-            start_degree=anchor_a.soprano_degree,
+            start_degree=_get_degree(anchor_a, voice),
             gap_duration=gap,
             metre=metre,
         )

@@ -114,6 +114,7 @@ class FiguredBar:
     """Output of figuration for one bar.
 
     Contains the complete melodic content for a single bar after figuration.
+    Bar 0 is used for anacrusis (upbeat).
     """
     bar: int
     degrees: tuple[int, ...]  # Scale degrees (absolute, 1-7)
@@ -121,7 +122,7 @@ class FiguredBar:
     figure_name: str  # For tracing
 
     def __post_init__(self) -> None:
-        assert self.bar >= 1, f"bar must be >= 1, got {self.bar}"
+        assert self.bar >= 0, f"bar must be >= 0, got {self.bar}"
         assert len(self.degrees) == len(self.durations), \
             f"degrees length {len(self.degrees)} != durations length {len(self.durations)}"
         assert all(1 <= d <= 7 for d in self.degrees), \

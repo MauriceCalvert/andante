@@ -2,7 +2,15 @@
 
 ## Status
 
-v1.6.0 | 100% Deterministic Specification (2-voice Invention, C Major, Confident)
+v1.7.0 | 100% Deterministic Specification (2-voice Invention, C Major, Confident)
+
+---
+
+## Related Documents
+
+- **voices.md**: Voice and instrument entity model (canonical)
+- **figuration.md**: Layer 6.5 figuration system
+- **laws.md**: Normative coding rules
 
 ---
 
@@ -1158,6 +1166,7 @@ If no guidance after all sources, choice is free (counterpoint still applies).
 | 2025-01-22 | v1.4.0: Swapped Layers 4/5 (Metric now L4, Thematic now L5) for logical data flow. Removed incoherent Layer 4.5. Added phrase-level solving to L5. Moved solver config to appendix. |
 | 2025-01-22 | v1.5.0: Expanded to 7-layer architecture. L5 Textural outputs treatment assignments (voice roles per bar). New L6 Rhythmic outputs active slots and durations per voice. L7 Melodic (was Thematic) uses greedy solver, processes only active slots. Moved Imitation/Countersubject to reference section. Solver config moved to solver_specs.md. |
 | 2025-01-25 | v1.6.0: Added L6.5 Figuration layer. Replaces solver with authentic baroque patterns (Quantz/CPE Bach). Gap filling via ornament+diminution chaining. Cadential detection via final stage + cadence_approach flag. Bass uses accompaniments.yaml when role is accompaniment. L7 Melodic orphaned (kept for future). Validation via counterpoint.py. |
+| 2025-01-28 | v1.7.0: Added voices.md defining canonical voice/instrument entity model. Brief now requires voices, instruments, scoring, tracks. Anchor fields renamed soprano_degree→upper_degree, bass_degree→lower_degree. Range flows from actuator, not hardcoded. Realisation order from dependency graph, not array index. MIDI track assignment explicit. |
 
 ---
 

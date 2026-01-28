@@ -248,9 +248,12 @@ def _validate_genre(data: dict) -> GenreConfig:
         assert "schema_sequence" in section, f"Section '{section_name}' missing 'schema_sequence'"
         assert len(section["schema_sequence"]) > 0, f"Section '{section_name}' has empty schema_sequence"
     bass_treatment: str | None = data.get("bass_treatment")
+    bass_mode: str = data.get("bass_mode", "pattern")
     bass_pattern: str | None = data.get("bass_pattern")
-    validate_bass_treatment(bass_treatment, bass_pattern, genre_name)
+    validate_bass_treatment(bass_treatment, bass_mode, bass_pattern, genre_name)
     treatments: TreatmentsConfig = _validate_treatments(data, genre_name)
+    upbeat_raw = data.get("upbeat", 0)
+    upbeat = Fraction(upbeat_raw) if isinstance(upbeat_raw, str) else Fraction(upbeat_raw)
     return GenreConfig(
         name=genre_name,
         voices=data["voices"],
@@ -259,10 +262,12 @@ def _validate_genre(data: dict) -> GenreConfig:
         rhythmic_unit=data["rhythmic_unit"],
         tempo=data["tempo"],
         bass_treatment=bass_treatment,
+        bass_mode=bass_mode,
         bass_pattern=bass_pattern,
         treatments=treatments,
         sections=tuple(data.get("sections", [])),
         treatment_sequence=tuple(data.get("treatment_sequence", [])),
+        upbeat=upbeat,
     )
 
 

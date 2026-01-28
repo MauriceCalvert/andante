@@ -4,7 +4,7 @@ You **MUST** read
 `docs/summary.md`
 `docs/Tier1_Normative/laws.md`
 `docs/Tier2_Architecture/*.md`
-`docs\Tier3_Guides\bob.md`
+`docs/Tier3_Guides/bob.md`
 now and keep them in the foreground for the whole chat.
 
 ---
@@ -36,7 +36,7 @@ Every token must be classifiable. Unknown tokens are errors.
 - Verdict first, rationale second
 - No filler
 - Ask if unclear, don't guess
-- I use 1-based bar notation
+- Use 1-based bar notation
 
 ---
 
@@ -96,7 +96,6 @@ Only then propose a change - and get approval before implementing.
 ## Git Workflow
 
 Auto-commit after each bug fix that passes tests or after adding functionality. No prompt needed.
-Commit message format: `Fix: [brief description]`
 
 ---
 

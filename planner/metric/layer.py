@@ -1,4 +1,6 @@
 """Layer 4: Metric planning orchestration."""
+from fractions import Fraction
+
 from builder.types import Anchor, FormConfig, GenreConfig, KeyConfig, SchemaConfig
 from planner.metric.distribution import bar_beat_to_float
 from planner.metric.schema_anchors import generate_schema_anchors
@@ -41,7 +43,7 @@ def layer_4_metric(
     anchors: list[Anchor] = _generate_section_anchors(
         genre_config.sections, schemas, key,
         genre_config.metre, tonal_plan, answer_interval, modality,
-        bar_assignments,
+        bar_assignments, genre_config.upbeat,
     )
     anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.soprano_degree))
     return bar_assignments, anchors, total_bars
@@ -54,6 +56,7 @@ def _build_bar_assignments(
     """Build bar assignments by computing section lengths from schema stages."""
     assignments: dict[str, tuple[int, int]] = {}
     current_bar: int = 1
+    is_first_section: bool = True
     for section in genre_config.sections:
         section_name: str = section["name"]
         schema_sequence: list[str] = section.get("schema_sequence", [])
@@ -64,8 +67,11 @@ def _build_bar_assignments(
         assert section_bars > 0, f"Section '{section_name}' has no stages"
         start_bar: int = current_bar
         end_bar: int = current_bar + section_bars - 1
+        if is_first_section and genre_config.upbeat > 0:
+            end_bar -= 1  # Upbeat shifts anchors back by 1 bar
         assignments[section_name] = (start_bar, end_bar)
         current_bar = end_bar + 1
+        is_first_section = False
     return assignments
 
 
@@ -78,17 +84,21 @@ def _generate_section_anchors(
     answer_interval: int,
     modality: str,
     bar_assignments: dict[str, tuple[int, int]],
+    upbeat: Fraction = Fraction(0),
 ) -> list[Anchor]:
     """Generate anchors for all sections."""
     anchors: list[Anchor] = []
+    is_first_section: bool = True
     for section in sections:
         section_name: str = section["name"]
         start_bar, _ = bar_assignments[section_name]
+        section_upbeat: Fraction = upbeat if is_first_section else Fraction(0)
         section_anchors: list[Anchor] = _generate_single_section_anchors(
             section, schemas, key, metre, tonal_plan, answer_interval, modality,
-            start_bar,
+            start_bar, section_upbeat,
         )
         anchors.extend(section_anchors)
+        is_first_section = False
     return anchors
 
 
@@ -101,6 +111,7 @@ def _generate_single_section_anchors(
     answer_interval: int,
     modality: str,
     start_bar: int,
+    upbeat: Fraction = Fraction(0),
 ) -> list[Anchor]:
     """Generate anchors for a single section."""
     section_name: str = section["name"]
@@ -112,6 +123,7 @@ def _generate_single_section_anchors(
     is_exordium: bool = section_name == "exordium"
     anchors: list[Anchor] = []
     current_bar: int = start_bar
+    is_first_schema: bool = True
     for i, schema_name in enumerate(real_schemas):
         if schema_name not in schemas:
             continue
@@ -121,12 +133,16 @@ def _generate_single_section_anchors(
         local_key: Key = _get_local_key(
             home_key, i, is_exordium, key_areas, answer_interval, modality,
         )
+        schema_upbeat: Fraction = upbeat if is_first_schema else Fraction(0)
+        if schema_upbeat > 0:
+            schema_end -= 1  # Upbeat anchors span [start_bar-1, start_bar+stages-2]
         schema_anchors: list[Anchor] = generate_schema_anchors(
             schema_name, schema_def, current_bar, schema_end,
-            local_key, metre,
+            local_key, metre, schema_upbeat,
         )
         anchors.extend(schema_anchors)
         current_bar = schema_end + 1
+        is_first_schema = False
     return anchors
 
 

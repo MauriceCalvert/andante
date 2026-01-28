@@ -1,7 +1,24 @@
 """Schema anchor generation."""
+from fractions import Fraction
+
 from builder.types import Anchor, SchemaConfig
 from planner.metric.constants import CLAUSULA_ARRIVAL_BASS, CLAUSULA_ARRIVAL_SOPRANO
 from shared.key import Key
+
+
+def _compute_upbeat_bar_beat(start_bar: int, upbeat: Fraction, metre: str) -> tuple[int, int]:
+    """Compute bar and beat for first anchor with upbeat.
+    
+    For gavotte with upbeat=1/2 in 4/4:
+        - start_bar=1, upbeat=1/2 -> bar 0, beat 3
+    """
+    if upbeat == 0:
+        return start_bar, 1
+    num, den = (int(x) for x in metre.split("/"))
+    beats_per_bar: int = num
+    upbeat_beats: int = int(upbeat * beats_per_bar * den / 4)
+    first_beat: int = beats_per_bar - upbeat_beats + 1
+    return start_bar - 1, first_beat
 
 
 def generate_schema_anchors(
@@ -11,6 +28,7 @@ def generate_schema_anchors(
     end_bar: int,
     home_key: Key,
     metre: str,
+    upbeat: Fraction = Fraction(0),
 ) -> list[Anchor]:
     """Generate anchors for a schema: one anchor per bar, one stage per bar."""
     if schema_def.sequential:
@@ -19,12 +37,16 @@ def generate_schema_anchors(
             schema_def,
             start_bar,
             home_key,
+            upbeat,
+            metre,
         )
     return _generate_regular_anchors(
         schema_name,
         schema_def,
         start_bar,
         home_key,
+        upbeat,
+        metre,
     )
 
 
@@ -33,8 +55,14 @@ def _generate_regular_anchors(
     schema_def: SchemaConfig,
     start_bar: int,
     local_key: Key,
+    upbeat: Fraction = Fraction(0),
+    metre: str = "4/4",
 ) -> list[Anchor]:
-    """Generate anchors for regular (non-sequential) schema."""
+    """Generate anchors for regular (non-sequential) schema.
+    
+    With upbeat: first anchor at (bar 0, beat 3), then bar 1, bar 2, etc.
+    Without upbeat: anchors at bar 1, bar 2, bar 3, etc.
+    """
     anchors: list[Anchor] = []
     soprano_degrees: tuple[int, ...] = schema_def.soprano_degrees
     bass_degrees: tuple[int, ...] = schema_def.bass_degrees
@@ -42,9 +70,13 @@ def _generate_regular_anchors(
         return anchors
     stages: int = len(soprano_degrees)
     for stage in range(stages):
-        bar: int = start_bar + stage
+        if stage == 0 and upbeat > 0:
+            bar, beat = _compute_upbeat_bar_beat(start_bar, upbeat, metre)
+        else:
+            bar = start_bar + stage - (1 if upbeat > 0 else 0)
+            beat = 1
         anchors.append(Anchor(
-            bar_beat=f"{bar}.1",
+            bar_beat=f"{bar}.{beat}",
             soprano_degree=soprano_degrees[stage],
             bass_degree=bass_degrees[stage],
             local_key=local_key,
@@ -67,6 +99,8 @@ def _generate_sequential_anchors(
     schema_def: SchemaConfig,
     start_bar: int,
     home_key: Key,
+    upbeat: Fraction = Fraction(0),
+    metre: str = "4/4",
 ) -> list[Anchor]:
     """Generate anchors for sequential schema (Monte, Fonte).
     
@@ -78,19 +112,25 @@ def _generate_sequential_anchors(
         Segment 1: key=C (IV), degree 3 -> E
         Segment 2: key=D (V), degree 3 -> F#
         Segment 3: key=Em (vi), degree 3 -> G
+    
+    With upbeat: first anchor at (bar 0, beat 3), then bar 1, bar 2, etc.
     """
     anchors: list[Anchor] = []
     segment_count: int = _get_segment_count(schema_def)
     typical_keys: tuple[str, ...] | None = schema_def.typical_keys
     for seg_idx in range(segment_count):
-        bar: int = start_bar + seg_idx
+        if seg_idx == 0 and upbeat > 0:
+            bar, beat = _compute_upbeat_bar_beat(start_bar, upbeat, metre)
+        else:
+            bar = start_bar + seg_idx - (1 if upbeat > 0 else 0)
+            beat = 1
         local_key: Key = _get_segment_key(
             home_key,
             seg_idx,
             typical_keys,
         )
         anchors.append(Anchor(
-            bar_beat=f"{bar}.1",
+            bar_beat=f"{bar}.{beat}",
             soprano_degree=CLAUSULA_ARRIVAL_SOPRANO,
             bass_degree=CLAUSULA_ARRIVAL_BASS,
             local_key=local_key,

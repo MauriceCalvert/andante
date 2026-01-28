@@ -1,0 +1,57 @@
+# Rhythm-only Bass Patterns
+# For bass_mode=schema: pitches come from schema degrees, patterns control timing only
+#
+# Each pattern specifies:
+#   metre: time signature ("any" for universal)
+#   beats: note events with beat position and duration
+#   use_next: if true, use next anchor's bass degree instead of current
+
+half_bar:
+  metre: "any"
+  description: "Two notes per bar: current degree at beat 1, next at half-bar"
+  beats:
+    - beat: 1
+      duration: "half"
+      use_next: false
+    - beat: "half"
+      duration: "half"
+      use_next: true
+
+sustained:
+  metre: "any"
+  description: "Single sustained note for entire bar"
+  beats:
+    - beat: 1
+      duration: "bar"
+      use_next: false
+
+walking_4_4:
+  metre: "4/4"
+  description: "Four quarter notes interpolating to next degree"
+  beats:
+    - beat: 1
+      duration: 1
+      use_next: false
+    - beat: 2
+      duration: 1
+      use_next: false
+    - beat: 3
+      duration: 1
+      use_next: true
+    - beat: 4
+      duration: 1
+      use_next: true
+
+walking_3_4:
+  metre: "3/4"
+  description: "Three quarter notes"
+  beats:
+    - beat: 1
+      duration: 1
+      use_next: false
+    - beat: 2
+      duration: 1
+      use_next: false
+    - beat: 3
+      duration: 1
+      use_next: true

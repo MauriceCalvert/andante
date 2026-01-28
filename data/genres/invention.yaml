@@ -6,7 +6,7 @@ voices: 2
 form: through_composed
 metre: "4/4"
 rhythmic_unit: "1/16"
-tempo: 80
+tempo: 100
 bass_treatment: contrapuntal
 
 sections:
@@ -26,10 +26,31 @@ treatments:
   answer: imitation
 
 treatment_sequence:
-  - {symbol: S, description: "Subject in soprano"}
-  - {symbol: A, description: "Answer in bass"}
-  - {symbol: episode_1, description: "Free passage"}
-  - {symbol: development, description: "Subject/Answer new key"}
-  - {symbol: episode_2, description: "Second episode"}
-  - {symbol: return, description: "Subject return tonic"}
-  - {symbol: coda, description: "Cadential confirmation"}
+  - symbol: S
+    treatment: subject
+    subject_voice: 0
+    description: "Subject in soprano"
+  - symbol: A
+    treatment: answer
+    subject_voice: 1
+    description: "Answer in bass"
+  - symbol: episode_1
+    treatment: episode
+    subject_voice: null
+    description: "Free passage"
+  - symbol: development
+    treatment: development
+    subject_voice: null
+    description: "Subject/Answer new key"
+  - symbol: episode_2
+    treatment: episode
+    subject_voice: null
+    description: "Second episode"
+  - symbol: return
+    treatment: subject
+    subject_voice: 0
+    description: "Subject return tonic"
+  - symbol: coda
+    treatment: cadential
+    subject_voice: null
+    description: "Cadential confirmation"

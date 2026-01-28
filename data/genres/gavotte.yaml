@@ -7,8 +7,10 @@ form: binary
 metre: "4/4"
 rhythmic_unit: "1/8"
 tempo: 66
+upbeat: "1/2"  # Half-bar anacrusis (beats 3-4)
 bass_treatment: patterned
-bass_pattern: continuo_root_fifth
+bass_mode: schema
+bass_pattern: half_bar
 
 sections:
   - name: A

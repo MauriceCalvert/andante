@@ -305,3 +305,18 @@ TESSITURA_EXTREME_COST: float = 100.0
 # Maximum semitones from median before octave reset triggers in voice leading
 # One octave allows natural melodic exploration; beyond risks runaway drift
 TESSITURA_DRIFT_THRESHOLD: int = 12
+
+# =============================================================================
+# Melodic Interval Thresholds (semitones)
+# =============================================================================
+
+STEP_SEMITONES: int = 2                    # Major second - stepwise motion
+SKIP_SEMITONES: int = 4                    # Major third - small skip
+LEAP_SEMITONES: int = 7                    # Perfect fifth - moderate leap
+LARGE_LEAP_SEMITONES: int = 12             # Octave - warning threshold
+GROTESQUE_LEAP_SEMITONES: int = 19         # Octave + fifth - error threshold
+DIRECT_MOTION_LEAP_SEMITONES: int = 4      # Only >M3 counts as leap for direct 5ths/8ves
+
+# Maximum consecutive simultaneous attacks before parallel_rhythm fault
+# 4 attacks = 3 parallel motions, which starts to sound mechanical
+MAX_PARALLEL_RHYTHM_ATTACKS: int = 4

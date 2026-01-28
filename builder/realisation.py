@@ -37,11 +37,7 @@ def _build_stacked_lyric(
     treatment: str | None,
     figure: str | None,
 ) -> str:
-    """Build stacked lyric from schema, treatment, and figure name.
-    
-    Format: schema/treatment/figure (omitting empty parts).
-    Only includes parts that are present and non-empty.
-    """
+    """Build stacked lyric from schema, treatment, and figure name."""
     parts: list[str] = []
     if schema:
         parts.append(schema)
@@ -113,6 +109,7 @@ def _realise(
         bass=tuple(bass_notes),
         metre=genre_config.metre,
         tempo=tempo,
+        upbeat=genre_config.upbeat,
     )
 
 
@@ -139,6 +136,49 @@ def _bar_beat_to_offset(bar_beat: str, beats_per_bar: int) -> Fraction:
     return offset_in_beats / 4
 
 
+def _shift_notes_by_upbeat(notes: list[Note], upbeat: Fraction) -> list[Note]:
+    """Shift all note offsets forward by the upbeat amount."""
+    if upbeat == 0:
+        return notes
+    return [
+        Note(
+            offset=note.offset + upbeat,
+            pitch=note.pitch,
+            duration=note.duration,
+            voice=note.voice,
+            lyric=note.lyric,
+        )
+        for note in notes
+    ]
+
+
+# Schema stage counts for detecting final bars (for bass pattern variation)
+SCHEMA_STAGE_COUNTS: dict[str, int] = {
+    "prinner": 4,
+    "romanesca": 6,
+    "fonte": 2,
+    "monte": 2,
+    "cadenza_semplice": 3,
+    "cadenza_composta": 4,
+}
+
+
+# Schemas where final stage should use sustained bass to avoid boundary issues
+SCHEMAS_NEEDING_SUSTAINED_FINAL: frozenset[str] = frozenset({"prinner", "romanesca"})
+
+
+def _is_schema_final_stage(schema: str | None, stage: int) -> bool:
+    """Check if this is the final stage of a schema that needs sustained bass."""
+    if schema is None:
+        return False
+    if schema not in SCHEMAS_NEEDING_SUSTAINED_FINAL:
+        return False
+    total_stages = SCHEMA_STAGE_COUNTS.get(schema)
+    if total_stages is None:
+        return False
+    return stage == total_stages
+
+
 def realise_with_figuration(
     anchors: Sequence[Anchor],
     treatment_assignments: Sequence[TreatmentAssignment] | None,
@@ -148,29 +188,18 @@ def realise_with_figuration(
     form_config: FormConfig,
     total_bars: int,
     seed: int = 42,
+    tempo_override: int | None = None,
 ) -> NoteFile:
     """Convert anchors to notes using baroque figuration patterns.
 
     This function uses the Layer 6.5 figuration system to produce
     idiomatic melodic motion instead of simple whole-note output.
     Soprano uses melodic figures; bass uses accompaniment patterns.
-
-    Args:
-        anchors: Schema arrivals with degrees
-        treatment_assignments: Voice role assignments (optional)
-        key_config: Key configuration
-        affect_config: Affect configuration
-        genre_config: Genre configuration
-        form_config: Form configuration
-        total_bars: Total bars in piece
-        seed: RNG seed for deterministic output
-
-    Returns:
-        NoteFile with figured soprano and bass.
     """
     from builder.figuration.figurate import figurate
+    from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
     if not anchors:
-        return NoteFile(soprano=(), bass=(), metre=genre_config.metre, tempo=72)
+        return NoteFile(soprano=(), bass=(), metre=genre_config.metre, tempo=72, upbeat=genre_config.upbeat)
     key = anchors[0].local_key
     density = affect_config.density
     character = "plain"
@@ -249,6 +278,7 @@ def realise_with_figuration(
             seed=seed + 1000,
             density=density,
             affect_character=character,
+            voice="bass",
         )
         prev_bass: int | None = None
         for i, figured_bar in enumerate(bass_figured_bars):
@@ -286,23 +316,32 @@ def realise_with_figuration(
                     voice=3,
                     lyric="",
                 ))
-    else:
-        from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
-        bass_pattern = get_bass_pattern(genre_config.bass_pattern)
-        assert bass_pattern is not None, f"Bass pattern '{genre_config.bass_pattern}' not found"
+    elif genre_config.bass_mode == "schema":
+        # Schema mode: pitches from schema degrees, pattern controls rhythm only
+        from builder.figuration.bass import get_rhythm_pattern, realise_bass_schema
+        rhythm_pattern = get_rhythm_pattern(genre_config.bass_pattern)
+        assert rhythm_pattern is not None, f"Rhythm pattern '{genre_config.bass_pattern}' not found"
+        sustained_pattern = get_rhythm_pattern("sustained")
         prev_bass: int | None = None
         for i, anchor in enumerate(sorted_anchors):
             offset: Fraction = _bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
             if i < len(sorted_anchors) - 1:
                 next_offset: Fraction = _bar_beat_to_offset(sorted_anchors[i + 1].bar_beat, beats_per_bar)
                 duration: Fraction = next_offset - offset
+                next_degree: int | None = sorted_anchors[i + 1].bass_degree
             else:
                 duration = end_offset - offset
-            metre_matches = bass_pattern.metre == genre_config.metre or bass_pattern.metre == "any"
+                next_degree = None
+            pattern = rhythm_pattern
+            if _is_schema_final_stage(anchor.schema, anchor.stage):
+                if sustained_pattern is not None:
+                    pattern = sustained_pattern
+            metre_matches = pattern.metre == genre_config.metre or pattern.metre == "any"
             if metre_matches and duration >= bar_duration:
-                pattern_notes = realise_bass_pattern(
-                    pattern=bass_pattern,
-                    bass_degree=anchor.bass_degree,
+                pattern_notes = realise_bass_schema(
+                    pattern=pattern,
+                    current_degree=anchor.bass_degree,
+                    next_degree=next_degree,
                     key=anchor.local_key,
                     bar_offset=offset,
                     bar_duration=bar_duration,
@@ -330,10 +369,67 @@ def realise_with_figuration(
                     voice=3,
                     lyric="",
                 ))
-    tempo: int = genre_config.tempo + affect_config.tempo_modifier
+    else:
+        # Pattern mode: pitches from pattern degree_offset
+        default_pattern = get_bass_pattern(genre_config.bass_pattern)
+        assert default_pattern is not None, f"Bass pattern '{genre_config.bass_pattern}' not found"
+        cadence_pattern = get_bass_pattern("continuo_sustained")
+        prev_bass: int | None = None
+        prev_prev_bass: int | None = None
+        for i, anchor in enumerate(sorted_anchors):
+            offset: Fraction = _bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
+            if i < len(sorted_anchors) - 1:
+                next_offset: Fraction = _bar_beat_to_offset(sorted_anchors[i + 1].bar_beat, beats_per_bar)
+                duration: Fraction = next_offset - offset
+            else:
+                duration = end_offset - offset
+            bass_pattern = default_pattern
+            if _is_schema_final_stage(anchor.schema, anchor.stage):
+                if cadence_pattern is not None:
+                    bass_pattern = cadence_pattern
+            metre_matches = bass_pattern.metre == genre_config.metre or bass_pattern.metre == "any"
+            if metre_matches and duration >= bar_duration:
+                pattern_notes = realise_bass_pattern(
+                    pattern=bass_pattern,
+                    bass_degree=anchor.bass_degree,
+                    key=anchor.local_key,
+                    bar_offset=offset,
+                    bar_duration=bar_duration,
+                    bass_median=bass_median,
+                    prev_pitch=prev_bass,
+                    prev_prev_pitch=prev_prev_bass,
+                )
+                for note_offset, midi_pitch, note_duration in pattern_notes:
+                    bass_notes.append(Note(
+                        offset=note_offset,
+                        pitch=midi_pitch,
+                        duration=note_duration,
+                        voice=3,
+                        lyric="",
+                    ))
+                    prev_prev_bass = prev_bass
+                    prev_bass = midi_pitch
+            else:
+                b_midi: int = select_octave(
+                    anchor.local_key, anchor.bass_degree, bass_median, prev_bass,
+                )
+                prev_prev_bass = prev_bass
+                prev_bass = b_midi
+                bass_notes.append(Note(
+                    offset=offset,
+                    pitch=b_midi,
+                    duration=duration,
+                    voice=3,
+                    lyric="",
+                ))
+    if tempo_override is not None:
+        tempo = tempo_override
+    else:
+        tempo = genre_config.tempo + affect_config.tempo_modifier
     return NoteFile(
         soprano=tuple(soprano_notes),
         bass=tuple(bass_notes),
         metre=genre_config.metre,
         tempo=tempo,
+        upbeat=genre_config.upbeat,
     )

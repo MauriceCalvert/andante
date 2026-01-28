@@ -388,15 +388,22 @@ def determine_phrase_position(
     - Cadence: bars 7-8
 
     Args:
-        bar: Bar number within phrase (1-indexed)
+        bar: Bar number within phrase (0-indexed for anacrusis, 1-indexed otherwise)
         total_bars: Total bars in phrase
         schema_type: Optional schema type for overrides
 
     Returns:
         PhrasePosition for the bar.
     """
-    assert bar >= 1, f"bar must be >= 1, got {bar}"
+    assert bar >= 0, f"bar must be >= 0, got {bar}"
     assert total_bars >= 1, f"total_bars must be >= 1, got {total_bars}"
+    if bar == 0:
+        return PhrasePosition(
+            position="opening",
+            bars=(0, 0),
+            character="plain",
+            sequential=False,
+        )
 
     # Schema overrides for sequential schemas
     sequential = schema_type in ("monte", "fonte", "meyer", "ponte")

@@ -36,6 +36,7 @@ class NoteFile:
     bass: tuple[Note, ...]
     metre: str
     tempo: int
+    upbeat: Fraction = Fraction(0)  # Anacrusis duration in whole notes
 
 
 @dataclass(frozen=True)
@@ -114,10 +115,12 @@ class GenreConfig:
     rhythmic_unit: str
     tempo: int
     bass_treatment: str  # 'contrapuntal' or 'patterned'
+    bass_mode: str  # 'schema' or 'pattern'
     bass_pattern: str | None
     treatments: TreatmentsConfig
     sections: tuple[dict[str, Any], ...]
     treatment_sequence: tuple[dict[str, Any], ...]
+    upbeat: Fraction = Fraction(0)  # Anacrusis duration in whole notes
 
 
 @dataclass(frozen=True)

@@ -20,8 +20,12 @@ def note_name(midi: int) -> str:
     return f"{NOTE_NAMES[pc]}{octave}"
 
 
-def bar_beat(offset: Fraction, metre: str) -> tuple[int, Fraction]:
-    """Convert offset to bar number and beat position."""
+def bar_beat(offset: Fraction, metre: str, upbeat: Fraction = Fraction(0)) -> tuple[int, Fraction]:
+    """Convert offset to bar number and beat position.
+    
+    Handles negative offsets for anacrusis (bar 0).
+    For offset=-0.5 in 4/4: returns (0, 3) meaning bar 0, beat 3.
+    """
     if metre == "4/4":
         beats_per_bar: int = 4
     elif metre == "3/4":
@@ -34,9 +38,9 @@ def bar_beat(offset: Fraction, metre: str) -> tuple[int, Fraction]:
     return bar, beat_in_bar
 
 
-def format_note_line(note: Note, metre: str) -> str:
+def format_note_line(note: Note, metre: str, upbeat: Fraction = Fraction(0)) -> str:
     """Format a single note as CSV line."""
-    bar, beat = bar_beat(note.offset, metre)
+    bar, beat = bar_beat(note.offset, metre, upbeat)
     return (
         f"{float(note.offset)},"
         f"{note.pitch},"
@@ -58,18 +62,24 @@ def write_note_file(notes: NoteFile, path: Path) -> None:
     all_notes.extend(notes.bass)
     all_notes.sort(key=lambda n: (float(n.offset), n.voice))
     for note in all_notes:
-        lines.append(format_note_line(note, notes.metre))
+        lines.append(format_note_line(note, notes.metre, notes.upbeat))
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def write_midi_file(notes: NoteFile, path: Path) -> None:
-    """Write notes to MIDI file."""
+    """Write notes to MIDI file.
+    
+    Auto-shifts all notes forward if any have negative offsets (anacrusis).
+    """
     from shared.midi_writer import SimpleNote, write_midi_notes
+    all_offsets: list[Fraction] = [n.offset for n in notes.soprano] + [n.offset for n in notes.bass]
+    min_offset: Fraction = min(all_offsets) if all_offsets else Fraction(0)
+    shift: Fraction = -min_offset if min_offset < 0 else Fraction(0)
     midi_notes: list[SimpleNote] = []
     for note in notes.soprano:
         midi_notes.append(SimpleNote(
             pitch=note.pitch,
-            offset=float(note.offset),
+            offset=float(note.offset + shift),
             duration=float(note.duration),
             velocity=80,
             track=0,
@@ -77,7 +87,7 @@ def write_midi_file(notes: NoteFile, path: Path) -> None:
     for note in notes.bass:
         midi_notes.append(SimpleNote(
             pitch=note.pitch,
-            offset=float(note.offset),
+            offset=float(note.offset + shift),
             duration=float(note.duration),
             velocity=80,
             track=3,

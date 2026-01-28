@@ -41,6 +41,9 @@ def _build_score(notes: NoteFile, tonic: str, mode: str) -> stream.Score:
     """Build music21 Score from NoteFile."""
     score: stream.Score = stream.Score()
     timenum, timeden = _parse_metre(notes.metre)
+    all_offsets = [n.offset for n in notes.soprano] + [n.offset for n in notes.bass]
+    min_offset = min(all_offsets) if all_offsets else Fraction(0)
+    shift: Fraction = -min_offset if min_offset < 0 else Fraction(0)
     soprano_part: stream.Part = _build_part(
         notes.soprano,
         part_id="Soprano",
@@ -50,6 +53,7 @@ def _build_score(notes: NoteFile, tonic: str, mode: str) -> stream.Score:
         mode=mode,
         bpm=notes.tempo,
         include_tempo=True,
+        shift=shift,
     )
     score.insert(0, soprano_part)
     bass_part: stream.Part = _build_part(
@@ -61,6 +65,7 @@ def _build_score(notes: NoteFile, tonic: str, mode: str) -> stream.Score:
         mode=mode,
         bpm=notes.tempo,
         include_tempo=False,
+        shift=shift,
     )
     score.insert(0, bass_part)
     return score
@@ -75,6 +80,7 @@ def _build_part(
     mode: str,
     bpm: int,
     include_tempo: bool,
+    shift: Fraction = Fraction(0),
 ) -> stream.Part:
     """Build a single Part from notes."""
     part: stream.Part = stream.Part()
@@ -98,7 +104,7 @@ def _build_part(
         if n.lyric:
             m21_note.lyric = n.lyric
         _clean_accidental(m21_note, ky)
-        offset_quarters: float = float(n.offset) * 4
+        offset_quarters: float = float(n.offset + shift) * 4
         part.insert(offset_quarters, m21_note)
     part.makeRests(fillGaps=True, inPlace=True)
     part.makeMeasures(inPlace=True)

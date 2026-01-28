@@ -117,6 +117,7 @@ def generate(
         genre_config,
         form_config,
         total_bars,
+        tempo_override=tempo_override,
     )
 
 
@@ -126,9 +127,10 @@ def generate_to_files(
     output_dir: Path,
     name: str,
     key: str | None = None,
+    tempo: int | None = None,
 ) -> NoteFile:
     """Generate composition and write to files."""
-    result: NoteFile = generate(genre, affect, key)
+    result: NoteFile = generate(genre, affect, key, tempo)
     note_path: Path = output_dir / f"{name}.note"
     midi_path: Path = output_dir / f"{name}.midi"
     xml_path: Path = output_dir / name
