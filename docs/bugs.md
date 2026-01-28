@@ -179,7 +179,69 @@ Alternatively, use a modifier syntax: `{"degree": 7, "alter": -1}` for ♭7.
 
 ---
 
-### TODO-003: Renumber layers to match execution order
+### TODO-003: Voice expansion - use actual subject material
+
+**Priority:** High (enables imitative textures)
+
+**Current state:** The voice expansion system is wired: passage function → function_map → VoiceExpansionConfig. However, `soprano_source: subject` and `bass_source: counter_subject` are ignored — all voices currently fall back to schema degrees.
+
+**Problem:** Invention passages marked as "subject" or "answer" should use the subject motif, not schema degrees. Without this, the function_map infrastructure has no effect on the actual notes.
+
+**Required implementation:**
+1. Store generated subject material (degrees + durations) after motif generation
+2. In `realise_with_figuration()`, when `expansion.soprano_source == "subject"`, use stored subject material instead of calling `figurate()`
+3. When `expansion.bass_source == "counter_subject"`, use stored counter-subject
+4. When source is `"sustained"` or `"pedal"`, generate appropriate held/repeated notes
+
+**Files affected:**
+- `builder/realisation.py` — source-aware voice generation
+- `planner/` — store subject/counter-subject after generation
+- New: subject material storage (Brief or separate cache)
+
+---
+
+### TODO-004: Voice expansion - bass imitation with delay
+
+**Priority:** High (core imitative feature)
+
+**Current state:** `VoiceExpansionConfig` has `bass_derivation: imitation` and `bass_delay: 1`, but these fields are loaded and ignored.
+
+**Problem:** In invention answer passages, bass should imitate soprano with a delay (typically 1 bar at the 4th/5th). Currently both voices are generated independently from schema degrees.
+
+**Required implementation:**
+1. When `expansion.bass_derivation == "imitation"`:
+   - Generate soprano first
+   - Copy soprano material to bass with offset = `expansion.bass_delay`
+   - Apply interval transposition from `expansion.bass_derivation_params["interval"]`
+2. Handle delay edge cases: what fills the gap before bass enters? (rest or held note)
+
+**Files affected:**
+- `builder/realisation.py` — imitation logic
+- Possibly `builder/figuration/` for delay handling
+
+---
+
+### TODO-005: Voice expansion - respect interdictions
+
+**Priority:** Medium (polish feature)
+
+**Current state:** `VoiceExpansionConfig.interdictions` is loaded but ignored. Values like `["ornaments", "inner_voice_gen"]` have no effect.
+
+**Problem:** Stretto and augmentation passages should disable ornaments to keep the subject recognisable. Pedal passages should disable inner voice generation.
+
+**Required implementation:**
+1. Pass `interdictions` through realisation pipeline
+2. When `"ornaments"` in interdictions: skip ornament application in figurate
+3. When `"inner_voice_gen"` in interdictions: skip inner voice solver for that passage
+
+**Files affected:**
+- `builder/realisation.py` — check interdictions before calling subsystems
+- `builder/figuration/figurate.py` — ornament disable flag
+- `engine/inner_voice.py` — skip flag for passages
+
+---
+
+### TODO-006: Renumber layers to match execution order
 
 **Status:** DONE (2025-01-22)
 
