@@ -2,28 +2,33 @@
 
 Category A: Pure functions, no I/O, no validation.
 Input: Genre + bar assignments
-Output: Treatment assignments with bar ranges and voice assignments
+Output: Passage assignments with bar ranges and lead voice
 
 Determines which voice carries thematic material per bar range.
 Must run BEFORE rhythm and pitch generation (L6, L7).
+
+Per vocabulary.md:
+- PassageAssignment binds a bar range to a passage function (subject, answer, etc.)
+- function field holds the passage function name
+- lead_voice indicates which voice leads (0=upper, 1=lower, None=equal)
 """
-from builder.types import GenreConfig, TreatmentAssignment
+from builder.types import GenreConfig, PassageAssignment
 
 
 def layer_5_textural(
     genre_config: GenreConfig,
     bar_assignments: dict[str, tuple[int, int]],
-) -> list[TreatmentAssignment]:
+) -> list[PassageAssignment]:
     """Execute Layer 5.
 
     Args:
-        genre_config: Genre configuration with treatment_sequence
+        genre_config: Genre configuration with passage_sequence
         bar_assignments: Section name -> (start_bar, end_bar) mapping
 
     Returns:
-        List of TreatmentAssignment with bar ranges and voice assignments.
+        List of PassageAssignment with bar ranges and lead voice.
     """
-    if genre_config.treatment_sequence:
+    if genre_config.passage_sequence:
         return _sequence_texture(genre_config, bar_assignments)
     return _default_texture(genre_config, bar_assignments)
 
@@ -31,15 +36,15 @@ def layer_5_textural(
 def _default_texture(
     genre_config: GenreConfig,
     bar_assignments: dict[str, tuple[int, int]],
-) -> list[TreatmentAssignment]:
-    """Default texture: statement treatment for all sections."""
-    assignments: list[TreatmentAssignment] = []
+) -> list[PassageAssignment]:
+    """Default texture: subject function for all sections."""
+    assignments: list[PassageAssignment] = []
     for section_name, (start_bar, end_bar) in bar_assignments.items():
-        assignments.append(TreatmentAssignment(
+        assignments.append(PassageAssignment(
             start_bar=start_bar,
             end_bar=end_bar,
-            treatment="statement",
-            subject_voice=None,
+            function="subject",
+            lead_voice=None,
         ))
     return assignments
 
@@ -47,63 +52,68 @@ def _default_texture(
 def _sequence_texture(
     genre_config: GenreConfig,
     bar_assignments: dict[str, tuple[int, int]],
-) -> list[TreatmentAssignment]:
-    """Generate texture from treatment_sequence in YAML.
+) -> list[PassageAssignment]:
+    """Generate texture from passage_sequence in YAML.
 
-    Each entry in treatment_sequence specifies:
-      - treatment: str (subject, answer, episode, development, cadential, statement)
-      - subject_voice: int|null (0=soprano, 1=bass, null=both)
+    Each entry in passage_sequence specifies:
+      - function: str (subject, answer, episode, development, cadential)
+      - lead_voice: int|null (0=upper, 1=lower, null=equal)
+
+    Also accepts legacy field names during transition:
+      - treatment -> function
+      - subject_voice -> lead_voice
 
     Maps entries to sections by index order.
     """
-    assignments: list[TreatmentAssignment] = []
-    treatment_seq: list[dict] = list(genre_config.treatment_sequence)
+    assignments: list[PassageAssignment] = []
+    passage_seq: list[dict] = list(genre_config.passage_sequence)
     sections: list[tuple[str, int, int]] = [
         (section["name"], *bar_assignments[section["name"]])
         for section in genre_config.sections
     ]
     section_idx: int = 0
-    for entry in treatment_seq:
+    for entry in passage_seq:
         if section_idx >= len(sections):
             break
         section_name, start_bar, end_bar = sections[section_idx]
-        treatment: str = entry.get("treatment", "statement")
-        subject_voice_raw = entry.get("subject_voice")
-        subject_voice: int | None = None if subject_voice_raw is None else int(subject_voice_raw)
-        assignments.append(TreatmentAssignment(
+        # Accept both new and legacy field names
+        function: str = entry.get("function", entry.get("treatment", "subject"))
+        lead_voice_raw = entry.get("lead_voice", entry.get("subject_voice"))
+        lead_voice: int | None = None if lead_voice_raw is None else int(lead_voice_raw)
+        assignments.append(PassageAssignment(
             start_bar=start_bar,
             end_bar=end_bar,
-            treatment=treatment,
-            subject_voice=subject_voice,
+            function=function,
+            lead_voice=lead_voice,
         ))
         section_idx += 1
     while section_idx < len(sections):
         section_name, start_bar, end_bar = sections[section_idx]
-        assignments.append(TreatmentAssignment(
+        assignments.append(PassageAssignment(
             start_bar=start_bar,
             end_bar=end_bar,
-            treatment="statement",
-            subject_voice=None,
+            function="subject",
+            lead_voice=None,
         ))
         section_idx += 1
     return assignments
 
 
-def treatments_to_rhythm_input(
-    assignments: list[TreatmentAssignment],
+def passages_to_rhythm_input(
+    assignments: list[PassageAssignment],
 ) -> list[dict]:
-    """Convert TreatmentAssignment list to rhythm planning input format.
+    """Convert PassageAssignment list to rhythm planning input format.
 
     Args:
-        assignments: List of TreatmentAssignment from L5
+        assignments: List of PassageAssignment from L5
 
     Returns:
-        List of dicts with {bars: [start, end], subject_voice: 0|1|None}
+        List of dicts with {bars: [start, end], lead_voice: 0|1|None}
     """
     return [
         {
             "bars": [a.start_bar, a.end_bar],
-            "subject_voice": a.subject_voice,
+            "lead_voice": a.lead_voice,
         }
         for a in assignments
     ]

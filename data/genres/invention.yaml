@@ -2,7 +2,25 @@
 # Bach-style two-voice imitative counterpoint
 
 name: invention
-voices: 2
+
+voices:
+  - id: upper
+    role: schema_upper
+  - id: lower
+    role: schema_lower
+
+instruments:
+  - id: keyboard
+    type: harpsichord
+
+scoring:
+  upper: keyboard.right_hand
+  lower: keyboard.left_hand
+
+tracks:
+  upper: {channel: 0, program: 6}
+  lower: {channel: 1, program: 6}
+
 form: through_composed
 metre: "4/4"
 rhythmic_unit: "1/16"
@@ -19,38 +37,47 @@ sections:
   - name: peroratio
     schema_sequence: [episode, cadenza_semplice]
 
-treatments:
+# Maps passage functions to voice expansions (per vocabulary.md)
+function_map:
   required: [statement, imitation]
   optional: [transposition, inversion, stretto]
-  opening: statement
+  subject: statement
   answer: imitation
+  episode: schema
+  development: fragmentation
+  cadential: repose
+  return: statement
+  coda: hold
 
-treatment_sequence:
+# Passage sequence defines the form structure (per vocabulary.md)
+# function: passage function (subject, answer, episode, development, cadential)
+# lead_voice: which voice leads (0=upper, 1=lower, null=equal)
+passage_sequence:
   - symbol: S
-    treatment: subject
-    subject_voice: 0
-    description: "Subject in soprano"
+    function: subject
+    lead_voice: 0
+    description: "Subject in upper voice"
   - symbol: A
-    treatment: answer
-    subject_voice: 1
-    description: "Answer in bass"
-  - symbol: episode_1
-    treatment: episode
-    subject_voice: null
+    function: answer
+    lead_voice: 1
+    description: "Answer in lower voice"
+  - symbol: E1
+    function: episode
+    lead_voice: null
     description: "Free passage"
-  - symbol: development
-    treatment: development
-    subject_voice: null
-    description: "Subject/Answer new key"
-  - symbol: episode_2
-    treatment: episode
-    subject_voice: null
+  - symbol: D
+    function: development
+    lead_voice: null
+    description: "Subject/Answer in new key"
+  - symbol: E2
+    function: episode
+    lead_voice: null
     description: "Second episode"
-  - symbol: return
-    treatment: subject
-    subject_voice: 0
-    description: "Subject return tonic"
-  - symbol: coda
-    treatment: cadential
-    subject_voice: null
+  - symbol: R
+    function: subject
+    lead_voice: 0
+    description: "Subject return in tonic"
+  - symbol: C
+    function: cadential
+    lead_voice: null
     description: "Cadential confirmation"

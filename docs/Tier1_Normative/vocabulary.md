@@ -204,69 +204,135 @@ Phrase-ending harmonic formula.
 
 ---
 
-## Treatments
+## Voice Generation Concepts
 
-How subject material is presented. See `data/treatments.yaml`.
+This section defines the vocabulary for how voices are generated. Three distinct concepts were previously conflated under "treatment":
 
-### Core Treatments
+### Passage Function
+
+**Definition**: The compositional role of a passage within the musical form.
+
+**Characteristics**:
+- Describes WHAT the passage does in the form
+- Does not specify HOW notes are generated
+- A two-part invention has: subject entry, answer entry, episodes, development, final statement
 
 | Value | Description |
 |-------|-------------|
-| `statement` | Subject presented with imitative bass entry |
-| `sequence` | Subject repeated at different pitch level |
-| `imitation` | Staggered voice entry at the fourth |
-| `imitation_cs` | Counter-subject in soprano, subject in bass |
-| `inversion` | Subject mirrored around axis |
+| `subject` | Initial statement of thematic material |
+| `answer` | Imitative response to subject (typically at 4th/5th) |
+| `episode` | Free passage connecting thematic entries |
+| `development` | Subject/answer material in new keys |
+| `cadential` | Passage driving toward cadence |
+| `return` | Subject returns in tonic |
+| `coda` | Final closing passage |
+
+**Where defined**: Genre YAML → `passage_sequence[].function`
+
+
+### Voice Expansion
+
+**Definition**: Technical configuration specifying how each voice's notes are derived.
+
+**Characteristics**:
+- Describes HOW voices are generated
+- Has parameters: source, transform, delay, derivation
+- Multiple passage functions may use the same voice expansion
+
+| Value | Description |
+|-------|-------------|
+| `statement` | Subject direct in lead voice, counter-subject in other |
+| `imitation` | Lead voice direct, other voice derives by imitation with delay |
+| `stretto` | Compressed imitation (short delay, typically 1/4 bar) |
+| `augmentation` | Subject with doubled durations |
+| `diminution` | Subject with halved durations |
+| `fragmentation` | Subject head sequenced with short delay |
+| `inversion` | Subject melodically inverted |
 | `retrograde` | Subject reversed |
-| `fragmentation` | Head of subject sequenced |
-| `augmentation` | Subject augmented, bass diminished |
-| `diminution` | Subject diminished (halved durations) |
-| `stretto` | Compressed imitation at the octave |
-| `repose` | Subject augmented for cadential approach |
-
-### Independent Treatments
-
-Soprano thematic, bass pattern-based.
-
-| Value | Description |
-|-------|-------------|
-| `independent` | Subject in soprano, pattern bass |
-| `independent_cs` | Counter-subject in soprano, pattern bass |
-| `independent_head` | Subject head in soprano, pattern bass |
-| `independent_invert` | Inverted subject in soprano, pattern bass |
-
-### Bass-Featured Treatments
-
-| Value | Description |
-|-------|-------------|
-| `bass_statement` | Subject in bass, sustained soprano |
-| `bass_sequence` | Subject head sequenced in bass |
-| `bass_development` | Counter-subject developed in bass |
-
-### Dialogue Treatments
-
-| Value | Description |
-|-------|-------------|
-| `dialogue` | Subject in both voices, bass augmented with delay |
-| `dialogue_invert` | Subject in soprano, inverted subject in bass |
-| `voice_exchange` | Soprano and bass swap material at midpoint |
-
-### Head/Tail Treatments
-
-| Value | Description |
-|-------|-------------|
-| `head_sequence` | Subject head sequenced |
-| `tail_development` | Subject tail developed |
-
-### Special Treatments
-
-| Value | Description |
-|-------|-------------|
-| `melody_accompaniment` | Subject melody with accompaniment bass |
-| `pedal_tonic` | Soprano melodic, bass sustained on degree 1 |
-| `pedal_dominant` | Soprano melodic, bass sustained on degree 5 |
-| `schema` | Schema-based soprano and bass |
+| `schema` | Both voices follow schema degrees directly |
+| `repose` | Lead voice augmented, other sustained |
 | `hold` | Both voices sustained |
+| `dialogue` | Subject in both, second voice augmented with delay |
+| `voice_exchange` | Voices swap material at midpoint |
+
+**Where defined**: `data/treatments/treatments.yaml`
+
+
+### Function Map
+
+**Definition**: Mapping from passage function to voice expansion type.
+
+**Purpose**: When the form says "this is an answer passage", look up which voice expansion to use.
+
+| Passage Function | Default Voice Expansion |
+|------------------|------------------------|
+| `subject` | `statement` |
+| `answer` | `imitation` |
+| `episode` | `schema` |
+| `development` | `fragmentation` |
+| `cadential` | `repose` |
+| `return` | `statement` |
+| `coda` | `hold` |
+
+**Where defined**: Genre YAML → `function_map:`
+
+
+### Lead Voice
+
+**Definition**: Which voice carries the primary thematic material in a passage.
+
+| Value | Description |
+|-------|-------------|
+| `0` | Upper voice leads (soprano in keyboard) |
+| `1` | Lower voice leads (bass in keyboard) |
+| `null` | Both voices equal (no leader) |
+
+**Where defined**: Genre YAML → `passage_sequence[].lead_voice`
+
+
+### Expansion Source
+
+**Definition**: Where a voice's melodic material originates.
+
+| Value | Description |
+|-------|-------------|
+| `subject` | Use the subject/motif material |
+| `counter_subject` | Use counter-subject material |
+| `sustained` | Hold a single pitch |
+| `pedal` | Repeat pedal tone (tonic or dominant) |
+| `schema` | Follow schema degrees |
+| `accompaniment` | Generate accompaniment pattern |
+
+**Where defined**: `treatments.yaml` → `{voice}_source`
+
+
+### Expansion Transform
+
+**Definition**: Melodic transformation applied to source material.
+
+| Value | Description |
+|-------|-------------|
+| `none` | No transformation |
+| `invert` | Melodic inversion (intervals reversed) |
+| `retrograde` | Reverse note order |
+| `augment` | Double all durations |
+| `diminish` | Halve all durations |
+| `head` | Use first N notes only |
+| `tail` | Use last N notes only |
+
+**Where defined**: `treatments.yaml` → `{voice}_transform`
+
+
+### Expansion Derivation
+
+**Definition**: How one voice derives from another.
+
+| Value | Description |
+|-------|-------------|
+| `null` | No derivation (independent) |
+| `imitation` | Copy from other voice with delay and interval |
+
+**Where defined**: `treatments.yaml` → `{voice}_derivation`
 
 ---
 
@@ -509,10 +575,46 @@ Functional units within sections. See `data/episodes.yaml`.
 | `bars` | POS_INT |
 | `tonal_target` | See Roman Numerals section |
 | `cadence` | See Cadences section, or null |
-| `treatment` | See Treatments section |
+| `function` | See Passage Function section |
+| `expansion` | See Voice Expansion section (optional, uses function_map if omitted) |
+| `lead_voice` | 0, 1, or null |
 | `surprise` | See Surprises section, or null |
 | `is_climax` | true, false |
 | `energy` | low, moderate, high, climactic, or null |
+
+### Passage Sequence (in genre YAML)
+
+| Keyword | Permitted Values |
+|---------|------------------|
+| `symbol` | Short identifier (S, A, E1, etc.) |
+| `function` | See Passage Function section |
+| `lead_voice` | 0, 1, or null |
+| `description` | Human-readable description |
+
+### Function Map (in genre YAML)
+
+| Keyword | Permitted Values |
+|---------|------------------|
+| `subject` | Voice Expansion name |
+| `answer` | Voice Expansion name |
+| `episode` | Voice Expansion name |
+| `development` | Voice Expansion name |
+| `cadential` | Voice Expansion name |
+| `return` | Voice Expansion name |
+| `coda` | Voice Expansion name |
+
+### Voice Expansion Config (in treatments.yaml)
+
+| Keyword | Permitted Values |
+|---------|------------------|
+| `{voice}_source` | subject, counter_subject, sustained, pedal, schema, accompaniment |
+| `{voice}_transform` | none, invert, retrograde, augment, diminish, head, tail |
+| `{voice}_transform_params` | dict (e.g., `{ size: 4 }` for head/tail) |
+| `{voice}_derivation` | null, imitation |
+| `{voice}_derivation_params` | dict (e.g., `{ interval: -4 }`) |
+| `{voice}_delay` | fraction (0, 1/4, 1/2, 1) |
+| `{voice}_direct` | true, false |
+| `interdictions` | list of disabled features |
 
 ### Structure
 

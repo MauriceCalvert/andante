@@ -3,14 +3,14 @@
 Generates structurally-appropriate treatment sequences based on:
 - phrase_count: number of phrases to fill
 - climax_position: where the climax falls (0.0-1.0)
-- genre: optional genre-specific constraints from TreatmentsConfig
+- genre: optional genre-specific constraints from FunctionMapConfig
 
 Replaces static `treatments: [...]` arrays in arcs.yaml with
 dynamically generated sequences that respect musical structure.
 """
 from dataclasses import dataclass
 
-from builder.types import GenreConfig, TreatmentsConfig
+from builder.types import FunctionMapConfig, GenreConfig
 
 
 # Structural regions as fraction of piece
@@ -177,15 +177,15 @@ def generate_treatment_sequence(
 
 
 def profile_from_genre(genre_config: GenreConfig) -> TreatmentProfile:
-    """Create TreatmentProfile from genre's TreatmentsConfig."""
-    tc: TreatmentsConfig = genre_config.treatments
-    available: list[str] = list(tc.required) + list(tc.optional)
+    """Create TreatmentProfile from genre's FunctionMapConfig."""
+    fm: FunctionMapConfig = genre_config.function_map
+    available: list[str] = list(fm.required) + list(fm.optional)
     return TreatmentProfile(
         phrase_count=0,
-        must_include=list(tc.required),
-        start_with=tc.opening,
-        end_with=tc.opening,
-        second_phrase=tc.answer if tc.answer != tc.opening else None,
+        must_include=list(fm.required),
+        start_with=fm.subject,
+        end_with=fm.subject,
+        second_phrase=fm.answer if fm.answer != fm.subject else None,
         available_pool=available if available else None,
     )
 
@@ -196,7 +196,7 @@ def generate_for_genre(
     climax_position: float = 0.7,
     seed: int = 0,
 ) -> list[str]:
-    """Generate treatment sequence using genre's TreatmentsConfig.
+    """Generate treatment sequence using genre's FunctionMapConfig.
 
     Args:
         genre_config: Genre configuration with treatments

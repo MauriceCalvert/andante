@@ -1,0 +1,21 @@
+# Harpsichord playability constraints
+# See: docs/Tier2_Architecture/voices.md
+
+name: harpsichord
+
+actuators:
+  - name: right_hand
+    range: [53, 89]
+    max_simultaneous: 3
+    max_leap: 24
+    reach:
+      method: span
+      span: 10
+
+  - name: left_hand
+    range: [29, 65]
+    max_simultaneous: 3
+    max_leap: 24
+    reach:
+      method: span
+      span: 10

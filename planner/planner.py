@@ -7,7 +7,7 @@ The layers:
 2. Tonal: Affect → Tonal plan + density + modality
 3. Schematic: Tonal plan → Schema chain
 4. Metric: Schema chain + tonal plan → Bar assignments + anchors
-5. Textural: Genre + bar assignments → Treatment assignments
+5. Textural: Genre + bar assignments → Passage assignments
 6. Rhythmic: Currently unused (anchors provide timing directly)
 7. Melodic: Currently unused (anchors provide pitches directly)
 
@@ -19,7 +19,7 @@ from typing import Any
 from builder.config_loader import load_configs
 from builder.io import write_midi_file, write_musicxml_file, write_note_file
 from builder.realisation import realise_with_figuration
-from builder.types import NoteFile, SchemaChain, TreatmentAssignment
+from builder.types import NoteFile, PassageAssignment, SchemaChain
 from planner.dramaturgy import get_suggested_key
 from planner.metric.layer import layer_4_metric
 from planner.rhetorical import layer_1_rhetorical
@@ -99,19 +99,19 @@ def generate(
     _debug(f"L4 Metric: total_bars={total_bars}, anchors={len(anchors)}")
     _debug(f"  bar_assignments: {bar_assignments}")
     for a in anchors[:10]:
-        _debug(f"  anchor {a.bar_beat}: S={a.soprano_degree} B={a.bass_degree} key={a.local_key.tonic} ({a.schema})")
+        _debug(f"  anchor {a.bar_beat}: U={a.upper_degree} L={a.lower_degree} key={a.local_key.tonic} ({a.schema})")
     if len(anchors) > 10:
         _debug(f"  ... and {len(anchors) - 10} more anchors")
-    treatment_assignments: list[TreatmentAssignment] = layer_5_textural(
+    passage_assignments: list[PassageAssignment] = layer_5_textural(
         genre_config,
         bar_assignments,
     )
-    _debug(f"L5 Textural: {len(treatment_assignments)} treatment assignments")
-    for ta in treatment_assignments:
-        _debug(f"  bars {ta.start_bar}-{ta.end_bar}: {ta.treatment}, voice={ta.subject_voice}")
+    _debug(f"L5 Textural: {len(passage_assignments)} passage assignments")
+    for pa in passage_assignments:
+        _debug(f"  bars {pa.start_bar}-{pa.end_bar}: {pa.function}, lead={pa.lead_voice}")
     return realise_with_figuration(
         anchors,
-        treatment_assignments,
+        passage_assignments,
         key_config,
         affect_config,
         genre_config,

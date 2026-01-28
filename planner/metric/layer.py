@@ -45,7 +45,7 @@ def layer_4_metric(
         genre_config.metre, tonal_plan, answer_interval, modality,
         bar_assignments, genre_config.upbeat,
     )
-    anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.soprano_degree))
+    anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.upper_degree))
     return bar_assignments, anchors, total_bars
 
 

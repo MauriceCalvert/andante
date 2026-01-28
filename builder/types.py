@@ -4,10 +4,83 @@ All types are frozen dataclasses for immutability.
 Durations are Fraction. Pitches are MIDI integers.
 """
 from dataclasses import dataclass
+from enum import Enum
 from fractions import Fraction
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from shared.key import Key
+
+
+# =============================================================================
+# Voice/Instrument Architecture (voices.md)
+# =============================================================================
+
+
+class Role(Enum):
+    """How a voice's pitches are determined."""
+    SCHEMA_UPPER = "schema_upper"  # Reads upper_degree from anchor
+    SCHEMA_LOWER = "schema_lower"  # Reads lower_degree from anchor
+    IMITATIVE = "imitative"        # Transforms from followed voice
+    HARMONY_FILL = "harmony_fill"  # Derived from vertical harmony
+
+
+@dataclass(frozen=True)
+class Range:
+    """Pitch limits for an actuator (MIDI pitch values)."""
+    low: int
+    high: int
+
+
+@dataclass(frozen=True)
+class Actuator:
+    """Mechanism that produces notes on an instrument."""
+    id: str
+    range: Range
+
+
+@dataclass(frozen=True)
+class InstrumentDef:
+    """Instrument definition from library."""
+    id: str
+    actuators: tuple[Actuator, ...]
+
+
+@dataclass(frozen=True)
+class Voice:
+    """Single monophonic melodic line with continuity."""
+    id: str
+    role: Role
+    follows: str | None = None      # For imitative: voice id to follow
+    delay_bars: int | None = None   # For imitative: delay in bars
+    interval: int | None = None     # For imitative: transposition interval
+
+
+@dataclass(frozen=True)
+class Instrument:
+    """Physical instrument instance in a piece."""
+    id: str
+    type: str  # Reference to instrument definition
+
+
+@dataclass(frozen=True)
+class ScoringAssignment:
+    """Single voice-to-actuator assignment."""
+    voice_id: str
+    instrument_id: str
+    actuator_id: str
+
+
+@dataclass(frozen=True)
+class TrackAssignment:
+    """MIDI track assignment for a voice."""
+    voice_id: str
+    channel: int
+    program: int
+
+
+# =============================================================================
+# Core Builder Types
+# =============================================================================
 
 
 @dataclass(frozen=True)
@@ -41,10 +114,15 @@ class NoteFile:
 
 @dataclass(frozen=True)
 class Anchor:
-    """Schema arrival constraint at specific bar.beat position."""
+    """Schema arrival constraint at specific bar.beat position.
+    
+    Fields renamed per voices.md:
+    - upper_degree: degree for schema_upper role (was soprano_degree)
+    - lower_degree: degree for schema_lower role (was bass_degree)
+    """
     bar_beat: str
-    soprano_degree: int
-    bass_degree: int
+    upper_degree: int
+    lower_degree: int
     local_key: "Key"
     schema: str
     stage: int
@@ -97,12 +175,22 @@ class SchemaConfig:
 
 
 @dataclass(frozen=True)
-class TreatmentsConfig:
-    """Treatment constraints from genre YAML."""
-    required: tuple[str, ...]
-    optional: tuple[str, ...]
-    opening: str
-    answer: str
+class FunctionMapConfig:
+    """Maps passage functions to voice expansions (from genre YAML).
+    
+    Per vocabulary.md: function_map links passage function names
+    (subject, answer, episode...) to voice expansion names
+    (statement, imitation, schema...).
+    """
+    required: tuple[str, ...]   # Required expansion names
+    optional: tuple[str, ...]   # Optional expansion names
+    subject: str                # Expansion for 'subject' function
+    answer: str                 # Expansion for 'answer' function
+    episode: str                # Expansion for 'episode' function
+    development: str            # Expansion for 'development' function
+    cadential: str              # Expansion for 'cadential' function
+    return_: str                # Expansion for 'return' function (trailing _ avoids keyword)
+    coda: str                   # Expansion for 'coda' function
 
 
 @dataclass(frozen=True)
@@ -117,9 +205,9 @@ class GenreConfig:
     bass_treatment: str  # 'contrapuntal' or 'patterned'
     bass_mode: str  # 'schema' or 'pattern'
     bass_pattern: str | None
-    treatments: TreatmentsConfig
+    function_map: FunctionMapConfig
     sections: tuple[dict[str, Any], ...]
-    treatment_sequence: tuple[dict[str, Any], ...]
+    passage_sequence: tuple[dict[str, Any], ...]
     upbeat: Fraction = Fraction(0)  # Anacrusis duration in whole notes
 
 
@@ -179,12 +267,16 @@ class CounterpointViolation:
 
 
 @dataclass(frozen=True)
-class TreatmentAssignment:
-    """Voice role assignment for a bar range (Layer 5 output)."""
+class PassageAssignment:
+    """Passage function assignment for a bar range (Layer 5 output).
+    
+    Per vocabulary.md: binds a bar range to a passage function
+    (subject, answer, episode...) and indicates which voice leads.
+    """
     start_bar: int
     end_bar: int
-    treatment: str  # "subject", "answer", "episode", "cadential"
-    subject_voice: int | None  # 0=soprano, 1=bass, None=both
+    function: str           # Passage function: "subject", "answer", "episode", etc.
+    lead_voice: int | None  # 0=upper, 1=lower, None=equal
 
 
 @dataclass(frozen=True)
@@ -194,3 +286,28 @@ class RhythmPlan:
     bass_active: frozenset[int]
     soprano_durations: dict[int, Fraction]  # slot index -> duration
     bass_durations: dict[int, Fraction]
+
+
+@dataclass(frozen=True)
+class VoiceExpansionConfig:
+    """Voice expansion configuration from treatments.yaml.
+    
+    Per vocabulary.md: defines HOW a voice's notes are derived.
+    Fields prefixed soprano_/bass_ for each voice.
+    """
+    name: str
+    soprano_source: str          # subject, counter_subject, sustained, pedal, schema, accompaniment
+    soprano_transform: str       # none, invert, retrograde, augment, diminish, head, tail
+    soprano_transform_params: dict[str, int | str]
+    soprano_derivation: str | None  # null, imitation
+    soprano_derivation_params: dict[str, int | str]
+    soprano_delay: Fraction
+    soprano_direct: bool
+    bass_source: str
+    bass_transform: str
+    bass_transform_params: dict[str, int | str]
+    bass_derivation: str | None
+    bass_derivation_params: dict[str, int | str]
+    bass_delay: Fraction
+    bass_direct: bool
+    interdictions: tuple[str, ...]  # disabled features: ornaments, inner_voice_gen

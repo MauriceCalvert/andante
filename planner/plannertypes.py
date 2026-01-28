@@ -17,15 +17,51 @@ class TonalSection:
 
 
 @dataclass(frozen=True)
+class VoiceSpec:
+    """Voice specification per voices.md."""
+    id: str
+    role: str  # schema_upper, schema_lower, imitative, harmony_fill
+    follows: str | None = None      # For imitative: voice id to follow
+    delay_bars: int | None = None   # For imitative: delay in bars
+    interval: int | None = None     # For imitative: transposition interval
+
+
+@dataclass(frozen=True)
+class InstrumentSpec:
+    """Instrument instance in a piece."""
+    id: str
+    type: str  # Reference to instrument definition in data/instruments/
+
+
+@dataclass(frozen=True)
+class TrackSpec:
+    """MIDI track assignment."""
+    voice_id: str
+    channel: int
+    program: int
+
+
+@dataclass(frozen=True)
 class Brief:
     """User input specifying compositional intent.
 
     Required fields define the commission. Optional fields override genre defaults.
+    
+    Per voices.md, the Brief now includes:
+    - voices: voice definitions with roles
+    - instruments: physical instruments used
+    - scoring: voice-to-actuator assignments
+    - tracks: MIDI channel assignments
     """
     affect: str
     genre: str
     forces: str
     bars: int
+    # Voice/instrument architecture (voices.md)
+    voices: tuple['VoiceSpec', ...] | None = None
+    instruments: tuple['InstrumentSpec', ...] | None = None
+    scoring: dict[str, str] | None = None  # voice_id -> "instrument.actuator"
+    tracks: tuple['TrackSpec', ...] | None = None
     # Optional: override genre defaults
     key: str | None = None
     mode: str | None = None

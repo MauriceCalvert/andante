@@ -4,8 +4,8 @@ Category A: Pure functions, no I/O, no validation.
 Input: Anchors + treatments + density + metre
 Output: Active slots and durations per voice
 
-Determines which slots are active for each voice based on treatment
-assignments. Subject voice gets dense filling, accompaniment gets sparse.
+Determines which slots are active for each voice based on passage
+assignments. Lead voice gets dense filling, accompaniment gets sparse.
 """
 from fractions import Fraction
 
@@ -78,7 +78,7 @@ def _get_phrase_boundaries(
 def _select_slots_for_voice(
     bar_start: int,
     bar_end: int,
-    is_subject_voice: bool,
+    is_lead_voice: bool,
     density: str,
     slots_per_bar: int,
     anchor_slots: frozenset[int],
@@ -89,7 +89,7 @@ def _select_slots_for_voice(
     Args:
         bar_start: 1-indexed start bar (inclusive)
         bar_end: 1-indexed end bar (inclusive)
-        is_subject_voice: True if this voice carries the subject
+        is_lead_voice: True if this voice leads (carries subject material)
         density: "high", "medium", or "sparse"
         slots_per_bar: Slots per bar
         anchor_slots: Set of anchor slot indices (always active)
@@ -101,8 +101,8 @@ def _select_slots_for_voice(
     active: set[int] = set()
     durations: dict[int, Fraction] = {}
 
-    rate = DENSITY_RATES[density] if is_subject_voice else ACCOMPANIMENT_RATES[density]
-    dur = SUBJECT_DURATION if is_subject_voice else ACCOMPANIMENT_DURATIONS[density]
+    rate = DENSITY_RATES[density] if is_lead_voice else ACCOMPANIMENT_RATES[density]
+    dur = SUBJECT_DURATION if is_lead_voice else ACCOMPANIMENT_DURATIONS[density]
 
     total_slots = (bar_end - bar_start + 1) * slots_per_bar
     start_slot = (bar_start - 1) * slots_per_bar
@@ -148,7 +148,7 @@ def layer_6_rhythmic(
 
     Args:
         anchors: Schema anchors from L4 (arrival constraints)
-        treatments: Treatment sequence with {bars: [start, end], subject_voice: 0|1|None}
+        treatments: Passage sequence with {bars: [start, end], lead_voice: 0|1|None}
         density: "high", "medium", or "sparse"
         total_bars: Total bars in piece
         metre: Time signature (default "4/4")
@@ -180,14 +180,14 @@ def layer_6_rhythmic(
     for t in treatments:
         bars = t["bars"]
         start_bar, end_bar = bars[0], bars[1]
-        subject_voice = t.get("subject_voice")  # 0=soprano, 1=bass, None=both/neither
-        # When subject_voice is None (episode/cadential), NEITHER voice is subject
+        lead_voice = t.get("lead_voice")  # 0=upper, 1=lower, None=equal
+        # When lead_voice is None (episode/cadential), NEITHER voice leads
         # Both get accompaniment (sparse) treatment for voice independence
-        is_soprano_subject = subject_voice == 0
-        is_bass_subject = subject_voice == 1
+        is_soprano_lead = lead_voice == 0
+        is_bass_lead = lead_voice == 1
         s_slots, s_durs = _select_slots_for_voice(
             start_bar, end_bar,
-            is_subject_voice=is_soprano_subject,
+            is_lead_voice=is_soprano_lead,
             density=density,
             slots_per_bar=slots_per_bar,
             anchor_slots=anchor_slots,
@@ -197,7 +197,7 @@ def layer_6_rhythmic(
         soprano_durations.update(s_durs)
         b_slots, b_durs = _select_slots_for_voice(
             start_bar, end_bar,
-            is_subject_voice=is_bass_subject,
+            is_lead_voice=is_bass_lead,
             density=density,
             slots_per_bar=slots_per_bar,
             anchor_slots=anchor_slots,

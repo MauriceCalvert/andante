@@ -77,8 +77,8 @@ def _generate_regular_anchors(
             beat = 1
         anchors.append(Anchor(
             bar_beat=f"{bar}.{beat}",
-            soprano_degree=soprano_degrees[stage],
-            bass_degree=bass_degrees[stage],
+            upper_degree=soprano_degrees[stage],
+            lower_degree=bass_degrees[stage],
             local_key=local_key,
             schema=schema_name,
             stage=stage + 1,
@@ -131,8 +131,8 @@ def _generate_sequential_anchors(
         )
         anchors.append(Anchor(
             bar_beat=f"{bar}.{beat}",
-            soprano_degree=CLAUSULA_ARRIVAL_SOPRANO,
-            bass_degree=CLAUSULA_ARRIVAL_BASS,
+            upper_degree=CLAUSULA_ARRIVAL_SOPRANO,
+            lower_degree=CLAUSULA_ARRIVAL_BASS,
             local_key=local_key,
             schema=schema_name,
             stage=seg_idx + 1,

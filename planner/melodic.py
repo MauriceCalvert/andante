@@ -64,10 +64,10 @@ def _convert_anchors_to_dict(
     for anchor in sorted_anchors:
         offset: Fraction = _bar_beat_to_offset(anchor.bar_beat)
         s_midi: int = select_octave(
-            anchor.local_key, anchor.soprano_degree, soprano_median, prev_soprano,
+            anchor.local_key, anchor.upper_degree, soprano_median, prev_soprano,
         )
         b_midi: int = select_octave(
-            anchor.local_key, anchor.bass_degree, bass_median, prev_bass,
+            anchor.local_key, anchor.lower_degree, bass_median, prev_bass,
         )
         anchor_dict[(offset, 0)] = s_midi
         anchor_dict[(offset, 1)] = b_midi

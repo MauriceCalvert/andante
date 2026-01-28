@@ -77,7 +77,7 @@ def compute_interval(degree_a: int, degree_b: int) -> str:
 
 
 def compute_interval_from_anchors(anchor_a: Anchor, anchor_b: Anchor) -> str:
-    """Compute interval name between two anchors (soprano voice).
+    """Compute interval name between two anchors (upper voice).
 
     Args:
         anchor_a: Starting anchor
@@ -86,7 +86,7 @@ def compute_interval_from_anchors(anchor_a: Anchor, anchor_b: Anchor) -> str:
     Returns:
         Interval name.
     """
-    return compute_interval(anchor_a.soprano_degree, anchor_b.soprano_degree)
+    return compute_interval(anchor_a.upper_degree, anchor_b.upper_degree)
 
 
 def filter_by_interval(figures: list[Figure], interval: str) -> list[Figure]:
