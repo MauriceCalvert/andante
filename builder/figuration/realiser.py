@@ -6,6 +6,7 @@ Handles rhythm templates, augmentation, and hemiola.
 from fractions import Fraction
 
 from builder.figuration.loader import get_hemiola_templates, get_rhythm_templates
+from builder.figuration.rhythm_calc import compute_rhythmic_distribution
 from builder.figuration.types import Figure, FiguredBar, RhythmTemplate
 
 
@@ -147,6 +148,173 @@ def generate_default_durations(note_count: int, bar_duration: Fraction) -> tuple
     return tuple(single_duration for _ in range(note_count))
 
 
+def realise_rhythm_baroque(
+    gap_duration: Fraction,
+    density: str,
+) -> tuple[Fraction, ...]:
+    """Realise rhythm using Bach's approach: density->unit, gap->count.
+
+    Args:
+        gap_duration: Available duration for the figure (in whole notes)
+        density: Density level ("low", "medium", "high")
+
+    Returns:
+        Tuple of equal durations that sum to gap_duration.
+        All durations are valid baroque values (1/4, 1/8, 1/16, 1/32).
+    """
+    note_count, unit = compute_rhythmic_distribution(gap_duration, density)
+    return tuple(unit for _ in range(note_count))
+
+
+def _adjust_degrees_to_count(degrees: list[int], target_count: int) -> list[int]:
+    """Adjust degree list to match target count with no repeated notes.
+
+    Bach's rule: at fast subdivisions, every note is different.
+    Uses scalar excursions (go somewhere, return) not oscillation (trill).
+
+    Args:
+        degrees: Original absolute degrees (1-7)
+        target_count: Desired number of degrees
+
+    Returns:
+        New list of degrees with target_count elements, no adjacent repeats.
+    """
+    if target_count <= 0:
+        return [degrees[0]] if degrees else [1]
+    if target_count == 1:
+        return [_wrap(degrees[0])]
+    if len(degrees) == 0:
+        return _scalar_run(1, target_count, 1)
+    if len(degrees) == 1:
+        return _scalar_excursion(degrees[0], target_count)
+    result: list[int] = []
+    segments = len(degrees) - 1
+    notes_per_segment = target_count // segments
+    extra = target_count % segments
+    for seg in range(segments):
+        start_deg = degrees[seg]
+        end_deg = degrees[seg + 1]
+        seg_count = notes_per_segment + (1 if seg < extra else 0)
+        if seg_count == 0:
+            continue
+        is_last = (seg == segments - 1)
+        prev = result[-1] if result else None
+        seg_notes = _fill_segment(start_deg, end_deg, seg_count, is_last, prev)
+        result.extend(seg_notes)
+    while len(result) < target_count:
+        result.append(_step_from(result[-1], 1))
+    return result[:target_count]
+
+
+def _wrap(d: int) -> int:
+    """Wrap degree to 1-7 range."""
+    return ((d - 1) % 7) + 1
+
+
+def _step_from(current: int, direction: int) -> int:
+    """Step from current in direction, guaranteed different from current."""
+    return _wrap(current + direction)
+
+
+def _scalar_run(start: int, count: int, direction: int) -> list[int]:
+    """Generate a scalar run in one direction."""
+    result = [_wrap(start)]
+    current = start
+    for _ in range(count - 1):
+        current = current + direction
+        result.append(_wrap(current))
+    return result
+
+
+def _scalar_excursion(base: int, count: int) -> list[int]:
+    """Generate scalar excursion from base: go up, return to base.
+
+    For unison fills - NOT a trill, but an excursion.
+    Example: base=3, count=4 -> [3, 4, 5, 3] (up, up, skip back)
+    """
+    base = _wrap(base)
+    if count == 1:
+        return [base]
+    if count == 2:
+        return [base, _wrap(base + 1)]
+    # Go up for count-1 notes, then skip back to base
+    result = [base]
+    current = base
+    for i in range(count - 2):
+        current = current + 1
+        result.append(_wrap(current))
+    # Final note: return to base (skip back)
+    result.append(base)
+    return result
+
+
+def _fill_segment(
+    start: int,
+    end: int,
+    count: int,
+    must_end: bool,
+    prev: int | None,
+) -> list[int]:
+    """Fill segment with scalar motion. No repeats, no trills.
+
+    Strategy:
+    - Walk toward end
+    - If more notes needed than distance allows, overshoot PAST end, then land on end
+    - Never oscillate (that's a trill)
+    """
+    if count <= 0:
+        return []
+    start = _wrap(start)
+    end = _wrap(end)
+    first = start if (prev is None or start != prev) else _step_from(start, 1)
+    if count == 1:
+        return [first]
+    result = [first]
+    current = first
+    if start == end:
+        direction = 1
+        distance = 0
+    else:
+        direction = 1 if end > start else -1
+        distance = abs(end - start)
+    notes_to_place = count - 1  # Already placed first
+    if must_end:
+        notes_to_place -= 1  # Reserve last slot for end
+    # How many notes do we have vs how many steps to reach end?
+    # If notes_to_place > distance: we must overshoot
+    # If notes_to_place == distance: walk exactly to end (but then can't place end again if must_end)
+    # If notes_to_place < distance: take big steps (rare)
+    if must_end and notes_to_place == distance:
+        # Edge case: would arrive exactly at end, but we reserved a slot for end
+        # Solution: walk to one-before-end, overshoot past end, land on end
+        # Walk distance-1 steps
+        for _ in range(distance - 1):
+            current = current + direction
+            result.append(_wrap(current))
+        # Overshoot (past end)
+        current = current + direction + direction  # Skip over end
+        result.append(_wrap(current))
+        # Land on end
+        result.append(end)
+    else:
+        # Normal case: walk toward end, overshoot if needed
+        steps_taken = 0
+        while notes_to_place > 0 and steps_taken < distance:
+            current = current + direction
+            result.append(_wrap(current))
+            notes_to_place -= 1
+            steps_taken += 1
+        # Overshoot if more notes needed
+        while notes_to_place > 0:
+            current = current + direction
+            result.append(_wrap(current))
+            notes_to_place -= 1
+        # Land on end if required
+        if must_end:
+            result.append(end)
+    return result
+
+
 def realise_rhythm(
     figure: Figure,
     gap_duration: Fraction,
@@ -226,6 +394,8 @@ def realise_figure_to_bar(
     use_hemiola: bool = False,
     overdotted: bool = False,
     start_beat: int = 1,
+    density: str = "medium",
+    use_baroque_rhythm: bool = False,
 ) -> FiguredBar:
     """Realise a figure into a FiguredBar with absolute degrees and durations.
 
@@ -241,6 +411,8 @@ def realise_figure_to_bar(
         use_hemiola: Use hemiola rhythms
         overdotted: Use overdotted rhythms
         start_beat: Beat on which this voice enters (1=lead, 2=accompany)
+        density: Density level for baroque rhythm ("low", "medium", "high")
+        use_baroque_rhythm: Use Bach-style power-of-2 durations
 
     Returns:
         FiguredBar with absolute degrees and durations.
@@ -258,16 +430,24 @@ def realise_figure_to_bar(
         absolute_degrees.append(absolute)
 
     # Get rhythm durations
-    durations = realise_rhythm(
-        figure=figure,
-        gap_duration=gap_duration,
-        metre=metre,
-        bar_function=bar_function,
-        rhythmic_unit=rhythmic_unit,
-        next_anchor_strength=next_anchor_strength,
-        use_hemiola=use_hemiola,
-        overdotted=overdotted,
-    )
+    if use_baroque_rhythm:
+        durations = realise_rhythm_baroque(gap_duration, density)
+        # Adjust degrees to match duration count
+        if len(durations) != len(absolute_degrees):
+            absolute_degrees = _adjust_degrees_to_count(
+                absolute_degrees, len(durations)
+            )
+    else:
+        durations = realise_rhythm(
+            figure=figure,
+            gap_duration=gap_duration,
+            metre=metre,
+            bar_function=bar_function,
+            rhythmic_unit=rhythmic_unit,
+            next_anchor_strength=next_anchor_strength,
+            use_hemiola=use_hemiola,
+            overdotted=overdotted,
+        )
 
     return FiguredBar(
         bar=bar,

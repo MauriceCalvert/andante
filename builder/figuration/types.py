@@ -13,6 +13,9 @@ class Figure:
 
     Represents a baroque melodic pattern that connects two structural tones.
     Degrees are relative to the starting pitch; final degree equals the interval.
+
+    For chainable figures, degrees represents one repeatable unit.
+    Tiling the unit produces longer runs without interpolation.
     """
     name: str
     degrees: tuple[int, ...]
@@ -31,6 +34,18 @@ class Figure:
     minor_safe: bool
     requires_leading_tone: bool
     weight: float  # historical frequency / selection probability
+    chainable: bool = False  # True if figure can be tiled to fill larger counts
+    chain_unit: int | None = None  # Degrees per repeatable unit (None = len(degrees))
+
+    @property
+    def note_count(self) -> int:
+        """Number of notes this figure produces (without tiling)."""
+        return len(self.degrees)
+
+    @property
+    def effective_chain_unit(self) -> int:
+        """Chain unit size, defaulting to full figure length."""
+        return self.chain_unit if self.chain_unit is not None else len(self.degrees)
 
     def __post_init__(self) -> None:
         assert self.name, "Figure name cannot be empty"
@@ -46,6 +61,9 @@ class Figure:
         assert self.compensation_direction in (None, "up", "down"), \
             f"Invalid compensation_direction: {self.compensation_direction}"
         assert self.weight > 0, f"Weight must be positive, got {self.weight}"
+        if self.chain_unit is not None:
+            assert self.chain_unit > 0, f"chain_unit must be positive, got {self.chain_unit}"
+            assert self.chainable, "chain_unit requires chainable=True"
 
 
 @dataclass(frozen=True)

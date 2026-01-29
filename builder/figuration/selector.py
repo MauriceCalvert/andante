@@ -376,6 +376,48 @@ def filter_cadential_safe(figures: list[Figure], near_cadence: bool) -> list[Fig
     return result if result else figures
 
 
+MAX_EXPANSION_RATIO: float = 3.0  # Maximum allowed expansion of figure degrees
+
+
+def filter_by_note_count(
+    figures: list[Figure],
+    required_count: int,
+    max_expansion: float = MAX_EXPANSION_RATIO,
+) -> list[Figure]:
+    """Filter figures that can produce required note count without extreme expansion.
+
+    Non-chainable figures: must have enough degrees that expansion ratio stays
+    within bounds. A 4-degree figure expanded to 12 (3×) is acceptable.
+    A 2-degree figure expanded to 16 (8×) is not.
+
+    Chainable figures: can tile their chain_unit to reach any count, so always
+    acceptable if they have max_density=high.
+
+    Args:
+        figures: List of figures to filter
+        required_count: Number of notes needed
+        max_expansion: Maximum allowed expansion ratio (default 3.0)
+
+    Returns:
+        Figures that can produce required count acceptably.
+    """
+    if not figures or required_count <= 0:
+        return figures
+
+    min_degrees = max(2, int(required_count / max_expansion))
+
+    result: list[Figure] = []
+    for fig in figures:
+        if fig.chainable:
+            # Chainable figures can tile to any count
+            result.append(fig)
+        elif fig.note_count >= min_degrees:
+            # Non-chainable must have enough degrees
+            result.append(fig)
+
+    return result if result else figures
+
+
 def _compute_max_internal_leap(degrees: tuple[int, ...]) -> int:
     """Compute largest interval between adjacent degrees in semitones.
 

@@ -94,6 +94,8 @@ def load_diminutions(path: Path | None = None) -> dict[str, list[Figure]]:
                 minor_safe=bool(fig_data["minor_safe"]),
                 requires_leading_tone=bool(fig_data["requires_leading_tone"]),
                 weight=float(fig_data["weight"]),
+                chainable=bool(fig_data.get("chainable", False)),
+                chain_unit=fig_data.get("chain_unit"),
             )
             figures.append(figure)
 

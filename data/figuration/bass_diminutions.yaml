@@ -1,0 +1,330 @@
+# Bass Diminutions - Continuous patterns for accompanying bass
+# Unlike soprano diminutions, these have FIXED durations (not scaled to gap)
+# and emphasize stepwise motion for baroque style.
+#
+# Fields:
+#   name: unique identifier
+#   degrees: relative scale degrees from start (0 = start pitch)
+#   durations: fixed durations in whole notes (1/4 = quarter, 1/8 = eighth, 1/16 = sixteenth)
+#   character: plain | energetic | sustained
+#   direction: ascending | descending | static
+#   motor: true if this is a continuous "motor rhythm" pattern
+
+# =============================================================================
+# STEP_UP: ascending by step (degree difference = +1 or +2)
+# =============================================================================
+
+step_up:
+  - name: bass_scalar_up_16th
+    degrees: [0, 1, 2, 3]
+    durations: ["1/16", "1/16", "1/16", "1/16"]
+    character: energetic
+    direction: ascending
+    motor: true
+
+  - name: bass_scalar_up_8th
+    degrees: [0, 1, 2, 3]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: ascending
+    motor: true
+
+  - name: bass_step_quarter
+    degrees: [0, 1]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: ascending
+    motor: false
+
+  - name: bass_run_up_6
+    degrees: [0, 1, 2, 3, 4, 5]
+    durations: ["1/16", "1/16", "1/16", "1/16", "1/16", "1/16"]
+    character: energetic
+    direction: ascending
+    motor: true
+
+# =============================================================================
+# STEP_DOWN: descending by step (degree difference = -1 or -2)
+# =============================================================================
+
+step_down:
+  - name: bass_scalar_down_16th
+    degrees: [0, -1, -2, -3]
+    durations: ["1/16", "1/16", "1/16", "1/16"]
+    character: energetic
+    direction: descending
+    motor: true
+
+  - name: bass_scalar_down_8th
+    degrees: [0, -1, -2, -3]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: descending
+    motor: true
+
+  - name: bass_step_down_quarter
+    degrees: [0, -1]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: descending
+    motor: false
+
+  - name: bass_run_down_6
+    degrees: [0, -1, -2, -3, -4, -5]
+    durations: ["1/16", "1/16", "1/16", "1/16", "1/16", "1/16"]
+    character: energetic
+    direction: descending
+    motor: true
+
+# =============================================================================
+# THIRD_UP: ascending by third (degree difference = +2 or +3)
+# =============================================================================
+
+third_up:
+  - name: bass_arpeggio_up_8th
+    degrees: [0, 2, 4, 2]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: ascending
+    motor: true
+
+  - name: bass_filled_third_up
+    degrees: [0, 1, 2]
+    durations: ["1/8", "1/8", "1/4"]
+    character: plain
+    direction: ascending
+    motor: false
+
+  - name: bass_leap_third_sustained
+    degrees: [0, 2]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: ascending
+    motor: false
+
+# =============================================================================
+# THIRD_DOWN: descending by third (degree difference = -2 or -3)
+# =============================================================================
+
+third_down:
+  - name: bass_arpeggio_down_8th
+    degrees: [0, -2, -4, -2]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: descending
+    motor: true
+
+  - name: bass_filled_third_down
+    degrees: [0, -1, -2]
+    durations: ["1/8", "1/8", "1/4"]
+    character: plain
+    direction: descending
+    motor: false
+
+  - name: bass_leap_third_down_sustained
+    degrees: [0, -2]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: descending
+    motor: false
+
+# =============================================================================
+# FOURTH_UP / FOURTH_DOWN: fourths
+# =============================================================================
+
+fourth_up:
+  - name: bass_scalar_fourth_up
+    degrees: [0, 1, 2, 3]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: ascending
+    motor: true
+
+  - name: bass_fourth_sustained
+    degrees: [0, 3]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: ascending
+    motor: false
+
+fourth_down:
+  - name: bass_scalar_fourth_down
+    degrees: [0, -1, -2, -3]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: descending
+    motor: true
+
+  - name: bass_fourth_down_sustained
+    degrees: [0, -3]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: descending
+    motor: false
+
+# =============================================================================
+# FIFTH_UP / FIFTH_DOWN: fifths
+# =============================================================================
+
+fifth_up:
+  - name: bass_arpeggio_fifth_up
+    degrees: [0, 2, 4]
+    durations: ["1/8", "1/8", "1/4"]
+    character: plain
+    direction: ascending
+    motor: false
+
+  - name: bass_scalar_fifth_up
+    degrees: [0, 1, 2, 3, 4]
+    durations: ["1/16", "1/16", "1/16", "1/16", "1/8"]
+    character: energetic
+    direction: ascending
+    motor: true
+
+  - name: bass_fifth_sustained
+    degrees: [0, 4]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: ascending
+    motor: false
+
+fifth_down:
+  - name: bass_arpeggio_fifth_down
+    degrees: [0, -2, -4]
+    durations: ["1/8", "1/8", "1/4"]
+    character: plain
+    direction: descending
+    motor: false
+
+  - name: bass_scalar_fifth_down
+    degrees: [0, -1, -2, -3, -4]
+    durations: ["1/16", "1/16", "1/16", "1/16", "1/8"]
+    character: energetic
+    direction: descending
+    motor: true
+
+  - name: bass_fifth_down_sustained
+    degrees: [0, -4]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: descending
+    motor: false
+
+# =============================================================================
+# UNISON: same target pitch (degree difference = 0)
+# Use neighbor motion instead of static repetition
+# =============================================================================
+
+unison:
+  - name: bass_sustained_half
+    degrees: [0]
+    durations: ["1/2"]
+    character: sustained
+    direction: static
+    motor: false
+
+  - name: bass_neighbor_quarters
+    degrees: [0, 1]
+    durations: ["1/4", "1/4"]
+    character: plain
+    direction: ascending
+    motor: false
+
+  - name: bass_oscillation
+    degrees: [0, 1, 0, -1]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: static
+    motor: true
+
+  - name: bass_neighbor_up_return
+    degrees: [0, 1, 2, 0]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: energetic
+    direction: ascending
+    motor: true
+
+  - name: bass_neighbor_down_return
+    degrees: [0, -1, -2, 0]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: energetic
+    direction: descending
+    motor: true
+
+  - name: bass_upper_neighbor_16th
+    degrees: [0, 1, 0, 1]
+    durations: ["1/16", "1/16", "1/16", "1/16"]
+    character: energetic
+    direction: static
+    motor: true
+
+  - name: bass_lower_neighbor_16th
+    degrees: [0, -1, 0, -1]
+    durations: ["1/16", "1/16", "1/16", "1/16"]
+    character: energetic
+    direction: static
+    motor: true
+
+# =============================================================================
+# SIXTH_UP / SIXTH_DOWN / OCTAVE: larger intervals
+# =============================================================================
+
+sixth_up:
+  - name: bass_scalar_sixth_up
+    degrees: [0, 1, 2, 3, 4, 5]
+    durations: ["1/16", "1/16", "1/16", "1/16", "1/8", "1/8"]
+    character: energetic
+    direction: ascending
+    motor: true
+
+  - name: bass_sixth_sustained
+    degrees: [0, 5]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: ascending
+    motor: false
+
+sixth_down:
+  - name: bass_scalar_sixth_down
+    degrees: [0, -1, -2, -3, -4, -5]
+    durations: ["1/16", "1/16", "1/16", "1/16", "1/8", "1/8"]
+    character: energetic
+    direction: descending
+    motor: true
+
+  - name: bass_sixth_down_sustained
+    degrees: [0, -5]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: descending
+    motor: false
+
+octave_up:
+  - name: bass_octave_arpeggio_up
+    degrees: [0, 2, 4, 7]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: ascending
+    motor: true
+
+  - name: bass_octave_sustained
+    degrees: [0, 7]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: ascending
+    motor: false
+
+octave_down:
+  - name: bass_octave_arpeggio_down
+    degrees: [0, -2, -4, -7]
+    durations: ["1/8", "1/8", "1/8", "1/8"]
+    character: plain
+    direction: descending
+    motor: true
+
+  - name: bass_octave_down_sustained
+    degrees: [0, -7]
+    durations: ["1/4", "1/4"]
+    character: sustained
+    direction: descending
+    motor: false

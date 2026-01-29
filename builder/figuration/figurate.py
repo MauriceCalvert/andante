@@ -10,6 +10,7 @@ from builder.figuration.bar_context import (
     compute_harmonic_tension,
     compute_next_anchor_strength,
     reduce_density,
+    should_generate_anacrusis,
     should_use_hemiola,
     should_use_overdotted,
 )
@@ -38,11 +39,13 @@ from builder.figuration.selector import (
     filter_by_direction,
     filter_by_max_leap,
     filter_by_minor_safety,
+    filter_by_note_count,
     filter_by_tension,
     filter_cadential_safe,
     filter_parallel_direct,
     get_figures_for_interval,
 )
+from builder.figuration.rhythm_calc import compute_rhythmic_distribution
 # sequencer functions used through strategies module
 from builder.figuration.strategies import (
     apply_strategy,
@@ -268,13 +271,59 @@ def figurate(
             use_hemiola=use_hemiola,
             overdotted=should_use_overdotted(affect_character, phrase_pos),
             start_beat=start_beat,
+            density=effective_density,
+            use_baroque_rhythm=True,
         )
         figured_bars.append(figured_bar)
         prev_leaped = _is_leap(figure)
         leap_direction = "up" if ascending else "down"
         prev_figure_name = figure.name
         i += 1
+    # Check if soprano needs anacrusis
+    if voice == "soprano" and sorted_anchors:
+        first_bar = _parse_bar_beat(sorted_anchors[0].bar_beat)[0]
+        if should_generate_anacrusis(first_bar, voice, passage_assignments):
+            anacrusis_bar = _generate_soprano_anacrusis(
+                target_degree=_get_degree(sorted_anchors[0], role),
+                seed=seed,
+            )
+            figured_bars.insert(0, anacrusis_bar)
     return figured_bars
+
+
+def _generate_soprano_anacrusis(
+    target_degree: int,
+    seed: int,
+) -> FiguredBar:
+    """Generate a 4-note anacrusis leading to target degree.
+
+    Args:
+        target_degree: The degree to arrive at on beat 1 of bar 1
+        seed: Random seed
+
+    Returns:
+        FiguredBar for bar 0 with anacrusis.
+    """
+    rng = random.Random(seed)
+    # 60% ascending approach, 40% descending
+    if rng.random() < 0.6:
+        degrees = [target_degree - 3, target_degree - 2, target_degree - 1, target_degree]
+    else:
+        degrees = [target_degree + 3, target_degree + 2, target_degree + 1, target_degree]
+    normalized: list[int] = []
+    for d in degrees:
+        while d < 1:
+            d += 7
+        while d > 7:
+            d -= 7
+        normalized.append(d)
+    return FiguredBar(
+        bar=0,
+        degrees=tuple(normalized),
+        durations=(Fraction(1, 16), Fraction(1, 16), Fraction(1, 16), Fraction(1, 16)),
+        figure_name="anacrusis_run",
+        start_beat=1,
+    )
 
 
 def figurate_single_bar(
@@ -337,6 +386,8 @@ def figurate_single_bar(
         next_anchor_strength="strong",
         use_hemiola=False,
         overdotted=False,
+        density=density,
+        use_baroque_rhythm=True,
     )
 
 
@@ -355,6 +406,7 @@ def _select_figure_with_filters(
     soprano_degrees: tuple[int, ...] | None = None,
     soprano_start_midi: int = 70,
     bass_start_midi: int = 48,
+    required_count: int | None = None,
 ) -> Figure | None:
     """Apply full filter pipeline and select figure.
 
@@ -363,10 +415,17 @@ def _select_figure_with_filters(
         soprano_degrees: When selecting bass, soprano degrees to check against.
         soprano_start_midi: Soprano starting MIDI pitch for parallel/direct check.
         bass_start_midi: Bass starting MIDI pitch for parallel/direct check.
+        required_count: Expected note count; filters out figures needing extreme expansion.
     """
     all_figures = get_figures_for_interval(interval)
     if not all_figures:
         return None
+    # Apply note_count as hard constraint before any other filtering
+    # This ensures misbehaviour cannot bypass expansion limits
+    if required_count is not None:
+        all_figures = filter_by_note_count(all_figures, required_count)
+        if not all_figures:
+            return None
     candidates = list(all_figures)
     candidates = filter_by_direction(candidates, ascending)
     candidates = filter_by_tension(candidates, harmonic_tension)
@@ -447,6 +506,12 @@ def _apply_schema_figuration(
     )
     offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
     offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
+    # Compute required note count BEFORE figure selection
+    bar_num = _parse_bar_beat(anchor_a.bar_beat)[0]
+    start_beat = compute_beat_class(voice, bar_num, passage_assignments)
+    raw_gap = offset_b - offset_a
+    effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
+    required_count, _ = compute_rhythmic_distribution(effective_gap, density)
     initial_figure = _select_figure_with_filters(
         interval=interval,
         ascending=ascending,
@@ -458,6 +523,7 @@ def _apply_schema_figuration(
         leap_direction=None,
         near_cadence=False,
         seed=seed,
+        required_count=required_count,
     )
     if initial_figure is None:
         initial_figure = _create_direct_figure(interval, _get_degree(anchor_a, role), _get_degree(anchor_b, role))
@@ -489,6 +555,8 @@ def _apply_schema_figuration(
             gap_duration=effective_gap,
             metre=metre,
             start_beat=start_beat,
+            density=density,
+            use_baroque_rhythm=True,
         )
         result.append(figured_bar)
     return result

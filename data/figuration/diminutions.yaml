@@ -77,6 +77,8 @@ unison:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.7
+    chainable: true
+    chain_unit: 4
 
   - name: trill_static
     degrees: [0, 1, 0, 1, 0]
@@ -95,6 +97,8 @@ unison:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.6
+    chainable: true
+    chain_unit: 2
 
 step_up:
   - name: direct_step_up
@@ -186,6 +190,8 @@ step_up:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.8
+    chainable: true
+    chain_unit: 4
 
 step_down:
   - name: direct_step_down
@@ -277,6 +283,8 @@ step_down:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.8
+    chainable: true
+    chain_unit: 4
 
 third_up:
   - name: direct_third_up

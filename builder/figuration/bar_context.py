@@ -159,6 +159,75 @@ def reduce_density(density: str) -> str:
     return "low"
 
 
+def is_motor_context(
+    bar: int,
+    schema_sections: list[tuple[int, int]],
+    anchors: Sequence[Anchor],
+) -> bool:
+    """Determine if this bar is within a motor rhythm context.
+
+    Motor rhythm continues within schema sections.
+
+    Args:
+        bar: Current bar number
+        schema_sections: List of (start_idx, end_idx) for schema sections
+        anchors: Full anchor sequence
+
+    Returns:
+        True if bass should use continuous motor rhythm.
+    """
+    for start_idx, end_idx in schema_sections:
+        if start_idx < len(anchors) and end_idx <= len(anchors):
+            start_bar_beat = anchors[start_idx].bar_beat
+            end_bar_beat = anchors[end_idx - 1].bar_beat
+            start_bar = int(start_bar_beat.split(".")[0])
+            end_bar = int(end_bar_beat.split(".")[0])
+            if start_bar <= bar <= end_bar:
+                return True
+    return False
+
+
+def should_generate_anacrusis(
+    bar: int,
+    voice: str,
+    passage_assignments: Sequence[PassageAssignment] | None,
+) -> bool:
+    """Determine if anacrusis should be generated for this bar.
+
+    Anacrusis is generated when:
+    - This voice is accompanying (beat class = 2)
+    - The passage function is 'subject' or 'answer'
+
+    Args:
+        bar: Bar number
+        voice: "soprano" or "bass"
+        passage_assignments: Passage assignments
+
+    Returns:
+        True if anacrusis should be generated.
+    """
+    if passage_assignments is None:
+        return False
+    beat_class = compute_beat_class(voice, bar, passage_assignments)
+    if beat_class != 2:
+        return False
+    function = _get_function_for_bar(bar, passage_assignments)
+    return function in ("subject", "answer")
+
+
+def _get_function_for_bar(
+    bar: int,
+    assignments: Sequence[PassageAssignment] | None,
+) -> str | None:
+    """Look up passage function for a given bar number."""
+    if assignments is None:
+        return None
+    for assignment in assignments:
+        if assignment.start_bar <= bar <= assignment.end_bar:
+            return assignment.function
+    return None
+
+
 def _parse_bar_beat(bar_beat: str) -> tuple[int, float]:
     """Parse bar.beat string into (bar, beat) tuple."""
     parts = bar_beat.split(".")

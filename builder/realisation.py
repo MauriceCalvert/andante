@@ -110,15 +110,25 @@ def realise_with_figuration(
     prev_function: str | None = None
     prev_expansion_name: str | None = None
     prev_section: str | None = None
-    for i, figured_bar in enumerate(figured_bars):
-        if i >= len(sorted_anchors):
-            break
-        anchor = sorted_anchors[i]
-        bar: int = int(anchor.bar_beat.split(".")[0])
-        bar_offset: Fraction = bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
-        # Use start_beat from figured bar (computed during figuration)
-        beat_value: Fraction = Fraction(1, int(genre_config.metre.split("/")[1]))
-        current_offset = bar_offset + (figured_bar.start_beat - 1) * beat_value
+    beat_value: Fraction = Fraction(1, int(genre_config.metre.split("/")[1]))
+    anchor_idx: int = 0
+    for figured_bar in figured_bars:
+        bar: int = figured_bar.bar
+        # Anacrusis (bar 0) uses negative offset
+        if bar == 0:
+            current_offset = -sum(figured_bar.durations)
+            first_bar_offset = current_offset
+            anchor_for_key = sorted_anchors[0] if sorted_anchors else None
+        else:
+            if anchor_idx >= len(sorted_anchors):
+                break
+            anchor_for_key = sorted_anchors[anchor_idx]
+            bar_offset: Fraction = bar_beat_to_offset(anchor_for_key.bar_beat, beats_per_bar)
+            # Use start_beat from figured bar (computed during figuration)
+            current_offset = bar_offset + (figured_bar.start_beat - 1) * beat_value
+            first_bar_offset = current_offset
+            anchor_idx += 1
+        assert anchor_for_key is not None, "No anchor for soprano note"
         function: str | None = get_function_for_bar(bar, passage_assignments)
         expansion: VoiceExpansionConfig = get_expansion_for_bar(
             bar=bar,
@@ -131,19 +141,19 @@ def realise_with_figuration(
         tracer.expansion(bar, function or "none", expansion_name)
         for j, (degree, duration) in enumerate(zip(figured_bar.degrees, figured_bar.durations)):
             s_midi: int = select_octave(
-                anchor.local_key, degree, soprano_median,
+                anchor_for_key.local_key, degree, soprano_median,
                 prev_pitch=None if j == 0 and prev_soprano is None else prev_soprano,
                 voice_range=VOICE_RANGES[0],
             )
             prev_soprano = s_midi
-            if current_offset == bar_offset + (figured_bar.start_beat - 1) * beat_value:
-                schema_part: str | None = anchor.schema if anchor.stage == 1 else None
+            if current_offset == first_bar_offset:
+                schema_part: str | None = anchor_for_key.schema if anchor_for_key.stage == 1 else None
                 function_part: str | None = function if function != prev_function else None
                 exp_part: str | None = expansion_name if expansion_name != prev_expansion_name else None
-                section_part: str | None = anchor.section if anchor.section != prev_section else None
+                section_part: str | None = anchor_for_key.section if anchor_for_key.section != prev_section else None
                 prev_function = function
                 prev_expansion_name = expansion_name
-                prev_section = anchor.section
+                prev_section = anchor_for_key.section
                 figure_part: str | None = figured_bar.figure_name
                 lyric = build_stacked_lyric(section_part, schema_part, function_part, figure_part)
                 if exp_part and lyric:
@@ -179,27 +189,33 @@ def realise_with_figuration(
             ))
     bar_duration = Fraction(beats_per_bar, 4)
     if genre_config.bass_treatment == "contrapuntal":
-        bass_figured_bars = figurate(
+        from builder.figuration.bass_figurate import figurate_bass
+        bass_figured_bars = figurate_bass(
             anchors=anchors,
-            key=key,
             metre=genre_config.metre,
             seed=seed + 1000,
             density=density,
-            affect_character=character,
-            voice="bass",
-            soprano_figured_bars=figured_bars,  # Pass soprano figures for parallel/direct check
             passage_assignments=passage_assignments,
         )
         prev_bass: int | None = None
-        for i, figured_bar in enumerate(bass_figured_bars):
-            if i >= len(sorted_anchors):
-                break
-            anchor = sorted_anchors[i]
-            bar: int = int(anchor.bar_beat.split(".")[0])
-            bar_offset: Fraction = bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
-            # Use start_beat from figured bar (computed during figuration)
-            bass_beat_value: Fraction = Fraction(1, int(genre_config.metre.split("/")[1]))
-            current_offset = bar_offset + (figured_bar.start_beat - 1) * bass_beat_value
+        bar_duration: Fraction = Fraction(beats_per_bar, 4)
+        bass_beat_value: Fraction = Fraction(1, int(genre_config.metre.split("/")[1]))
+        anchor_idx: int = 0
+        for figured_bar in bass_figured_bars:
+            bar: int = figured_bar.bar
+            # Anacrusis (bar 0) uses negative offset
+            if bar == 0:
+                current_offset = -sum(figured_bar.durations)
+                anchor_for_key = sorted_anchors[0] if sorted_anchors else None
+            else:
+                if anchor_idx >= len(sorted_anchors):
+                    break
+                anchor_for_key = sorted_anchors[anchor_idx]
+                bar_offset: Fraction = bar_beat_to_offset(anchor_for_key.bar_beat, beats_per_bar)
+                # Use start_beat from figured bar (computed during figuration)
+                current_offset = bar_offset + (figured_bar.start_beat - 1) * bass_beat_value
+                anchor_idx += 1
+            assert anchor_for_key is not None, "No anchor for bass note"
             short_note_count: int = sum(
                 1 for d in figured_bar.durations if d <= STACCATO_DURATION_THRESHOLD
             )
@@ -209,14 +225,14 @@ def realise_with_figuration(
             )
             for j, (degree, dur) in enumerate(zip(figured_bar.degrees, figured_bar.durations)):
                 b_midi: int = select_octave(
-                    anchor.local_key, degree, bass_median,
+                    anchor_for_key.local_key, degree, bass_median,
                     prev_pitch=None if j == 0 and prev_bass is None else prev_bass,
                     voice_range=VOICE_RANGES[3],
                 )
                 prev_bass = b_midi
                 # Truncate duration at passage boundary to avoid overlap
                 note_dur = dur
-                if passage_end is not None:
+                if passage_end is not None and current_offset >= 0:
                     max_duration = passage_end - current_offset
                     if max_duration > 0 and note_dur > max_duration:
                         note_dur = max_duration
@@ -372,6 +388,38 @@ def realise_with_figuration(
         tempo = tempo_override
     else:
         tempo = genre_config.tempo + affect_config.tempo_modifier
+
+    # Shift all offsets to eliminate negative values
+    min_offset = Fraction(0)
+    for note in soprano_notes:
+        if note.offset < min_offset:
+            min_offset = note.offset
+    for note in bass_notes:
+        if note.offset < min_offset:
+            min_offset = note.offset
+    if min_offset < 0:
+        shift = -min_offset  # Convert negative to positive shift
+        soprano_notes = [
+            Note(
+                offset=n.offset + shift,
+                pitch=n.pitch,
+                duration=n.duration,
+                voice=n.voice,
+                lyric=n.lyric,
+            )
+            for n in soprano_notes
+        ]
+        bass_notes = [
+            Note(
+                offset=n.offset + shift,
+                pitch=n.pitch,
+                duration=n.duration,
+                voice=n.voice,
+                lyric=n.lyric,
+            )
+            for n in bass_notes
+        ]
+
     return NoteFile(
         soprano=tuple(soprano_notes),
         bass=tuple(bass_notes),
