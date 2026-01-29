@@ -225,6 +225,7 @@ def realise_figure_to_bar(
     next_anchor_strength: str = "strong",
     use_hemiola: bool = False,
     overdotted: bool = False,
+    start_beat: int = 1,
 ) -> FiguredBar:
     """Realise a figure into a FiguredBar with absolute degrees and durations.
 
@@ -239,6 +240,7 @@ def realise_figure_to_bar(
         next_anchor_strength: Strength of following anchor
         use_hemiola: Use hemiola rhythms
         overdotted: Use overdotted rhythms
+        start_beat: Beat on which this voice enters (1=lead, 2=accompany)
 
     Returns:
         FiguredBar with absolute degrees and durations.
@@ -272,6 +274,7 @@ def realise_figure_to_bar(
         degrees=tuple(absolute_degrees),
         durations=durations,
         figure_name=figure.name,
+        start_beat=start_beat,
     )
 
 

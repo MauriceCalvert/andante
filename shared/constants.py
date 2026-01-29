@@ -344,5 +344,3 @@ MAX_PARALLEL_RHYTHM_ATTACKS: int = 4
 # Duration threshold for articulation tagging (eighth note in 4/4)
 STACCATO_DURATION_THRESHOLD: Fraction = Fraction(1, 8)
 
-# Rhythmic stagger for non-lead voice (one eighth note in whole-note units)
-RHYTHM_STAGGER_OFFSET: Fraction = Fraction(1, 8)

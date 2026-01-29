@@ -120,6 +120,7 @@ class FiguredBar:
     degrees: tuple[int, ...]  # Scale degrees (absolute, 1-7)
     durations: tuple[Fraction, ...]  # Note durations in whole notes
     figure_name: str  # For tracing
+    start_beat: int = 1  # Beat on which this voice enters (1=lead, 2=accompany)
 
     def __post_init__(self) -> None:
         assert self.bar >= 0, f"bar must be >= 0, got {self.bar}"
@@ -128,6 +129,7 @@ class FiguredBar:
         assert all(1 <= d <= 7 for d in self.degrees), \
             f"All degrees must be in range 1-7, got {self.degrees}"
         assert all(d > 0 for d in self.durations), "All durations must be positive"
+        assert self.start_beat in (1, 2), f"start_beat must be 1 or 2, got {self.start_beat}"
 
     def get_onsets(self, bar_offset: Fraction) -> set[Fraction]:
         """Return onset positions (absolute offsets) for this bar's notes."""

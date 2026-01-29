@@ -3,11 +3,33 @@ import random
 from fractions import Fraction
 from typing import Sequence
 
+from builder.figuration.bar_context import (
+    compute_bar_function,
+    compute_beat_class,
+    compute_effective_gap,
+    compute_harmonic_tension,
+    compute_next_anchor_strength,
+    reduce_density,
+    should_use_hemiola,
+    should_use_overdotted,
+)
+from builder.figuration.cadential import (
+    CADENTIAL_UNDERSTATEMENT_PROBABILITY,
+    select_cadential_figure,
+)
 from builder.figuration.junction import check_junction, find_valid_figure
-from builder.figuration.loader import get_cadential
+from builder.figuration.phrase import (
+    DEFORMATION_PROBABILITY,
+    MAX_SCHEMA_SECTION_ANCHORS,
+    MIN_SCHEMA_SECTION_ANCHORS,
+    detect_schema_sections,
+    determine_position_with_deformation,
+    in_schema_section,
+    select_phrase_deformation,
+)
 from builder.figuration.realiser import realise_figure_to_bar
+from builder.figuration.selection import apply_misbehaviour, select_figure, sort_by_weight
 from builder.figuration.selector import (
-    apply_misbehaviour,
     compute_interval,
     determine_phrase_position,
     filter_by_character,
@@ -20,8 +42,6 @@ from builder.figuration.selector import (
     filter_cadential_safe,
     filter_parallel_direct,
     get_figures_for_interval,
-    select_figure,
-    sort_by_weight,
 )
 # sequencer functions used through strategies module
 from builder.figuration.strategies import (
@@ -30,21 +50,11 @@ from builder.figuration.strategies import (
     get_strategy_for_schema,
 )
 from builder.figuration.types import (
-    CadentialFigure,
     Figure,
     FiguredBar,
     PhrasePosition,
 )
-from builder.types import Anchor, Role
-
-# Minimum anchors to trigger schema-aware figuration
-MIN_SCHEMA_SECTION_ANCHORS: int = 2
-# Maximum anchors in a schema section (Rule of Three: 3 repetitions = 4 anchors)
-MAX_SCHEMA_SECTION_ANCHORS: int = 4
-# Probability of phrase deformation
-DEFORMATION_PROBABILITY: float = 0.15
-# Probability of cadential understatement at weak cadences
-CADENTIAL_UNDERSTATEMENT_PROBABILITY: float = 0.10
+from builder.types import Anchor, PassageAssignment, Role
 
 
 def _get_direction(anchor: Anchor, role: Role) -> str | None:
@@ -122,6 +132,7 @@ def figurate(
     affect_character: str = "plain",
     voice: str = "soprano",
     soprano_figured_bars: list[FiguredBar] | None = None,
+    passage_assignments: Sequence[PassageAssignment] | None = None,
 ) -> list[FiguredBar]:
     """Main entry point: Convert anchors to figured bars.
 
@@ -130,6 +141,7 @@ def figurate(
                Maps to Role.SCHEMA_UPPER or Role.SCHEMA_LOWER.
         soprano_figured_bars: When figurating bass, pass soprano bars to avoid
                parallel/direct fifths and octaves.
+        passage_assignments: Lead voice assignments for rhythm complementarity.
     """
     if len(anchors) < 2:
         return []
@@ -137,8 +149,8 @@ def figurate(
     sorted_anchors = sorted(anchors, key=lambda a: _parse_bar_beat(a.bar_beat))
     is_minor = key.mode == "minor"
     total_bars = _count_bars(sorted_anchors)
-    phrase_deformation = _select_phrase_deformation(rng, total_bars)
-    schema_sections = _detect_schema_sections(sorted_anchors)
+    phrase_deformation = select_phrase_deformation(rng, total_bars)
+    schema_sections = detect_schema_sections(sorted_anchors)
     compound_melody_active = False
     figured_bars: list[FiguredBar] = []
     prev_leaped = False
@@ -150,7 +162,7 @@ def figurate(
         anchor_a = sorted_anchors[i]
         anchor_b = sorted_anchors[i + 1]
         bar_num = _parse_bar_beat(anchor_a.bar_beat)[0]
-        seq_info = _in_schema_section(i, schema_sections)
+        seq_info = in_schema_section(i, schema_sections)
         if seq_info is not None:
             seq_start, seq_end = seq_info
             seq_anchors = sorted_anchors[seq_start:seq_end + 1]
@@ -161,6 +173,8 @@ def figurate(
                 density=density,
                 is_minor=is_minor,
                 role=role,
+                voice=voice,
+                passage_assignments=passage_assignments,
             )
             figured_bars.extend(seq_bars)
             i = seq_end
@@ -173,15 +187,15 @@ def figurate(
         ascending = _direction_to_ascending(
             direction, _get_degree(anchor_a, role), _get_degree(anchor_b, role),
         )
-        phrase_pos = _determine_position_with_deformation(
+        phrase_pos = determine_position_with_deformation(
             bar_num, total_bars, anchor_a.schema, phrase_deformation,
         )
-        harmonic_tension = _compute_harmonic_tension(anchor_a, phrase_pos, role)
-        bar_function = _compute_bar_function(phrase_pos, bar_num, total_bars)
-        use_hemiola = _should_use_hemiola(bar_num, total_bars, metre, phrase_deformation)
-        next_anchor_strength = _compute_next_anchor_strength(i, sorted_anchors, total_bars)
+        harmonic_tension = compute_harmonic_tension(anchor_a, phrase_pos, role)
+        bar_function = compute_bar_function(phrase_pos, bar_num, total_bars)
+        use_hemiola = should_use_hemiola(bar_num, total_bars, metre, phrase_deformation)
+        next_anchor_strength = compute_next_anchor_strength(i, sorted_anchors, total_bars)
         if phrase_pos.position == "cadence":
-            figure = _select_cadential_figure(
+            figure = select_cadential_figure(
                 _get_degree(anchor_b, role), interval, is_minor, seed + i, rng,
             )
         else:
@@ -196,12 +210,15 @@ def figurate(
                 # Approximate starting MIDI from anchor degrees
                 soprano_start_midi = 60 + (anchor_a.upper_degree - 1) * 2
                 bass_start_midi = 36 + (anchor_a.lower_degree - 1) * 2
+            # Compute beat class for rhythm complementarity (used in figure selection)
+            start_beat_for_filter = compute_beat_class(voice, bar_num, passage_assignments)
+            filter_density = reduce_density(density) if start_beat_for_filter == 2 else density
             figure = _select_figure_with_filters(
                 interval=interval,
                 ascending=ascending,
                 harmonic_tension=harmonic_tension,
                 character=affect_character if phrase_pos.position == "opening" else phrase_pos.character,
-                density=density,
+                density=filter_density,
                 is_minor=is_minor,
                 prev_leaped=prev_leaped,
                 leap_direction=leap_direction,
@@ -233,18 +250,24 @@ def figurate(
                     figure = alt_figure
         offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
         offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
-        gap = offset_b - offset_a
+        raw_gap = offset_b - offset_a
+        # Compute beat class for rhythm complementarity
+        start_beat = compute_beat_class(voice, bar_num, passage_assignments)
+        effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
+        # Accompanying voice uses sparser density
+        effective_density = reduce_density(density) if start_beat == 2 else density
         figured_bar = realise_figure_to_bar(
             figure=figure,
             bar=bar_num,
             start_degree=_get_degree(anchor_a, role),
-            gap_duration=gap,
+            gap_duration=effective_gap,
             metre=metre,
             bar_function=bar_function,
             rhythmic_unit=_get_rhythmic_unit(metre),
             next_anchor_strength=next_anchor_strength,
             use_hemiola=use_hemiola,
-            overdotted=_should_use_overdotted(affect_character, phrase_pos),
+            overdotted=should_use_overdotted(affect_character, phrase_pos),
+            start_beat=start_beat,
         )
         figured_bars.append(figured_bar)
         prev_leaped = _is_leap(figure)
@@ -277,12 +300,12 @@ def figurate_single_bar(
     )
     is_minor = key.mode == "minor"
     phrase_pos = determine_phrase_position(bar_num, total_bars, anchor_a.schema)
-    harmonic_tension = _compute_harmonic_tension(anchor_a, phrase_pos, role)
-    bar_function = _compute_bar_function(phrase_pos, bar_num, total_bars)
+    harmonic_tension = compute_harmonic_tension(anchor_a, phrase_pos, role)
+    bar_function = compute_bar_function(phrase_pos, bar_num, total_bars)
     rng = random.Random(seed)
     figure: Figure | None = None
     if phrase_pos.position == "cadence":
-        figure = _select_cadential_figure(
+        figure = select_cadential_figure(
             _get_degree(anchor_b, role), interval, is_minor, seed, rng,
         )
     if figure is None:
@@ -366,88 +389,6 @@ def _select_figure_with_filters(
     return select_figure(candidates, seed)
 
 
-def _select_cadential_figure(
-    to_degree: int,
-    interval: str,
-    is_minor: bool,
-    seed: int,
-    rng: random.Random,
-) -> Figure | None:
-    """Select from cadential table for phrase endings."""
-    if rng.random() < CADENTIAL_UNDERSTATEMENT_PROBABILITY:
-        return None
-    cadential = get_cadential()
-    if to_degree == 1:
-        target = "target_1"
-    elif to_degree == 5:
-        target = "target_5"
-    else:
-        return None
-    if target not in cadential:
-        return None
-    approaches = cadential[target]
-    approach_key = _interval_to_approach_key(interval)
-    if approach_key not in approaches:
-        if "unison" in approaches:
-            approach_key = "unison"
-        else:
-            return None
-    cadential_figures = approaches[approach_key]
-    if not cadential_figures:
-        return None
-    if is_minor:
-        cadential_figures = [cf for cf in cadential_figures if _cadential_minor_safe(cf)]
-        if not cadential_figures:
-            cadential_figures = approaches[approach_key]
-    rng_local = random.Random(seed)
-    selected_cf = rng_local.choice(cadential_figures)
-    return _cadential_to_figure(selected_cf)
-
-
-def _cadential_to_figure(cf: CadentialFigure) -> Figure:
-    """Convert CadentialFigure to regular Figure for realisation."""
-    return Figure(
-        name=cf.name,
-        degrees=cf.degrees,
-        contour=cf.contour,
-        polarity="balanced",
-        arrival="stepwise" if len(cf.degrees) > 2 else "direct",
-        placement="end",
-        character="plain",
-        harmonic_tension="low",
-        max_density="high" if len(cf.degrees) > 4 else "medium",
-        cadential_safe=True,
-        repeatable=False,
-        requires_compensation=False,
-        compensation_direction=None,
-        is_compound=False,
-        minor_safe=True,
-        requires_leading_tone=cf.contour in ("trilled_resolution", "leading_tone_resolution"),
-        weight=1.0,
-    )
-
-
-def _cadential_minor_safe(cf: CadentialFigure) -> bool:
-    """Check if cadential figure is safe in minor key."""
-    return cf.contour not in ("trilled_resolution",)
-
-
-def _interval_to_approach_key(interval: str) -> str:
-    """Map interval name to cadential approach key."""
-    mapping = {
-        "unison": "unison",
-        "step_up": "step_up",
-        "step_down": "step_down",
-        "third_up": "third_up",
-        "third_down": "third_down",
-        "fourth_up": "fourth_up",
-        "fourth_down": "fourth_down",
-        "fifth_up": "fifth_up",
-        "fifth_down": "fifth_down",
-    }
-    return mapping.get(interval, "step_down")
-
-
 def _try_select_compound_figure(
     interval: str,
     ascending: bool,
@@ -478,6 +419,8 @@ def _apply_schema_figuration(
     density: str,
     is_minor: bool,
     role: Role,
+    voice: str = "soprano",
+    passage_assignments: Sequence[PassageAssignment] | None = None,
 ) -> list[FiguredBar]:
     """Apply schema-aware figuration to a schema section.
 
@@ -535,161 +478,20 @@ def _apply_schema_figuration(
         bar_num = _parse_bar_beat(anchor_a.bar_beat)[0]
         offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
         offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
-        gap = offset_b - offset_a
+        raw_gap = offset_b - offset_a
+        # Compute beat class for rhythm complementarity
+        start_beat = compute_beat_class(voice, bar_num, passage_assignments)
+        effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
         figured_bar = realise_figure_to_bar(
             figure=figure,
             bar=bar_num,
             start_degree=_get_degree(anchor_a, role),
-            gap_duration=gap,
+            gap_duration=effective_gap,
             metre=metre,
+            start_beat=start_beat,
         )
         result.append(figured_bar)
     return result
-
-
-def _detect_schema_sections(anchors: Sequence[Anchor]) -> list[tuple[int, int]]:
-    """Detect contiguous schema sections in anchor sequence.
-
-    Any run of 2+ anchors with the same schema name forms a section.
-    This enables schema-aware figuration for ALL schemas, not just sequential ones.
-
-    Returns:
-        List of (start_idx, end_idx) tuples. end_idx is exclusive.
-    """
-    sections: list[tuple[int, int]] = []
-    i = 0
-    while i < len(anchors):
-        schema = anchors[i].schema.lower() if anchors[i].schema else ""
-        if not schema:
-            i += 1
-            continue
-        start = i
-        while i < len(anchors) and anchors[i].schema and anchors[i].schema.lower() == schema:
-            if i - start >= MAX_SCHEMA_SECTION_ANCHORS:
-                break
-            i += 1
-        if i - start >= MIN_SCHEMA_SECTION_ANCHORS:
-            sections.append((start, i))
-    return sections
-
-
-def _in_schema_section(idx: int, sections: list[tuple[int, int]]) -> tuple[int, int] | None:
-    """Check if index is start of a schema section."""
-    for start, end in sections:
-        if idx == start:
-            return (start, end)
-    return None
-
-
-def _select_phrase_deformation(rng: random.Random, total_bars: int) -> str | None:
-    """Select phrase deformation type with low probability."""
-    if total_bars < 6:
-        return None
-    if rng.random() > DEFORMATION_PROBABILITY:
-        return None
-    return rng.choice(["early_cadence", "extended_continuation"])
-
-
-def _determine_position_with_deformation(
-    bar: int,
-    total_bars: int,
-    schema_type: str | None,
-    deformation: str | None,
-) -> PhrasePosition:
-    """Determine phrase position accounting for deformation."""
-    base_pos = determine_phrase_position(bar, total_bars, schema_type)
-    if deformation is None:
-        return base_pos
-    if deformation == "early_cadence":
-        cadence_start = max(2, (3 * total_bars) // 4)
-        if bar == cadence_start - 1:
-            return PhrasePosition(
-                position="cadence",
-                bars=(cadence_start - 1, total_bars),
-                character="plain",
-                sequential=False,
-            )
-    elif deformation == "extended_continuation":
-        cadence_start = max(2, (3 * total_bars) // 4)
-        if bar == cadence_start:
-            return PhrasePosition(
-                position="continuation",
-                bars=(base_pos.bars[0], cadence_start),
-                character="energetic",
-                sequential=base_pos.sequential,
-            )
-    return base_pos
-
-
-def _compute_harmonic_tension(
-    anchor_a: Anchor,
-    phrase_pos: PhrasePosition,
-    role: Role,
-) -> str:
-    """Compute harmonic tension from schema type, bass degree, and bar function."""
-    if phrase_pos.position == "cadence":
-        base_tension = "low"
-    elif phrase_pos.position == "continuation":
-        base_tension = "medium"
-    else:
-        base_tension = "low"
-    bass = anchor_a.lower_degree
-    if bass in (2, 4, 7):
-        if base_tension == "low":
-            return "medium"
-        return "high"
-    if bass in (5,):
-        return "medium"
-    schema = anchor_a.schema.lower() if anchor_a.schema else ""
-    if schema in ("monte", "fonte"):
-        return "medium"
-    return base_tension
-
-
-def _compute_bar_function(phrase_pos: PhrasePosition, bar_num: int, total_bars: int) -> str:
-    """Compute bar function for rhythm realisation."""
-    if phrase_pos.position == "cadence":
-        return "cadential"
-    if phrase_pos.sequential:
-        return "schema_arrival"
-    if bar_num == total_bars - 2:
-        return "preparatory"
-    return "passing"
-
-
-def _should_use_hemiola(bar_num: int, total_bars: int, metre: str, deformation: str | None) -> bool:
-    """Determine if hemiola should be used for this bar."""
-    if metre != "3/4":
-        return False
-    if total_bars < 6:
-        return False
-    hemiola_bar = total_bars - 2
-    if bar_num == hemiola_bar or bar_num == hemiola_bar + 1:
-        if deformation == "early_cadence":
-            return False
-        return True
-    return False
-
-
-def _compute_next_anchor_strength(
-    idx: int,
-    anchors: Sequence[Anchor],
-    total_bars: int,
-) -> str:
-    """Compute strength of next anchor for anacrusis handling."""
-    if idx + 2 >= len(anchors):
-        return "strong"
-    next_bar = _parse_bar_beat(anchors[idx + 1].bar_beat)[0]
-    if next_bar == 1 or next_bar == (total_bars // 2) + 1:
-        return "strong"
-    if next_bar >= total_bars - 1:
-        return "strong"
-    return "weak"
-
-
-def _should_use_overdotted(affect_character: str, phrase_pos: PhrasePosition) -> bool:
-    """Determine if overdotted rhythms should be used."""
-    return affect_character == "ornate"
 
 
 def _get_rhythmic_unit(metre: str) -> Fraction:
