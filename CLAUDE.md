@@ -126,24 +126,25 @@ Get-Content D:\temp_output.txt
 
 ### Git commands
 
-Git is in both cmd.exe and PowerShell PATH on the user's machine, but the Windows MCP tool runs in a restricted context where PATH may not be fully inherited. Use a batch file:
+Git is NOT in PATH in the MCP context. Always use the full path.
+
+**Git path**: `C:\Program Files\Git\cmd\git.exe`
 
 ```powershell
-# Create batch file, run it hidden, then delete
-# (Filesystem:write_file to D:/projects/Barok/barok/source/andante/temp_cmd.bat)
+# Step 1: Run git command
+Start-Process -FilePath "C:\WINDOWS\system32\cmd.exe" -ArgumentList '/c ""C:\Program Files\Git\cmd\git.exe" status > D:\temp_output.txt 2>&1"' -WindowStyle Hidden -Wait
+
+# Step 2: Read output
+Get-Content D:\temp_output.txt
 ```
 
-```batch
-@echo off
-cd /d D:\projects\Barok\barok\source\andante
-git add -A
-git commit -m "Fix: description"
-```
-
+Use git's `-C` flag for working directory (avoids escaping issues with `cd &&`):
 ```powershell
-Start-Process -FilePath "D:\projects\Barok\barok\source\andante\temp_cmd.bat" -WindowStyle Hidden -Wait
-# Then delete the batch file
-Remove-Item D:\projects\Barok\barok\source\andante\temp_cmd.bat
+# Step 1: git add and commit
+Start-Process -FilePath "C:\WINDOWS\system32\cmd.exe" -ArgumentList '/c ""C:\Program Files\Git\cmd\git.exe" -C D:\projects\Barok add -A && "C:\Program Files\Git\cmd\git.exe" -C D:\projects\Barok commit -m "Fix: description" > D:\temp_output.txt 2>&1"' -WindowStyle Hidden -Wait
+
+# Step 2
+Get-Content D:\temp_output.txt
 ```
 
 ### Key points
