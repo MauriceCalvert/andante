@@ -21,7 +21,12 @@ from builder.figuration.selector import (
     select_figure,
     sort_by_weight,
 )
-from builder.figuration.sequencer import SequencerState, apply_fortspinnung
+# sequencer functions used through strategies module
+from builder.figuration.strategies import (
+    apply_strategy,
+    get_profile_for_schema,
+    get_strategy_for_schema,
+)
 from builder.figuration.types import (
     CadentialFigure,
     Figure,
@@ -30,10 +35,10 @@ from builder.figuration.types import (
 )
 from builder.types import Anchor, Role
 
-# Sequential schemas that trigger Fortspinnung
-SEQUENTIAL_SCHEMAS: frozenset[str] = frozenset({"monte", "fonte", "meyer", "ponte"})
-# Maximum anchors in a sequential section (Rule of Three: 3 repetitions = 4 anchors)
-MAX_SEQUENCE_ANCHORS: int = 4
+# Minimum anchors to trigger schema-aware figuration
+MIN_SCHEMA_SECTION_ANCHORS: int = 2
+# Maximum anchors in a schema section (Rule of Three: 3 repetitions = 4 anchors)
+MAX_SCHEMA_SECTION_ANCHORS: int = 4
 # Probability of phrase deformation
 DEFORMATION_PROBABILITY: float = 0.15
 # Probability of cadential understatement at weak cadences
@@ -128,10 +133,9 @@ def figurate(
     is_minor = key.mode == "minor"
     total_bars = _count_bars(sorted_anchors)
     phrase_deformation = _select_phrase_deformation(rng, total_bars)
-    sequential_sections = _detect_sequential_sections(sorted_anchors)
+    schema_sections = _detect_schema_sections(sorted_anchors)
     compound_melody_active = False
     figured_bars: list[FiguredBar] = []
-    sequencer_state = SequencerState()
     prev_leaped = False
     leap_direction: str | None = None
     prev_figure_name: str | None = None
@@ -141,12 +145,17 @@ def figurate(
         anchor_a = sorted_anchors[i]
         anchor_b = sorted_anchors[i + 1]
         bar_num = _parse_bar_beat(anchor_a.bar_beat)[0]
-        seq_info = _in_sequential_section(i, sequential_sections)
+        seq_info = _in_schema_section(i, schema_sections)
         if seq_info is not None:
             seq_start, seq_end = seq_info
             seq_anchors = sorted_anchors[seq_start:seq_end + 1]
-            seq_bars = _apply_fortspinnung_to_section(
-                seq_anchors, metre, seed + i, density, is_minor, sequencer_state, role,
+            seq_bars = _apply_schema_figuration(
+                anchors=seq_anchors,
+                metre=metre,
+                seed=seed + i,
+                density=density,
+                is_minor=is_minor,
+                role=role,
             )
             figured_bars.extend(seq_bars)
             i = seq_end
@@ -433,30 +442,42 @@ def _try_select_compound_figure(
     return select_figure(candidates, seed)
 
 
-def _apply_fortspinnung_to_section(
+def _apply_schema_figuration(
     anchors: Sequence[Anchor],
     metre: str,
     seed: int,
     density: str,
     is_minor: bool,
-    state: SequencerState,
     role: Role,
 ) -> list[FiguredBar]:
-    """Apply Fortspinnung (spinning out) to a sequential section."""
+    """Apply schema-aware figuration to a schema section.
+
+    Uses schema-specific strategies (accelerating, relaxing, static, dyadic)
+    to generate appropriate figure sequences for each schema type.
+    The figuration profile influences pattern selection character.
+    """
     if len(anchors) < 2:
         return []
+    # Determine schema and get strategy and profile
+    schema_name = anchors[0].schema or ""
+    strategy = get_strategy_for_schema(schema_name)
+    profile = get_profile_for_schema(schema_name)
+    # Determine character from profile type
+    character = _profile_to_character(profile)
+    # Get direction from schema definition if available
+    direction = anchors[1].upper_direction if len(anchors) > 1 else None
     anchor_a = anchors[0]
     anchor_b = anchors[1]
     interval = compute_interval(_get_degree(anchor_a, role), _get_degree(anchor_b, role))
-    direction = _get_direction(anchor_b, role)
+    dir_hint = _get_direction(anchor_b, role)
     ascending = _direction_to_ascending(
-        direction, _get_degree(anchor_a, role), _get_degree(anchor_b, role),
+        dir_hint, _get_degree(anchor_a, role), _get_degree(anchor_b, role),
     )
     initial_figure = _select_figure_with_filters(
         interval=interval,
         ascending=ascending,
         harmonic_tension="low",
-        character="energetic",
+        character=character,
         density=density,
         is_minor=is_minor,
         prev_leaped=False,
@@ -467,7 +488,13 @@ def _apply_fortspinnung_to_section(
     if initial_figure is None:
         initial_figure = _create_direct_figure(interval, _get_degree(anchor_a, role), _get_degree(anchor_b, role))
     target_degrees = [_get_degree(a, role) for a in anchors[:-1]]
-    figures = apply_fortspinnung(initial_figure, target_degrees, state)
+    # Apply schema-aware strategy instead of generic Fortspinnung
+    figures = apply_strategy(
+        strategy=strategy,
+        initial_figure=initial_figure,
+        target_degrees=target_degrees,
+        direction=direction,
+    )
     result: list[FiguredBar] = []
     for i, figure in enumerate(figures):
         if i + 1 >= len(anchors):
@@ -489,27 +516,34 @@ def _apply_fortspinnung_to_section(
     return result
 
 
-def _detect_sequential_sections(anchors: Sequence[Anchor]) -> list[tuple[int, int]]:
-    """Detect sequential schema sections in anchor sequence."""
+def _detect_schema_sections(anchors: Sequence[Anchor]) -> list[tuple[int, int]]:
+    """Detect contiguous schema sections in anchor sequence.
+
+    Any run of 2+ anchors with the same schema name forms a section.
+    This enables schema-aware figuration for ALL schemas, not just sequential ones.
+
+    Returns:
+        List of (start_idx, end_idx) tuples. end_idx is exclusive.
+    """
     sections: list[tuple[int, int]] = []
     i = 0
     while i < len(anchors):
         schema = anchors[i].schema.lower() if anchors[i].schema else ""
-        if schema in SEQUENTIAL_SCHEMAS:
-            start = i
-            while i < len(anchors) and anchors[i].schema and anchors[i].schema.lower() == schema:
-                if i - start >= MAX_SEQUENCE_ANCHORS:
-                    break
-                i += 1
-            if i - start >= 2:
-                sections.append((start, i))
-        else:
+        if not schema:
             i += 1
+            continue
+        start = i
+        while i < len(anchors) and anchors[i].schema and anchors[i].schema.lower() == schema:
+            if i - start >= MAX_SCHEMA_SECTION_ANCHORS:
+                break
+            i += 1
+        if i - start >= MIN_SCHEMA_SECTION_ANCHORS:
+            sections.append((start, i))
     return sections
 
 
-def _in_sequential_section(idx: int, sections: list[tuple[int, int]]) -> tuple[int, int] | None:
-    """Check if index is start of a sequential section."""
+def _in_schema_section(idx: int, sections: list[tuple[int, int]]) -> tuple[int, int] | None:
+    """Check if index is start of a schema section."""
     for start, end in sections:
         if idx == start:
             return (start, end)
@@ -632,6 +666,28 @@ def _get_rhythmic_unit(metre: str) -> Fraction:
     parts = metre.split("/")
     denom = int(parts[1])
     return Fraction(1, denom)
+
+
+def _profile_to_character(profile: str) -> str:
+    """Map figuration profile to figure character.
+
+    Profiles indicate the type of melodic motion, which maps to character:
+    - sequence_* profiles are energetic (driving motion)
+    - stepwise_descent is expressive (relaxed)
+    - repeated_tone/pedal are plain (stable)
+    - Others default to plain
+    """
+    if profile.startswith("sequence_"):
+        return "energetic"
+    if profile == "stepwise_descent":
+        return "expressive"
+    if profile in ("repeated_tone", "pedal"):
+        return "plain"
+    if profile == "stepwise_ascent":
+        return "energetic"
+    if profile == "stepwise_mixed":
+        return "expressive"
+    return "plain"
 
 
 def _create_direct_figure(interval: str, from_degree: int, to_degree: int) -> Figure:

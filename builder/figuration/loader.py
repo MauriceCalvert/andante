@@ -278,11 +278,41 @@ def load_hemiola_templates(path: Path | None = None) -> dict[tuple[int, str], Rh
     return result
 
 
+def load_figuration_profiles(path: Path | None = None) -> dict[str, dict[str, list[str]]]:
+    """Load figuration profiles mapping schema types to pattern sets.
+
+    Returns:
+        Dict mapping profile name to dict with 'interior' and 'cadential' pattern lists.
+    """
+    if path is None:
+        path = DATA_DIR / "figuration_profiles.yaml"
+    assert path.exists(), f"Figuration profiles file not found: {path}"
+    with open(path, "r", encoding="utf-8") as f:
+        raw: dict[str, Any] = yaml.safe_load(f)
+    assert isinstance(raw, dict), f"figuration_profiles.yaml must be a dict, got {type(raw).__name__}"
+    result: dict[str, dict[str, list[str]]] = {}
+    for profile_name, profile_data in raw.items():
+        assert isinstance(profile_data, dict), \
+            f"Profile '{profile_name}' must be a dict, got {type(profile_data).__name__}"
+        interior = profile_data.get("interior", [])
+        cadential = profile_data.get("cadential", [])
+        assert isinstance(interior, list), \
+            f"Profile '{profile_name}' interior must be a list, got {type(interior).__name__}"
+        assert isinstance(cadential, list), \
+            f"Profile '{profile_name}' cadential must be a list, got {type(cadential).__name__}"
+        result[profile_name] = {
+            "interior": interior,
+            "cadential": cadential,
+        }
+    return result
+
+
 # Cache for loaded data
 _diminutions_cache: dict[str, list[Figure]] | None = None
 _cadential_cache: dict[str, dict[str, list[CadentialFigure]]] | None = None
 _rhythm_templates_cache: dict[tuple[int, str, bool], RhythmTemplate] | None = None
 _hemiola_templates_cache: dict[tuple[int, str], RhythmTemplate] | None = None
+_figuration_profiles_cache: dict[str, dict[str, list[str]]] | None = None
 
 
 def get_diminutions() -> dict[str, list[Figure]]:
@@ -317,10 +347,20 @@ def get_hemiola_templates() -> dict[tuple[int, str], RhythmTemplate]:
     return _hemiola_templates_cache
 
 
+def get_figuration_profiles() -> dict[str, dict[str, list[str]]]:
+    """Get cached figuration profiles."""
+    global _figuration_profiles_cache
+    if _figuration_profiles_cache is None:
+        _figuration_profiles_cache = load_figuration_profiles()
+    return _figuration_profiles_cache
+
+
 def clear_cache() -> None:
     """Clear all cached data (useful for testing)."""
     global _diminutions_cache, _cadential_cache, _rhythm_templates_cache, _hemiola_templates_cache
+    global _figuration_profiles_cache
     _diminutions_cache = None
     _cadential_cache = None
     _rhythm_templates_cache = None
     _hemiola_templates_cache = None
+    _figuration_profiles_cache = None
