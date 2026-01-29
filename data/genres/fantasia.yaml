@@ -11,10 +11,4 @@ bass_treatment: contrapuntal
 
 sections:
   - name: A
-    schema_sequence: [romanesca, fonte, prinner]
-
-treatments:
-  required: [statement, imitation]
-  optional: [transposition, inversion, stretto]
-  opening: statement
-  answer: imitation
+    schema_sequence: [do_re_mi, fonte, fenaroli, prinner]

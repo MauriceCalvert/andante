@@ -70,7 +70,7 @@ def write_midi(
         path: Output file path (.mid or .midi)
         pitches: List of MIDI pitch values (0-127)
         durations: List of durations in whole notes (1.0 = whole note)
-        tempo: BPM (default 80)
+        tempo: BPM (default 120)
         velocity: Note velocity 0-127 (default 80)
         time_signature: Tuple of (numerator, denominator)
         tonic: Tonic pitch for key signature (e.g., 'G', 'D', 'Bb')
@@ -79,61 +79,14 @@ def write_midi(
     Returns:
         True if successful, False if mido not available
     """
-    if not MIDO_AVAILABLE:
-        print(f"Warning: mido not installed, cannot write {path}")
-        return False
-
     if len(pitches) != len(durations):
         raise ValueError(f"pitches ({len(pitches)}) and durations ({len(durations)}) must have same length")
-
-    midi_file = MidiFile(type=1)
-    ticks_per_beat = midi_file.ticks_per_beat  # Default 480
-    print(f"PPQN {ticks_per_beat}")
-    ticks_per_whole = ticks_per_beat * 4
-
-    # Meta track
-    meta_track = MidiTrack()
-    midi_file.tracks.append(meta_track)
-    meta_track.append(MetaMessage('set_tempo', tempo=mido.bpm2tempo(tempo)))
-    meta_track.append(MetaMessage(
-        'time_signature',
-        numerator=time_signature[0],
-        denominator=time_signature[1]
-    ))
-    if tonic:
-        key_sig = tonic if mode == "major" else f"{tonic}m"
-        try:
-            meta_track.append(MetaMessage('key_signature', key=key_sig))
-        except (ValueError, KeyError):
-            pass  # Invalid key signature, skip
-    meta_track.append(MetaMessage('end_of_track', time=0))
-
-    # Note track
-    note_track = MidiTrack()
-    midi_file.tracks.append(note_track)
-    note_track.append(MetaMessage('track_name', name='Motif', time=0))
-    note_track.append(Message('program_change', channel=0, program=0, time=0))
-
-    # L013: Ensure gap survives quantization - minimum 60 ticks (32nd note at 480 PPQN)
-    MIN_GAP_TICKS = 60
-    pending_gap = 0
-
-    for pitch, dur in zip(pitches, durations):
-        dur_ticks = max(1, int(dur * ticks_per_whole))
-        gap_ticks = min(MIN_GAP_TICKS, dur_ticks // 2)  # Gap is min of 60 or half duration
-        gate_ticks = dur_ticks - gap_ticks
-
-        note_track.append(Message('note_on', note=pitch, velocity=velocity, time=pending_gap))
-        note_track.append(Message('note_off', note=pitch, velocity=0, time=gate_ticks))
-        pending_gap = gap_ticks
-
-    note_track.append(MetaMessage('end_of_track', time=0))
-
-    if not path.endswith(('.mid', '.midi')):
-        path += '.midi'
-
-    midi_file.save(path)
-    return True
+    offset = 0.0
+    notes: List[SimpleNote] = []
+    for p, d in zip(pitches, durations):
+        notes.append(SimpleNote(pitch=p, offset=offset, duration=d, velocity=velocity, track=0))
+        offset += d
+    return write_midi_notes(path, notes, tempo=tempo, time_signature=time_signature, tonic=tonic, mode=mode)
 
 
 def write_midi_notes(
@@ -213,8 +166,10 @@ def write_midi_notes(
             on_tick = int(note.offset * ticks_per_whole)
             gate_dur = note.duration * GATE_TIME
             off_tick = int((note.offset + gate_dur) * ticks_per_whole)
-            events.append((on_tick, 'on', note.pitch, note.velocity))
-            events.append((off_tick, 'off', note.pitch, 0))
+            # Clamp pitch to valid MIDI range; faults.py will report tessitura errors
+            pitch = max(0, min(127, note.pitch))
+            events.append((on_tick, 'on', pitch, note.velocity))
+            events.append((off_tick, 'off', pitch, 0))
 
         # Sort by time, then offs before ons at same time
         events.sort(key=lambda e: (e[0], 0 if e[1] == 'off' else 1))

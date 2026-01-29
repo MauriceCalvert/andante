@@ -121,6 +121,8 @@ class Anchor:
     - lower_degree: degree for schema_lower role (was bass_degree)
     - upper_direction: voice motion to reach this anchor (up/down/same/None for first)
     - lower_direction: voice motion to reach this anchor (up/down/same/None for first)
+    - upper_midi: absolute MIDI pitch for upper voice (set by place_anchors_in_tessitura)
+    - lower_midi: absolute MIDI pitch for lower voice (set by place_anchors_in_tessitura)
     """
     bar_beat: str
     upper_degree: int
@@ -131,6 +133,8 @@ class Anchor:
     upper_direction: str | None = None  # up, down, same, or None for first anchor
     lower_direction: str | None = None  # up, down, same, or None for first anchor
     section: str = ""  # rhetorical section (exordium, narratio, etc.)
+    upper_midi: int | None = None  # absolute MIDI, set by tessitura placement
+    lower_midi: int | None = None  # absolute MIDI, set by tessitura placement
 
 
 @dataclass(frozen=True)
@@ -183,25 +187,6 @@ class SchemaConfig:
 
 
 @dataclass(frozen=True)
-class FunctionMapConfig:
-    """Maps passage functions to voice expansions (from genre YAML).
-    
-    Per vocabulary.md: function_map links passage function names
-    (subject, answer, episode...) to voice expansion names
-    (statement, imitation, schema...).
-    """
-    required: tuple[str, ...]   # Required expansion names
-    optional: tuple[str, ...]   # Optional expansion names
-    subject: str                # Expansion for 'subject' function
-    answer: str                 # Expansion for 'answer' function
-    episode: str                # Expansion for 'episode' function
-    development: str            # Expansion for 'development' function
-    cadential: str              # Expansion for 'cadential' function
-    return_: str                # Expansion for 'return' function (trailing _ avoids keyword)
-    coda: str                   # Expansion for 'coda' function
-
-
-@dataclass(frozen=True)
 class GenreConfig:
     """Genre definition from YAML."""
     name: str
@@ -213,9 +198,7 @@ class GenreConfig:
     bass_treatment: str  # 'contrapuntal' or 'patterned'
     bass_mode: str  # 'schema' or 'pattern'
     bass_pattern: str | None
-    function_map: FunctionMapConfig
     sections: tuple[dict[str, Any], ...]
-    passage_sequence: tuple[dict[str, Any], ...]
     upbeat: Fraction = Fraction(0)  # Anacrusis duration in whole notes
 
 
@@ -258,13 +241,6 @@ class SchemaChain:
 
 
 @dataclass(frozen=True)
-class TextureSequence:
-    """Output of Layer 6: Treatment assignments."""
-    treatments: tuple[str, ...]
-    voice_assignments: tuple[int | None, ...]
-
-
-@dataclass(frozen=True)
 class CounterpointViolation:
     """Record of a counterpoint rule violation."""
     rule: str
@@ -276,14 +252,10 @@ class CounterpointViolation:
 
 @dataclass(frozen=True)
 class PassageAssignment:
-    """Passage function assignment for a bar range (Layer 5 output).
-    
-    Per vocabulary.md: binds a bar range to a passage function
-    (subject, answer, episode...) and indicates which voice leads.
-    """
+    """Passage function assignment for a bar range (Layer 5 output)."""
     start_bar: int
     end_bar: int
-    function: str           # Passage function: "subject", "answer", "episode", etc.
+    function: str           # Section function from genre YAML
     lead_voice: int | None  # 0=upper, 1=lower, None=equal
 
 
@@ -294,28 +266,3 @@ class RhythmPlan:
     bass_active: frozenset[int]
     soprano_durations: dict[int, Fraction]  # slot index -> duration
     bass_durations: dict[int, Fraction]
-
-
-@dataclass(frozen=True)
-class VoiceExpansionConfig:
-    """Voice expansion configuration from treatments.yaml.
-    
-    Per vocabulary.md: defines HOW a voice's notes are derived.
-    Fields prefixed soprano_/bass_ for each voice.
-    """
-    name: str
-    soprano_source: str          # subject, counter_subject, sustained, pedal, schema, accompaniment
-    soprano_transform: str       # none, invert, retrograde, augment, diminish, head, tail
-    soprano_transform_params: dict[str, int | str]
-    soprano_derivation: str | None  # null, imitation
-    soprano_derivation_params: dict[str, int | str]
-    soprano_delay: Fraction
-    soprano_direct: bool
-    bass_source: str
-    bass_transform: str
-    bass_transform_params: dict[str, int | str]
-    bass_derivation: str | None
-    bass_derivation_params: dict[str, int | str]
-    bass_delay: Fraction
-    bass_direct: bool
-    interdictions: tuple[str, ...]  # disabled features: ornaments, inner_voice_gen

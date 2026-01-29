@@ -14,9 +14,3 @@ sections:
     schema_sequence: [do_re_mi, prinner]
   - name: B
     schema_sequence: [fonte, cadenza_semplice]
-
-treatments:
-  required: [statement]
-  optional: []
-  opening: statement
-  answer: statement

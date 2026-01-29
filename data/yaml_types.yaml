@@ -29,7 +29,6 @@ arcs:
   defines: arc
   path: keys
   references:
-    "*.treatments[*]": treatment
     "*.texture": texture
 
 arc_selection:
@@ -52,7 +51,6 @@ episodes:
   defines: episode
   path: keys
   references:
-    "*.treatment": treatment
     "*.energy_profile": energy_level
     "*.rhythm": rhythm
 
@@ -115,10 +113,4 @@ textures:
 
 transitions:
   defines: transition
-  path: keys
-  references:
-    "*.treatment": treatment
-
-treatments:
-  defines: treatment
   path: keys

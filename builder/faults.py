@@ -53,17 +53,9 @@ from shared.constants import (
     NOTE_NAMES_SHARP,
     SKIP_SEMITONES,
     STEP_SEMITONES,
+    VOICE_RANGES,
 )
 
-
-# Default voice ranges when no scoring provided (legacy fallback)
-# These match the old VOICE_RANGES constant for backward compatibility
-DEFAULT_VOICE_RANGES: dict[int, tuple[int, int]] = {
-    0: (60, 81),  # Soprano: C4 to A5
-    1: (53, 72),  # Alto: F3 to C5
-    2: (48, 67),  # Tenor: C3 to G4
-    3: (40, 62),  # Bass: E2 to D4
-}
 
 
 @dataclass(frozen=True)
@@ -379,17 +371,17 @@ def _check_tessitura(
 ) -> list[Fault]:
     """Check for notes outside fixed voice range (one fault per bar).
     
-    Uses DEFAULT_VOICE_RANGES as fallback. In future, ranges should come
+    Uses VOICE_RANGES from shared/constants.py. In future, ranges should come
     from scoring -> actuator -> range lookup per voices.md.
     """
     faults: list[Fault] = []
     if voice_count == 2:
         ranges: dict[int, tuple[int, int]] = {
-            0: (60, 81),
-            1: (40, 62),
+            0: VOICE_RANGES[0],  # Soprano
+            1: VOICE_RANGES[3],  # Bass
         }
     else:
-        ranges = DEFAULT_VOICE_RANGES
+        ranges = VOICE_RANGES
     if voice_idx not in ranges:
         return faults
     low, high = ranges[voice_idx]

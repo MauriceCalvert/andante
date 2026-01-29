@@ -2,19 +2,15 @@
 
 Category A: Pure functions, no I/O, no validation.
 
-Canonical design: Anchors store degrees + key. MIDI conversion happens here.
-Each anchor becomes a note; duration extends to next anchor.
-
-Layer 6.5 (Figuration) can be enabled to produce baroque melodic patterns
-instead of simple block-chord output.
-
-Rhythm complementarity: When one voice leads a passage, the other voice
-staggers its onsets by one subdivision to avoid parallel rhythm.
+Clean tessitura architecture:
+1. Anchors are placed in tessitura once at start (upper_midi, lower_midi)
+2. Voice leading happens anchor-to-anchor, not note-to-note
+3. Figures produce offsets from anchor pitch (bounded, no drift)
+4. Realisation is pure arithmetic: anchor_midi + diatonic_step(offset)
 """
 from fractions import Fraction
 from typing import Sequence
 
-from builder.config_loader import load_expansions
 from builder.realisation_bass import adjust_downbeat_consonance
 from builder.realisation_util import (
     anchor_sort_key,
@@ -22,46 +18,19 @@ from builder.realisation_util import (
     build_stacked_lyric,
     get_bass_articulation,
     get_beats_per_bar,
-    get_expansion_for_bar,
     get_function_for_bar,
-    get_lead_voice_for_bar,
     get_passage_end_offset,
 )
 from builder.types import (
     Anchor, AffectConfig, FormConfig, GenreConfig, KeyConfig,
-    Note, NoteFile, PassageAssignment, VoiceExpansionConfig,
+    Note, NoteFile, PassageAssignment,
 )
 from shared.constants import (
-    DEFAULT_TESSITURA_MEDIANS,
     STACCATO_DURATION_THRESHOLD,
     VOICE_RANGES,
 )
-from shared.pitch import select_octave
+from shared.pitch import place_anchors_in_tessitura
 from shared.tracer import get_tracer
-
-
-def _infer_direction(from_degree: int, to_degree: int) -> str:
-    """Infer voice-leading direction from consecutive degrees.
-
-    Uses shortest path: if interval is 1-3 steps, go that way.
-    If 4-6 steps, go the opposite way (shorter path wrapping).
-
-    Args:
-        from_degree: Starting degree (1-7)
-        to_degree: Target degree (1-7)
-
-    Returns:
-        "up", "down", or "same"
-    """
-    if from_degree == to_degree:
-        return "same"
-    diff = to_degree - from_degree
-    # Normalize to -3..+3 range (shortest path)
-    if diff > 3:
-        diff -= 7  # e.g., 1→6 = +5 → -2 (down)
-    elif diff < -3:
-        diff += 7  # e.g., 6→1 = -5 → +2 (up)
-    return "up" if diff > 0 else "down"
 
 
 SCHEMA_STAGE_COUNTS: dict[str, int] = {
@@ -88,6 +57,15 @@ def _is_schema_final_stage(schema: str | None, stage: int) -> bool:
     return stage == total_stages
 
 
+def _offset_to_midi(
+    key: "Key",
+    anchor_midi: int,
+    offset: int,
+) -> int:
+    """Convert figure offset to MIDI pitch via diatonic step from anchor."""
+    return key.diatonic_step(anchor_midi, offset)
+
+
 def realise_with_figuration(
     anchors: Sequence[Anchor],
     passage_assignments: Sequence[PassageAssignment] | None,
@@ -103,19 +81,24 @@ def realise_with_figuration(
     from builder.figuration.figurate import figurate
     from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
     tracer = get_tracer()
-    expansions: dict[str, VoiceExpansionConfig] = load_expansions()
     if not anchors:
         return NoteFile(soprano=(), bass=(), metre=genre_config.metre, tempo=72, upbeat=genre_config.upbeat)
-    key = anchors[0].local_key
+    # Place anchors in tessitura once at start
+    upper_range = VOICE_RANGES[0]
+    lower_range = VOICE_RANGES[3]
+    placed_anchors: list[Anchor] = place_anchors_in_tessitura(
+        list(anchors), upper_range, lower_range,
+    )
+    key = placed_anchors[0].local_key
     density = affect_config.density
     character = "plain"
     if density == "high":
         character = "energetic"
     elif density == "medium":
         character = "expressive"
-    tracer.L6("Figuration", density=density, character=character, anchor_count=len(anchors))
+    tracer.L6("Figuration", density=density, character=character, anchor_count=len(placed_anchors))
     figured_bars = figurate(
-        anchors=anchors,
+        anchors=placed_anchors,
         key=key,
         metre=genre_config.metre,
         seed=seed,
@@ -125,79 +108,50 @@ def realise_with_figuration(
     )
     soprano_notes: list[Note] = []
     bass_notes: list[Note] = []
-    sorted_anchors: list[Anchor] = sorted(anchors, key=anchor_sort_key)
+    sorted_anchors: list[Anchor] = sorted(placed_anchors, key=anchor_sort_key)
     beats_per_bar: int = get_beats_per_bar(genre_config.metre)
-    soprano_median: int = DEFAULT_TESSITURA_MEDIANS[0]
-    bass_median: int = DEFAULT_TESSITURA_MEDIANS[3]
     end_offset: Fraction = Fraction(total_bars * beats_per_bar, 4)
-    prev_soprano: int | None = None
-    prev_soprano_degree: int | None = None  # Track degree for cross-bar direction
-    prev_function: str | None = None
-    prev_expansion_name: str | None = None
-    prev_section: str | None = None
     beat_value: Fraction = Fraction(1, int(genre_config.metre.split("/")[1]))
+    prev_function: str | None = None
+    prev_section: str | None = None
     anchor_idx: int = 0
     for figured_bar in figured_bars:
         bar: int = figured_bar.bar
-        # Anacrusis (bar 0) uses negative offset
         if bar == 0:
             current_offset = -sum(figured_bar.durations)
             first_bar_offset = current_offset
-            anchor_for_key = sorted_anchors[0] if sorted_anchors else None
+            anchor_for_bar = sorted_anchors[0] if sorted_anchors else None
         else:
             if anchor_idx >= len(sorted_anchors):
                 break
-            anchor_for_key = sorted_anchors[anchor_idx]
-            bar_offset: Fraction = bar_beat_to_offset(anchor_for_key.bar_beat, beats_per_bar)
-            # Use start_beat from figured bar (computed during figuration)
+            anchor_for_bar = sorted_anchors[anchor_idx]
+            bar_offset: Fraction = bar_beat_to_offset(anchor_for_bar.bar_beat, beats_per_bar)
             current_offset = bar_offset + (figured_bar.start_beat - 1) * beat_value
             first_bar_offset = current_offset
             anchor_idx += 1
-        assert anchor_for_key is not None, "No anchor for soprano note"
+        assert anchor_for_bar is not None, "No anchor for soprano note"
+        assert anchor_for_bar.upper_midi is not None, "Anchor missing upper_midi"
         function: str | None = get_function_for_bar(bar, passage_assignments)
-        expansion: VoiceExpansionConfig = get_expansion_for_bar(
-            bar=bar,
-            assignments=passage_assignments,
-            genre_config=genre_config,
-            expansions=expansions,
-        )
-        expansion_name: str = expansion.name
         tracer.figure_selection(bar, figured_bar.figure_name or "none", density)
-        tracer.expansion(bar, function or "none", expansion_name)
-        degrees = figured_bar.degrees
-        for j, (degree, duration) in enumerate(zip(degrees, figured_bar.durations)):
-            # Infer direction from previous degree
-            if j == 0 and prev_soprano is None:
-                direction = None  # Very first note - use median
-            elif j > 0:
-                direction = _infer_direction(degrees[j - 1], degree)
-            elif prev_soprano_degree is not None:
-                # First note of bar, have previous bar's last degree
-                direction = _infer_direction(prev_soprano_degree, degree)
-            else:
-                direction = None
-            s_midi: int = select_octave(
-                anchor_for_key.local_key, degree, soprano_median,
-                prev_pitch=None if j == 0 and prev_soprano is None else prev_soprano,
-                direction=direction,
-                voice_range=VOICE_RANGES[0],
+        # Degrees in FiguredBar are offsets from anchor (first degree is the anchor = offset 0)
+        # Compute base offset: first degree tells us the offset from anchor
+        base_offset = figured_bar.degrees[0] if figured_bar.degrees else 0
+        for j, (degree, duration) in enumerate(zip(figured_bar.degrees, figured_bar.durations)):
+            # Convert degree to offset from anchor
+            offset = degree - base_offset
+            s_midi = _offset_to_midi(
+                anchor_for_bar.local_key,
+                anchor_for_bar.upper_midi,
+                offset,
             )
-            prev_soprano = s_midi
-            prev_soprano_degree = degree  # Track for next iteration
             if current_offset == first_bar_offset:
-                schema_part: str | None = anchor_for_key.schema if anchor_for_key.stage == 1 else None
+                schema_part: str | None = anchor_for_bar.schema if anchor_for_bar.stage == 1 else None
                 function_part: str | None = function if function != prev_function else None
-                exp_part: str | None = expansion_name if expansion_name != prev_expansion_name else None
-                section_part: str | None = anchor_for_key.section if anchor_for_key.section != prev_section else None
+                section_part: str | None = anchor_for_bar.section if anchor_for_bar.section != prev_section else None
                 prev_function = function
-                prev_expansion_name = expansion_name
-                prev_section = anchor_for_key.section
+                prev_section = anchor_for_bar.section
                 figure_part: str | None = figured_bar.figure_name
                 lyric = build_stacked_lyric(section_part, schema_part, function_part, figure_part)
-                if exp_part and lyric:
-                    lyric = f"{lyric}[{exp_part}]"
-                elif exp_part:
-                    lyric = f"[{exp_part}]"
             else:
                 lyric = ""
             soprano_notes.append(Note(
@@ -209,52 +163,45 @@ def realise_with_figuration(
             ))
             tracer.note_output("soprano", current_offset, s_midi, duration)
             current_offset += duration
+    # Final soprano note
     if sorted_anchors:
         final_anchor = sorted_anchors[-1]
         final_offset: Fraction = bar_beat_to_offset(final_anchor.bar_beat, beats_per_bar)
         final_duration: Fraction = end_offset - final_offset
-        if final_duration > 0:
-            s_midi = select_octave(
-                final_anchor.local_key, final_anchor.upper_degree, soprano_median, prev_soprano,
-                voice_range=VOICE_RANGES[0],
-            )
+        if final_duration > 0 and final_anchor.upper_midi is not None:
             soprano_notes.append(Note(
                 offset=final_offset,
-                pitch=s_midi,
+                pitch=final_anchor.upper_midi,
                 duration=final_duration,
                 voice=0,
                 lyric="",
             ))
     bar_duration = Fraction(beats_per_bar, 4)
+    # Bass realisation
     if genre_config.bass_treatment == "contrapuntal":
         from builder.figuration.bass_figurate import figurate_bass
         bass_figured_bars = figurate_bass(
-            anchors=anchors,
+            anchors=placed_anchors,
             metre=genre_config.metre,
             seed=seed + 1000,
             density=density,
             passage_assignments=passage_assignments,
         )
-        prev_bass: int | None = None
-        prev_bass_degree: int | None = None  # Track degree for cross-bar direction
-        bar_duration: Fraction = Fraction(beats_per_bar, 4)
-        bass_beat_value: Fraction = Fraction(1, int(genre_config.metre.split("/")[1]))
-        anchor_idx: int = 0
+        anchor_idx = 0
         for figured_bar in bass_figured_bars:
             bar: int = figured_bar.bar
-            # Anacrusis (bar 0) uses negative offset
             if bar == 0:
                 current_offset = -sum(figured_bar.durations)
-                anchor_for_key = sorted_anchors[0] if sorted_anchors else None
+                anchor_for_bar = sorted_anchors[0] if sorted_anchors else None
             else:
                 if anchor_idx >= len(sorted_anchors):
                     break
-                anchor_for_key = sorted_anchors[anchor_idx]
-                bar_offset: Fraction = bar_beat_to_offset(anchor_for_key.bar_beat, beats_per_bar)
-                # Use start_beat from figured bar (computed during figuration)
-                current_offset = bar_offset + (figured_bar.start_beat - 1) * bass_beat_value
+                anchor_for_bar = sorted_anchors[anchor_idx]
+                bar_offset: Fraction = bar_beat_to_offset(anchor_for_bar.bar_beat, beats_per_bar)
+                current_offset = bar_offset + (figured_bar.start_beat - 1) * beat_value
                 anchor_idx += 1
-            assert anchor_for_key is not None, "No anchor for bass note"
+            assert anchor_for_bar is not None, "No anchor for bass note"
+            assert anchor_for_bar.lower_midi is not None, "Anchor missing lower_midi"
             short_note_count: int = sum(
                 1 for d in figured_bar.durations if d <= STACCATO_DURATION_THRESHOLD
             )
@@ -262,27 +209,14 @@ def realise_with_figuration(
             passage_end: Fraction | None = get_passage_end_offset(
                 bar, passage_assignments, beats_per_bar,
             )
-            bass_degrees = figured_bar.degrees
-            for j, (degree, dur) in enumerate(zip(bass_degrees, figured_bar.durations)):
-                # Infer direction from previous degree
-                if j == 0 and prev_bass is None:
-                    direction = None  # Very first note - use median
-                elif j > 0:
-                    direction = _infer_direction(bass_degrees[j - 1], degree)
-                elif prev_bass_degree is not None:
-                    # First note of bar, have previous bar's last degree
-                    direction = _infer_direction(prev_bass_degree, degree)
-                else:
-                    direction = None
-                b_midi: int = select_octave(
-                    anchor_for_key.local_key, degree, bass_median,
-                    prev_pitch=None if j == 0 and prev_bass is None else prev_bass,
-                    direction=direction,
-                    voice_range=VOICE_RANGES[3],
+            base_offset = figured_bar.degrees[0] if figured_bar.degrees else 0
+            for j, (degree, dur) in enumerate(zip(figured_bar.degrees, figured_bar.durations)):
+                offset = degree - base_offset
+                b_midi = _offset_to_midi(
+                    anchor_for_bar.local_key,
+                    anchor_for_bar.lower_midi,
+                    offset,
                 )
-                prev_bass = b_midi
-                prev_bass_degree = degree  # Track for next iteration
-                # Truncate duration at passage boundary to avoid overlap
                 note_dur = dur
                 if passage_end is not None and current_offset >= 0:
                     max_duration = passage_end - current_offset
@@ -297,19 +231,16 @@ def realise_with_figuration(
                     lyric=articulation,
                 ))
                 tracer.note_output("bass", current_offset, b_midi, note_dur)
-                current_offset += dur  # Advance by original dur for next note timing
+                current_offset += dur
+        # Final bass note
         if sorted_anchors:
             final_anchor = sorted_anchors[-1]
             final_offset_bass: Fraction = bar_beat_to_offset(final_anchor.bar_beat, beats_per_bar)
             final_duration_bass: Fraction = end_offset - final_offset_bass
-            if final_duration_bass > 0:
-                b_midi = select_octave(
-                    final_anchor.local_key, final_anchor.lower_degree, bass_median, prev_bass,
-                    voice_range=VOICE_RANGES[3],
-                )
+            if final_duration_bass > 0 and final_anchor.lower_midi is not None:
                 bass_notes.append(Note(
                     offset=final_offset_bass,
-                    pitch=b_midi,
+                    pitch=final_anchor.lower_midi,
                     duration=final_duration_bass,
                     voice=3,
                     lyric="",
@@ -319,8 +250,8 @@ def realise_with_figuration(
         rhythm_pattern = get_rhythm_pattern(genre_config.bass_pattern)
         assert rhythm_pattern is not None, f"Rhythm pattern '{genre_config.bass_pattern}' not found"
         sustained_pattern = get_rhythm_pattern("sustained")
-        prev_bass: int | None = None
         for i, anchor in enumerate(sorted_anchors):
+            assert anchor.lower_midi is not None, "Anchor missing lower_midi"
             offset: Fraction = bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
             if i < len(sorted_anchors) - 1:
                 next_offset: Fraction = bar_beat_to_offset(sorted_anchors[i + 1].bar_beat, beats_per_bar)
@@ -344,8 +275,8 @@ def realise_with_figuration(
                     key=anchor.local_key,
                     bar_offset=offset,
                     bar_duration=bar_duration,
-                    bass_median=bass_median,
-                    prev_pitch=prev_bass,
+                    bass_median=anchor.lower_midi,  # Use anchor MIDI as reference
+                    prev_pitch=bass_notes[-1].pitch if bass_notes else None,
                 )
                 for note_offset, midi_pitch, note_duration in pattern_notes:
                     bass_notes.append(Note(
@@ -356,27 +287,23 @@ def realise_with_figuration(
                         lyric="",
                     ))
                     tracer.note_output("bass", note_offset, midi_pitch, note_duration)
-                    prev_bass = midi_pitch
             else:
-                b_midi: int = select_octave(
-                    anchor.local_key, anchor.lower_degree, bass_median, prev_bass,
-                    voice_range=VOICE_RANGES[3],
-                )
-                prev_bass = b_midi
                 bass_notes.append(Note(
                     offset=offset,
-                    pitch=b_midi,
+                    pitch=anchor.lower_midi,
                     duration=duration,
                     voice=3,
                     lyric="",
                 ))
     else:
+        # Default bass mode
         default_pattern = get_bass_pattern(genre_config.bass_pattern)
         assert default_pattern is not None, f"Bass pattern '{genre_config.bass_pattern}' not found"
         cadence_pattern = get_bass_pattern("continuo_sustained")
         prev_bass: int | None = None
         prev_prev_bass: int | None = None
         for i, anchor in enumerate(sorted_anchors):
+            assert anchor.lower_midi is not None, "Anchor missing lower_midi"
             offset: Fraction = bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
             if i < len(sorted_anchors) - 1:
                 next_offset: Fraction = bar_beat_to_offset(sorted_anchors[i + 1].bar_beat, beats_per_bar)
@@ -397,7 +324,7 @@ def realise_with_figuration(
                     key=anchor.local_key,
                     bar_offset=offset,
                     bar_duration=bar_duration,
-                    bass_median=bass_median,
+                    bass_median=anchor.lower_midi,  # Use anchor MIDI as reference
                     prev_pitch=prev_bass,
                     prev_prev_pitch=prev_prev_bass,
                 )
@@ -413,15 +340,11 @@ def realise_with_figuration(
                     prev_prev_bass = prev_bass
                     prev_bass = midi_pitch
             else:
-                b_midi: int = select_octave(
-                    anchor.local_key, anchor.lower_degree, bass_median, prev_bass,
-                    voice_range=VOICE_RANGES[3],
-                )
                 prev_prev_bass = prev_bass
-                prev_bass = b_midi
+                prev_bass = anchor.lower_midi
                 bass_notes.append(Note(
                     offset=offset,
-                    pitch=b_midi,
+                    pitch=anchor.lower_midi,
                     duration=duration,
                     voice=3,
                     lyric="",
@@ -433,14 +356,12 @@ def realise_with_figuration(
             bass_notes=bass_notes,
             beats_per_bar=beats_per_bar,
             total_bars=total_bars,
-            bass_range=VOICE_RANGES[3],
+            bass_range=lower_range,
         )
-
     if tempo_override is not None:
         tempo = tempo_override
     else:
         tempo = genre_config.tempo + affect_config.tempo_modifier
-
     # Shift all offsets to eliminate negative values
     min_offset = Fraction(0)
     for note in soprano_notes:
@@ -450,7 +371,7 @@ def realise_with_figuration(
         if note.offset < min_offset:
             min_offset = note.offset
     if min_offset < 0:
-        shift = -min_offset  # Convert negative to positive shift
+        shift = -min_offset
         soprano_notes = [
             Note(
                 offset=n.offset + shift,
@@ -471,7 +392,6 @@ def realise_with_figuration(
             )
             for n in bass_notes
         ]
-
     return NoteFile(
         soprano=tuple(soprano_notes),
         bass=tuple(bass_notes),

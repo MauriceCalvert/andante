@@ -14,10 +14,4 @@ sections:
   - name: A
     schema_sequence: [romanesca, prinner]
   - name: B
-    schema_sequence: [fonte, cadenza_semplice]
-
-treatments:
-  required: [melody_accompaniment]
-  optional: []
-  opening: melody_accompaniment
-  answer: melody_accompaniment
+    schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]

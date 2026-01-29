@@ -109,9 +109,6 @@ def collect_definitions(type_spec: dict[str, Any]) -> dict[str, set[str]]:
         elif file_key == "cadences":
             data = load_yaml(DATA_DIR / "cadences" / "cadences.yaml")
             values = get_nested(data, "internal.keys") | get_nested(data, "final.keys")
-        elif file_key == "treatments":
-            data = load_yaml(DATA_DIR / "treatments" / "treatments.yaml")
-            values = get_nested(data, path)
         else:
             yaml_path: Path = DATA_DIR / f"{file_key}.yaml"
             if not yaml_path.exists():
@@ -331,8 +328,49 @@ def get_schema_stages(schema_name: str, schemas: dict[str, Any]) -> int:
     return len(soprano_degrees) if soprano_degrees else 1
 
 
+def get_schema_bass_degrees(schema: dict[str, Any]) -> tuple[int, int]:
+    """Extract entry and exit bass degrees from schema definition.
+    
+    Returns:
+        (entry_bass, exit_bass) as integers 1-7.
+    """
+    if "segment" in schema:
+        bass_degrees = schema["segment"].get("bass_degrees", [])
+    else:
+        bass_degrees = schema.get("bass_degrees", [])
+    if not bass_degrees:
+        return 1, 1
+    def parse_degree(raw: str | int | float) -> int:
+        if isinstance(raw, (int, float)):
+            return int(abs(raw))
+        raw_str = str(raw).strip().lstrip("+-")
+        return int(float(raw_str))
+    entry = parse_degree(bass_degrees[0])
+    exit_ = parse_degree(bass_degrees[-1])
+    return entry, exit_
+
+
+def check_schema_transition(exit_bass: int, entry_bass: int) -> bool:
+    """Check if two schemas can connect directly.
+    
+    Valid connections per schemas.yaml:
+    1. Identity: exit.bass == entry.bass
+    2. Step: adjacent degrees (including 7-1 wraparound)
+    3. Dominant: exit.bass == 5 and entry.bass == 1
+    """
+    if exit_bass == entry_bass:
+        return True
+    # Check step motion (including 7-1 wraparound)
+    diff = abs(exit_bass - entry_bass)
+    if diff == 1 or diff == 6:  # 6 means 7<->1 wraparound
+        return True
+    if exit_bass == 5 and entry_bass == 1:
+        return True
+    return False
+
+
 def validate_genre_sections() -> list[str]:
-    """Validate genre sections have non-empty schema_sequence."""
+    """Validate genre sections have valid schema_sequence with smooth transitions."""
     errors: list[str] = []
     genres_dir = DATA_DIR / "genres"
     schemas_path = DATA_DIR / "schemas" / "schemas.yaml"
@@ -354,9 +392,22 @@ def validate_genre_sections() -> list[str]:
                 errors.append(f"{rel_path}: section '{section_name}' has empty schema_sequence")
                 continue
             for schema_name in schema_sequence:
-                if schema_name != "episode" and schema_name not in schemas:
+                if schema_name not in schemas:
                     errors.append(
                         f"{rel_path}: section '{section_name}' references unknown schema '{schema_name}'"
+                    )
+            # Check transitions between adjacent schemas
+            for j in range(len(schema_sequence) - 1):
+                curr_name = schema_sequence[j]
+                next_name = schema_sequence[j + 1]
+                if curr_name not in schemas or next_name not in schemas:
+                    continue
+                _, exit_bass = get_schema_bass_degrees(schemas[curr_name])
+                entry_bass, _ = get_schema_bass_degrees(schemas[next_name])
+                if not check_schema_transition(exit_bass, entry_bass):
+                    errors.append(
+                        f"{rel_path}: section '{section_name}' invalid transition "
+                        f"{curr_name}(exit={exit_bass}) -> {next_name}(entry={entry_bass})"
                     )
     return errors
 

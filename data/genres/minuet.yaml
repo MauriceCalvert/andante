@@ -12,12 +12,6 @@ bass_pattern: arpeggiated_3_4
 
 sections:
   - name: A
-    schema_sequence: [do_re_mi, prinner]
+    schema_sequence: [do_re_mi, fenaroli, prinner]
   - name: B
-    schema_sequence: [monte, cadenza_semplice]
-
-treatments:
-  required: [melody_accompaniment]
-  optional: []
-  opening: melody_accompaniment
-  answer: melody_accompaniment
+    schema_sequence: [monte, fenaroli, passo_indietro, cadenza_semplice]

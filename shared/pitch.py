@@ -168,5 +168,137 @@ def select_octave(
     direction: str | None = None,
     voice_range: tuple[int, int] | None = None,
 ) -> int:
-    """Deprecated: use place_degree. voice_range is ignored."""
-    return place_degree(key, degree, median, prev_pitch, alter, direction)
+    """Place scale degree as MIDI pitch, constrained to voice range."""
+    pitch = place_degree(key, degree, median, prev_pitch, alter, direction)
+    if voice_range is None:
+        return pitch
+    low, high = voice_range
+    # Shift octaves to fit within range
+    while pitch > high:
+        pitch -= 12
+    while pitch < low:
+        pitch += 12
+    # If still out of range (range < octave), clamp to nearest bound
+    if pitch > high:
+        pitch = high
+    if pitch < low:
+        pitch = low
+    return pitch
+
+
+def place_anchor_pitch(
+    key: "Key",
+    degree: int,
+    voice_range: tuple[int, int],
+    prev_midi: int | None,
+    direction: str | None,
+) -> int:
+    """Place a schema anchor degree as absolute MIDI pitch.
+    
+    Anchors are placed in a narrower "comfort zone" leaving headroom for
+    figuration (±7 diatonic steps). This prevents tessitura excursions.
+    
+    Args:
+        key: Musical key for degree-to-pitch conversion.
+        degree: Scale degree (1-7).
+        voice_range: (low, high) MIDI bounds for this voice.
+        prev_midi: Previous anchor's MIDI pitch, or None for first.
+        direction: Explicit direction (up/down/same) or None.
+    
+    Returns:
+        MIDI pitch within comfort zone.
+    """
+    assert 1 <= degree <= 7, f"degree must be 1-7, got {degree}"
+    low, high = voice_range
+    assert low < high, f"invalid range: {voice_range}"
+    # Comfort zone: leave ~7 semitones headroom for figuration
+    # (7 diatonic steps ≈ 10-12 semitones, but 7 is conservative)
+    headroom = 7
+    comfort_low = low + headroom
+    comfort_high = high - headroom
+    # If range is too narrow, use full range
+    if comfort_low >= comfort_high:
+        comfort_low = low
+        comfort_high = high
+    # Generate all candidates in comfort zone
+    base_pc = key.degree_to_midi(degree, octave=0)
+    candidates: list[int] = []
+    for octave in range(0, 10):
+        midi = base_pc + octave * 12
+        if comfort_low <= midi <= comfort_high:
+            candidates.append(midi)
+    if not candidates:
+        # Comfort zone doesn't contain this degree - try full range
+        for octave in range(0, 10):
+            midi = base_pc + octave * 12
+            if low <= midi <= high:
+                candidates.append(midi)
+    if not candidates:
+        # Range doesn't contain this degree at all - find nearest
+        median = (low + high) // 2
+        best_octave = round((median - base_pc) / 12)
+        fallback = base_pc + best_octave * 12
+        return max(low, min(high, fallback))
+    if prev_midi is None:
+        # First anchor: choose candidate nearest comfort zone centre
+        median = (comfort_low + comfort_high) // 2
+        return min(candidates, key=lambda m: abs(m - median))
+    # Subsequent anchor: voice-lead from prev_midi
+    if direction == "up":
+        above = [m for m in candidates if m > prev_midi]
+        if above:
+            return min(above)
+        return max(candidates)
+    if direction == "down":
+        below = [m for m in candidates if m < prev_midi]
+        if below:
+            return max(below)
+        return min(candidates)
+    # direction is "same" or None: nearest to prev_midi
+    return min(candidates, key=lambda m: abs(m - prev_midi))
+
+
+def place_anchors_in_tessitura(
+    anchors: list,
+    upper_range: tuple[int, int],
+    lower_range: tuple[int, int],
+) -> list:
+    """Place all anchors in tessitura, returning new anchors with MIDI set.
+    
+    Voice-leads from anchor to anchor within each voice's range.
+    Uses direction hints from anchor definitions.
+    
+    Args:
+        anchors: List of Anchor objects (with upper_midi/lower_midi as None).
+        upper_range: (low, high) MIDI for upper voice (e.g., soprano).
+        lower_range: (low, high) MIDI for lower voice (e.g., bass).
+    
+    Returns:
+        New list of Anchor objects with upper_midi and lower_midi populated.
+    """
+    from dataclasses import replace
+    if not anchors:
+        return []
+    result: list = []
+    prev_upper: int | None = None
+    prev_lower: int | None = None
+    for anchor in anchors:
+        upper_midi = place_anchor_pitch(
+            key=anchor.local_key,
+            degree=anchor.upper_degree,
+            voice_range=upper_range,
+            prev_midi=prev_upper,
+            direction=anchor.upper_direction,
+        )
+        lower_midi = place_anchor_pitch(
+            key=anchor.local_key,
+            degree=anchor.lower_degree,
+            voice_range=lower_range,
+            prev_midi=prev_lower,
+            direction=anchor.lower_direction,
+        )
+        new_anchor = replace(anchor, upper_midi=upper_midi, lower_midi=lower_midi)
+        result.append(new_anchor)
+        prev_upper = upper_midi
+        prev_lower = lower_midi
+    return result

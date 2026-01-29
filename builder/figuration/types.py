@@ -133,9 +133,14 @@ class FiguredBar:
 
     Contains the complete melodic content for a single bar after figuration.
     Bar 0 is used for anacrusis (upbeat).
+    
+    Degrees are anchor-relative: first degree is the anchor pitch, subsequent
+    degrees are diatonic offsets. Realisation computes:
+        offset = degree - degrees[0]
+        midi = key.diatonic_step(anchor_midi, offset)
     """
     bar: int
-    degrees: tuple[int, ...]  # Scale degrees (absolute, 1-7)
+    degrees: tuple[int, ...]  # Anchor-relative degrees (first = anchor)
     durations: tuple[Fraction, ...]  # Note durations in whole notes
     figure_name: str  # For tracing
     start_beat: int = 1  # Beat on which this voice enters (1=lead, 2=accompany)
@@ -144,8 +149,6 @@ class FiguredBar:
         assert self.bar >= 0, f"bar must be >= 0, got {self.bar}"
         assert len(self.degrees) == len(self.durations), \
             f"degrees length {len(self.degrees)} != durations length {len(self.durations)}"
-        assert all(1 <= d <= 7 for d in self.degrees), \
-            f"All degrees must be in range 1-7, got {self.degrees}"
         assert all(d > 0 for d in self.durations), "All durations must be positive"
         assert self.start_beat in (1, 2), f"start_beat must be 1 or 2, got {self.start_beat}"
 

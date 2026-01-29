@@ -2,8 +2,7 @@
 from fractions import Fraction
 from typing import Sequence
 
-from builder.config_loader import get_expansion_for_function, load_expansions
-from builder.types import Anchor, GenreConfig, PassageAssignment, VoiceExpansionConfig
+from builder.types import Anchor, GenreConfig, PassageAssignment
 from shared.constants import STACCATO_DURATION_THRESHOLD
 
 
@@ -54,23 +53,6 @@ def get_passage_end_offset(
             end_offset = Fraction(assignment.end_bar * beats_per_bar, 4)
             return end_offset
     return None
-
-
-def get_expansion_for_bar(
-    bar: int,
-    assignments: Sequence[PassageAssignment] | None,
-    genre_config: GenreConfig,
-    expansions: dict[str, VoiceExpansionConfig],
-) -> VoiceExpansionConfig:
-    """Get voice expansion config for a given bar."""
-    function: str | None = get_function_for_bar(bar, assignments)
-    if function is None:
-        function = "episode"
-    return get_expansion_for_function(
-        function=function,
-        function_map=genre_config.function_map,
-        expansions=expansions,
-    )
 
 
 def build_stacked_lyric(

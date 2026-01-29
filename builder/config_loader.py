@@ -17,8 +17,8 @@ from typing import Any
 import yaml
 
 from builder.types import (
-    AffectConfig, FormConfig, FunctionMapConfig, GenreConfig,
-    KeyConfig, MotiveWeights, SchemaConfig, VoiceExpansionConfig,
+    AffectConfig, FormConfig, GenreConfig,
+    KeyConfig, MotiveWeights, SchemaConfig,
 )
 from shared.key import Key
 
@@ -173,108 +173,6 @@ def load_form(name: str) -> FormConfig:
     return _validate_form(data)
 
 
-_expansions_cache: dict[str, VoiceExpansionConfig] | None = None
-
-
-def load_expansions() -> dict[str, VoiceExpansionConfig]:
-    """Load voice expansion configs from treatments.yaml.
-    
-    Per vocabulary.md: voice expansions define HOW voices are generated.
-    Each expansion inherits from _default and overrides specific fields.
-    """
-    global _expansions_cache
-    if _expansions_cache is not None:
-        return _expansions_cache
-    path: Path = DATA_DIR / "treatments" / "treatments.yaml"
-    assert path.exists(), f"Treatments file not found: {path}"
-    data: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert "_default" in data, "treatments.yaml must have '_default' entry"
-    default_data: dict = data["_default"]
-    result: dict[str, VoiceExpansionConfig] = {}
-    for name, expansion_data in data.items():
-        if name.startswith("_") or name == "bar_treatments":
-            continue
-        merged: dict = _deep_merge(default_data, expansion_data)
-        result[name] = _validate_expansion(name, merged)
-    _expansions_cache = result
-    return result
-
-
-def clear_expansions_cache() -> None:
-    """Clear expansions cache. Used in tests."""
-    global _expansions_cache
-    _expansions_cache = None
-
-
-def get_expansion_for_function(
-    function: str,
-    function_map: FunctionMapConfig,
-    expansions: dict[str, VoiceExpansionConfig],
-) -> VoiceExpansionConfig:
-    """Look up voice expansion config for a passage function.
-    
-    Args:
-        function: Passage function name (subject, answer, episode, etc.)
-        function_map: Genre's function-to-expansion mapping
-        expansions: All loaded expansion configs
-    
-    Returns:
-        VoiceExpansionConfig for the requested function.
-    """
-    # Map function name to expansion name via FunctionMapConfig
-    expansion_name: str
-    if function == "subject":
-        expansion_name = function_map.subject
-    elif function == "answer":
-        expansion_name = function_map.answer
-    elif function == "episode":
-        expansion_name = function_map.episode
-    elif function == "development":
-        expansion_name = function_map.development
-    elif function == "cadential":
-        expansion_name = function_map.cadential
-    elif function == "return":
-        expansion_name = function_map.return_
-    elif function == "coda":
-        expansion_name = function_map.coda
-    else:
-        # Unknown function, fall back to schema
-        expansion_name = "schema"
-    assert expansion_name in expansions, (
-        f"Expansion '{expansion_name}' for function '{function}' not found in treatments.yaml. "
-        f"Available: {sorted(expansions.keys())}"
-    )
-    return expansions[expansion_name]
-
-
-def _validate_expansion(name: str, data: dict) -> VoiceExpansionConfig:
-    """Validate and convert expansion dict to VoiceExpansionConfig."""
-    def parse_delay(raw: int | str | float) -> Fraction:
-        if isinstance(raw, int):
-            return Fraction(raw)
-        if isinstance(raw, float):
-            return Fraction(raw).limit_denominator(16)
-        return Fraction(raw)
-    return VoiceExpansionConfig(
-        name=name,
-        soprano_source=data.get("soprano_source", "subject"),
-        soprano_transform=data.get("soprano_transform", "none"),
-        soprano_transform_params=dict(data.get("soprano_transform_params", {})),
-        soprano_derivation=data.get("soprano_derivation"),
-        soprano_derivation_params=dict(data.get("soprano_derivation_params", {})),
-        soprano_delay=parse_delay(data.get("soprano_delay", 0)),
-        soprano_direct=data.get("soprano_direct", False),
-        bass_source=data.get("bass_source", "subject"),
-        bass_transform=data.get("bass_transform", "none"),
-        bass_transform_params=dict(data.get("bass_transform_params", {})),
-        bass_derivation=data.get("bass_derivation"),
-        bass_derivation_params=dict(data.get("bass_derivation_params", {})),
-        bass_delay=parse_delay(data.get("bass_delay", 0)),
-        bass_direct=data.get("bass_direct", False),
-        interdictions=tuple(data.get("interdictions", [])),
-    )
-
-
 def _compute_slots_per_bar(metre: str, rhythmic_unit: str) -> int:
     """Compute slots per bar from metre and primary value."""
     num_str, den_str = metre.split("/")
@@ -287,7 +185,7 @@ def _compute_slots_per_bar(metre: str, rhythmic_unit: str) -> int:
 
 def _get_schema_stages(schema_name: str, schemas: dict[str, SchemaConfig]) -> int:
     """Get number of bars a schema occupies."""
-    if schema_name not in schemas or schema_name == "episode":
+    if schema_name not in schemas:
         return 0
     schema_def: SchemaConfig = schemas[schema_name]
     if schema_def.sequential:
@@ -331,32 +229,6 @@ def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
     }
 
 
-def _validate_function_map(data: dict, genre_name: str) -> FunctionMapConfig:
-    """Validate function_map block from genre YAML.
-    
-    Per vocabulary.md: function_map links passage functions to voice expansions.
-    Accepts either old 'treatments:' key or new 'function_map:' key for compatibility.
-    """
-    # Accept either old or new key name during transition
-    map_data: dict = data.get("function_map", data.get("treatments", {}))
-    assert "required" in map_data, f"Genre '{genre_name}' missing function_map.required"
-    # Accept either 'subject' or legacy 'opening' for the subject function
-    subject_expansion: str = map_data.get("subject", map_data.get("opening", ""))
-    assert subject_expansion, f"Genre '{genre_name}' missing function_map.subject (or legacy treatments.opening)"
-    assert "answer" in map_data, f"Genre '{genre_name}' missing function_map.answer"
-    return FunctionMapConfig(
-        required=tuple(map_data.get("required", [])),
-        optional=tuple(map_data.get("optional", [])),
-        subject=subject_expansion,
-        answer=map_data["answer"],
-        episode=map_data.get("episode", "schema"),
-        development=map_data.get("development", "fragmentation"),
-        cadential=map_data.get("cadential", "repose"),
-        return_=map_data.get("return", subject_expansion),
-        coda=map_data.get("coda", "hold"),
-    )
-
-
 def _validate_genre(data: dict) -> GenreConfig:
     """Validate genre YAML against schema."""
     from builder.figuration.bass import validate_bass_treatment
@@ -371,11 +243,8 @@ def _validate_genre(data: dict) -> GenreConfig:
     bass_mode: str = data.get("bass_mode", "pattern")
     bass_pattern: str | None = data.get("bass_pattern")
     validate_bass_treatment(bass_treatment, bass_mode, bass_pattern, genre_name)
-    function_map: FunctionMapConfig = _validate_function_map(data, genre_name)
     upbeat_raw = data.get("upbeat", 0)
     upbeat = Fraction(upbeat_raw) if isinstance(upbeat_raw, str) else Fraction(upbeat_raw)
-    # Accept either old or new key name during transition
-    passage_seq = data.get("passage_sequence", data.get("treatment_sequence", []))
     return GenreConfig(
         name=genre_name,
         voices=data["voices"],
@@ -386,9 +255,7 @@ def _validate_genre(data: dict) -> GenreConfig:
         bass_treatment=bass_treatment,
         bass_mode=bass_mode,
         bass_pattern=bass_pattern,
-        function_map=function_map,
         sections=tuple(data.get("sections", [])),
-        passage_sequence=tuple(passage_seq),
         upbeat=upbeat,
     )
 
