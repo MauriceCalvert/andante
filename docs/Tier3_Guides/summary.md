@@ -339,15 +339,15 @@ slice.py           Interval/motion analysis utilities
 
 ### Builder Figuration
 ```
-figuration/figurate.py     Main figuration engine
+figuration/figurate.py     Main figuration engine, onset collection
 figuration/loader.py       Load figures from YAML
 figuration/realiser.py     Figures → note sequences
-figuration/selector.py     Context-aware figure selection
+figuration/selector.py     Context-aware figure selection, coverage scoring
 figuration/sequencer.py    Order figures into coherent sequences
 figuration/bass.py         Bass pattern realisation
 figuration/melodic_minor.py Melodic minor handling
 figuration/junction.py     Figure transitions
-figuration/types.py        Figure, CadentialFigure, PhrasePosition
+figuration/types.py        Figure, CadentialFigure, PhrasePosition, FiguredBar
 ```
 
 ### Builder Quality
@@ -453,6 +453,7 @@ midi_writer.py     Standalone MIDI generation
 8. **Parallel detection canonical:** Only in `shared/parallels.py`
 9. **No try blocks:** Use membership test or let it raise
 10. **MIDI gate time:** Always 95% to avoid legato issues
+11. **Rhythm complementarity:** Bass figuration receives soprano onsets, prefers uncovered positions
 
 ---
 
@@ -473,6 +474,8 @@ midi_writer.py     Standalone MIDI generation
 7. **Diatonic vs Chromatic modality.** The flag propagates from L2 to realisation.
 
 8. **Schema arrivals vs degrees.** `entry`/`exit` are derived from first/last of `soprano_degrees`/`bass_degrees`.
+
+9. **Parallel rhythm in contrapuntal bass.** If soprano and bass have identical onset patterns, check that `covered_onsets` is being passed to bass figuration. See `docs/rhythm_update.md`.
 
 ---
 

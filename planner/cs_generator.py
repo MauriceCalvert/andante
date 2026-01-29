@@ -88,8 +88,8 @@ class CounterSubject:
 
 
 @dataclass(frozen=True)
-class Subject:
-    """Subject material for CS generation."""
+class SubjectSpec:
+    """Subject material specification for CS generation."""
     degrees: tuple[int, ...]
     durations: tuple[Fraction, ...]
     mode: str  # "major" or "minor"
@@ -154,7 +154,7 @@ CANDIDATE_DELAYS: tuple[Fraction, ...] = (
 
 
 def test_delay_consonance(
-    subject: Subject,
+    subject: SubjectSpec,
     cs: CounterSubject,
     delay: Fraction,
 ) -> bool:
@@ -220,7 +220,7 @@ def test_delay_consonance(
     return True
 
 
-def find_valid_delays(subject: Subject, cs: CounterSubject) -> tuple[Fraction, ...]:
+def find_valid_delays(subject: SubjectSpec, cs: CounterSubject) -> tuple[Fraction, ...]:
     """Test candidate delays and return those that maintain consonance.
 
     This is Bach's empirical approach: generate CS for primary alignment,
@@ -241,7 +241,7 @@ def _is_strong_beat(position: Fraction) -> bool:
 
 
 def generate_countersubject(
-    subject: Subject,
+    subject: SubjectSpec,
     timeout_seconds: float = 10.0,
     interleaved: bool = False,
     baroque_rhythm: bool = False,
@@ -448,7 +448,7 @@ def generate_countersubject(
     return cs.with_valid_delays(valid_delays)
 
 
-def _compute_allowed_durations(subject: Subject, baroque: bool = False) -> list[Fraction]:
+def _compute_allowed_durations(subject: SubjectSpec, baroque: bool = False) -> list[Fraction]:
     """Compute allowed CS durations based on subject's vocabulary.
 
     CS durations are limited to:
@@ -459,7 +459,7 @@ def _compute_allowed_durations(subject: Subject, baroque: bool = False) -> list[
     This ensures similar rhythmic density.
 
     Args:
-        subject: Subject to derive durations from
+        subject: SubjectSpec to derive durations from
         baroque: If True, filter to baroque-style durations only:
                 - No 16th notes (minimum 1/8)
                 - No dotted-8ths (3/16) - creates modern syncopation
@@ -511,7 +511,7 @@ def _add_vertical_constraints(
     cs_attacks: list,
     cs_durations: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     subj_attacks_scaled: list[int],
     target_scaled: int,
     penalties: list,
@@ -599,7 +599,7 @@ def _add_attack_consonance(
     cs_attacks: list,
     cs_durations: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     subj_attacks_scaled: list[int],
     target_scaled: int,
 ) -> None:
@@ -667,7 +667,7 @@ def _add_parallel_fifth_constraints(
     model,
     cs_degrees: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     penalties: list,
 ) -> None:
     """Forbid parallel perfect fifths/octaves, penalize direct (hidden) perfects.
@@ -760,7 +760,7 @@ def _add_strong_beat_consonance(
     cs_degrees: list,
     cs_attacks: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     subj_attacks_scaled: list[int],
     target_scaled: int,
     penalties: list,
@@ -841,7 +841,7 @@ def _add_melodic_constraints(
     model,
     cs_degrees: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     max_cs: int,
     penalties: list,
 ) -> None:
@@ -909,7 +909,7 @@ def _add_leap_compensation_constraints(
     model,
     cs_degrees: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     max_cs: int,
     penalties: list,
 ) -> None:
@@ -967,7 +967,7 @@ def _add_tritone_outline_constraints(
     model,
     cs_degrees: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     max_cs: int,
     penalties: list,
 ) -> None:
@@ -1007,7 +1007,7 @@ def _add_consecutive_leap_constraints(
     model,
     cs_degrees: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     max_cs: int,
     penalties: list,
 ) -> None:
@@ -1059,7 +1059,7 @@ def _add_rhythmic_constraints(
     cs_durations: list,
     cs_attacks: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     subj_attacks_scaled: list[int],
     allowed_scaled: list[int],
     max_cs: int,
@@ -1120,7 +1120,7 @@ def _add_cadential_constraints(
     model,
     cs_degrees: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     max_cs: int,
     penalties: list,
 ) -> None:
@@ -1228,7 +1228,7 @@ def _add_motivic_constraints(
     model,
     cs_durations: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     allowed_scaled: list[int],
     max_cs: int,
     penalties: list,
@@ -1257,7 +1257,7 @@ def _add_invertibility_constraints(
     cs_degrees: list,
     cs_attacks: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     subj_attacks_scaled: list[int],
     target_scaled: int,
     penalties: list,
@@ -1302,7 +1302,7 @@ def _add_climax_constraints(
     model,
     cs_degrees: list,
     active: list,
-    subject: Subject,
+    subject: SubjectSpec,
     max_cs: int,
     penalties: list,
 ) -> None:

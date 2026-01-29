@@ -17,8 +17,8 @@ OSCILLATION_COST: float = 0.5
 
 
 @dataclass(frozen=True)
-class Anchor:
-    """Fixed pitch at a specific position."""
+class FixedPitch:
+    """Fixed pitch at a specific position (solver input)."""
     offset: Fraction
     voice: int
     midi: int
@@ -46,8 +46,8 @@ class SolverConfig:
 
 
 @dataclass(frozen=True)
-class Solution:
-    """Solver output."""
+class SolverResult:
+    """Solver output with sparse pitch map."""
     pitches: dict[tuple[Fraction, int], int]
     cost: float
 
@@ -58,7 +58,7 @@ class Solution:
 
 
 def _validate_inputs(
-    anchors: list[Anchor],
+    fixed_pitches: list[FixedPitch],
     slots: list[Slot],
     config: SolverConfig,
 ) -> None:
@@ -66,18 +66,18 @@ def _validate_inputs(
     assert config.voice_count in {2, 3, 4}, (
         f"voice_count must be 2, 3, or 4, got {config.voice_count}"
     )
-    for anchor in anchors:
-        assert 0 <= anchor.voice < config.voice_count, (
-            f"Anchor voice {anchor.voice} out of range [0, {config.voice_count})"
+    for fp in fixed_pitches:
+        assert 0 <= fp.voice < config.voice_count, (
+            f"FixedPitch voice {fp.voice} out of range [0, {config.voice_count})"
         )
     for slot in slots:
         assert 0 <= slot.voice < config.voice_count, (
             f"Slot voice {slot.voice} out of range [0, {config.voice_count})"
         )
-    for anchor in anchors:
-        pc: int = anchor.midi % 12
+    for fp in fixed_pitches:
+        pc: int = fp.midi % 12
         assert pc in config.pitch_class_set, (
-            f"Anchor pitch {anchor.midi} (pc={pc}) not in pitch_class_set "
+            f"FixedPitch pitch {fp.midi} (pc={pc}) not in pitch_class_set "
             f"{config.pitch_class_set}"
         )
     assert config.invertible_at in {None, 10, 12}, (
@@ -93,12 +93,12 @@ def _validate_inputs(
         )
     slot_keys: list[tuple[Fraction, int]] = [(s.offset, s.voice) for s in slots]
     assert len(slot_keys) == len(set(slot_keys)), "Duplicate (offset, voice) in slots"
-    anchor_keys: list[tuple[Fraction, int]] = [(a.offset, a.voice) for a in anchors]
-    assert len(anchor_keys) == len(set(anchor_keys)), "Duplicate (offset, voice) in anchors"
+    fp_keys: list[tuple[Fraction, int]] = [(fp.offset, fp.voice) for fp in fixed_pitches]
+    assert len(fp_keys) == len(set(fp_keys)), "Duplicate (offset, voice) in fixed_pitches"
     slot_key_set: set[tuple[Fraction, int]] = set(slot_keys)
-    for anchor in anchors:
-        key = (anchor.offset, anchor.voice)
-        assert key in slot_key_set, f"Anchor at {key} has no corresponding slot"
+    for fp in fixed_pitches:
+        key = (fp.offset, fp.voice)
+        assert key in slot_key_set, f"FixedPitch at {key} has no corresponding slot"
 
 
 # =============================================================================
@@ -128,21 +128,21 @@ def _compute_domain(
 
 
 def _build_model(
-    anchors: list[Anchor],
+    fixed_pitches: list[FixedPitch],
     slots: list[Slot],
     config: SolverConfig,
 ) -> tuple[cp_model.CpModel, dict[tuple[Fraction, int], Any], Any]:
     """Build CP-SAT model with variables and constraints."""
     model = cp_model.CpModel()
-    anchor_map: dict[tuple[Fraction, int], int] = {
-        (a.offset, a.voice): a.midi for a in anchors
+    fixed_pitch_map: dict[tuple[Fraction, int], int] = {
+        (fp.offset, fp.voice): fp.midi for fp in fixed_pitches
     }
     sorted_slots = sorted(slots, key=lambda s: (s.offset, s.voice))
     variables: dict[tuple[Fraction, int], Any] = {}
     for slot in sorted_slots:
         key = (slot.offset, slot.voice)
-        if key in anchor_map:
-            midi = anchor_map[key]
+        if key in fixed_pitch_map:
+            midi = fixed_pitch_map[key]
             var = model.NewIntVar(midi, midi, f"pitch_{slot.offset}_{slot.voice}")
         else:
             domain = _compute_domain(slot.voice, config)
@@ -383,16 +383,16 @@ def _add_cost_terms(
 
 
 def solve(
-    anchors: list[Anchor],
+    fixed_pitches: list[FixedPitch],
     slots: list[Slot],
     config: SolverConfig,
     timeout_seconds: float = 10.0,
-) -> Solution:
+) -> SolverResult:
     """Fill slots with pitches satisfying all hard constraints."""
-    _validate_inputs(anchors, slots, config)
+    _validate_inputs(fixed_pitches, slots, config)
     if not slots:
-        return Solution(pitches={}, cost=0.0)
-    model, variables, cost_var = _build_model(anchors, slots, config)
+        return SolverResult(pitches={}, cost=0.0)
+    model, variables, cost_var = _build_model(fixed_pitches, slots, config)
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = timeout_seconds
     status = solver.Solve(model)
@@ -401,7 +401,7 @@ def solve(
         for key, var in variables.items():
             pitches[key] = solver.Value(var)
         cost: float = solver.ObjectiveValue() / 1000.0
-        return Solution(pitches=pitches, cost=cost)
+        return SolverResult(pitches=pitches, cost=cost)
     if status == cp_model.INFEASIBLE:
         raise SolverInfeasibleError("No solution satisfies all hard constraints")
     raise SolverTimeoutError(f"CP-SAT solver exceeded {timeout_seconds}s time limit")

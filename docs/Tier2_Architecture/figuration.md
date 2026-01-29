@@ -190,7 +190,9 @@ All violations are seeded and deterministic.
 
 ## Scope
 
-**Soprano only.** Bass uses accompaniment patterns from `accompaniments.yaml`, not melodic figuration. In homophonic textures, bass repeats a rhythmic pattern (e.g., oom-pah-pah) with root adapted to each anchor's bass degree.
+**Multi-voice.** Soprano is figurated first. When bass uses contrapuntal figuration (`bass_treatment: contrapuntal`), it receives soprano's onset positions and prefers figures that fill uncovered positions. This produces complementary rhythm by default.
+
+**Homophonic exception:** When texture is homophonic, onset coverage is ignored — lockstep rhythm is deliberate.
 
 **Counterpoint validation** occurs after figuration generates pitch sequences — parallel 5ths/8ves, voice range, consonance checks.
 
@@ -208,9 +210,10 @@ All violations are seeded and deterministic.
 8. Filter by compensation need (if previous figure leaped)
 9. Apply controlled misbehaviour (small probability to relax filters)
 10. Sort by weight (historical frequency)
-11. Select via seeded RNG
-12. Check junction to next anchor
-13. If junction fails, try next candidate
+11. **Score by onset coverage** (if `covered_onsets` provided, bonus for uncovered positions)
+12. Select via seeded RNG
+13. Check junction to next anchor
+14. If junction fails, try next candidate
 
 ---
 

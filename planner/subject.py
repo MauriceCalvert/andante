@@ -9,7 +9,7 @@ from planner.cs_generator import (
     DEFAULT_MIN_CS_DURATION,
     VALID_DURATIONS,
     generate_countersubject,
-    Subject as CSSubject,
+    SubjectSpec,
     CounterSubject,
 )
 from planner.plannertypes import Motif
@@ -77,7 +77,7 @@ class Subject:
         - Cadential convergence
         - Motivic coherence
         """
-        cs_subj = CSSubject(
+        cs_subj = SubjectSpec(
             degrees=self._degrees,
             durations=self._durations,
             mode=self._mode,
@@ -188,7 +188,7 @@ class Subject:
         against the subject. Future enhancement could add collision avoidance
         with preceding counter-subjects.
         """
-        cs_subj = CSSubject(
+        cs_subj = SubjectSpec(
             degrees=self._degrees,
             durations=self._durations,
             mode=self._mode,
