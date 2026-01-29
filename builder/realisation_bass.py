@@ -24,7 +24,6 @@ def find_consonant_bass(
     interval = abs(soprano_midi - bass_midi) % 12
     if interval not in STRONG_BEAT_DISSONANT:
         return bass_midi  # Already consonant
-
     low, high = bass_range
     # Try small adjustments: +/-1, +/-2 semitones
     for delta in [1, -1, 2, -2]:
@@ -34,7 +33,6 @@ def find_consonant_bass(
         new_interval = abs(soprano_midi - candidate) % 12
         if new_interval in CONSONANT_INTERVALS:
             return candidate
-
     return bass_midi  # No better option found
 
 
@@ -67,15 +65,12 @@ def adjust_downbeat_consonance(
     for bar in range(1, total_bars + 1):
         offset = Fraction((bar - 1) * beats_per_bar, 4)
         downbeats.append((offset, bar))
-
     # Create mutable copies
     adjusted: list[Note] = list(bass_notes)
-
     for offset, bar in downbeats:
         s_pitch = pitch_sounding_at(soprano_notes, offset)
         if s_pitch is None:
             continue
-
         # Find bass note at this downbeat
         for i, note in enumerate(adjusted):
             if note.offset == offset:
@@ -90,5 +85,4 @@ def adjust_downbeat_consonance(
                             lyric=note.lyric,
                         )
                 break
-
     return adjusted

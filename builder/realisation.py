@@ -40,6 +40,30 @@ from shared.pitch import select_octave
 from shared.tracer import get_tracer
 
 
+def _infer_direction(from_degree: int, to_degree: int) -> str:
+    """Infer voice-leading direction from consecutive degrees.
+
+    Uses shortest path: if interval is 1-3 steps, go that way.
+    If 4-6 steps, go the opposite way (shorter path wrapping).
+
+    Args:
+        from_degree: Starting degree (1-7)
+        to_degree: Target degree (1-7)
+
+    Returns:
+        "up", "down", or "same"
+    """
+    if from_degree == to_degree:
+        return "same"
+    diff = to_degree - from_degree
+    # Normalize to -3..+3 range (shortest path)
+    if diff > 3:
+        diff -= 7  # e.g., 1→6 = +5 → -2 (down)
+    elif diff < -3:
+        diff += 7  # e.g., 6→1 = -5 → +2 (up)
+    return "up" if diff > 0 else "down"
+
+
 SCHEMA_STAGE_COUNTS: dict[str, int] = {
     "prinner": 4,
     "romanesca": 6,
@@ -107,6 +131,7 @@ def realise_with_figuration(
     bass_median: int = DEFAULT_TESSITURA_MEDIANS[3]
     end_offset: Fraction = Fraction(total_bars * beats_per_bar, 4)
     prev_soprano: int | None = None
+    prev_soprano_degree: int | None = None  # Track degree for cross-bar direction
     prev_function: str | None = None
     prev_expansion_name: str | None = None
     prev_section: str | None = None
@@ -139,13 +164,26 @@ def realise_with_figuration(
         expansion_name: str = expansion.name
         tracer.figure_selection(bar, figured_bar.figure_name or "none", density)
         tracer.expansion(bar, function or "none", expansion_name)
-        for j, (degree, duration) in enumerate(zip(figured_bar.degrees, figured_bar.durations)):
+        degrees = figured_bar.degrees
+        for j, (degree, duration) in enumerate(zip(degrees, figured_bar.durations)):
+            # Infer direction from previous degree
+            if j == 0 and prev_soprano is None:
+                direction = None  # Very first note - use median
+            elif j > 0:
+                direction = _infer_direction(degrees[j - 1], degree)
+            elif prev_soprano_degree is not None:
+                # First note of bar, have previous bar's last degree
+                direction = _infer_direction(prev_soprano_degree, degree)
+            else:
+                direction = None
             s_midi: int = select_octave(
                 anchor_for_key.local_key, degree, soprano_median,
                 prev_pitch=None if j == 0 and prev_soprano is None else prev_soprano,
+                direction=direction,
                 voice_range=VOICE_RANGES[0],
             )
             prev_soprano = s_midi
+            prev_soprano_degree = degree  # Track for next iteration
             if current_offset == first_bar_offset:
                 schema_part: str | None = anchor_for_key.schema if anchor_for_key.stage == 1 else None
                 function_part: str | None = function if function != prev_function else None
@@ -198,6 +236,7 @@ def realise_with_figuration(
             passage_assignments=passage_assignments,
         )
         prev_bass: int | None = None
+        prev_bass_degree: int | None = None  # Track degree for cross-bar direction
         bar_duration: Fraction = Fraction(beats_per_bar, 4)
         bass_beat_value: Fraction = Fraction(1, int(genre_config.metre.split("/")[1]))
         anchor_idx: int = 0
@@ -223,13 +262,26 @@ def realise_with_figuration(
             passage_end: Fraction | None = get_passage_end_offset(
                 bar, passage_assignments, beats_per_bar,
             )
-            for j, (degree, dur) in enumerate(zip(figured_bar.degrees, figured_bar.durations)):
+            bass_degrees = figured_bar.degrees
+            for j, (degree, dur) in enumerate(zip(bass_degrees, figured_bar.durations)):
+                # Infer direction from previous degree
+                if j == 0 and prev_bass is None:
+                    direction = None  # Very first note - use median
+                elif j > 0:
+                    direction = _infer_direction(bass_degrees[j - 1], degree)
+                elif prev_bass_degree is not None:
+                    # First note of bar, have previous bar's last degree
+                    direction = _infer_direction(prev_bass_degree, degree)
+                else:
+                    direction = None
                 b_midi: int = select_octave(
                     anchor_for_key.local_key, degree, bass_median,
                     prev_pitch=None if j == 0 and prev_bass is None else prev_bass,
+                    direction=direction,
                     voice_range=VOICE_RANGES[3],
                 )
                 prev_bass = b_midi
+                prev_bass_degree = degree  # Track for next iteration
                 # Truncate duration at passage boundary to avoid overlap
                 note_dur = dur
                 if passage_end is not None and current_offset >= 0:

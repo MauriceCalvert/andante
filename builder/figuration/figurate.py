@@ -44,6 +44,7 @@ from builder.figuration.selector import (
     filter_cadential_safe,
     filter_parallel_direct,
     get_figures_for_interval,
+    would_create_parallel_or_direct,
 )
 from builder.figuration.rhythm_calc import compute_rhythmic_distribution
 # sequencer functions used through strategies module
@@ -169,6 +170,10 @@ def figurate(
         if seq_info is not None:
             seq_start, seq_end = seq_info
             seq_anchors = sorted_anchors[seq_start:seq_end + 1]
+            # Extract soprano slice for this schema section (bass parallel check)
+            soprano_slice: list[FiguredBar] | None = None
+            if voice == "bass" and soprano_figured_bars is not None:
+                soprano_slice = soprano_figured_bars[seq_start:seq_end]
             seq_bars = _apply_schema_figuration(
                 anchors=seq_anchors,
                 metre=metre,
@@ -178,6 +183,7 @@ def figurate(
                 role=role,
                 voice=voice,
                 passage_assignments=passage_assignments,
+                soprano_figured_bars=soprano_slice,
             )
             figured_bars.extend(seq_bars)
             i = seq_end
@@ -209,7 +215,10 @@ def figurate(
             soprano_start_midi: int = 70  # Default soprano median
             bass_start_midi: int = 48  # Default bass median
             if voice == "bass" and soprano_figured_bars is not None and i < len(soprano_figured_bars):
-                soprano_degrees = soprano_figured_bars[i].degrees
+                sop_abs = soprano_figured_bars[i].degrees
+                # Convert absolute degrees to relative offsets (like Figure.degrees)
+                sop_start = sop_abs[0]
+                soprano_degrees = tuple(d - sop_start for d in sop_abs)
                 # Approximate starting MIDI from anchor degrees
                 soprano_start_midi = 60 + (anchor_a.upper_degree - 1) * 2
                 bass_start_midi = 36 + (anchor_a.lower_degree - 1) * 2
@@ -246,9 +255,10 @@ def figurate(
                 figure = compound_fig
         if i + 2 < len(sorted_anchors):
             next_anchor = sorted_anchors[i + 2]
-            if not check_junction(figure, _get_degree(next_anchor, role)):
+            start_degree = _get_degree(anchor_a, role)
+            if not check_junction(figure, start_degree, _get_degree(next_anchor, role)):
                 candidates = get_figures_for_interval(interval)
-                alt_figure = find_valid_figure(candidates, _get_degree(next_anchor, role))
+                alt_figure = find_valid_figure(candidates, start_degree, _get_degree(next_anchor, role))
                 if alt_figure:
                     figure = alt_figure
         offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
@@ -480,12 +490,16 @@ def _apply_schema_figuration(
     role: Role,
     voice: str = "soprano",
     passage_assignments: Sequence[PassageAssignment] | None = None,
+    soprano_figured_bars: list[FiguredBar] | None = None,
 ) -> list[FiguredBar]:
     """Apply schema-aware figuration to a schema section.
 
     Uses schema-specific strategies (accelerating, relaxing, static, dyadic)
     to generate appropriate figure sequences for each schema type.
     The figuration profile influences pattern selection character.
+
+    Args:
+        soprano_figured_bars: When figurating bass, soprano bars for parallel check.
     """
     if len(anchors) < 2:
         return []
@@ -542,6 +556,37 @@ def _apply_schema_figuration(
         anchor_a = anchors[i]
         anchor_b = anchors[i + 1]
         bar_num = _parse_bar_beat(anchor_a.bar_beat)[0]
+        # Check for parallels with soprano when bass figuration
+        if soprano_figured_bars is not None and i < len(soprano_figured_bars):
+            sop_abs = soprano_figured_bars[i].degrees
+            sop_start = sop_abs[0]
+            soprano_degrees = tuple(d - sop_start for d in sop_abs)
+            soprano_start_midi = 60 + (anchor_a.upper_degree - 1) * 2
+            bass_start_midi = 36 + (anchor_a.lower_degree - 1) * 2
+            if would_create_parallel_or_direct(
+                soprano_degrees, figure.degrees, soprano_start_midi, bass_start_midi
+            ):
+                # Try to find alternative figure for this bar
+                bar_interval = compute_interval(
+                    _get_degree(anchor_a, role), _get_degree(anchor_b, role)
+                )
+                alt_figure = _select_figure_with_filters(
+                    interval=bar_interval,
+                    ascending=ascending,
+                    harmonic_tension="low",
+                    character=character,
+                    density=density,
+                    is_minor=is_minor,
+                    prev_leaped=False,
+                    leap_direction=None,
+                    near_cadence=False,
+                    seed=seed + i,
+                    soprano_degrees=soprano_degrees,
+                    soprano_start_midi=soprano_start_midi,
+                    bass_start_midi=bass_start_midi,
+                )
+                if alt_figure is not None:
+                    figure = alt_figure
         offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
         offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
         raw_gap = offset_b - offset_a

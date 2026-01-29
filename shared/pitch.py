@@ -5,26 +5,13 @@ from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from shared.key import Key
 
-from shared.constants import TESSITURA_DRIFT_THRESHOLD
-
 
 @dataclass(frozen=True)
 class FloatingNote:
-    """Scale degree without octave. Realiser chooses placement.
-
-    Supports chromatic alterations via the `alter` field:
-    - alter=0: diatonic (default)
-    - alter=-1: lowered (flat)
-    - alter=+1: raised (sharp)
-
-    Examples:
-    - FloatingNote(7) = diatonic 7th (leading tone in major)
-    - FloatingNote(7, alter=-1) = lowered 7th (b7)
-    - FloatingNote(7, alter=+1) = raised 7th (#7, rare)
-    """
+    """Scale degree without octave. Realiser chooses placement."""
     degree: int  # 1-7
-    exempt: bool = False  # When True, guards skip this note (e.g., subject material)
-    alter: int = 0  # Chromatic alteration: -1=flat, 0=natural, +1=sharp
+    exempt: bool = False
+    alter: int = 0
 
     def __post_init__(self) -> None:
         assert 1 <= self.degree <= 7, f"degree must be 1-7, got {self.degree}"
@@ -117,6 +104,61 @@ def cycle_pitch_with_variety(pitches: tuple[Pitch, ...], idx: int) -> Pitch:
     return FloatingNote(wrap_degree(p.degree + cycle))
 
 
+def place_degree(
+    key: "Key",
+    degree: int,
+    median: int,
+    prev_pitch: int | None = None,
+    alter: int = 0,
+    direction: str | None = None,
+) -> int:
+    """Place a scale degree as MIDI pitch.
+
+    First note: nearest to median.
+    Subsequent notes: follow direction from prev_pitch.
+
+    No selection, no filtering, no cleverness. Pure arithmetic.
+
+    Args:
+        key: Musical key
+        degree: Scale degree (1-7)
+        median: Tessitura median (first note only)
+        prev_pitch: Previous MIDI pitch, or None for first note
+        alter: Chromatic alteration in semitones
+        direction: "up", "down", or "same"
+
+    Returns:
+        MIDI pitch.
+    """
+    assert 1 <= degree <= 7, f"degree must be 1-7, got {degree}"
+    base_pc = key.degree_to_midi(degree, octave=0) + alter  # pitch class
+    if prev_pitch is None:
+        # First note: find octave nearest median
+        octave = round((median - base_pc) / 12)
+        return base_pc + (octave * 12)
+    # Subsequent note: follow direction
+    if direction == "up":
+        # Find this degree above prev_pitch
+        result = base_pc + ((prev_pitch - base_pc) // 12 + 1) * 12
+        if result <= prev_pitch:
+            result += 12
+        return result
+    elif direction == "down":
+        # Find this degree below prev_pitch
+        result = base_pc + ((prev_pitch - base_pc) // 12) * 12
+        if result >= prev_pitch:
+            result -= 12
+        return result
+    else:
+        # "same" or None: nearest
+        above = base_pc + ((prev_pitch - base_pc) // 12 + 1) * 12
+        below = above - 12
+        if abs(above - prev_pitch) <= abs(below - prev_pitch):
+            return above
+        return below
+
+
+# Alias for backward compatibility during transition
 def select_octave(
     key: "Key",
     degree: int,
@@ -126,81 +168,5 @@ def select_octave(
     direction: str | None = None,
     voice_range: tuple[int, int] | None = None,
 ) -> int:
-    """Select octave for a scale degree — canonical pitch placement.
-
-    Two modes:
-        Initial (prev_pitch=None): Place degree in octave nearest to median.
-        Voice-leading (prev_pitch given): Place nearest to prev_pitch,
-            respecting direction hint, but snap back to median if drift
-            exceeds threshold.
-
-    Args:
-        key: Musical key
-        degree: Scale degree (1-7)
-        median: Tessitura median (gravity centre)
-        prev_pitch: Previous MIDI pitch, or None for initial placement
-        alter: Chromatic alteration in semitones (default 0)
-        direction: Voice-leading hint: "up", "down", "same", or None.
-            When provided with prev_pitch, biases selection toward
-            the indicated direction.
-        voice_range: Optional (low, high) MIDI pitch bounds. When provided,
-            only candidates within this range are considered.
-
-    Returns:
-        MIDI pitch for the degree in the selected octave.
-    """
-    assert 1 <= degree <= 7, f"degree must be 1-7, got {degree}"
-    candidates: list[int] = []
-    for octave in range(1, 8):
-        midi: int = key.degree_to_midi(degree, octave=octave) + alter
-        candidates.append(midi)
-
-    # Filter candidates to voice range if provided (enumerate valid options first)
-    if voice_range is not None:
-        low, high = voice_range
-        candidates = [m for m in candidates if low <= m <= high]
-        assert candidates, (
-            f"No valid octave for degree {degree} in range {voice_range}. "
-            f"Check upstream: figuration may have produced an out-of-range degree."
-        )
-
-    if prev_pitch is None:
-        candidates.sort(key=lambda m: abs(m - median))
-        return candidates[0]
-    if direction == "down":
-        below: list[int] = [m for m in candidates if m < prev_pitch]
-        if below:
-            below.sort(key=lambda m: abs(m - prev_pitch))
-            nearest = below[0]
-            if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
-                return nearest
-            candidates.sort(key=lambda m: abs(m - median))
-            return candidates[0]
-        candidates.sort(key=lambda m: abs(m - prev_pitch))
-        nearest = candidates[0]
-        if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
-            return nearest
-        candidates.sort(key=lambda m: abs(m - median))
-        return candidates[0]
-    if direction == "up":
-        above: list[int] = [m for m in candidates if m > prev_pitch]
-        if above:
-            above.sort(key=lambda m: abs(m - prev_pitch))
-            nearest = above[0]
-            if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
-                return nearest
-            candidates.sort(key=lambda m: abs(m - median))
-            return candidates[0]
-        candidates.sort(key=lambda m: abs(m - prev_pitch))
-        nearest = candidates[0]
-        if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
-            return nearest
-        candidates.sort(key=lambda m: abs(m - median))
-        return candidates[0]
-    # No direction hint
-    candidates.sort(key=lambda m: abs(m - prev_pitch))
-    nearest = candidates[0]
-    if abs(nearest - median) <= TESSITURA_DRIFT_THRESHOLD:
-        return nearest
-    candidates.sort(key=lambda m: abs(m - median))
-    return candidates[0]
+    """Deprecated: use place_degree. voice_range is ignored."""
+    return place_degree(key, degree, median, prev_pitch, alter, direction)
