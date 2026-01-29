@@ -22,7 +22,13 @@ from typing import Sequence
 from builder.figuration.loader import get_diminutions
 from builder.figuration.types import Figure, PhrasePosition, SelectionContext
 from builder.types import Anchor
-from shared.constants import FIGURATION_INTERVALS, MISBEHAVIOUR_PROBABILITY, ONSET_COVERAGE_BONUS
+from shared.constants import (
+    DIRECT_MOTION_STEP_THRESHOLD,
+    FIGURATION_INTERVALS,
+    MISBEHAVIOUR_PROBABILITY,
+    PERFECT_INTERVALS,
+    UGLY_LEAP_SEMITONES,
+)
 
 
 def compute_interval(degree_a: int, degree_b: int) -> str:
@@ -370,6 +376,158 @@ def filter_cadential_safe(figures: list[Figure], near_cadence: bool) -> list[Fig
     return result if result else figures
 
 
+def _compute_max_internal_leap(degrees: tuple[int, ...]) -> int:
+    """Compute largest interval between adjacent degrees in semitones.
+
+    Approximates semitones from scale degrees:
+    - Each scale degree step averages ~2 semitones
+    - This is a heuristic; actual intervals depend on mode
+    """
+    if len(degrees) < 2:
+        return 0
+    max_leap: int = 0
+    for i in range(len(degrees) - 1):
+        # Approximate: each scale degree difference ≈ 2 semitones average
+        # This is conservative; minor 2nds (1 semitone) are treated as 2
+        leap = abs(degrees[i + 1] - degrees[i]) * 2
+        max_leap = max(max_leap, leap)
+    return max_leap
+
+
+def filter_by_max_leap(
+    figures: list[Figure],
+    max_leap_semitones: int = UGLY_LEAP_SEMITONES,
+) -> list[Figure]:
+    """Remove figures with internal leaps exceeding threshold.
+
+    This prevents ugly melodic intervals like minor 7ths within figures.
+
+    Args:
+        figures: List of figures to filter
+        max_leap_semitones: Maximum allowed internal leap (default: minor 7th - 1)
+
+    Returns:
+        Figures with acceptable internal leaps. Soft filter: returns original
+        if all would be filtered.
+    """
+    if not figures:
+        return []
+
+    result: list[Figure] = []
+    for fig in figures:
+        max_leap = _compute_max_internal_leap(fig.degrees)
+        if max_leap <= max_leap_semitones:
+            result.append(fig)
+
+    # Soft filter: return original if all filtered out
+    return result if result else figures
+
+
+def _degree_to_semitone_approx(degree: int, start_midi: int) -> int:
+    """Approximate MIDI pitch from scale degree offset.
+
+    Uses major scale intervals for approximation:
+    degree 0 = 0, 1 = 2, 2 = 4, 3 = 5, 4 = 7, 5 = 9, 6 = 11, 7 = 12
+    """
+    # Major scale semitone offsets for degrees 0-7
+    major_offsets = [0, 2, 4, 5, 7, 9, 11, 12]
+    octaves = degree // 7
+    remainder = degree % 7
+    if remainder < 0:
+        octaves -= 1
+        remainder += 7
+    semitones = octaves * 12 + major_offsets[remainder]
+    return start_midi + semitones
+
+
+def would_create_parallel_or_direct(
+    soprano_degrees: tuple[int, ...],
+    bass_degrees: tuple[int, ...],
+    soprano_start_midi: int,
+    bass_start_midi: int,
+) -> bool:
+    """Check if bass figure would create parallel or direct fifths/octaves.
+
+    Parallel: Both voices move in similar motion maintaining the same perfect
+    interval (unison, fifth, or octave).
+
+    Direct: Similar motion arrives at a perfect interval where soprano leaps
+    (> 2 semitones).
+
+    Args:
+        soprano_degrees: Soprano figure degrees (relative to start)
+        bass_degrees: Bass candidate degrees (relative to start)
+        soprano_start_midi: Soprano starting MIDI pitch
+        bass_start_midi: Bass starting MIDI pitch
+
+    Returns:
+        True if bass candidate would create forbidden motion.
+    """
+    min_len = min(len(soprano_degrees), len(bass_degrees))
+    if min_len < 2:
+        return False
+
+    for i in range(min_len - 1):
+        # Convert degrees to approximate MIDI pitches
+        s1 = _degree_to_semitone_approx(soprano_degrees[i], soprano_start_midi)
+        s2 = _degree_to_semitone_approx(soprano_degrees[i + 1], soprano_start_midi)
+        b1 = _degree_to_semitone_approx(bass_degrees[i], bass_start_midi)
+        b2 = _degree_to_semitone_approx(bass_degrees[i + 1], bass_start_midi)
+
+        interval1 = abs(s1 - b1) % 12
+        interval2 = abs(s2 - b2) % 12
+
+        s_delta = s2 - s1
+        b_delta = b2 - b1
+
+        # Skip if not similar motion (one stationary or contrary motion)
+        if s_delta == 0 or b_delta == 0:
+            continue
+        if (s_delta > 0) != (b_delta > 0):
+            continue
+
+        # Check parallel: same perfect interval maintained
+        if interval1 in PERFECT_INTERVALS and interval1 == interval2:
+            return True
+
+        # Check direct: arrive at perfect interval with soprano leap
+        if interval2 in PERFECT_INTERVALS:
+            if abs(s_delta) > DIRECT_MOTION_STEP_THRESHOLD:
+                return True
+
+    return False
+
+
+def filter_parallel_direct(
+    figures: list[Figure],
+    soprano_degrees: tuple[int, ...] | None,
+    soprano_start_midi: int,
+    bass_start_midi: int,
+) -> list[Figure]:
+    """Filter bass figures that would create parallel/direct fifths or octaves.
+
+    Args:
+        figures: Bass figure candidates
+        soprano_degrees: Soprano figure degrees (None if not available)
+        soprano_start_midi: Soprano starting MIDI pitch
+        bass_start_midi: Bass starting MIDI pitch
+
+    Returns:
+        Filtered figures. Soft filter: returns original if all filtered.
+    """
+    if not figures or soprano_degrees is None:
+        return figures
+
+    result: list[Figure] = []
+    for fig in figures:
+        if not would_create_parallel_or_direct(
+            soprano_degrees, fig.degrees, soprano_start_midi, bass_start_midi
+        ):
+            result.append(fig)
+
+    return result if result else figures
+
+
 def apply_misbehaviour(
     figures: list[Figure],
     all_figures_for_interval: list[Figure],
@@ -413,35 +571,40 @@ def sort_by_weight(figures: list[Figure]) -> list[Figure]:
     return sorted(figures, key=lambda f: (-f.weight, f.name))
 
 
-def select_figure(figures: list[Figure], seed: int) -> Figure | None:
+def select_figure(
+    figures: list[Figure],
+    seed: int,
+    weight_overrides: list[float] | None = None,
+) -> Figure | None:
     """Select a figure using seeded weighted random selection.
 
     Args:
         figures: List of candidate figures (should be sorted)
         seed: RNG seed for determinism
+        weight_overrides: Optional list of weights to use instead of f.weight.
+                          Must be same length as figures if provided.
 
     Returns:
         Selected figure, or None if no candidates.
     """
     if not figures:
         return None
-
+    if weight_overrides is not None:
+        assert len(weight_overrides) == len(figures), "weight_overrides length mismatch"
+        weights = weight_overrides
+    else:
+        weights = [f.weight for f in figures]
     rng = random.Random(seed)
-
-    # Weighted selection based on figure weights
-    total_weight = sum(f.weight for f in figures)
+    total_weight = sum(weights)
     if total_weight <= 0:
         return figures[0] if figures else None
-
     r = rng.random() * total_weight
     cumulative = 0.0
-
-    for fig in figures:
-        cumulative += fig.weight
+    for fig, w in zip(figures, weights):
+        cumulative += w
         if r <= cumulative:
             return fig
-
-    return figures[-1]  # Fallback to last
+    return figures[-1]
 
 
 def determine_phrase_position(
@@ -598,44 +761,3 @@ def get_figures_for_interval(interval: str) -> list[Figure]:
     assert interval in FIGURATION_INTERVALS, f"Invalid interval: {interval}"
     diminutions = get_diminutions()
     return list(diminutions.get(interval, []))
-
-
-def score_by_coverage(
-    figures: list[Figure],
-    covered_onsets: set[Fraction] | None,
-    bar_offset: Fraction,
-    gap_duration: Fraction,
-    metre: str,
-) -> list[tuple[Figure, float]]:
-    """Score figures by how many new onsets they add.
-
-    Args:
-        figures: Candidate figures.
-        covered_onsets: Onsets already covered by other voices (or None to skip).
-        bar_offset: Start offset of this bar.
-        gap_duration: Duration to fill (anchor A to anchor B).
-        metre: Metre string like "4/4".
-
-    Returns:
-        List of (figure, bonus) tuples. Bonus is added to selection weight.
-    """
-    if covered_onsets is None or not figures:
-        return [(f, 0.0) for f in figures]
-
-    result: list[tuple[Figure, float]] = []
-
-    for fig in figures:
-        note_count = len(fig.degrees)
-        avg_duration = gap_duration / note_count if note_count > 0 else gap_duration
-
-        candidate_onsets: set[Fraction] = set()
-        current = bar_offset
-        for _ in range(note_count):
-            candidate_onsets.add(current)
-            current += avg_duration
-
-        new_count = len(candidate_onsets - covered_onsets)
-        bonus = new_count * ONSET_COVERAGE_BONUS
-        result.append((fig, bonus))
-
-    return result

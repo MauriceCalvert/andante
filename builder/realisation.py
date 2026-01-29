@@ -7,6 +7,9 @@ Each anchor becomes a note; duration extends to next anchor.
 
 Layer 6.5 (Figuration) can be enabled to produce baroque melodic patterns
 instead of simple block-chord output.
+
+Rhythm complementarity: When one voice leads a passage, the other voice
+staggers its onsets by one subdivision to avoid parallel rhythm.
 """
 from fractions import Fraction
 from typing import Sequence
@@ -16,7 +19,14 @@ from builder.types import (
     Anchor, AffectConfig, FormConfig, GenreConfig, KeyConfig,
     Note, NoteFile, PassageAssignment, VoiceExpansionConfig,
 )
-from shared.constants import DEFAULT_TESSITURA_MEDIANS
+from shared.constants import (
+    CONSONANT_INTERVALS,
+    DEFAULT_TESSITURA_MEDIANS,
+    RHYTHM_STAGGER_OFFSET,
+    STACCATO_DURATION_THRESHOLD,
+    STRONG_BEAT_DISSONANT,
+    VOICE_RANGES,
+)
 from shared.pitch import select_octave
 from shared.tracer import get_tracer
 
@@ -31,6 +41,42 @@ def _get_function_for_bar(
     for assignment in assignments:
         if assignment.start_bar <= bar <= assignment.end_bar:
             return assignment.function
+    return None
+
+
+def _get_lead_voice_for_bar(
+    bar: int,
+    assignments: Sequence[PassageAssignment] | None,
+) -> int | None:
+    """Look up lead voice for a given bar number.
+
+    Returns:
+        0 if soprano leads, 1 if bass leads, None if equal.
+    """
+    if assignments is None:
+        return None
+    for assignment in assignments:
+        if assignment.start_bar <= bar <= assignment.end_bar:
+            return assignment.lead_voice
+    return None
+
+
+def _get_passage_end_offset(
+    bar: int,
+    assignments: Sequence[PassageAssignment] | None,
+    beats_per_bar: int,
+) -> Fraction | None:
+    """Return offset where current passage ends (start of next bar after end_bar).
+
+    Used to truncate bass notes at passage boundaries to avoid overlap.
+    """
+    if assignments is None:
+        return None
+    for assignment in assignments:
+        if assignment.start_bar <= bar <= assignment.end_bar:
+            # End of this passage = start of next bar after end_bar
+            end_offset = Fraction(assignment.end_bar * beats_per_bar, 4)
+            return end_offset
     return None
 
 
@@ -70,72 +116,107 @@ def _build_stacked_lyric(
     return "/".join(parts)
 
 
-def _realise(
-    anchors: Sequence[Anchor],
-    passage_assignments: Sequence[PassageAssignment] | None,
-    key_config: KeyConfig,
-    affect_config: AffectConfig,
-    genre_config: GenreConfig,
-    form_config: FormConfig,
+def _get_bass_articulation(
+    duration: Fraction,
+    is_run: bool,
+) -> str:
+    """Determine articulation marking for bass note.
+
+    Short notes in running passages get staccato/non-legato articulation
+    to lighten the texture and create rhythmic contrast with soprano.
+    """
+    if duration <= STACCATO_DURATION_THRESHOLD and is_run:
+        return "stacc"
+    return ""
+
+
+def _is_dissonant_interval(soprano_midi: int, bass_midi: int) -> bool:
+    """Check if vertical interval between soprano and bass is dissonant."""
+    interval = abs(soprano_midi - bass_midi) % 12
+    return interval in STRONG_BEAT_DISSONANT
+
+
+def _find_consonant_bass(
+    soprano_midi: int,
+    bass_midi: int,
+    bass_range: tuple[int, int],
+) -> int:
+    """Find nearest consonant bass pitch by adjusting up or down.
+
+    Tries moving bass by 1-2 semitones to find a consonant interval.
+    Returns original if no consonant alternative found within range.
+    """
+    interval = abs(soprano_midi - bass_midi) % 12
+    if interval not in STRONG_BEAT_DISSONANT:
+        return bass_midi  # Already consonant
+
+    low, high = bass_range
+    # Try small adjustments: ±1, ±2 semitones
+    for delta in [1, -1, 2, -2]:
+        candidate = bass_midi + delta
+        if candidate < low or candidate > high:
+            continue
+        new_interval = abs(soprano_midi - candidate) % 12
+        if new_interval in CONSONANT_INTERVALS:
+            return candidate
+
+    return bass_midi  # No better option found
+
+
+def _pitch_sounding_at(notes: list[Note], offset: Fraction) -> int | None:
+    """Get the pitch sounding at a given offset.
+
+    Returns the pitch of the note that starts at or before the offset
+    and extends past it, or None if no note is sounding.
+    """
+    for note in notes:
+        if note.offset <= offset < note.offset + note.duration:
+            return note.pitch
+    return None
+
+
+def _adjust_downbeat_consonance(
+    soprano_notes: list[Note],
+    bass_notes: list[Note],
+    beats_per_bar: int,
     total_bars: int,
-) -> NoteFile:
-    """Convert anchors to notes with gravitational voice leading."""
-    soprano_notes: list[Note] = []
-    bass_notes: list[Note] = []
-    sorted_anchors: list[Anchor] = sorted(anchors, key=_anchor_sort_key)
-    beats_per_bar: int = _get_beats_per_bar(genre_config.metre)
-    end_offset: Fraction = Fraction(total_bars * beats_per_bar, 4)
-    soprano_median: int = DEFAULT_TESSITURA_MEDIANS[0]
-    bass_median: int = DEFAULT_TESSITURA_MEDIANS[3]
-    prev_soprano: int | None = None
-    prev_bass: int | None = None
-    prev_function: str | None = None
-    prev_section: str | None = None
-    for i, anchor in enumerate(sorted_anchors):
-        offset: Fraction = _bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
-        if i < len(sorted_anchors) - 1:
-            next_offset: Fraction = _bar_beat_to_offset(sorted_anchors[i + 1].bar_beat, beats_per_bar)
-            duration: Fraction = next_offset - offset
-        else:
-            duration = end_offset - offset
-        s_midi: int = select_octave(
-            anchor.local_key, anchor.upper_degree, soprano_median, prev_soprano,
-        )
-        b_midi: int = select_octave(
-            anchor.local_key, anchor.lower_degree, bass_median, prev_bass,
-        )
-        prev_soprano = s_midi
-        prev_bass = b_midi
-        bar: int = int(anchor.bar_beat.split(".")[0])
-        function: str | None = _get_function_for_bar(bar, passage_assignments)
-        schema_part: str | None = anchor.schema if anchor.stage == 1 else None
-        function_part: str | None = function if function != prev_function else None
-        section_part: str | None = anchor.section if anchor.section != prev_section else None
-        prev_function = function
-        prev_section = anchor.section
-        lyric: str = _build_stacked_lyric(section_part, schema_part, function_part, None)
-        soprano_notes.append(Note(
-            offset=offset,
-            pitch=s_midi,
-            duration=duration,
-            voice=0,
-            lyric=lyric,
-        ))
-        bass_notes.append(Note(
-            offset=offset,
-            pitch=b_midi,
-            duration=duration,
-            voice=3,
-            lyric="",
-        ))
-    tempo: int = genre_config.tempo + affect_config.tempo_modifier
-    return NoteFile(
-        soprano=tuple(soprano_notes),
-        bass=tuple(bass_notes),
-        metre=genre_config.metre,
-        tempo=tempo,
-        upbeat=genre_config.upbeat,
-    )
+    bass_range: tuple[int, int],
+) -> list[Note]:
+    """Adjust bass notes at downbeats to ensure consonance with soprano.
+
+    For each bar downbeat, if soprano and bass form a dissonant interval,
+    adjust the bass note to the nearest consonant pitch.
+    """
+    # Build map of downbeat offsets to bar numbers
+    downbeats: list[tuple[Fraction, int]] = []
+    for bar in range(1, total_bars + 1):
+        offset = Fraction((bar - 1) * beats_per_bar, 4)
+        downbeats.append((offset, bar))
+
+    # Create mutable copies
+    adjusted: list[Note] = list(bass_notes)
+
+    for offset, bar in downbeats:
+        s_pitch = _pitch_sounding_at(soprano_notes, offset)
+        if s_pitch is None:
+            continue
+
+        # Find bass note at this downbeat
+        for i, note in enumerate(adjusted):
+            if note.offset == offset:
+                if _is_dissonant_interval(s_pitch, note.pitch):
+                    new_pitch = _find_consonant_bass(s_pitch, note.pitch, bass_range)
+                    if new_pitch != note.pitch:
+                        adjusted[i] = Note(
+                            offset=note.offset,
+                            pitch=new_pitch,
+                            duration=note.duration,
+                            voice=note.voice,
+                            lyric=note.lyric,
+                        )
+                break
+
+    return adjusted
 
 
 def _anchor_sort_key(anchor: Anchor) -> tuple[float, int]:
@@ -159,22 +240,6 @@ def _bar_beat_to_offset(bar_beat: str, beats_per_bar: int) -> Fraction:
     beat: float = float(parts[1]) if len(parts) > 1 else 1.0
     offset_in_beats: Fraction = Fraction(bar - 1) * beats_per_bar + Fraction(beat) - 1
     return offset_in_beats / 4
-
-
-def _shift_notes_by_upbeat(notes: list[Note], upbeat: Fraction) -> list[Note]:
-    """Shift all note offsets forward by the upbeat amount."""
-    if upbeat == 0:
-        return notes
-    return [
-        Note(
-            offset=note.offset + upbeat,
-            pitch=note.pitch,
-            duration=note.duration,
-            voice=note.voice,
-            lyric=note.lyric,
-        )
-        for note in notes
-    ]
 
 
 SCHEMA_STAGE_COUNTS: dict[str, int] = {
@@ -213,7 +278,7 @@ def realise_with_figuration(
     tempo_override: int | None = None,
 ) -> NoteFile:
     """Convert anchors to notes using baroque figuration patterns."""
-    from builder.figuration.figurate import collect_onsets, figurate
+    from builder.figuration.figurate import figurate
     from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
     tracer = get_tracer()
     expansions: dict[str, VoiceExpansionConfig] = load_expansions()
@@ -235,8 +300,6 @@ def realise_with_figuration(
         density=density,
         affect_character=character,
     )
-    # Collect soprano onsets for bass coordination (rhythm complementarity)
-    soprano_onsets: set[Fraction] = collect_onsets(figured_bars, anchors, genre_config.metre)
     soprano_notes: list[Note] = []
     bass_notes: list[Note] = []
     sorted_anchors: list[Anchor] = sorted(anchors, key=_anchor_sort_key)
@@ -254,7 +317,10 @@ def realise_with_figuration(
         anchor = sorted_anchors[i]
         bar: int = int(anchor.bar_beat.split(".")[0])
         bar_offset: Fraction = _bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
-        current_offset = bar_offset
+        lead_voice: int | None = _get_lead_voice_for_bar(bar, passage_assignments)
+        # Soprano staggers when bass leads
+        soprano_stagger: Fraction = RHYTHM_STAGGER_OFFSET if lead_voice == 1 else Fraction(0)
+        current_offset = bar_offset + soprano_stagger
         function: str | None = _get_function_for_bar(bar, passage_assignments)
         expansion: VoiceExpansionConfig = _get_expansion_for_bar(
             bar=bar,
@@ -269,9 +335,10 @@ def realise_with_figuration(
             s_midi: int = select_octave(
                 anchor.local_key, degree, soprano_median,
                 prev_pitch=None if j == 0 and prev_soprano is None else prev_soprano,
+                voice_range=VOICE_RANGES[0],
             )
             prev_soprano = s_midi
-            if current_offset == bar_offset:
+            if current_offset == bar_offset + soprano_stagger:
                 schema_part: str | None = anchor.schema if anchor.stage == 1 else None
                 function_part: str | None = function if function != prev_function else None
                 exp_part: str | None = expansion_name if expansion_name != prev_expansion_name else None
@@ -303,6 +370,7 @@ def realise_with_figuration(
         if final_duration > 0:
             s_midi = select_octave(
                 final_anchor.local_key, final_anchor.upper_degree, soprano_median, prev_soprano,
+                voice_range=VOICE_RANGES[0],
             )
             soprano_notes.append(Note(
                 offset=final_offset,
@@ -321,30 +389,49 @@ def realise_with_figuration(
             density=density,
             affect_character=character,
             voice="bass",
-            covered_onsets=soprano_onsets,
+            soprano_figured_bars=figured_bars,  # Pass soprano figures for parallel/direct check
         )
         prev_bass: int | None = None
         for i, figured_bar in enumerate(bass_figured_bars):
             if i >= len(sorted_anchors):
                 break
             anchor = sorted_anchors[i]
+            bar: int = int(anchor.bar_beat.split(".")[0])
             bar_offset: Fraction = _bar_beat_to_offset(anchor.bar_beat, beats_per_bar)
-            current_offset = bar_offset
+            lead_voice: int | None = _get_lead_voice_for_bar(bar, passage_assignments)
+            # Bass staggers when soprano leads
+            bass_stagger: Fraction = RHYTHM_STAGGER_OFFSET if lead_voice == 0 else Fraction(0)
+            current_offset = bar_offset + bass_stagger
+            short_note_count: int = sum(
+                1 for d in figured_bar.durations if d <= STACCATO_DURATION_THRESHOLD
+            )
+            is_run: bool = short_note_count >= 3
+            passage_end: Fraction | None = _get_passage_end_offset(
+                bar, passage_assignments, beats_per_bar,
+            )
             for j, (degree, dur) in enumerate(zip(figured_bar.degrees, figured_bar.durations)):
                 b_midi: int = select_octave(
                     anchor.local_key, degree, bass_median,
                     prev_pitch=None if j == 0 and prev_bass is None else prev_bass,
+                    voice_range=VOICE_RANGES[3],
                 )
                 prev_bass = b_midi
+                # Truncate duration at passage boundary to avoid overlap
+                note_dur = dur
+                if passage_end is not None:
+                    max_duration = passage_end - current_offset
+                    if max_duration > 0 and note_dur > max_duration:
+                        note_dur = max_duration
+                articulation: str = _get_bass_articulation(note_dur, is_run)
                 bass_notes.append(Note(
                     offset=current_offset,
                     pitch=b_midi,
-                    duration=dur,
+                    duration=note_dur,
                     voice=3,
-                    lyric="",
+                    lyric=articulation,
                 ))
-                tracer.note_output("bass", current_offset, b_midi, dur)
-                current_offset += dur
+                tracer.note_output("bass", current_offset, b_midi, note_dur)
+                current_offset += dur  # Advance by original dur for next note timing
         if sorted_anchors:
             final_anchor = sorted_anchors[-1]
             final_offset_bass: Fraction = _bar_beat_to_offset(final_anchor.bar_beat, beats_per_bar)
@@ -352,6 +439,7 @@ def realise_with_figuration(
             if final_duration_bass > 0:
                 b_midi = select_octave(
                     final_anchor.local_key, final_anchor.lower_degree, bass_median, prev_bass,
+                    voice_range=VOICE_RANGES[3],
                 )
                 bass_notes.append(Note(
                     offset=final_offset_bass,
@@ -406,6 +494,7 @@ def realise_with_figuration(
             else:
                 b_midi: int = select_octave(
                     anchor.local_key, anchor.lower_degree, bass_median, prev_bass,
+                    voice_range=VOICE_RANGES[3],
                 )
                 prev_bass = b_midi
                 bass_notes.append(Note(
@@ -460,6 +549,7 @@ def realise_with_figuration(
             else:
                 b_midi: int = select_octave(
                     anchor.local_key, anchor.lower_degree, bass_median, prev_bass,
+                    voice_range=VOICE_RANGES[3],
                 )
                 prev_prev_bass = prev_bass
                 prev_bass = b_midi
@@ -470,6 +560,16 @@ def realise_with_figuration(
                     voice=3,
                     lyric="",
                 ))
+    # Adjust bass at downbeats to ensure consonance with soprano
+    if bass_notes and soprano_notes:
+        bass_notes = _adjust_downbeat_consonance(
+            soprano_notes=soprano_notes,
+            bass_notes=bass_notes,
+            beats_per_bar=beats_per_bar,
+            total_bars=total_bars,
+            bass_range=VOICE_RANGES[3],
+        )
+
     if tempo_override is not None:
         tempo = tempo_override
     else:

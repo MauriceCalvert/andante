@@ -42,6 +42,23 @@ DIMINUTION: dict[Fraction, Fraction] = {
 # Minor 2nd (1), Major 7th (11) are harsh; Tritone (6) is contextually acceptable
 DISSONANT_INTERVALS: frozenset[int] = frozenset({1, 11})
 
+# Strong-beat dissonant intervals (in semitones, reduced to single octave)
+# These intervals are forbidden on downbeats without preparation:
+# m2 (1), M2 (2), tritone (6), m7 (10), M7 (11)
+STRONG_BEAT_DISSONANT: frozenset[int] = frozenset({1, 2, 6, 10, 11})
+
+# Consonant intervals (in semitones, reduced to single octave)
+# Unison (0), m3 (3), M3 (4), P4 (5), P5 (7), m6 (8), M6 (9), P8 (12->0)
+CONSONANT_INTERVALS: frozenset[int] = frozenset({0, 3, 4, 5, 7, 8, 9})
+
+# Perfect intervals (in semitones, reduced to single octave)
+# Unison (0), P5 (7), P8 (12->0) - forbidden in parallel/direct motion
+PERFECT_INTERVALS: frozenset[int] = frozenset({0, 7})
+
+# Step threshold for direct motion rule (semitones)
+# Direct fifths/octaves are only problematic if soprano leaps (> M2)
+DIRECT_MOTION_STEP_THRESHOLD: int = 2
+
 DOMINANT_TARGETS: frozenset[str] = frozenset({"V", "v", "vii", "VII"})
 
 FLAT_KEYS_MAJOR: frozenset[str] = frozenset({"F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb"})
@@ -318,10 +335,14 @@ LEAP_SEMITONES: int = 7                    # Perfect fifth - moderate leap
 LARGE_LEAP_SEMITONES: int = 12             # Octave - warning threshold
 GROTESQUE_LEAP_SEMITONES: int = 19         # Octave + fifth - error threshold
 DIRECT_MOTION_LEAP_SEMITONES: int = 4      # Only >M3 counts as leap for direct 5ths/8ves
+UGLY_LEAP_SEMITONES: int = 10              # Minor 7th - maximum internal figure leap
 
 # Maximum consecutive simultaneous attacks before parallel_rhythm fault
 # 4 attacks = 3 parallel motions, which starts to sound mechanical
 MAX_PARALLEL_RHYTHM_ATTACKS: int = 4
 
-# Bonus per onset that fills an uncovered position (rhythm complementarity)
-ONSET_COVERAGE_BONUS: float = 0.3
+# Duration threshold for articulation tagging (eighth note in 4/4)
+STACCATO_DURATION_THRESHOLD: Fraction = Fraction(1, 8)
+
+# Rhythmic stagger for non-lead voice (one eighth note in whole-note units)
+RHYTHM_STAGGER_OFFSET: Fraction = Fraction(1, 8)
