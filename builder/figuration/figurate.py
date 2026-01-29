@@ -18,6 +18,7 @@ from builder.figuration.selector import (
     filter_by_tension,
     filter_cadential_safe,
     get_figures_for_interval,
+    score_by_coverage,
     select_figure,
     sort_by_weight,
 )
@@ -111,6 +112,32 @@ def _role_from_voice_string(voice: str) -> Role:
     return Role.SCHEMA_UPPER
 
 
+def collect_onsets(
+    figured_bars: list[FiguredBar],
+    anchors: Sequence[Anchor],
+    metre: str,
+) -> set[Fraction]:
+    """Collect all onset positions from figured bars.
+
+    Args:
+        figured_bars: List of figured bars (output from figurate).
+        anchors: Anchor sequence (same as passed to figurate).
+        metre: Metre string like "4/4".
+
+    Returns:
+        Set of Fraction offsets where notes begin.
+    """
+    sorted_anchors = sorted(anchors, key=lambda a: _parse_bar_beat(a.bar_beat))
+    onsets: set[Fraction] = set()
+    for i, figured_bar in enumerate(figured_bars):
+        if i >= len(sorted_anchors):
+            break
+        anchor = sorted_anchors[i]
+        bar_offset = _bar_beat_to_offset(anchor.bar_beat, metre)
+        onsets.update(figured_bar.get_onsets(bar_offset))
+    return onsets
+
+
 def figurate(
     anchors: Sequence[Anchor],
     key: "Key",
@@ -119,12 +146,15 @@ def figurate(
     density: str = "medium",
     affect_character: str = "plain",
     voice: str = "soprano",
+    covered_onsets: set[Fraction] | None = None,
 ) -> list[FiguredBar]:
     """Main entry point: Convert anchors to figured bars.
-    
+
     Args:
         voice: Which anchor degree to use - "soprano" (upper) or "bass" (lower).
                Maps to Role.SCHEMA_UPPER or Role.SCHEMA_LOWER.
+        covered_onsets: Onsets already covered by other voices. Bass figuration
+                        prefers figures that fill uncovered positions.
     """
     if len(anchors) < 2:
         return []
@@ -156,6 +186,7 @@ def figurate(
                 density=density,
                 is_minor=is_minor,
                 role=role,
+                covered_onsets=covered_onsets,
             )
             figured_bars.extend(seq_bars)
             i = seq_end
@@ -182,6 +213,8 @@ def figurate(
         else:
             figure = None
         if figure is None:
+            offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
+            offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
             figure = _select_figure_with_filters(
                 interval=interval,
                 ascending=ascending,
@@ -194,6 +227,10 @@ def figurate(
                 near_cadence=phrase_pos.position == "cadence",
                 seed=seed + i,
                 avoid_figure=prev_figure_name,
+                covered_onsets=covered_onsets,
+                bar_offset=offset_a,
+                gap_duration=offset_b - offset_a,
+                metre=metre,
             )
         if figure is None:
             figure = _create_direct_figure(interval, _get_degree(anchor_a, role), _get_degree(anchor_b, role))
@@ -312,11 +349,19 @@ def _select_figure_with_filters(
     near_cadence: bool,
     seed: int,
     avoid_figure: str | None = None,
+    covered_onsets: set[Fraction] | None = None,
+    bar_offset: Fraction = Fraction(0),
+    gap_duration: Fraction = Fraction(1),
+    metre: str = "4/4",
 ) -> Figure | None:
     """Apply full filter pipeline and select figure.
-    
+
     Args:
         avoid_figure: Name of figure to avoid (for variety).
+        covered_onsets: Onsets already covered by other voices.
+        bar_offset: Start offset of this bar.
+        gap_duration: Duration to fill (anchor A to anchor B).
+        metre: Metre string like "4/4".
     """
     all_figures = get_figures_for_interval(interval)
     if not all_figures:
@@ -334,6 +379,14 @@ def _select_figure_with_filters(
         candidates = [f for f in candidates if f.name != avoid_figure] or candidates
     candidates = apply_misbehaviour(candidates, all_figures, seed)
     candidates = sort_by_weight(candidates)
+    # Apply coverage scoring if provided
+    if covered_onsets is not None:
+        scored = score_by_coverage(
+            candidates, covered_onsets, bar_offset, gap_duration, metre,
+        )
+        # Re-sort by weight + bonus
+        scored.sort(key=lambda x: -(x[0].weight + x[1]))
+        candidates = [f for f, _ in scored]
     return select_figure(candidates, seed)
 
 
@@ -449,12 +502,16 @@ def _apply_schema_figuration(
     density: str,
     is_minor: bool,
     role: Role,
+    covered_onsets: set[Fraction] | None = None,
 ) -> list[FiguredBar]:
     """Apply schema-aware figuration to a schema section.
 
     Uses schema-specific strategies (accelerating, relaxing, static, dyadic)
     to generate appropriate figure sequences for each schema type.
     The figuration profile influences pattern selection character.
+
+    Args:
+        covered_onsets: Onsets already covered by other voices.
     """
     if len(anchors) < 2:
         return []
@@ -473,6 +530,8 @@ def _apply_schema_figuration(
     ascending = _direction_to_ascending(
         dir_hint, _get_degree(anchor_a, role), _get_degree(anchor_b, role),
     )
+    offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
+    offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
     initial_figure = _select_figure_with_filters(
         interval=interval,
         ascending=ascending,
@@ -484,6 +543,10 @@ def _apply_schema_figuration(
         leap_direction=None,
         near_cadence=False,
         seed=seed,
+        covered_onsets=covered_onsets,
+        bar_offset=offset_a,
+        gap_duration=offset_b - offset_a,
+        metre=metre,
     )
     if initial_figure is None:
         initial_figure = _create_direct_figure(interval, _get_degree(anchor_a, role), _get_degree(anchor_b, role))

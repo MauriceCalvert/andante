@@ -322,3 +322,6 @@ DIRECT_MOTION_LEAP_SEMITONES: int = 4      # Only >M3 counts as leap for direct 
 # Maximum consecutive simultaneous attacks before parallel_rhythm fault
 # 4 attacks = 3 parallel motions, which starts to sound mechanical
 MAX_PARALLEL_RHYTHM_ATTACKS: int = 4
+
+# Bonus per onset that fills an uncovered position (rhythm complementarity)
+ONSET_COVERAGE_BONUS: float = 0.3

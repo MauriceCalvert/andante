@@ -129,6 +129,15 @@ class FiguredBar:
             f"All degrees must be in range 1-7, got {self.degrees}"
         assert all(d > 0 for d in self.durations), "All durations must be positive"
 
+    def get_onsets(self, bar_offset: Fraction) -> set[Fraction]:
+        """Return onset positions (absolute offsets) for this bar's notes."""
+        onsets: set[Fraction] = set()
+        current: Fraction = bar_offset
+        for dur in self.durations:
+            onsets.add(current)
+            current += dur
+        return onsets
+
 
 @dataclass(frozen=True)
 class SelectionContext:

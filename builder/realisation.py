@@ -213,7 +213,7 @@ def realise_with_figuration(
     tempo_override: int | None = None,
 ) -> NoteFile:
     """Convert anchors to notes using baroque figuration patterns."""
-    from builder.figuration.figurate import figurate
+    from builder.figuration.figurate import collect_onsets, figurate
     from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
     tracer = get_tracer()
     expansions: dict[str, VoiceExpansionConfig] = load_expansions()
@@ -235,6 +235,8 @@ def realise_with_figuration(
         density=density,
         affect_character=character,
     )
+    # Collect soprano onsets for bass coordination (rhythm complementarity)
+    soprano_onsets: set[Fraction] = collect_onsets(figured_bars, anchors, genre_config.metre)
     soprano_notes: list[Note] = []
     bass_notes: list[Note] = []
     sorted_anchors: list[Anchor] = sorted(anchors, key=_anchor_sort_key)
@@ -319,6 +321,7 @@ def realise_with_figuration(
             density=density,
             affect_character=character,
             voice="bass",
+            covered_onsets=soprano_onsets,
         )
         prev_bass: int | None = None
         for i, figured_bar in enumerate(bass_figured_bars):

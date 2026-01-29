@@ -16,12 +16,13 @@ Implements the 13-step filter pipeline from figuration.md:
 13. If junction fails, try next candidate
 """
 import random
+from fractions import Fraction
 from typing import Sequence
 
 from builder.figuration.loader import get_diminutions
 from builder.figuration.types import Figure, PhrasePosition, SelectionContext
 from builder.types import Anchor
-from shared.constants import FIGURATION_INTERVALS, MISBEHAVIOUR_PROBABILITY
+from shared.constants import FIGURATION_INTERVALS, MISBEHAVIOUR_PROBABILITY, ONSET_COVERAGE_BONUS
 
 
 def compute_interval(degree_a: int, degree_b: int) -> str:
@@ -597,3 +598,44 @@ def get_figures_for_interval(interval: str) -> list[Figure]:
     assert interval in FIGURATION_INTERVALS, f"Invalid interval: {interval}"
     diminutions = get_diminutions()
     return list(diminutions.get(interval, []))
+
+
+def score_by_coverage(
+    figures: list[Figure],
+    covered_onsets: set[Fraction] | None,
+    bar_offset: Fraction,
+    gap_duration: Fraction,
+    metre: str,
+) -> list[tuple[Figure, float]]:
+    """Score figures by how many new onsets they add.
+
+    Args:
+        figures: Candidate figures.
+        covered_onsets: Onsets already covered by other voices (or None to skip).
+        bar_offset: Start offset of this bar.
+        gap_duration: Duration to fill (anchor A to anchor B).
+        metre: Metre string like "4/4".
+
+    Returns:
+        List of (figure, bonus) tuples. Bonus is added to selection weight.
+    """
+    if covered_onsets is None or not figures:
+        return [(f, 0.0) for f in figures]
+
+    result: list[tuple[Figure, float]] = []
+
+    for fig in figures:
+        note_count = len(fig.degrees)
+        avg_duration = gap_duration / note_count if note_count > 0 else gap_duration
+
+        candidate_onsets: set[Fraction] = set()
+        current = bar_offset
+        for _ in range(note_count):
+            candidate_onsets.add(current)
+            current += avg_duration
+
+        new_count = len(candidate_onsets - covered_onsets)
+        bonus = new_count * ONSET_COVERAGE_BONUS
+        result.append((fig, bonus))
+
+    return result
