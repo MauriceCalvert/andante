@@ -140,8 +140,8 @@ Get-Content D:\temp_output.txt
 
 Use git's `-C` flag for working directory (avoids escaping issues with `cd &&`):
 ```powershell
-# Step 1: git add and commit
-Start-Process -FilePath "C:\WINDOWS\system32\cmd.exe" -ArgumentList '/c ""C:\Program Files\Git\cmd\git.exe" -C D:\projects\Barok add -A && "C:\Program Files\Git\cmd\git.exe" -C D:\projects\Barok commit -m "Fix: description" > D:\temp_output.txt 2>&1"' -WindowStyle Hidden -Wait
+# Step 1: git add and commit (repo root is source/andante)
+Start-Process -FilePath "C:\WINDOWS\system32\cmd.exe" -ArgumentList '/c ""C:\Program Files\Git\cmd\git.exe" -C D:\projects\Barok\barok\source\andante add -A && "C:\Program Files\Git\cmd\git.exe" -C D:\projects\Barok\barok\source\andante commit -m "Fix: description" > D:\temp_output.txt 2>&1"' -WindowStyle Hidden -Wait
 
 # Step 2
 Get-Content D:\temp_output.txt
