@@ -49,14 +49,13 @@ def format_note_line(note: Note, metre: str, upbeat: Fraction = Fraction(0)) -> 
         f","
         f"{bar},"
         f"{float(beat)},"
-        f"{note_name(note.pitch)},"
-        f"{note.lyric}"
+        f"{note_name(note.pitch)}"
     )
 
 
 def write_note_file(notes: NoteFile, path: Path) -> None:
     """Write notes to .note CSV file."""
-    lines: list[str] = ["offset,midinote,duration,track,length,bar,beat,notename,lyric"]
+    lines: list[str] = ["offset,midinote,duration,track,length,bar,beat,notename"]
     all_notes: list[Note] = []
     all_notes.extend(notes.soprano)
     all_notes.extend(notes.bass)
