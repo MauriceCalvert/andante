@@ -409,6 +409,30 @@ class StyleProfile:
 
 ---
 
+## TODO-008: Configurable stagger_beats for accompany_texture
+
+**Priority:** Low
+
+**Problem:** Staggered entry delay is hardcoded to 1 beat.
+
+**Solution:** Add `stagger_beats` field to section YAML, default 1.
+
+```yaml
+sections:
+  - name: exordium
+    lead_voice: 0
+    accompany_texture: staggered
+    stagger_beats: 1          # optional, default 1
+```
+
+Values: 0.5 (tight imitation), 1 (standard), 2 (dramatic separation).
+
+Offset computed: `delay = stagger_beats * beat_value`
+
+**Files:** `builder/figuration/bar_context.py`, genre YAMLs
+
+---
+
 # Part 4: Open Bugs
 
 (none)

@@ -4,12 +4,14 @@ Two validators:
 - validate(): For legacy Plan with Episode/Phrase hierarchy
 - validate_schema_plan(): For SchemaPlan with schema-based structure
 """
+import warnings
 from fractions import Fraction
 from typing import TYPE_CHECKING
 
 from planner.koch_rules import validate_koch
 from planner.material import bar_duration
 from planner.plannertypes import Plan
+from planner.schema_loader import get_schema
 from shared.constants import SCHEMA_TREATMENTS, SCHEMA_TEXTURES, CADENCE_TYPES
 
 if TYPE_CHECKING:
@@ -158,5 +160,17 @@ def validate_schema_plan(plan: "SchemaPlan") -> tuple[bool, list[str]]:
     pitch_count: int = len(motif.pitches) if motif.pitches else (len(motif.degrees) if motif.degrees else 0)
     if pitch_count != len(motif.durations):
         errors.append("Motif pitches/degrees and durations must have same length")
+
+    # Warn if final schema lacks cadence_approach
+    if plan.schema_chain:
+        final_slot = plan.schema_chain[-1]
+        final_schema = get_schema(final_slot.schema)
+        if not final_schema.cadence_approach:
+            warnings.warn(
+                f"Final schema '{final_slot.schema}' lacks cadence_approach: true. "
+                f"Piece may end abruptly without proper settling.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     return (len(errors) == 0, errors)

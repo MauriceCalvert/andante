@@ -97,15 +97,32 @@ def realise_with_figuration(
     elif density == "medium":
         character = "expressive"
     tracer.L6("Figuration", density=density, character=character, anchor_count=len(placed_anchors))
-    figured_bars = figurate(
+    # Soprano figuration
+    soprano_figured_bars = figurate(
         anchors=placed_anchors,
         key=key,
         metre=genre_config.metre,
         seed=seed,
         density=density,
         affect_character=character,
+        voice="soprano",
         passage_assignments=passage_assignments,
     )
+    # Bass figuration (contrapuntal uses same system as soprano)
+    if genre_config.bass_treatment == "contrapuntal":
+        bass_figured_bars = figurate(
+            anchors=placed_anchors,
+            key=key,
+            metre=genre_config.metre,
+            seed=seed + 1000,
+            density=density,
+            affect_character=character,
+            voice="bass",
+            soprano_figured_bars=soprano_figured_bars,
+            passage_assignments=passage_assignments,
+        )
+    else:
+        bass_figured_bars = []
     soprano_notes: list[Note] = []
     bass_notes: list[Note] = []
     sorted_anchors: list[Anchor] = sorted(placed_anchors, key=anchor_sort_key)
@@ -115,7 +132,7 @@ def realise_with_figuration(
     prev_function: str | None = None
     prev_section: str | None = None
     anchor_idx: int = 0
-    for figured_bar in figured_bars:
+    for figured_bar in soprano_figured_bars:
         bar: int = figured_bar.bar
         if bar == 0:
             current_offset = -sum(figured_bar.durations)
@@ -179,14 +196,6 @@ def realise_with_figuration(
     bar_duration = Fraction(beats_per_bar, 4)
     # Bass realisation
     if genre_config.bass_treatment == "contrapuntal":
-        from builder.figuration.bass_figurate import figurate_bass
-        bass_figured_bars = figurate_bass(
-            anchors=placed_anchors,
-            metre=genre_config.metre,
-            seed=seed + 1000,
-            density=density,
-            passage_assignments=passage_assignments,
-        )
         anchor_idx = 0
         for figured_bar in bass_figured_bars:
             bar: int = figured_bar.bar
@@ -392,6 +401,15 @@ def realise_with_figuration(
             )
             for n in bass_notes
         ]
+    # Assert no polyphony within a single voice
+    soprano_offsets = [n.offset for n in soprano_notes]
+    bass_offsets = [n.offset for n in bass_notes]
+    assert len(soprano_offsets) == len(set(soprano_offsets)), (
+        f"Soprano polyphony at offsets {sorted(set(o for o in soprano_offsets if soprano_offsets.count(o) > 1))}"
+    )
+    assert len(bass_offsets) == len(set(bass_offsets)), (
+        f"Bass polyphony at offsets {sorted(set(o for o in bass_offsets if bass_offsets.count(o) > 1))}"
+    )
     return NoteFile(
         soprano=tuple(soprano_notes),
         bass=tuple(bass_notes),

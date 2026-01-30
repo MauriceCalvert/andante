@@ -36,11 +36,13 @@ def layer_5_textural(
         start_bar, end_bar = bar_assignments[section_name]
         function: str = section.get("function", "subject")
         lead_voice: int | None = section.get("lead_voice")
+        accompany_texture: str | None = section.get("accompany_texture")
         assignments.append(PassageAssignment(
             start_bar=start_bar,
             end_bar=end_bar,
             function=function,
             lead_voice=lead_voice,
+            accompany_texture=accompany_texture,
         ))
     return assignments
 

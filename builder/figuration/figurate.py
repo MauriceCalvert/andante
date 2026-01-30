@@ -9,6 +9,9 @@ from builder.figuration.bar_context import (
     compute_effective_gap,
     compute_harmonic_tension,
     compute_next_anchor_strength,
+    get_accompany_texture_for_bar,
+    get_schema_cadence_approach,
+    get_schema_texture,
     reduce_density,
     should_generate_anacrusis,
     should_use_hemiola,
@@ -169,11 +172,11 @@ def figurate(
         seq_info = in_schema_section(i, schema_sections)
         if seq_info is not None:
             seq_start, seq_end = seq_info
-            seq_anchors = sorted_anchors[seq_start:seq_end + 1]
+            seq_anchors = sorted_anchors[seq_start:seq_end]
             # Extract soprano slice for this schema section (bass parallel check)
             soprano_slice: list[FiguredBar] | None = None
             if voice == "bass" and soprano_figured_bars is not None:
-                soprano_slice = soprano_figured_bars[seq_start:seq_end]
+                soprano_slice = soprano_figured_bars[seq_start:seq_end - 1]
             seq_bars = _apply_schema_figuration(
                 anchors=seq_anchors,
                 metre=metre,
@@ -186,7 +189,7 @@ def figurate(
                 soprano_figured_bars=soprano_slice,
             )
             figured_bars.extend(seq_bars)
-            i = seq_end
+            i = seq_end - 1
             if seq_bars:
                 prev_leaped = _is_leap_from_figured_bar(seq_bars[-1])
                 prev_figure_name = seq_bars[-1].figure_name
@@ -269,6 +272,37 @@ def figurate(
         effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
         # Accompanying voice uses sparser density
         effective_density = reduce_density(density) if start_beat == 2 else density
+        # Check texture mode for accompanying voice
+        if start_beat == 2:
+            schema_texture = get_schema_texture(anchor_a.schema)
+            texture = get_accompany_texture_for_bar(bar_num, passage_assignments, schema_texture)
+            if texture == "pillar":
+                figured_bar = _create_pillar_bar(
+                    bar_num=bar_num,
+                    start_degree=_get_degree(anchor_a, role),
+                    gap_duration=effective_gap,
+                )
+                figured_bars.append(figured_bar)
+                prev_leaped = False
+                prev_figure_name = "pillar"
+                i += 1
+                continue
+            elif texture == "staggered":
+                figured_bar = _create_staggered_bar(
+                    figure=figure,
+                    bar_num=bar_num,
+                    start_degree=_get_degree(anchor_a, role),
+                    gap_duration=raw_gap,
+                    metre=metre,
+                    density=effective_density,
+                )
+                figured_bars.append(figured_bar)
+                prev_leaped = _is_leap(figure)
+                leap_direction = "up" if ascending else "down"
+                prev_figure_name = figure.name
+                i += 1
+                continue
+            # walking and complementary fall through to normal figuration
         figured_bar = realise_figure_to_bar(
             figure=figure,
             bar=bar_num,
@@ -333,6 +367,59 @@ def _generate_soprano_anacrusis(
         durations=(Fraction(1, 16), Fraction(1, 16), Fraction(1, 16), Fraction(1, 16)),
         figure_name="anacrusis_run",
         start_beat=1,
+    )
+
+
+def _create_pillar_bar(
+    bar_num: int,
+    start_degree: int,
+    gap_duration: Fraction,
+) -> FiguredBar:
+    """Create a pillar (sustained) bar with single note."""
+    return FiguredBar(
+        bar=bar_num,
+        degrees=(start_degree,),
+        durations=(gap_duration,),
+        figure_name="pillar",
+        start_beat=1,
+    )
+
+
+def _create_staggered_bar(
+    figure: Figure,
+    bar_num: int,
+    start_degree: int,
+    gap_duration: Fraction,
+    metre: str,
+    density: str,
+) -> FiguredBar:
+    """Create a staggered bar: rest for 1 beat, then fill remainder."""
+    parts = metre.split("/")
+    beat_value = Fraction(1, int(parts[1]))
+    stagger_amount = beat_value  # 1 beat delay
+    remaining_gap = gap_duration - stagger_amount
+    if remaining_gap <= 0:
+        remaining_gap = beat_value
+    # Get note count for remaining gap
+    note_count, _ = compute_rhythmic_distribution(remaining_gap, density)
+    if note_count < 1:
+        note_count = 1
+    # Compute durations for remaining portion
+    note_duration = remaining_gap / note_count
+    # Build degrees from figure, truncated/extended to note_count
+    base_degrees = figure.degrees
+    result_degrees: list[int] = []
+    for i in range(note_count):
+        if i < len(base_degrees):
+            result_degrees.append(start_degree + base_degrees[i])
+        else:
+            result_degrees.append(result_degrees[-1] if result_degrees else start_degree)
+    return FiguredBar(
+        bar=bar_num,
+        degrees=tuple(result_degrees),
+        durations=tuple([note_duration] * note_count),
+        figure_name=f"staggered_{figure.name}",
+        start_beat=2,  # Indicates late entry for realisation
     )
 
 
@@ -525,13 +612,15 @@ def _apply_schema_figuration(
     start_beat = compute_beat_class(voice, bar_num, passage_assignments)
     raw_gap = offset_b - offset_a
     effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
-    required_count, _ = compute_rhythmic_distribution(effective_gap, density)
+    # Accompanying voice uses sparser density
+    effective_density = reduce_density(density) if start_beat == 2 else density
+    required_count, _ = compute_rhythmic_distribution(effective_gap, effective_density)
     initial_figure = _select_figure_with_filters(
         interval=interval,
         ascending=ascending,
         harmonic_tension="low",
         character=character,
-        density=density,
+        density=effective_density,
         is_minor=is_minor,
         prev_leaped=False,
         leap_direction=None,
@@ -556,6 +645,41 @@ def _apply_schema_figuration(
         anchor_a = anchors[i]
         anchor_b = anchors[i + 1]
         bar_num = _parse_bar_beat(anchor_a.bar_beat)[0]
+        # Compute effective density early (needed for parallel check too)
+        start_beat = compute_beat_class(voice, bar_num, passage_assignments)
+        bar_effective_density = reduce_density(density) if start_beat == 2 else density
+        # Settle density in final stage of cadence_approach schemas
+        is_final_stage = (i == len(figures) - 1)
+        if is_final_stage and get_schema_cadence_approach(schema_name):
+            bar_effective_density = "low"
+        offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
+        offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
+        raw_gap = offset_b - offset_a
+        effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
+        # Check texture mode for accompanying voice
+        if start_beat == 2:
+            schema_texture = get_schema_texture(schema_name)
+            texture = get_accompany_texture_for_bar(bar_num, passage_assignments, schema_texture)
+            if texture == "pillar":
+                figured_bar = _create_pillar_bar(
+                    bar_num=bar_num,
+                    start_degree=_get_degree(anchor_a, role),
+                    gap_duration=effective_gap,
+                )
+                result.append(figured_bar)
+                continue
+            elif texture == "staggered":
+                figured_bar = _create_staggered_bar(
+                    figure=figure,
+                    bar_num=bar_num,
+                    start_degree=_get_degree(anchor_a, role),
+                    gap_duration=raw_gap,
+                    metre=metre,
+                    density=bar_effective_density,
+                )
+                result.append(figured_bar)
+                continue
+            # walking and complementary fall through to normal figuration
         # Check for parallels with soprano when bass figuration
         if soprano_figured_bars is not None and i < len(soprano_figured_bars):
             sop_abs = soprano_figured_bars[i].degrees
@@ -575,7 +699,7 @@ def _apply_schema_figuration(
                     ascending=ascending,
                     harmonic_tension="low",
                     character=character,
-                    density=density,
+                    density=bar_effective_density,
                     is_minor=is_minor,
                     prev_leaped=False,
                     leap_direction=None,
@@ -587,12 +711,6 @@ def _apply_schema_figuration(
                 )
                 if alt_figure is not None:
                     figure = alt_figure
-        offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
-        offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
-        raw_gap = offset_b - offset_a
-        # Compute beat class for rhythm complementarity
-        start_beat = compute_beat_class(voice, bar_num, passage_assignments)
-        effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
         figured_bar = realise_figure_to_bar(
             figure=figure,
             bar=bar_num,
@@ -600,7 +718,7 @@ def _apply_schema_figuration(
             gap_duration=effective_gap,
             metre=metre,
             start_beat=start_beat,
-            density=density,
+            density=bar_effective_density,
             use_baroque_rhythm=True,
         )
         result.append(figured_bar)

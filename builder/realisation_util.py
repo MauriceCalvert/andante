@@ -83,8 +83,9 @@ def get_bass_articulation(
     Short notes in running passages get staccato/non-legato articulation
     to lighten the texture and create rhythmic contrast with soprano.
     """
-    if duration <= STACCATO_DURATION_THRESHOLD and is_run:
-        return "stacc"
+    # removed, ugly
+    # if duration <= STACCATO_DURATION_THRESHOLD and is_run:
+    #     return "stacc"
     return ""
 
 

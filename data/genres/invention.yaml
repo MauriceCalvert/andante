@@ -30,9 +30,14 @@ bass_treatment: contrapuntal
 sections:
   - name: exordium
     schema_sequence: [do_re_mi, do_re_mi]
+    accompany_texture: walking
+    lead_voice: 0  # soprano leads
   - name: narratio
     schema_sequence: [fonte, monte, fenaroli]
+    lead_voice: 1  # bass leads
   - name: confirmatio
     schema_sequence: [prinner]
+    lead_voice: 0  # soprano leads
   - name: peroratio
     schema_sequence: [passo_indietro, cadenza_semplice]
+    lead_voice: 1  # bass leads

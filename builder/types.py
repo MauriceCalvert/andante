@@ -257,6 +257,7 @@ class PassageAssignment:
     end_bar: int
     function: str           # Section function from genre YAML
     lead_voice: int | None  # 0=upper, 1=lower, None=equal
+    accompany_texture: str | None = None  # pillar, walking, staggered, complementary
 
 
 @dataclass(frozen=True)

@@ -1,9 +1,62 @@
 """Per-bar context computation for figuration."""
 from fractions import Fraction
+from pathlib import Path
 from typing import Sequence
+
+import yaml
 
 from builder.figuration.types import PhrasePosition
 from builder.types import Anchor, PassageAssignment, Role
+
+
+_SCHEMA_TEXTURES: dict[str, str] | None = None
+_SCHEMA_CADENCE_APPROACH: dict[str, bool] | None = None
+
+
+def _load_schema_data() -> tuple[dict[str, str], dict[str, bool]]:
+    """Load schema properties from schemas.yaml (cached)."""
+    global _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH
+    if _SCHEMA_TEXTURES is not None and _SCHEMA_CADENCE_APPROACH is not None:
+        return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH
+    path = Path(__file__).parent.parent.parent / "data" / "schemas" / "schemas.yaml"
+    if not path.exists():
+        _SCHEMA_TEXTURES = {}
+        _SCHEMA_CADENCE_APPROACH = {}
+        return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    textures: dict[str, str] = {}
+    cadence_approach: dict[str, bool] = {}
+    for name, schema_data in data.items():
+        if isinstance(schema_data, dict):
+            if "accompany_texture" in schema_data:
+                textures[name] = schema_data["accompany_texture"]
+            if "cadence_approach" in schema_data:
+                cadence_approach[name] = schema_data["cadence_approach"]
+    _SCHEMA_TEXTURES = textures
+    _SCHEMA_CADENCE_APPROACH = cadence_approach
+    return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH
+
+
+def _load_schema_textures() -> dict[str, str]:
+    """Load accompany_texture defaults from schemas.yaml (cached)."""
+    textures, _ = _load_schema_data()
+    return textures
+
+
+def get_schema_texture(schema_name: str | None) -> str | None:
+    """Get accompany_texture default for a schema."""
+    if schema_name is None:
+        return None
+    textures = _load_schema_textures()
+    return textures.get(schema_name.lower())
+
+
+def get_schema_cadence_approach(schema_name: str | None) -> bool:
+    """Check if schema has cadence_approach: true."""
+    if schema_name is None:
+        return False
+    _, cadence_approach = _load_schema_data()
+    return cadence_approach.get(schema_name.lower(), False)
 
 
 def compute_harmonic_tension(
@@ -77,6 +130,34 @@ def should_use_overdotted(affect_character: str, phrase_pos: PhrasePosition) -> 
     return affect_character == "ornate"
 
 
+def get_accompany_texture_for_bar(
+    bar: int,
+    assignments: Sequence[PassageAssignment] | None,
+    schema_texture: str | None = None,
+) -> str:
+    """Look up accompany texture for a given bar.
+
+    Cascade: section override → schema default → "walking"
+
+    Args:
+        bar: Bar number
+        assignments: Passage assignments (may have accompany_texture)
+        schema_texture: Default from schema YAML
+
+    Returns:
+        One of: "pillar", "walking", "staggered", "complementary"
+    """
+    if assignments is not None:
+        for assignment in assignments:
+            if assignment.start_bar <= bar <= assignment.end_bar:
+                if assignment.accompany_texture is not None:
+                    return assignment.accompany_texture
+                break
+    if schema_texture is not None:
+        return schema_texture
+    return "walking"
+
+
 def get_lead_voice_for_bar(
     bar: int,
     assignments: Sequence[PassageAssignment] | None,
@@ -99,16 +180,7 @@ def compute_beat_class(
     bar: int,
     passage_assignments: Sequence[PassageAssignment] | None,
 ) -> int:
-    """Compute which beat this voice starts on for a given bar.
-
-    Args:
-        voice: "soprano" or "bass"
-        bar: Bar number
-        passage_assignments: Passage assignments with lead_voice info
-
-    Returns:
-        1 if voice leads or equal, 2 if voice accompanies.
-    """
+    """Compute which beat this voice starts on for a given bar."""
     lead_voice = get_lead_voice_for_bar(bar, passage_assignments)
     voice_index = 0 if voice == "soprano" else 1
     if lead_voice is None:
@@ -125,35 +197,18 @@ def compute_effective_gap(
 ) -> Fraction:
     """Compute effective gap duration based on start beat.
 
-    Args:
-        gap_duration: Original gap between anchors (whole notes)
-        start_beat: 1 or 2
-        metre: Time signature string like "4/4"
-
-    Returns:
-        Adjusted gap duration. If start_beat is 2, reduces by one beat.
+    When voice starts on beat 2, reduce available duration by the delay.
     """
-    if start_beat == 1:
+    if start_beat <= 1:
         return gap_duration
-    # Reduce by one beat
     parts = metre.split("/")
     beat_value = Fraction(1, int(parts[1]))
-    reduced = gap_duration - beat_value
-    # Ensure minimum duration (one beat)
-    if reduced < beat_value:
-        reduced = beat_value
-    return reduced
+    delay = (start_beat - 1) * beat_value
+    return gap_duration - delay
 
 
 def reduce_density(density: str) -> str:
-    """Reduce density by one level for accompanying voice.
-
-    Args:
-        density: "high", "medium", or "low"
-
-    Returns:
-        One level sparser: high->medium, medium->low, low->low
-    """
+    """Reduce density by one level for accompanying voice."""
     if density == "high":
         return "medium"
     return "low"

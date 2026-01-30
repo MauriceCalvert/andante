@@ -561,8 +561,9 @@ def get_bass_articulation(
     is_run: bool,
 ) -> str:
     """Determine articulation marking for bass note."""
-    if duration <= STACCATO_DURATION_THRESHOLD and is_run:
-        return "stacc"
+    # removed, ugly
+    # if duration <= STACCATO_DURATION_THRESHOLD and is_run:
+    #     return "stacc"
     return ""
 
 

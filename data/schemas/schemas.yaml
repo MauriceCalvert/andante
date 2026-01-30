@@ -28,6 +28,7 @@ do_re_mi:
   position: opening
   figuration_profile: stepwise_ascent
   cadence_approach: false
+  accompany_texture: pillar
   source: "Gjerdingen Ch.6"
 
 romanesca:
@@ -39,6 +40,7 @@ romanesca:
   position: opening
   figuration_profile: stepwise_mixed
   cadence_approach: false
+  accompany_texture: walking
   notes: "Almost always blends into following schema (often Prinner)"
   source: "Gjerdingen Ch.2, Figure 2.1"
 
@@ -52,6 +54,7 @@ meyer:
   position: opening
   figuration_profile: stepwise_mixed
   cadence_approach: false
+  accompany_texture: staggered
   source: "Gjerdingen Ch.9"
 
 sol_fa_mi:
@@ -64,6 +67,7 @@ sol_fa_mi:
   position: opening
   figuration_profile: stepwise_descent
   cadence_approach: false
+  accompany_texture: staggered
   source: "Gjerdingen Ch.10"
 
 # =============================================================================
@@ -80,6 +84,7 @@ prinner:
   position: riposte
   figuration_profile: stepwise_descent
   cadence_approach: true
+  accompany_texture: pillar
   notes: "Optional 5 before final 1 strengthens cadential effect"
   source: "Gjerdingen Ch.3"
 
@@ -102,6 +107,7 @@ fonte:
   sequential: true
   figuration_profile: sequence_descending
   cadence_approach: false
+  accompany_texture: walking
   source: "Riepel (1755); Gjerdingen Ch.8"
 
 monte:
@@ -119,6 +125,7 @@ monte:
   sequential: true
   figuration_profile: sequence_ascending
   cadence_approach: false
+  accompany_texture: walking
   notes: "Soprano less fixed than other schemas"
   source: "Riepel (1755); Gjerdingen Ch.7"
 
@@ -132,6 +139,7 @@ fenaroli:
   repeatable: true
   figuration_profile: galant_general
   cadence_approach: false
+  accompany_texture: walking
   source: "Gjerdingen Ch.13"
 
 # =============================================================================
@@ -148,6 +156,7 @@ ponte:
   pedal: dominant
   figuration_profile: repeated_tone
   cadence_approach: false
+  accompany_texture: pillar
   source: "Riepel; Gjerdingen Ch.14"
 
 passo_indietro:
@@ -160,6 +169,7 @@ passo_indietro:
   chromatic: true
   figuration_profile: stepwise_descent
   cadence_approach: true
+  accompany_texture: pillar
   notes: "The raised 4 creates strong pull to 5"
   source: "Gjerdingen Ch.15"
 
@@ -173,6 +183,7 @@ indugio:
   pedal: subdominant
   figuration_profile: repeated_tone
   cadence_approach: true
+  accompany_texture: pillar
   notes: "Prolongs subdominant before resolving to cadence"
   source: "Gjerdingen Ch.16"
 
@@ -189,6 +200,7 @@ cadenza_semplice:
   position: cadential
   figuration_profile: galant_general
   cadence_approach: true
+  accompany_texture: pillar
   source: "Partimento tradition"
 
 cadenza_composta:
@@ -200,6 +212,7 @@ cadenza_composta:
   position: cadential
   figuration_profile: stepwise_descent
   cadence_approach: true
+  accompany_texture: pillar
   source: "Gjerdingen Ch.11"
 
 comma:
@@ -212,6 +225,7 @@ comma:
   repeatable: true
   figuration_profile: galant_general
   cadence_approach: true
+  accompany_texture: pillar
   source: "Gjerdingen"
 
 half_cadence:
@@ -223,6 +237,7 @@ half_cadence:
   position: cadential
   figuration_profile: repeated_tone
   cadence_approach: true
+  accompany_texture: pillar
   source: "Common practice"
 
 # =============================================================================
@@ -240,6 +255,7 @@ quiescenza:
   chromatic: true
   figuration_profile: pedal
   cadence_approach: false
+  accompany_texture: pillar
   notes: "Framing function; used to begin pieces or confirm cadences. -7 is flat 7."
   source: "Gjerdingen Ch.17"
 
