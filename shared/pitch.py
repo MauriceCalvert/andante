@@ -64,46 +64,6 @@ def wrap_degree(deg: int) -> int:
     return result
 
 
-def is_rest(p: Pitch) -> bool:
-    """Check if pitch is a rest."""
-    return isinstance(p, Rest)
-
-
-def is_floating(p: Pitch) -> bool:
-    """Check if pitch is a FloatingNote."""
-    return isinstance(p, FloatingNote)
-
-
-def is_midi_pitch(p: Pitch) -> bool:
-    """Check if pitch is a MidiPitch."""
-    return isinstance(p, MidiPitch)
-
-
-CONSONANT_DEGREE_INTERVALS: frozenset[int] = frozenset({0, 2, 4, 5})
-
-
-def degree_interval(d1: int, d2: int) -> int:
-    """Calculate interval between two degrees (mod 7, always positive)."""
-    return abs(d1 - d2) % 7
-
-
-def is_degree_consonant(soprano_deg: int, bass_deg: int) -> bool:
-    """Check if two degrees form a consonant interval."""
-    interval: int = degree_interval(soprano_deg, bass_deg)
-    return interval in CONSONANT_DEGREE_INTERVALS
-
-
-def cycle_pitch_with_variety(pitches: tuple[Pitch, ...], idx: int) -> Pitch:
-    """Get pitch at index with sequential transposition."""
-    src_len: int = len(pitches)
-    base_idx: int = idx % src_len
-    cycle: int = idx // src_len
-    p: Pitch = pitches[base_idx]
-    if cycle == 0 or not isinstance(p, FloatingNote):
-        return p
-    return FloatingNote(wrap_degree(p.degree + cycle))
-
-
 def place_degree(
     key: "Key",
     degree: int,
@@ -158,7 +118,7 @@ def place_degree(
         return below
 
 
-# Alias for backward compatibility during transition
+
 def select_octave(
     key: "Key",
     degree: int,
@@ -198,6 +158,9 @@ def place_anchor_pitch(
     Anchors are placed in a narrower "comfort zone" leaving headroom for
     figuration (±7 diatonic steps). This prevents tessitura excursions.
     
+    When direction is explicit ("up"/"down"), voice-leading takes priority
+    over comfort zone to ensure smooth melodic motion.
+    
     Args:
         key: Musical key for degree-to-pitch conversion.
         degree: Scale degree (1-7).
@@ -206,56 +169,48 @@ def place_anchor_pitch(
         direction: Explicit direction (up/down/same) or None.
     
     Returns:
-        MIDI pitch within comfort zone.
+        MIDI pitch within voice range.
     """
     assert 1 <= degree <= 7, f"degree must be 1-7, got {degree}"
     low, high = voice_range
     assert low < high, f"invalid range: {voice_range}"
-    # Comfort zone: leave ~7 semitones headroom for figuration
-    # (7 diatonic steps ≈ 10-12 semitones, but 7 is conservative)
     headroom = 7
     comfort_low = low + headroom
     comfort_high = high - headroom
-    # If range is too narrow, use full range
     if comfort_low >= comfort_high:
         comfort_low = low
         comfort_high = high
-    # Generate all candidates in comfort zone
     base_pc = key.degree_to_midi(degree, octave=0)
-    candidates: list[int] = []
+    full_candidates: list[int] = []
     for octave in range(0, 10):
         midi = base_pc + octave * 12
-        if comfort_low <= midi <= comfort_high:
-            candidates.append(midi)
-    if not candidates:
-        # Comfort zone doesn't contain this degree - try full range
-        for octave in range(0, 10):
-            midi = base_pc + octave * 12
-            if low <= midi <= high:
-                candidates.append(midi)
-    if not candidates:
-        # Range doesn't contain this degree at all - find nearest
+        if low <= midi <= high:
+            full_candidates.append(midi)
+    if not full_candidates:
         median = (low + high) // 2
         best_octave = round((median - base_pc) / 12)
         fallback = base_pc + best_octave * 12
         return max(low, min(high, fallback))
     if prev_midi is None:
-        # First anchor: choose candidate nearest comfort zone centre
-        median = (comfort_low + comfort_high) // 2
-        return min(candidates, key=lambda m: abs(m - median))
-    # Subsequent anchor: voice-lead from prev_midi
+        comfort_candidates = [m for m in full_candidates if comfort_low <= m <= comfort_high]
+        if comfort_candidates:
+            median = (comfort_low + comfort_high) // 2
+            return min(comfort_candidates, key=lambda m: abs(m - median))
+        return min(full_candidates, key=lambda m: abs(m - (low + high) // 2))
     if direction == "up":
-        above = [m for m in candidates if m > prev_midi]
+        above = [m for m in full_candidates if m > prev_midi]
         if above:
             return min(above)
-        return max(candidates)
+        return max(full_candidates)
     if direction == "down":
-        below = [m for m in candidates if m < prev_midi]
+        below = [m for m in full_candidates if m < prev_midi]
         if below:
             return max(below)
-        return min(candidates)
-    # direction is "same" or None: nearest to prev_midi
-    return min(candidates, key=lambda m: abs(m - prev_midi))
+        return min(full_candidates)
+    comfort_candidates = [m for m in full_candidates if comfort_low <= m <= comfort_high]
+    if comfort_candidates:
+        return min(comfort_candidates, key=lambda m: abs(m - prev_midi))
+    return min(full_candidates, key=lambda m: abs(m - prev_midi))
 
 
 def place_anchors_in_tessitura(
