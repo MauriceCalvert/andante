@@ -39,15 +39,6 @@ def is_valid_duration(duration: Fraction) -> bool:
     return duration in VALID_DURATIONS
 
 
-def bar_duration(time_num: int, time_den: int) -> Fraction:
-    """Bar duration from time signature. E.g., 3/4 → Fraction(3, 4)."""
-    return Fraction(time_num, time_den)
-
-
-def beat_duration(time_den: int) -> Fraction:
-    """Beat duration from denominator. E.g., 4 → Fraction(1, 4)."""
-    return Fraction(1, time_den)
-
 
 def fill_slot(
     target: Fraction,
@@ -134,34 +125,3 @@ def _fill_varied(target: Fraction, note_count: int) -> list[Fraction]:
     return result
 
 
-def repeat_to_fill(
-    target: Fraction,
-    degrees: list[int],
-    durations: list[Fraction],
-) -> tuple[list[int], list[Fraction]]:
-    """Repeat motif to exactly fill target duration.
-
-    Raises:
-        MusicMathError: If motif doesn't divide target evenly
-    """
-    if not durations:
-        raise MusicMathError("Cannot repeat empty motif")
-    motif_dur = sum(durations)
-    if motif_dur == 0:
-        raise MusicMathError("Motif has zero duration")
-    if target % motif_dur != 0:
-        raise MusicMathError(
-            f"Motif duration {motif_dur} doesn't divide target {target}"
-        )
-    reps = int(target // motif_dur)
-    return degrees * reps, list(durations) * reps
-
-
-def build_offsets(start: Fraction, durations: list[Fraction]) -> list[Fraction]:
-    """Build note onset offsets from start position."""
-    offsets: list[Fraction] = []
-    current = start
-    for dur in durations:
-        offsets.append(current)
-        current += dur
-    return offsets
