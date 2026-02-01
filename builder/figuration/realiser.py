@@ -55,68 +55,6 @@ def get_hemiola_template(note_count: int, metre: str) -> RhythmTemplate | None:
     return templates.get(key)
 
 
-def apply_augmentation(template: RhythmTemplate, factor: int) -> RhythmTemplate:
-    """Apply augmentation to rhythm template.
-
-    Args:
-        template: Original rhythm template
-        factor: Augmentation factor (2 for double, etc.)
-
-    Returns:
-        New RhythmTemplate with scaled durations.
-    """
-    assert factor > 0, f"Augmentation factor must be positive, got {factor}"
-
-    scaled_durations = tuple(d * factor for d in template.durations)
-
-    return RhythmTemplate(
-        note_count=template.note_count,
-        metre=template.metre,
-        durations=scaled_durations,
-        overdotted=template.overdotted,
-    )
-
-
-def apply_diminution(template: RhythmTemplate, factor: int) -> RhythmTemplate:
-    """Apply diminution to rhythm template.
-
-    Args:
-        template: Original rhythm template
-        factor: Diminution factor (2 for half, etc.)
-
-    Returns:
-        New RhythmTemplate with scaled durations.
-    """
-    assert factor > 0, f"Diminution factor must be positive, got {factor}"
-
-    scaled_durations = tuple(d / factor for d in template.durations)
-
-    return RhythmTemplate(
-        note_count=template.note_count,
-        metre=template.metre,
-        durations=scaled_durations,
-        overdotted=template.overdotted,
-    )
-
-
-def compute_bar_duration(metre: str) -> Fraction:
-    """Compute duration of one bar in whole notes.
-
-    Args:
-        metre: Time signature string (e.g., "3/4", "4/4")
-
-    Returns:
-        Bar duration as Fraction.
-    """
-    parts = metre.split("/")
-    assert len(parts) == 2, f"Invalid metre format: {metre}"
-
-    num = int(parts[0])
-    denom = int(parts[1])
-
-    return Fraction(num, denom)
-
-
 def beats_to_whole_notes(beats: Fraction, metre: str) -> Fraction:
     """Convert beat-based duration to whole note duration.
 
@@ -224,28 +162,30 @@ def _scalar_run_extended(start: int, count: int, direction: int) -> list[int]:
 
 
 def _scalar_excursion_extended(base: int, count: int) -> list[int]:
-    """Generate scalar excursion from base, bounded within ±7.
+    """Generate symmetric scalar excursion from base returning to base.
 
-    Goes up then returns to base. Reverses if hitting bounds.
+    Climbs half the distance, then descends back. No leaps > 2 degrees.
     """
     if count == 1:
         return [base]
     if count == 2:
         return [base, base + 1]
-    low_bound = base - 7
-    high_bound = base + 7
+    if count == 3:
+        return [base, base + 1, base]
+    half = (count - 1) // 2
     result = [base]
-    current = base
-    direction = 1
-    for _ in range(count - 2):
-        next_val = current + direction
-        if next_val > high_bound or next_val < low_bound:
-            direction = -direction
-            next_val = current + direction
-        current = next_val
-        result.append(current)
-    result.append(base)
-    return result
+    for i in range(1, half + 1):
+        result.append(base + i)
+    peak = result[-1]
+    remaining = count - len(result)
+    for i in range(remaining):
+        step_down = peak - 1 - i
+        if step_down < base:
+            step_down = base
+        result.append(step_down)
+    while len(result) < count:
+        result.append(base)
+    return result[:count]
 
 
 def _fill_segment_extended(
@@ -255,11 +195,12 @@ def _fill_segment_extended(
     must_end: bool,
     prev: int | None,
 ) -> list[int]:
-    """Fill segment with scalar motion. No consecutive duplicates.
+    """Fill segment with scalar motion ensuring stepwise landing.
 
-    Produces exactly `count` notes, bounded within ±7 of start.
-    If must_end, last note is `end` (clamped to bounds).
+    Produces exactly `count` notes. If must_end, last note is `end`.
+    Maximum leap is 2 degrees (a third). Reserves final notes for stepwise approach.
     """
+    MAX_LEAP = 2
     if count <= 0:
         return []
     low_bound = start - 7
@@ -267,33 +208,114 @@ def _fill_segment_extended(
     target = max(low_bound, min(high_bound, end))
     if count == 1:
         return [target if must_end else start]
-    # Build path
-    result: list[int] = []
     current = start
     if prev is not None and current == prev:
         current = current + 1 if current + 1 <= high_bound else current - 1
-    result.append(current)
-    direction = 1 if target >= current else -1
-    for i in range(count - 1):
-        adding_last = (i == count - 2)
-        adding_second_to_last = (i == count - 3)
-        if adding_last and must_end:
-            current = target
-        else:
+    if count == 2:
+        if must_end:
+            if abs(target - current) <= MAX_LEAP:
+                return [current, target]
+            approach = current + (1 if target > current else -1)
+            return [approach, target]
+        return [current, current + 1]
+    if start == end:
+        return _symmetric_excursion(current, count, low_bound, high_bound)
+    distance = target - current
+    direction = 1 if distance > 0 else -1
+    steps_needed = abs(distance)
+    if steps_needed <= count - 1:
+        return _direct_stepwise_path(current, target, count, direction, low_bound, high_bound)
+    return _excursion_then_approach(current, target, count, direction, low_bound, high_bound)
+
+
+def _symmetric_excursion(start: int, count: int, low: int, high: int) -> list[int]:
+    """Generate symmetric excursion returning to start."""
+    half = (count - 1) // 2
+    result = [start]
+    direction = 1 if start + half <= high else -1
+    current = start
+    for _ in range(half):
+        next_val = current + direction
+        if next_val > high or next_val < low:
+            direction = -direction
             next_val = current + direction
-            if next_val > high_bound or next_val < low_bound:
-                direction = -direction
-                next_val = current + direction
-            # If adding second-to-last and must_end, avoid landing on target
-            if adding_second_to_last and must_end and next_val == target:
-                alt = target + direction
-                if low_bound <= alt <= high_bound:
-                    next_val = alt
-                else:
-                    next_val = target - direction
-            current = next_val
+        current = next_val
         result.append(current)
-    return result
+    while len(result) < count - 1:
+        next_val = current - direction
+        if next_val > high or next_val < low:
+            direction = -direction
+            next_val = current - direction
+        current = next_val
+        result.append(current)
+    if abs(current - start) > 2:
+        while abs(current - start) > 1 and len(result) < count - 1:
+            current = current + (1 if start > current else -1)
+            result.append(current)
+    result.append(start)
+    return result[:count]
+
+
+def _direct_stepwise_path(
+    start: int,
+    target: int,
+    count: int,
+    direction: int,
+    low: int,
+    high: int,
+) -> list[int]:
+    """Fill with stepwise motion when we have enough notes."""
+    result = [start]
+    current = start
+    notes_to_target = abs(target - current)
+    spare_notes = count - 1 - notes_to_target
+    excursion_budget = spare_notes // 2
+    opp_direction = -direction
+    for _ in range(excursion_budget):
+        next_val = current + opp_direction
+        if low <= next_val <= high:
+            current = next_val
+            result.append(current)
+    while len(result) < count - 1:
+        next_val = current + direction
+        if next_val > high or next_val < low:
+            break
+        current = next_val
+        result.append(current)
+    while len(result) < count - 1:
+        current = current + (1 if target > current else -1)
+        result.append(current)
+    result.append(target)
+    return result[:count]
+
+
+def _excursion_then_approach(
+    start: int,
+    target: int,
+    count: int,
+    direction: int,
+    low: int,
+    high: int,
+) -> list[int]:
+    """When target is far, excurse then approach stepwise."""
+    APPROACH_RESERVE = 3
+    result = [start]
+    current = start
+    excursion_notes = count - APPROACH_RESERVE
+    opp_direction = -direction
+    for _ in range(excursion_notes - 1):
+        next_val = current + opp_direction
+        if next_val > high or next_val < low:
+            opp_direction = -opp_direction
+            next_val = current + opp_direction
+        current = next_val
+        result.append(current)
+    while len(result) < count - 1:
+        step = 1 if target > current else -1
+        current = current + step
+        result.append(current)
+    result.append(target)
+    return result[:count]
 
 
 
@@ -413,49 +435,3 @@ def realise_figure_to_bar(
     )
 
 
-def compute_gap_duration(
-    anchor_offset_a: Fraction,
-    anchor_offset_b: Fraction,
-) -> Fraction:
-    """Compute gap duration between two anchors.
-
-    Args:
-        anchor_offset_a: Offset of first anchor (whole notes)
-        anchor_offset_b: Offset of second anchor (whole notes)
-
-    Returns:
-        Duration of gap between anchors.
-    """
-    gap = anchor_offset_b - anchor_offset_a
-    assert gap > 0, f"Gap must be positive: {anchor_offset_a} to {anchor_offset_b}"
-    return gap
-
-
-def is_anacrusis_beat(
-    beat_position: Fraction,
-    metre: str,
-    next_anchor_strength: str,
-) -> bool:
-    """Check if current beat is an anacrusis to next bar.
-
-    In 3/4, beat 3 can be anacrusis when next anchor is strong.
-
-    Args:
-        beat_position: Position within bar (0 = beat 1)
-        metre: Time signature
-        next_anchor_strength: Strength of next anchor
-
-    Returns:
-        True if this is an anacrusis position.
-    """
-    if next_anchor_strength != "strong":
-        return False
-
-    if metre == "3/4":
-        # Beat 3 in 3/4 is anacrusis when next is strong
-        return beat_position >= Fraction(1, 2)
-    elif metre == "4/4":
-        # Beat 4 in 4/4 can be anacrusis
-        return beat_position >= Fraction(3, 4)
-
-    return False
