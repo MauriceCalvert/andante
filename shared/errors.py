@@ -21,24 +21,8 @@ class InvalidPitchError(ValidationError):
     """Pitch is out of range."""
 
 
-class MissingContextError(ValidationError):
-    """Required context not found in tree."""
-
-
 class InvalidRomanNumeralError(ValidationError):
     """Unknown Roman numeral chord symbol."""
-
-
-class VoiceGenerationError(AndanteError):
-    """Voice cannot be generated satisfying all constraints."""
-
-
-class HarmonyGenerationError(AndanteError):
-    """No compatible harmony found for melody."""
-
-
-class SubjectValidationError(AndanteError):
-    """Subject incompatible with schema or treatment requirements."""
 
 
 class SolverTimeoutError(AndanteError):
