@@ -2,8 +2,7 @@
 from fractions import Fraction
 from typing import Sequence
 
-from builder.types import Anchor, GenreConfig, PassageAssignment
-from shared.constants import STACCATO_DURATION_THRESHOLD
+from builder.types import Anchor, PassageAssignment
 
 
 def get_function_for_bar(

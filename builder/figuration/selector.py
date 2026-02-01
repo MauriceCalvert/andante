@@ -15,10 +15,6 @@ Implements the 13-step filter pipeline from figuration.md:
 12. Check junction to next anchor
 13. If junction fails, try next candidate
 """
-import random
-from fractions import Fraction
-from typing import Sequence
-
 from builder.figuration.loader import get_diminutions
 from builder.figuration.selection import apply_misbehaviour, select_figure, sort_by_weight
 from builder.figuration.types import Figure, PhrasePosition, SelectionContext
@@ -480,6 +476,76 @@ def _degree_to_semitone_approx(degree: int, start_midi: int) -> int:
         remainder += 7
     semitones = octaves * 12 + major_offsets[remainder]
     return start_midi + semitones
+
+
+CROSS_RELATION_INTERVALS: frozenset[int] = frozenset({1, 11, 13, 23})
+
+
+def would_create_cross_relation(
+    soprano_degrees: tuple[int, ...],
+    bass_degrees: tuple[int, ...],
+    soprano_start_midi: int,
+    bass_start_midi: int,
+) -> bool:
+    """Check if bass figure would create cross-relation with soprano.
+
+    A cross-relation occurs when one voice has a pitch that is a minor 2nd
+    (1 semitone) or minor 9th (13 semitones) from a concurrent pitch in
+    the other voice. E.g., A natural in bass against Bb in soprano.
+
+    Checks all pairs of pitches since figures may have different rhythmic
+    densities and concurrent notes may not align by index.
+
+    Args:
+        soprano_degrees: Soprano figure degrees (relative to start)
+        bass_degrees: Bass candidate degrees (relative to start)
+        soprano_start_midi: Soprano starting MIDI pitch
+        bass_start_midi: Bass starting MIDI pitch
+
+    Returns:
+        True if bass candidate would create cross-relation.
+    """
+    if not soprano_degrees or not bass_degrees:
+        return False
+    soprano_pitches: set[int] = set()
+    for d in soprano_degrees:
+        pitch = _degree_to_semitone_approx(d, soprano_start_midi)
+        soprano_pitches.add(pitch)
+    for d in bass_degrees:
+        b_pitch = _degree_to_semitone_approx(d, bass_start_midi)
+        for s_pitch in soprano_pitches:
+            interval = abs(b_pitch - s_pitch)
+            if interval in CROSS_RELATION_INTERVALS:
+                return True
+    return False
+
+
+def filter_cross_relation(
+    figures: list[Figure],
+    soprano_degrees: tuple[int, ...] | None,
+    soprano_start_midi: int,
+    bass_start_midi: int,
+) -> list[Figure]:
+    """Filter bass figures that would create cross-relations with soprano.
+
+    Args:
+        figures: Bass figure candidates
+        soprano_degrees: Soprano figure degrees (None if not available)
+        soprano_start_midi: Soprano starting MIDI pitch
+        bass_start_midi: Bass starting MIDI pitch
+
+    Returns:
+        Filtered figures. Soft filter: returns original if all filtered.
+    """
+    if not figures or soprano_degrees is None:
+        return figures
+    result: list[Figure] = []
+    for fig in figures:
+        if not would_create_cross_relation(
+            soprano_degrees, fig.degrees, soprano_start_midi, bass_start_midi
+        ):
+            result.append(fig)
+    return result if result else figures
 
 
 def would_create_parallel_or_direct(

@@ -17,15 +17,9 @@ from builder.figuration.bar_context import (
     should_use_hemiola,
     should_use_overdotted,
 )
-from builder.figuration.cadential import (
-    CADENTIAL_UNDERSTATEMENT_PROBABILITY,
-    select_cadential_figure,
-)
+from builder.figuration.cadential import select_cadential_figure
 from builder.figuration.junction import check_junction, find_valid_figure
 from builder.figuration.phrase import (
-    DEFORMATION_PROBABILITY,
-    MAX_SCHEMA_SECTION_ANCHORS,
-    MIN_SCHEMA_SECTION_ANCHORS,
     detect_schema_sections,
     determine_position_with_deformation,
     in_schema_section,
@@ -45,12 +39,11 @@ from builder.figuration.selector import (
     filter_by_note_count,
     filter_by_tension,
     filter_cadential_safe,
+    filter_cross_relation,
     filter_parallel_direct,
     get_figures_for_interval,
-    would_create_parallel_or_direct,
 )
 from builder.figuration.rhythm_calc import compute_rhythmic_distribution
-# sequencer functions used through strategies module
 from builder.figuration.strategies import (
     apply_strategy,
     get_profile_for_schema,
@@ -62,69 +55,122 @@ from builder.figuration.types import (
     PhrasePosition,
 )
 from builder.types import Anchor, PassageAssignment, Role
+from shared.constants import RHYTHMIC_CONTRAST_THRESHOLD
+
+
+def _would_create_parallel_or_direct_realized(
+    soprano_degrees: tuple[int, ...],
+    bass_degrees: tuple[int, ...],
+    soprano_start: int,
+    bass_start: int,
+) -> bool:
+    """Check realized degree sequences for parallel/direct fifths/octaves.
+
+    Uses scale degrees directly (not MIDI) since both voices share key.
+    Interval in degrees mod 7: 0 = unison/octave, 4 = fifth.
+    """
+    PERFECT_DEGREE_INTERVALS = {0, 4}
+    min_len = min(len(soprano_degrees), len(bass_degrees))
+    if min_len < 2:
+        return False
+    for i in range(min_len - 1):
+        s1 = soprano_start + soprano_degrees[i] if i < len(soprano_degrees) else soprano_start
+        s2 = soprano_start + soprano_degrees[i + 1] if i + 1 < len(soprano_degrees) else soprano_start
+        b1 = bass_start + bass_degrees[i] if i < len(bass_degrees) else bass_start
+        b2 = bass_start + bass_degrees[i + 1] if i + 1 < len(bass_degrees) else bass_start
+        interval1 = abs(s1 - b1) % 7
+        interval2 = abs(s2 - b2) % 7
+        s_delta = s2 - s1
+        b_delta = b2 - b1
+        if s_delta == 0 or b_delta == 0:
+            continue
+        if (s_delta > 0) != (b_delta > 0):
+            continue
+        if interval1 in PERFECT_DEGREE_INTERVALS and interval1 == interval2:
+            return True
+        if interval2 in PERFECT_DEGREE_INTERVALS and abs(s_delta) > 2:
+            return True
+    return False
+
+
+def _check_pillar_creates_direct_motion(
+    prev_soprano_bar: "FiguredBar | None",
+    curr_soprano_bar: "FiguredBar | None",
+    prev_bass_degree: int | None,
+    curr_bass_degree: int,
+) -> bool:
+    """Check if bass pillar would create direct fifth/octave with soprano.
+
+    Direct motion: both voices move same direction, arrive at perfect interval,
+    and soprano leaps (> 2 degree steps).
+    """
+    if prev_soprano_bar is None or curr_soprano_bar is None:
+        return False
+    if prev_bass_degree is None:
+        return False
+    prev_soprano = prev_soprano_bar.degrees[-1] if prev_soprano_bar.degrees else None
+    curr_soprano = curr_soprano_bar.degrees[0] if curr_soprano_bar.degrees else None
+    if prev_soprano is None or curr_soprano is None:
+        return False
+    soprano_motion = curr_soprano - prev_soprano
+    bass_motion = curr_bass_degree - prev_bass_degree
+    if soprano_motion == 0 or bass_motion == 0:
+        return False
+    if (soprano_motion > 0) != (bass_motion > 0):
+        return False
+    interval = abs(curr_soprano - curr_bass_degree) % 7
+    PERFECT_DEGREE_INTERVALS = {0, 4}
+    if interval not in PERFECT_DEGREE_INTERVALS:
+        return False
+    if abs(soprano_motion) > 2:
+        return True
+    return False
+
+
+def _check_pillar_creates_unprepared_dissonance(
+    curr_soprano_bar: "FiguredBar | None",
+    curr_bass_degree: int,
+) -> bool:
+    """Check if bass pillar would create unprepared dissonance with soprano.
+
+    Dissonant intervals (mod 7): 1 (second), 6 (seventh).
+    On strong beat (pillar entry), these require preparation.
+    """
+    if curr_soprano_bar is None:
+        return False
+    curr_soprano = curr_soprano_bar.degrees[0] if curr_soprano_bar.degrees else None
+    if curr_soprano is None:
+        return False
+    interval = abs(curr_soprano - curr_bass_degree) % 7
+    DISSONANT_INTERVALS = {1, 6}
+    return interval in DISSONANT_INTERVALS
 
 
 def _get_direction(anchor: Anchor, role: Role) -> str | None:
-    """Get the direction to reach this anchor based on voice role.
-    
-    Args:
-        anchor: Schema anchor with upper_direction and lower_direction.
-        role: Voice role determining which direction to select.
-    
-    Returns:
-        Direction string (up/down/same) or None for first anchor.
-    """
+    """Get the direction to reach this anchor based on voice role."""
     if role == Role.SCHEMA_LOWER:
         return anchor.lower_direction
     return anchor.upper_direction
 
 
 def _direction_to_ascending(direction: str | None, degree_a: int, degree_b: int) -> bool:
-    """Convert direction to ascending boolean.
-    
-    If direction is explicit, use it directly.
-    If direction is None or same, fall back to degree comparison.
-    
-    Args:
-        direction: Explicit direction (up/down/same) or None.
-        degree_a: Starting degree (1-7).
-        degree_b: Ending degree (1-7).
-    
-    Returns:
-        True if ascending motion, False otherwise.
-    """
+    """Convert direction to ascending boolean."""
     if direction == "up":
         return True
     if direction == "down":
         return False
-    # For 'same' or None, use degree comparison as fallback
     return degree_b > degree_a
 
 
 def _get_degree(anchor: Anchor, role: Role) -> int:
-    """Get the appropriate degree from anchor based on voice role.
-    
-    Args:
-        anchor: Schema anchor with upper_degree and lower_degree.
-        role: Voice role determining which degree to select.
-    
-    Returns:
-        Degree value (1-7) for the voice role.
-    """
+    """Get the appropriate degree from anchor based on voice role."""
     if role == Role.SCHEMA_LOWER:
         return anchor.lower_degree
     return anchor.upper_degree
 
 
 def _role_from_voice_string(voice: str) -> Role:
-    """Convert legacy voice string to Role enum.
-    
-    Args:
-        voice: Legacy string "soprano" or "bass".
-    
-    Returns:
-        Corresponding Role enum value.
-    """
+    """Convert legacy voice string to Role enum."""
     if voice == "bass":
         return Role.SCHEMA_LOWER
     return Role.SCHEMA_UPPER
@@ -141,15 +187,7 @@ def figurate(
     soprano_figured_bars: list[FiguredBar] | None = None,
     passage_assignments: Sequence[PassageAssignment] | None = None,
 ) -> list[FiguredBar]:
-    """Main entry point: Convert anchors to figured bars.
-
-    Args:
-        voice: Which anchor degree to use - "soprano" (upper) or "bass" (lower).
-               Maps to Role.SCHEMA_UPPER or Role.SCHEMA_LOWER.
-        soprano_figured_bars: When figurating bass, pass soprano bars to avoid
-               parallel/direct fifths and octaves.
-        passage_assignments: Lead voice assignments for rhythm complementarity.
-    """
+    """Main entry point: Convert anchors to figured bars."""
     if len(anchors) < 2:
         return []
     rng = random.Random(seed)
@@ -173,7 +211,6 @@ def figurate(
         if seq_info is not None:
             seq_start, seq_end = seq_info
             seq_anchors = sorted_anchors[seq_start:seq_end]
-            # Extract soprano slice for this schema section (bass parallel check)
             soprano_slice: list[FiguredBar] | None = None
             if voice == "bass" and soprano_figured_bars is not None:
                 soprano_slice = soprano_figured_bars[seq_start:seq_end - 1]
@@ -184,6 +221,7 @@ def figurate(
                 density=density,
                 is_minor=is_minor,
                 role=role,
+                total_bars=total_bars,
                 voice=voice,
                 passage_assignments=passage_assignments,
                 soprano_figured_bars=soprano_slice,
@@ -203,7 +241,7 @@ def figurate(
             bar_num, total_bars, anchor_a.schema, phrase_deformation,
         )
         harmonic_tension = compute_harmonic_tension(anchor_a, phrase_pos, role)
-        bar_function = compute_bar_function(phrase_pos, bar_num, total_bars)
+        bar_function = compute_bar_function(phrase_pos, bar_num, total_bars, anchor_b)
         use_hemiola = should_use_hemiola(bar_num, total_bars, metre, phrase_deformation)
         next_anchor_strength = compute_next_anchor_strength(i, sorted_anchors, total_bars)
         if phrase_pos.position == "cadence":
@@ -213,19 +251,17 @@ def figurate(
         else:
             figure = None
         if figure is None:
-            # Get soprano figure info for bass parallel/direct check
             soprano_degrees: tuple[int, ...] | None = None
-            soprano_start_midi: int = 70  # Default soprano median
-            bass_start_midi: int = 48  # Default bass median
+            soprano_start_midi: int = 70
+            bass_start_midi: int = 48
             if voice == "bass" and soprano_figured_bars is not None and i < len(soprano_figured_bars):
                 sop_abs = soprano_figured_bars[i].degrees
-                # Convert absolute degrees to relative offsets (like Figure.degrees)
                 sop_start = sop_abs[0]
                 soprano_degrees = tuple(d - sop_start for d in sop_abs)
-                # Approximate starting MIDI from anchor degrees
-                soprano_start_midi = 60 + (anchor_a.upper_degree - 1) * 2
-                bass_start_midi = 36 + (anchor_a.lower_degree - 1) * 2
-            # Compute beat class for rhythm complementarity (used in figure selection)
+                assert anchor_a.upper_midi is not None, f"Anchor at {anchor_a.bar_beat} missing upper_midi"
+                assert anchor_a.lower_midi is not None, f"Anchor at {anchor_a.bar_beat} missing lower_midi"
+                soprano_start_midi = anchor_a.upper_midi
+                bass_start_midi = anchor_a.lower_midi
             start_beat_for_filter = compute_beat_class(voice, bar_num, passage_assignments)
             filter_density = reduce_density(density) if start_beat_for_filter == 2 else density
             figure = _select_figure_with_filters(
@@ -267,15 +303,19 @@ def figurate(
         offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
         offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
         raw_gap = offset_b - offset_a
-        # Compute beat class for rhythm complementarity
         start_beat = compute_beat_class(voice, bar_num, passage_assignments)
         effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
-        # Accompanying voice uses sparser density
         effective_density = reduce_density(density) if start_beat == 2 else density
-        # Check texture mode for accompanying voice
         if start_beat == 2:
             schema_texture = get_schema_texture(anchor_a.schema)
             texture = get_accompany_texture_for_bar(bar_num, passage_assignments, schema_texture)
+            if texture == "pillar":
+                bass_degree = _get_degree(anchor_a, role)
+                prev_bass_degree = figured_bars[-1].degrees[-1] if figured_bars else None
+                prev_soprano = soprano_figured_bars[i - 1] if soprano_figured_bars and i > 0 else None
+                curr_soprano = soprano_figured_bars[i] if soprano_figured_bars and i < len(soprano_figured_bars) else None
+                if _check_pillar_creates_direct_motion(prev_soprano, curr_soprano, prev_bass_degree, bass_degree):
+                    texture = "staggered"
             if texture == "pillar":
                 figured_bar = _create_pillar_bar(
                     bar_num=bar_num,
@@ -302,7 +342,8 @@ def figurate(
                 prev_figure_name = figure.name
                 i += 1
                 continue
-            # walking and complementary fall through to normal figuration
+            start_beat = 1
+            effective_gap = raw_gap
         figured_bar = realise_figure_to_bar(
             figure=figure,
             bar=bar_num,
@@ -323,7 +364,6 @@ def figurate(
         leap_direction = "up" if ascending else "down"
         prev_figure_name = figure.name
         i += 1
-    # Check if soprano needs anacrusis
     if voice == "soprano" and sorted_anchors:
         first_bar = _parse_bar_beat(sorted_anchors[0].bar_beat)[0]
         if should_generate_anacrusis(first_bar, voice, passage_assignments):
@@ -339,17 +379,8 @@ def _generate_soprano_anacrusis(
     target_degree: int,
     seed: int,
 ) -> FiguredBar:
-    """Generate a 4-note anacrusis leading to target degree.
-
-    Args:
-        target_degree: The degree to arrive at on beat 1 of bar 1
-        seed: Random seed
-
-    Returns:
-        FiguredBar for bar 0 with anacrusis.
-    """
+    """Generate a 4-note anacrusis leading to target degree."""
     rng = random.Random(seed)
-    # 60% ascending approach, 40% descending
     if rng.random() < 0.6:
         degrees = [target_degree - 3, target_degree - 2, target_degree - 1, target_degree]
     else:
@@ -396,17 +427,14 @@ def _create_staggered_bar(
     """Create a staggered bar: rest for 1 beat, then fill remainder."""
     parts = metre.split("/")
     beat_value = Fraction(1, int(parts[1]))
-    stagger_amount = beat_value  # 1 beat delay
+    stagger_amount = beat_value
     remaining_gap = gap_duration - stagger_amount
     if remaining_gap <= 0:
         remaining_gap = beat_value
-    # Get note count for remaining gap
     note_count, _ = compute_rhythmic_distribution(remaining_gap, density)
     if note_count < 1:
         note_count = 1
-    # Compute durations for remaining portion
     note_duration = remaining_gap / note_count
-    # Build degrees from figure, truncated/extended to note_count
     base_degrees = figure.degrees
     result_degrees: list[int] = []
     for i in range(note_count):
@@ -419,7 +447,7 @@ def _create_staggered_bar(
         degrees=tuple(result_degrees),
         durations=tuple([note_duration] * note_count),
         figure_name=f"staggered_{figure.name}",
-        start_beat=2,  # Indicates late entry for realisation
+        start_beat=2,
     )
 
 
@@ -447,7 +475,7 @@ def figurate_single_bar(
     is_minor = key.mode == "minor"
     phrase_pos = determine_phrase_position(bar_num, total_bars, anchor_a.schema)
     harmonic_tension = compute_harmonic_tension(anchor_a, phrase_pos, role)
-    bar_function = compute_bar_function(phrase_pos, bar_num, total_bars)
+    bar_function = compute_bar_function(phrase_pos, bar_num, total_bars, anchor_b)
     rng = random.Random(seed)
     figure: Figure | None = None
     if phrase_pos.position == "cadence":
@@ -505,20 +533,10 @@ def _select_figure_with_filters(
     bass_start_midi: int = 48,
     required_count: int | None = None,
 ) -> Figure | None:
-    """Apply full filter pipeline and select figure.
-
-    Args:
-        avoid_figure: Name of figure to avoid (for variety).
-        soprano_degrees: When selecting bass, soprano degrees to check against.
-        soprano_start_midi: Soprano starting MIDI pitch for parallel/direct check.
-        bass_start_midi: Bass starting MIDI pitch for parallel/direct check.
-        required_count: Expected note count; filters out figures needing extreme expansion.
-    """
+    """Apply full filter pipeline and select figure."""
     all_figures = get_figures_for_interval(interval)
     if not all_figures:
         return None
-    # Apply note_count as hard constraint before any other filtering
-    # This ensures misbehaviour cannot bypass expansion limits
     if required_count is not None:
         all_figures = filter_by_note_count(all_figures, required_count)
         if not all_figures:
@@ -532,12 +550,13 @@ def _select_figure_with_filters(
     candidates = filter_by_compensation(candidates, prev_leaped, leap_direction)
     candidates = filter_cadential_safe(candidates, near_cadence)
     candidates = filter_by_max_leap(candidates)
-    # Filter parallel/direct fifths and octaves when bass has soprano info
     if soprano_degrees is not None:
         candidates = filter_parallel_direct(
             candidates, soprano_degrees, soprano_start_midi, bass_start_midi
         )
-    # Avoid repeating the same figure consecutively
+        candidates = filter_cross_relation(
+            candidates, soprano_degrees, soprano_start_midi, bass_start_midi
+        )
     if avoid_figure and len(candidates) > 1:
         candidates = [f for f in candidates if f.name != avoid_figure] or candidates
     candidates = apply_misbehaviour(candidates, all_figures, seed)
@@ -575,28 +594,18 @@ def _apply_schema_figuration(
     density: str,
     is_minor: bool,
     role: Role,
+    total_bars: int,
     voice: str = "soprano",
     passage_assignments: Sequence[PassageAssignment] | None = None,
     soprano_figured_bars: list[FiguredBar] | None = None,
 ) -> list[FiguredBar]:
-    """Apply schema-aware figuration to a schema section.
-
-    Uses schema-specific strategies (accelerating, relaxing, static, dyadic)
-    to generate appropriate figure sequences for each schema type.
-    The figuration profile influences pattern selection character.
-
-    Args:
-        soprano_figured_bars: When figurating bass, soprano bars for parallel check.
-    """
+    """Apply schema-aware figuration to a schema section."""
     if len(anchors) < 2:
         return []
-    # Determine schema and get strategy and profile
     schema_name = anchors[0].schema or ""
     strategy = get_strategy_for_schema(schema_name)
     profile = get_profile_for_schema(schema_name)
-    # Determine character from profile type
     character = _profile_to_character(profile)
-    # Get direction from schema definition if available
     direction = anchors[1].upper_direction if len(anchors) > 1 else None
     anchor_a = anchors[0]
     anchor_b = anchors[1]
@@ -607,12 +616,10 @@ def _apply_schema_figuration(
     )
     offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
     offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
-    # Compute required note count BEFORE figure selection
     bar_num = _parse_bar_beat(anchor_a.bar_beat)[0]
     start_beat = compute_beat_class(voice, bar_num, passage_assignments)
     raw_gap = offset_b - offset_a
     effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
-    # Accompanying voice uses sparser density
     effective_density = reduce_density(density) if start_beat == 2 else density
     required_count, _ = compute_rhythmic_distribution(effective_gap, effective_density)
     initial_figure = _select_figure_with_filters(
@@ -631,7 +638,6 @@ def _apply_schema_figuration(
     if initial_figure is None:
         initial_figure = _create_direct_figure(interval, _get_degree(anchor_a, role), _get_degree(anchor_b, role))
     target_degrees = [_get_degree(a, role) for a in anchors[:-1]]
-    # Apply schema-aware strategy instead of generic Fortspinnung
     figures = apply_strategy(
         strategy=strategy,
         initial_figure=initial_figure,
@@ -645,21 +651,30 @@ def _apply_schema_figuration(
         anchor_a = anchors[i]
         anchor_b = anchors[i + 1]
         bar_num = _parse_bar_beat(anchor_a.bar_beat)[0]
-        # Compute effective density early (needed for parallel check too)
         start_beat = compute_beat_class(voice, bar_num, passage_assignments)
-        bar_effective_density = reduce_density(density) if start_beat == 2 else density
-        # Settle density in final stage of cadence_approach schemas
+        bar_effective_density = density
+        if start_beat == 2:
+            soprano_is_sparse = False
+            if soprano_figured_bars is not None and i < len(soprano_figured_bars):
+                soprano_note_count = len(soprano_figured_bars[i].durations)
+                soprano_is_sparse = soprano_note_count <= RHYTHMIC_CONTRAST_THRESHOLD
+            if not soprano_is_sparse:
+                bar_effective_density = reduce_density(density)
         is_final_stage = (i == len(figures) - 1)
-        if is_final_stage and get_schema_cadence_approach(schema_name):
-            bar_effective_density = "low"
         offset_a = _bar_beat_to_offset(anchor_a.bar_beat, metre)
         offset_b = _bar_beat_to_offset(anchor_b.bar_beat, metre)
         raw_gap = offset_b - offset_a
         effective_gap = compute_effective_gap(raw_gap, start_beat, metre)
-        # Check texture mode for accompanying voice
         if start_beat == 2:
             schema_texture = get_schema_texture(schema_name)
             texture = get_accompany_texture_for_bar(bar_num, passage_assignments, schema_texture)
+            if texture == "pillar":
+                bass_degree = _get_degree(anchor_a, role)
+                prev_bass_degree = result[-1].degrees[-1] if result else None
+                prev_soprano = soprano_figured_bars[i - 1] if soprano_figured_bars and i > 0 else None
+                curr_soprano = soprano_figured_bars[i] if soprano_figured_bars and i < len(soprano_figured_bars) else None
+                if _check_pillar_creates_direct_motion(prev_soprano, curr_soprano, prev_bass_degree, bass_degree):
+                    texture = "staggered"
             if texture == "pillar":
                 figured_bar = _create_pillar_bar(
                     bar_num=bar_num,
@@ -679,18 +694,25 @@ def _apply_schema_figuration(
                 )
                 result.append(figured_bar)
                 continue
-            # walking and complementary fall through to normal figuration
-        # Check for parallels with soprano when bass figuration
+            start_beat = 1
+            effective_gap = raw_gap
+        figured_bar = realise_figure_to_bar(
+            figure=figure,
+            bar=bar_num,
+            start_degree=_get_degree(anchor_a, role),
+            gap_duration=effective_gap,
+            metre=metre,
+            start_beat=start_beat,
+            density=bar_effective_density,
+            use_baroque_rhythm=True,
+        )
         if soprano_figured_bars is not None and i < len(soprano_figured_bars):
-            sop_abs = soprano_figured_bars[i].degrees
-            sop_start = sop_abs[0]
-            soprano_degrees = tuple(d - sop_start for d in sop_abs)
-            soprano_start_midi = 60 + (anchor_a.upper_degree - 1) * 2
-            bass_start_midi = 36 + (anchor_a.lower_degree - 1) * 2
-            if would_create_parallel_or_direct(
-                soprano_degrees, figure.degrees, soprano_start_midi, bass_start_midi
-            ):
-                # Try to find alternative figure for this bar
+            soprano_bar = soprano_figured_bars[i]
+            bass_start = _get_degree(anchor_a, role)
+            soprano_start = soprano_bar.degrees[0] if soprano_bar.degrees else 1
+            bass_rel = tuple(d - bass_start for d in figured_bar.degrees)
+            soprano_rel = tuple(d - soprano_start for d in soprano_bar.degrees)
+            if _would_create_parallel_or_direct_realized(soprano_rel, bass_rel, soprano_start, bass_start):
                 bar_interval = compute_interval(
                     _get_degree(anchor_a, role), _get_degree(anchor_b, role)
                 )
@@ -704,23 +726,23 @@ def _apply_schema_figuration(
                     prev_leaped=False,
                     leap_direction=None,
                     near_cadence=False,
-                    seed=seed + i,
-                    soprano_degrees=soprano_degrees,
-                    soprano_start_midi=soprano_start_midi,
-                    bass_start_midi=bass_start_midi,
+                    seed=seed + i + 1000,
+                    avoid_figure=figure.name,
                 )
                 if alt_figure is not None:
-                    figure = alt_figure
-        figured_bar = realise_figure_to_bar(
-            figure=figure,
-            bar=bar_num,
-            start_degree=_get_degree(anchor_a, role),
-            gap_duration=effective_gap,
-            metre=metre,
-            start_beat=start_beat,
-            density=bar_effective_density,
-            use_baroque_rhythm=True,
-        )
+                    alt_bar = realise_figure_to_bar(
+                        figure=alt_figure,
+                        bar=bar_num,
+                        start_degree=_get_degree(anchor_a, role),
+                        gap_duration=effective_gap,
+                        metre=metre,
+                        start_beat=start_beat,
+                        density=bar_effective_density,
+                        use_baroque_rhythm=True,
+                    )
+                    alt_rel = tuple(d - bass_start for d in alt_bar.degrees)
+                    if not _would_create_parallel_or_direct_realized(soprano_rel, alt_rel, soprano_start, bass_start):
+                        figured_bar = alt_bar
         result.append(figured_bar)
     return result
 
@@ -733,14 +755,7 @@ def _get_rhythmic_unit(metre: str) -> Fraction:
 
 
 def _profile_to_character(profile: str) -> str:
-    """Map figuration profile to figure character.
-
-    Profiles indicate the type of melodic motion, which maps to character:
-    - sequence_* profiles are energetic (driving motion)
-    - stepwise_descent is expressive (relaxed)
-    - repeated_tone/pedal are plain (stable)
-    - Others default to plain
-    """
+    """Map figuration profile to figure character."""
     if profile.startswith("sequence_"):
         return "energetic"
     if profile == "stepwise_descent":
