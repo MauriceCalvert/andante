@@ -5,6 +5,15 @@ from builder.types import Note
 from shared.constants import CONSONANT_INTERVALS, STRONG_BEAT_DISSONANT
 
 
+CROSS_RELATION_PAIRS: frozenset[tuple[int, int]] = frozenset({
+    (0, 1),   # C / C#
+    (2, 3),   # D / D#
+    (5, 6),   # F / F#
+    (7, 8),   # G / G#
+    (9, 10),  # A / A#
+})
+
+
 def is_dissonant_interval(soprano_midi: int, bass_midi: int) -> bool:
     """Check if vertical interval between soprano and bass is dissonant."""
     interval = abs(soprano_midi - bass_midi) % 12

@@ -33,7 +33,7 @@ from pathlib import Path
 import yaml
 
 from builder.faults import find_faults, print_faults
-from builder.types import NoteFile
+from builder.types import Composition
 from planner.planner import generate_to_files
 from shared.tracer import get_tracer, reset_tracer, set_trace_level
 
@@ -76,7 +76,7 @@ def run_from_args(
     verbose: bool = False,
     tempo: int | None = None,
     trace_level: int = 0,
-) -> NoteFile:
+) -> Composition:
     """Generate from explicit genre/affect arguments."""
     affect = normalize_affect(affect)
     if key is not None:
@@ -89,8 +89,8 @@ def run_from_args(
     key_display: str = key if key else "(derived from affect)"
     print(f"Generating {genre} with {affect} affect in {key_display}...")
     result = generate_to_files(genre, affect, output_dir, name, key, tempo)
-    print(f"  Soprano: {len(result.soprano)} notes")
-    print(f"  Bass: {len(result.bass)} notes")
+    for vid, vnotes in result.voices.items():
+        print(f"  {vid}: {len(vnotes)} notes")
     print(f"  Tempo: {result.tempo} BPM")
     print(f"Output: {output_dir / name}.note, {output_dir / name}.midi")
     if trace_level > 0:
@@ -98,8 +98,8 @@ def run_from_args(
         get_tracer().write_to_file(trace_path)
         print(f"Trace: {trace_path}")
     print()
-    voices: list = [result.soprano, result.bass]
-    faults = find_faults(voices, result.metre)
+    voice_list: list[tuple] = list(result.voices.values())
+    faults = find_faults(voice_list, result.metre)
     print_faults(faults)
     return result
 
@@ -109,7 +109,7 @@ def run_from_brief(
     output_dir: Path,
     verbose: bool = False,
     trace_level: int = 0,
-) -> NoteFile:
+) -> Composition:
     """Generate from a .brief file."""
     print(f"Loading {brief_path.name}...")
     with open(brief_path, encoding="utf-8") as f:
@@ -152,7 +152,7 @@ def run_from_directory(
         reset_tracer()
         set_trace_level(trace_level)
         result = run_from_brief(brief_path, output_dir, verbose, trace_level)
-        total_notes += len(result.soprano) + len(result.bass)
+        total_notes += sum(len(v) for v in result.voices.values())
         print()
     print(f"Generated {len(briefs)} pieces ({total_notes} total notes)")
     return len(briefs)

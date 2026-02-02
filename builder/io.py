@@ -9,7 +9,7 @@ offset,midinote,duration,track,length,bar,beat,notename,lyric
 from fractions import Fraction
 from pathlib import Path
 
-from builder.types import Note, NoteFile
+from builder.types import Composition, Note
 from shared.constants import NOTE_NAMES
 
 
@@ -21,11 +21,7 @@ def note_name(midi: int) -> str:
 
 
 def bar_beat(offset: Fraction, metre: str, upbeat: Fraction = Fraction(0)) -> tuple[int, Fraction]:
-    """Convert offset to bar number and beat position.
-    
-    Handles negative offsets for anacrusis (bar 0).
-    For offset=-0.5 in 4/4: returns (0, 3) meaning bar 0, beat 3.
-    """
+    """Convert offset to bar number and beat position."""
     if metre == "4/4":
         beats_per_bar: int = 4
     elif metre == "3/4":
@@ -53,46 +49,41 @@ def format_note_line(note: Note, metre: str, upbeat: Fraction = Fraction(0)) -> 
     )
 
 
-def write_note_file(notes: NoteFile, path: Path) -> None:
+def _all_notes_sorted(comp: Composition) -> list[Note]:
+    """Collect all notes from all voices, sorted by offset then voice."""
+    all_notes: list[Note] = []
+    for voice_notes in comp.voices.values():
+        all_notes.extend(voice_notes)
+    all_notes.sort(key=lambda n: (float(n.offset), n.voice))
+    return all_notes
+
+
+def write_note_file(comp: Composition, path: Path) -> None:
     """Write notes to .note CSV file."""
     lines: list[str] = ["offset,midinote,duration,track,length,bar,beat,notename"]
-    all_notes: list[Note] = []
-    all_notes.extend(notes.soprano)
-    all_notes.extend(notes.bass)
-    all_notes.sort(key=lambda n: (float(n.offset), n.voice))
-    for note in all_notes:
-        lines.append(format_note_line(note, notes.metre, notes.upbeat))
+    for note in _all_notes_sorted(comp):
+        lines.append(format_note_line(note, comp.metre, comp.upbeat))
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_midi_file(notes: NoteFile, path: Path) -> None:
-    """Write notes to MIDI file.
-    
-    Auto-shifts all notes forward if any have negative offsets (anacrusis).
-    """
+def write_midi_file(comp: Composition, path: Path) -> None:
+    """Write notes to MIDI file."""
     from shared.midi_writer import SimpleNote, write_midi_notes
-    all_offsets: list[Fraction] = [n.offset for n in notes.soprano] + [n.offset for n in notes.bass]
+    all_notes: list[Note] = _all_notes_sorted(comp)
+    all_offsets: list[Fraction] = [n.offset for n in all_notes]
     min_offset: Fraction = min(all_offsets) if all_offsets else Fraction(0)
     shift: Fraction = -min_offset if min_offset < 0 else Fraction(0)
     midi_notes: list[SimpleNote] = []
-    for note in notes.soprano:
+    for note in all_notes:
         midi_notes.append(SimpleNote(
             pitch=note.pitch,
             offset=float(note.offset + shift),
             duration=float(note.duration),
             velocity=80,
-            track=0,
+            track=note.voice,
         ))
-    for note in notes.bass:
-        midi_notes.append(SimpleNote(
-            pitch=note.pitch,
-            offset=float(note.offset + shift),
-            duration=float(note.duration),
-            velocity=80,
-            track=3,
-        ))
-    time_sig = _parse_time_signature(notes.metre)
-    write_midi_notes(str(path), midi_notes, tempo=notes.tempo, time_signature=time_sig)
+    time_sig = _parse_time_signature(comp.metre)
+    write_midi_notes(str(path), midi_notes, tempo=comp.tempo, time_signature=time_sig)
 
 
 def _parse_time_signature(metre: str) -> tuple[int, int]:
@@ -101,10 +92,7 @@ def _parse_time_signature(metre: str) -> tuple[int, int]:
     return (int(parts[0]), int(parts[1]))
 
 
-def write_musicxml_file(notes: NoteFile, path: Path, tonic: str = "C", mode: str = "major") -> bool:
-    """Write notes to MusicXML file.
-    
-    Returns True if successful, False if music21 not available.
-    """
-    from builder.musicxml_writer import write_musicxml_file as _write_xml
-    return _write_xml(notes, path, tonic, mode)
+def write_musicxml_file(comp: Composition, path: Path, tonic: str = "C", mode: str = "major") -> bool:
+    """Write notes to MusicXML file."""
+    from builder.musicxml_writer import write_musicxml
+    return write_musicxml(comp, path, tonic, mode)

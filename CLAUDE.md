@@ -4,7 +4,6 @@ You **MUST** read
 `docs/summary.md`
 `docs/Tier1_Normative/laws.md`
 `docs/Tier2_Architecture/*.md`
-`docs/Tier3_Guides/bob.md`
 now and keep them in the foreground for the whole chat.
 
 ---

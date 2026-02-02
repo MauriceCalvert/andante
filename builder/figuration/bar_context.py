@@ -11,35 +11,41 @@ from builder.types import Anchor, PassageAssignment, Role
 
 _SCHEMA_TEXTURES: dict[str, str] | None = None
 _SCHEMA_CADENCE_APPROACH: dict[str, bool] | None = None
+_SCHEMA_STAGE_COUNTS: dict[str, int] | None = None
 
 
-def _load_schema_data() -> tuple[dict[str, str], dict[str, bool]]:
+def _load_schema_data() -> tuple[dict[str, str], dict[str, bool], dict[str, int]]:
     """Load schema properties from schemas.yaml (cached)."""
-    global _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH
-    if _SCHEMA_TEXTURES is not None and _SCHEMA_CADENCE_APPROACH is not None:
-        return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH
+    global _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH, _SCHEMA_STAGE_COUNTS
+    if _SCHEMA_TEXTURES is not None and _SCHEMA_CADENCE_APPROACH is not None and _SCHEMA_STAGE_COUNTS is not None:
+        return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH, _SCHEMA_STAGE_COUNTS
     path = Path(__file__).parent.parent.parent / "data" / "schemas" / "schemas.yaml"
     if not path.exists():
         _SCHEMA_TEXTURES = {}
         _SCHEMA_CADENCE_APPROACH = {}
-        return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH
+        _SCHEMA_STAGE_COUNTS = {}
+        return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH, _SCHEMA_STAGE_COUNTS
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     textures: dict[str, str] = {}
     cadence_approach: dict[str, bool] = {}
+    stage_counts: dict[str, int] = {}
     for name, schema_data in data.items():
         if isinstance(schema_data, dict):
             if "accompany_texture" in schema_data:
                 textures[name] = schema_data["accompany_texture"]
             if "cadence_approach" in schema_data:
                 cadence_approach[name] = schema_data["cadence_approach"]
+            if "soprano_degrees" in schema_data:
+                stage_counts[name] = len(schema_data["soprano_degrees"])
     _SCHEMA_TEXTURES = textures
     _SCHEMA_CADENCE_APPROACH = cadence_approach
-    return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH
+    _SCHEMA_STAGE_COUNTS = stage_counts
+    return _SCHEMA_TEXTURES, _SCHEMA_CADENCE_APPROACH, _SCHEMA_STAGE_COUNTS
 
 
 def _load_schema_textures() -> dict[str, str]:
     """Load accompany_texture defaults from schemas.yaml (cached)."""
-    textures, _ = _load_schema_data()
+    textures, _, _ = _load_schema_data()
     return textures
 
 
@@ -55,8 +61,28 @@ def get_schema_cadence_approach(schema_name: str | None) -> bool:
     """Check if schema has cadence_approach: true."""
     if schema_name is None:
         return False
-    _, cadence_approach = _load_schema_data()
+    _, cadence_approach, _ = _load_schema_data()
     return cadence_approach.get(schema_name.lower(), False)
+
+
+def get_schema_stage_count(schema_name: str | None) -> int | None:
+    """Get number of stages for a schema."""
+    if schema_name is None:
+        return None
+    _, _, stage_counts = _load_schema_data()
+    return stage_counts.get(schema_name.lower())
+
+
+def is_cadential_anchor(anchor: Anchor) -> bool:
+    """Check if anchor is the final stage of a cadence_approach schema."""
+    if anchor.schema is None:
+        return False
+    if not get_schema_cadence_approach(anchor.schema):
+        return False
+    stage_count = get_schema_stage_count(anchor.schema)
+    if stage_count is None:
+        return False
+    return anchor.stage == stage_count
 
 
 def compute_harmonic_tension(
@@ -84,12 +110,31 @@ def compute_harmonic_tension(
     return base_tension
 
 
-def compute_bar_function(phrase_pos: PhrasePosition, bar_num: int, total_bars: int) -> str:
-    """Compute bar function for rhythm realisation."""
+def compute_bar_function(
+    phrase_pos: PhrasePosition,
+    bar_num: int,
+    total_bars: int,
+    next_anchor: Anchor | None = None,
+) -> str:
+    """Compute bar function for rhythm realisation.
+
+    Args:
+        phrase_pos: Current phrase position.
+        bar_num: Current bar number.
+        total_bars: Total bars in piece.
+        next_anchor: Next anchor (to detect cadential approach).
+
+    Returns:
+        One of: cadential, preparatory, schema_arrival, passing.
+    """
     if phrase_pos.position == "cadence":
         return "cadential"
     if phrase_pos.sequential:
         return "schema_arrival"
+    # Preparatory if next anchor is cadential (final stage of cadence_approach schema)
+    if next_anchor is not None and is_cadential_anchor(next_anchor):
+        return "preparatory"
+    # Preparatory if approaching final cadence
     if bar_num == total_bars - 2:
         return "preparatory"
     return "passing"
@@ -289,3 +334,4 @@ def _parse_bar_beat(bar_beat: str) -> tuple[int, float]:
     bar = int(parts[0])
     beat = float(parts[1]) if len(parts) > 1 else 1.0
     return (bar, beat)
+

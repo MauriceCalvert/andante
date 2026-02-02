@@ -16,6 +16,7 @@ def detect_schema_sections(anchors: Sequence[Anchor]) -> list[tuple[int, int]]:
     """Detect contiguous schema sections in anchor sequence.
 
     Any run of 2+ anchors with the same schema name forms a section.
+    A new section starts when stage resets to 1 (new schema instance).
     This enables schema-aware figuration for ALL schemas, not just sequential ones.
 
     Returns:
@@ -29,7 +30,11 @@ def detect_schema_sections(anchors: Sequence[Anchor]) -> list[tuple[int, int]]:
             i += 1
             continue
         start = i
+        i += 1
         while i < len(anchors) and anchors[i].schema and anchors[i].schema.lower() == schema:
+            # Break if new schema instance starts (stage resets to 1)
+            if anchors[i].stage == 1:
+                break
             if i - start >= MAX_SCHEMA_SECTION_ANCHORS:
                 break
             i += 1

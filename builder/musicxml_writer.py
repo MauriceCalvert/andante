@@ -5,7 +5,7 @@ Category B: File I/O operations.
 from fractions import Fraction
 from pathlib import Path
 
-from builder.types import Note, NoteFile
+from builder.types import Composition, Note
 
 try:
     from music21 import clef, key, meter, note, stream, tempo
@@ -17,57 +17,47 @@ except ImportError:
 BASS_CLEF_THRESHOLD: int = 60
 
 
-def write_musicxml_file(notes: NoteFile, path: Path, tonic: str = "C", mode: str = "major") -> bool:
-    """Write notes to MusicXML file."""
+def write_musicxml(comp: Composition, path: Path, tonic: str = "C", mode: str = "major") -> bool:
+    """Write composition to MusicXML file."""
     if not MUSIC21_AVAILABLE:
         print(f"Warning: music21 not installed, cannot write {path}")
         return False
-    score: stream.Score = _build_score(notes, tonic, mode)
+    score: stream.Score = _build_score(comp, tonic, mode)
     xml_path: Path = path.with_suffix(".musicxml")
     score.write("musicxml", fp=str(xml_path), makeNotation=True)
     return True
 
 
-def _build_score(notes: NoteFile, tonic: str, mode: str) -> stream.Score:
-    """Build music21 Score from NoteFile."""
+def _build_score(comp: Composition, tonic: str, mode: str) -> stream.Score:
+    """Build music21 Score from Composition."""
     score: stream.Score = stream.Score()
-    timenum, timeden = _parse_metre(notes.metre)
-    all_offsets = [n.offset for n in notes.soprano] + [n.offset for n in notes.bass]
-    min_offset = min(all_offsets) if all_offsets else Fraction(0)
+    timenum, timeden = _parse_metre(comp.metre)
+    all_notes: list[Note] = []
+    for voice_notes in comp.voices.values():
+        all_notes.extend(voice_notes)
+    all_offsets: list[Fraction] = [n.offset for n in all_notes]
+    min_offset: Fraction = min(all_offsets) if all_offsets else Fraction(0)
     shift: Fraction = -min_offset if min_offset < 0 else Fraction(0)
-    soprano_part: stream.Part = _build_part(
-        notes.soprano,
-        part_id="Soprano",
-        timenum=timenum,
-        timeden=timeden,
-        tonic=tonic,
-        mode=mode,
-        bpm=notes.tempo,
-        include_tempo=True,
-        shift=shift,
-    )
-    score.insert(0, soprano_part)
-    bass_part: stream.Part = _build_part(
-        notes.bass,
-        part_id="Bass",
-        timenum=timenum,
-        timeden=timeden,
-        tonic=tonic,
-        mode=mode,
-        bpm=notes.tempo,
-        include_tempo=False,
-        shift=shift,
-    )
-    score.insert(0, bass_part)
+    first_voice: bool = True
+    for voice_id, voice_notes in comp.voices.items():
+        part: stream.Part = _build_part(
+            voice_notes,
+            part_id=voice_id.capitalize(),
+            timenum=timenum,
+            timeden=timeden,
+            tonic=tonic,
+            mode=mode,
+            bpm=comp.tempo,
+            include_tempo=first_voice,
+            shift=shift,
+        )
+        score.insert(0, part)
+        first_voice = False
     return score
 
 
 def _add_stacked_lyrics(m21_note: note.Note, lyric_text: str) -> None:
-    """Add multiple lyrics as stacked verses.
-    
-    When lyric contains '/' separators, each part becomes a separate
-    verse (syllable number 1, 2, 3...) so they stack vertically in notation.
-    """
+    """Add multiple lyrics as stacked verses."""
     if not lyric_text:
         return
     parts: list[str] = lyric_text.split("/")

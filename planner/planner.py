@@ -19,7 +19,7 @@ from typing import Any
 from builder.config_loader import load_configs
 from builder.io import write_midi_file, write_musicxml_file, write_note_file
 from builder.realisation import realise_with_figuration
-from builder.types import NoteFile, PassageAssignment, SchemaChain
+from builder.types import Composition, PassageAssignment, SchemaChain
 from planner.dramaturgy import get_suggested_key
 from planner.metric.layer import layer_4_metric
 from planner.rhetorical import layer_1_rhetorical
@@ -49,7 +49,7 @@ def generate(
     affect: str,
     key: str | None = None,
     tempo_override: int | None = None,
-) -> NoteFile:
+) -> Composition:
     """Generate composition from genre and affect, with optional key and tempo."""
     tracer = get_tracer()
     if key is None:
@@ -116,9 +116,9 @@ def generate_to_files(
     name: str,
     key: str | None = None,
     tempo: int | None = None,
-) -> NoteFile:
+) -> Composition:
     """Generate composition and write to files."""
-    result: NoteFile = generate(genre, affect, key, tempo)
+    result: Composition = generate(genre, affect, key, tempo)
     note_path: Path = output_dir / f"{name}.note"
     midi_path: Path = output_dir / f"{name}.midi"
     xml_path: Path = output_dir / name

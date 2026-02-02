@@ -4,78 +4,20 @@ All types are frozen dataclasses for immutability.
 Durations are Fraction. Pitches are MIDI integers.
 """
 from dataclasses import dataclass
-from enum import Enum
 from fractions import Fraction
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from shared.key import Key
-
-
-# =============================================================================
-# Voice/Instrument Architecture (voices.md)
-# =============================================================================
-
-
-class Role(Enum):
-    """How a voice's pitches are determined."""
-    SCHEMA_UPPER = "schema_upper"  # Reads upper_degree from anchor
-    SCHEMA_LOWER = "schema_lower"  # Reads lower_degree from anchor
-    IMITATIVE = "imitative"        # Transforms from followed voice
-    HARMONY_FILL = "harmony_fill"  # Derived from vertical harmony
-
-
-@dataclass(frozen=True)
-class Range:
-    """Pitch limits for an actuator (MIDI pitch values)."""
-    low: int
-    high: int
-
-
-@dataclass(frozen=True)
-class Actuator:
-    """Mechanism that produces notes on an instrument."""
-    id: str
-    range: Range
-
-
-@dataclass(frozen=True)
-class InstrumentDef:
-    """Instrument definition from library."""
-    id: str
-    actuators: tuple[Actuator, ...]
-
-
-@dataclass(frozen=True)
-class Voice:
-    """Single monophonic melodic line with continuity."""
-    id: str
-    role: Role
-    follows: str | None = None      # For imitative: voice id to follow
-    delay_bars: int | None = None   # For imitative: delay in bars
-    interval: int | None = None     # For imitative: transposition interval
-
-
-@dataclass(frozen=True)
-class Instrument:
-    """Physical instrument instance in a piece."""
-    id: str
-    type: str  # Reference to instrument definition
-
-
-@dataclass(frozen=True)
-class ScoringAssignment:
-    """Single voice-to-actuator assignment."""
-    voice_id: str
-    instrument_id: str
-    actuator_id: str
-
-
-@dataclass(frozen=True)
-class TrackAssignment:
-    """MIDI track assignment for a voice."""
-    voice_id: str
-    channel: int
-    program: int
+from shared.voice_types import (  # noqa: E402 — canonical source (voices.md)
+    Actuator,
+    Instrument,
+    InstrumentDef,
+    Range,
+    Role,
+    ScoringAssignment,
+    TrackAssignment,
+    Voice,
+)
 
 
 # =============================================================================
@@ -103,13 +45,12 @@ class CollectedNote:
 
 
 @dataclass(frozen=True)
-class NoteFile:
-    """Collection of notes for export."""
-    soprano: tuple[Note, ...]
-    bass: tuple[Note, ...]
+class Composition:
+    """Complete composed output, voice-indexed."""
+    voices: dict[str, tuple[Note, ...]]
     metre: str
     tempo: int
-    upbeat: Fraction = Fraction(0)  # Anacrusis duration in whole notes
+    upbeat: Fraction = Fraction(0)
 
 
 @dataclass(frozen=True)

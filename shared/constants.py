@@ -15,6 +15,10 @@ STRONG_BEAT_DISSONANT: frozenset[int] = frozenset({1, 2, 6, 10, 11})
 # Unison (0), m3 (3), M3 (4), P4 (5), P5 (7), m6 (8), M6 (9), P8 (12->0)
 CONSONANT_INTERVALS: frozenset[int] = frozenset({0, 3, 4, 5, 7, 8, 9})
 
+# Two-voice consonances: P4 excluded (dissonant when above bass voice)
+# Used by voice_checks.py for candidate filtering in 2-voice counterpoint
+CONSONANT_INTERVALS_ABOVE_BASS: frozenset[int] = frozenset({0, 3, 4, 7, 8, 9})
+
 # Perfect intervals (in semitones, reduced to single octave)
 # Unison (0), P5 (7), P8 (12->0) - forbidden in parallel/direct motion
 PERFECT_INTERVALS: frozenset[int] = frozenset({0, 7})
@@ -202,6 +206,9 @@ MAX_PARALLEL_RHYTHM_ATTACKS: int = 4
 # Rhythmic contrast threshold: if soprano has <= this many notes, bass maintains density
 # Prevents lockstep when both voices relax toward cadence
 RHYTHMIC_CONTRAST_THRESHOLD: int = 4
+
+# MIDI gate factor per L013: notes shortened to 95% of notated duration
+GATE_FACTOR: Fraction = Fraction(19, 20)
 
 # Duration threshold for articulation tagging (eighth note in 4/4)
 STACCATO_DURATION_THRESHOLD: Fraction = Fraction(1, 8)

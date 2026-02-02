@@ -22,8 +22,8 @@ from builder.realisation_util import (
     get_passage_end_offset,
 )
 from builder.types import (
-    Anchor, AffectConfig, FormConfig, GenreConfig, KeyConfig,
-    Note, NoteFile, PassageAssignment,
+    Anchor, AffectConfig, Composition, FormConfig, GenreConfig, KeyConfig,
+    Note, PassageAssignment,
 )
 from shared.constants import (
     STACCATO_DURATION_THRESHOLD,
@@ -76,13 +76,13 @@ def realise_with_figuration(
     total_bars: int,
     seed: int = 42,
     tempo_override: int | None = None,
-) -> NoteFile:
+) -> Composition:
     """Convert anchors to notes using baroque figuration patterns."""
     from builder.figuration.figurate import figurate
     from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
     tracer = get_tracer()
     if not anchors:
-        return NoteFile(soprano=(), bass=(), metre=genre_config.metre, tempo=72, upbeat=genre_config.upbeat)
+        return Composition(voices={"upper": (), "lower": ()}, metre=genre_config.metre, tempo=72, upbeat=genre_config.upbeat)
     # Place anchors in tessitura once at start
     upper_range = VOICE_RANGES[0]
     lower_range = VOICE_RANGES[3]
@@ -410,9 +410,8 @@ def realise_with_figuration(
     assert len(bass_offsets) == len(set(bass_offsets)), (
         f"Bass polyphony at offsets {sorted(set(o for o in bass_offsets if bass_offsets.count(o) > 1))}"
     )
-    return NoteFile(
-        soprano=tuple(soprano_notes),
-        bass=tuple(bass_notes),
+    return Composition(
+        voices={"upper": tuple(soprano_notes), "lower": tuple(bass_notes)},
         metre=genre_config.metre,
         tempo=tempo,
         upbeat=genre_config.upbeat,

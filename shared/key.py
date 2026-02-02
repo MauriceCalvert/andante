@@ -15,6 +15,7 @@ from shared.constants import (
     NOTE_NAMES_FLAT,
     NOTE_NAMES_SHARP,
 )
+from shared.diatonic_pitch import DiatonicPitch
 from shared.pitch import FloatingNote
 
 
@@ -123,6 +124,26 @@ class Key:
         new_octave: int = octave + (new_idx // 7)
         new_idx = new_idx % 7
         return self.tonic_pc + new_octave * 12 + self.scale[new_idx]
+
+    def diatonic_to_midi(self, dp: DiatonicPitch) -> int:
+        """Convert DiatonicPitch to MIDI pitch number."""
+        degree_idx: int = dp.step % 7
+        diatonic_octave: int = dp.step // 7
+        return self.tonic_pc + diatonic_octave * 12 + self.scale[degree_idx]
+
+    def midi_to_diatonic(self, midi: int) -> DiatonicPitch:
+        """Find nearest DiatonicPitch for a MIDI pitch."""
+        adjusted: int = midi - self.tonic_pc
+        diatonic_octave: int = adjusted // 12
+        remainder: int = adjusted % 12
+        best_idx: int = 0
+        best_dist: int = 12
+        for i, semitones in enumerate(self.scale):
+            dist: int = abs(remainder - semitones)
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = i
+        return DiatonicPitch(step=diatonic_octave * 7 + best_idx)
 
     def midi_to_degree(self, midi: int) -> int:
         """Convert MIDI pitch to scale degree (1-7).
