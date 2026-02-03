@@ -20,9 +20,9 @@ this file and status.md must be updated after every step.
 - [x] shared/plan_types.py — CompositionPlan, VoicePlan, SectionPlan, GapPlan, PlanAnchor, WritingMode
 - [x] shared/voice_types.py — Role, Range, Actuator, Voice, etc.
 - [x] shared/key.py — diatonic_to_midi(), midi_to_diatonic()
-- [x] revision/test_pitch.py — property tests
+- [x] revision/test_pitch.py — property tests (15/15 pass)
 - [x] Run test_pitch.py, fix if needed
-- [ ] Commit Phase 5
+- [x] Commit Phase 5
 
 ## Phase 6a: Skeleton + PillarStrategy
 - [x] Design complete (phase6_design.md)
@@ -35,14 +35,15 @@ this file and status.md must be updated after every step.
 - [x] builder/cadential_strategy.py — CadentialStrategy
 - [x] builder/staggered_strategy.py — StaggeredStrategy
 - [x] builder/junction.py — junction checking
-- [ ] Review all Phase 5+6a code against designs and laws.md
-- [ ] Write smoke test: hand-build CompositionPlan, all-PILLAR, call compose_voices()
-- [ ] Commit Phase 5+6a
+- [x] Review all Phase 5+6a code against designs and laws.md
+- [x] Write smoke test: revision/test_smoke_pillar.py (5/5 pass)
+- [x] Commit Phase 5+6a
 
 ## Phase 6b: FigurationStrategy core
-- [ ] Implement filter pipeline in figuration_strategy.py
-- [ ] Reuse get_diminutions(), compute_rhythmic_distribution(), sort_by_weight()
-- [ ] Fallback to pillar if all figures rejected
+- [x] Implement filter pipeline in figuration_strategy.py
+- [x] Reuse get_diminutions(), compute_rhythmic_distribution(), sort_by_weight()
+- [x] Fallback to pillar if all figures rejected
+Note: Already completed as part of Phase 6a
 
 ## Phase 6c: Counterpoint checking
 - [ ] Wire voice_checks.py into candidate_filter callback
