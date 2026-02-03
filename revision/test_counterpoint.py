@@ -2,12 +2,10 @@
 
 Verifies that parallel fifths/octaves and direct motion are rejected.
 """
-import logging
 import pytest
 from fractions import Fraction
 from builder.compose import compose_voices
 from builder.types import Composition, Note
-from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
 from shared.plan_types import (
     CompositionPlan,
@@ -54,8 +52,6 @@ def _make_anchor(
         bar_beat=f"{bar}.{beat}",
         upper_degree=(upper_step % 7) + 1,
         lower_degree=(lower_step % 7) + 1,
-        upper_pitch=DiatonicPitch(step=upper_step),
-        lower_pitch=DiatonicPitch(step=lower_step),
         local_key=home_key,
         schema="test",
         stage=0,
@@ -105,7 +101,7 @@ class TestCounterpointChecking:
         soprano_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -116,7 +112,7 @@ class TestCounterpointChecking:
         bass_plan: VoicePlan = VoicePlan(
             voice_id="bass",
             actuator_range=Range(low=36, high=72),
-            tessitura_median=DiatonicPitch(step=28),
+            tessitura_median=52,
             composition_order=1,
             seed=43,
             metre="4/4",
@@ -139,11 +135,11 @@ class TestCounterpointChecking:
         interval: int = abs(soprano_midi - bass_midi) % 12
         assert interval == 4
 
-    def test_dissonant_strong_beat_logs_warning(self, caplog) -> None:
-        """Dissonant interval on strong beat logs warning but continues."""
+    def test_dissonant_anchor_uses_consonant_alternative(self) -> None:
+        """When anchor degree would be dissonant, pillar uses consonant alternative."""
         home_key: Key = Key(tonic="C", mode="major")
-        upper_step: int = 35
-        lower_step: int = 41
+        upper_step: int = 35  # degree 1 (C)
+        lower_step: int = 41  # degree 7 (B) - dissonant with C
         anchors: tuple[PlanAnchor, ...] = (
             _make_anchor(1, 1, upper_step, lower_step, home_key),
             _make_anchor(2, 1, upper_step, lower_step, home_key),
@@ -179,7 +175,7 @@ class TestCounterpointChecking:
         soprano_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -190,7 +186,7 @@ class TestCounterpointChecking:
         bass_plan: VoicePlan = VoicePlan(
             voice_id="bass",
             actuator_range=Range(low=36, high=84),
-            tessitura_median=DiatonicPitch(step=28),
+            tessitura_median=52,
             composition_order=1,
             seed=43,
             metre="4/4",
@@ -205,11 +201,18 @@ class TestCounterpointChecking:
             voice_plans=(soprano_plan, bass_plan),
             anchors=anchors,
         )
-        with caplog.at_level(logging.WARNING):
-            result: Composition = compose_voices(plan)
-        assert "rejected by filter" in caplog.text
+        result: Composition = compose_voices(plan)
         assert len(result.voices["soprano"]) == 1
         assert len(result.voices["bass"]) == 1
+        # Resulting interval must be consonant (not a minor 2nd / ic 1)
+        soprano_midi: int = result.voices["soprano"][0].pitch
+        bass_midi: int = result.voices["bass"][0].pitch
+        ic: int = abs(soprano_midi - bass_midi) % 12
+        dissonant_ics: set[int] = {1, 2, 6, 10, 11}
+        assert ic not in dissonant_ics, (
+            f"Interval class {ic} is dissonant "
+            f"(soprano={soprano_midi}, bass={bass_midi})"
+        )
 
     def test_parallel_motion_detection(self) -> None:
         """Verify parallel fifths are detected via check_parallels."""
