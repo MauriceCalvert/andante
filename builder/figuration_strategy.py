@@ -80,8 +80,8 @@ class FigurationStrategy(WritingStrategy):
                 gap.interval, gap.bar_num,
             )
             return ((source_pitch, gap.gap_duration),)
-        note_count: int = self._target_note_count(gap)
-        while note_count >= MIN_NOTE_COUNT:
+        max_count: int = self._target_note_count(gap)
+        for note_count in range(max_count, MIN_NOTE_COUNT - 1, -1):
             filtered: list[Figure] = self.filter_figures(
                 gap, all_figures, note_count, home_key, strict_density=True,
             )
@@ -104,7 +104,6 @@ class FigurationStrategy(WritingStrategy):
                     )
                     if pairs is not None:
                         return pairs
-            note_count = note_count // 2
         _log.warning(
             "All figures rejected at bar %d — falling back to pillar",
             gap.bar_num,
@@ -132,7 +131,7 @@ class FigurationStrategy(WritingStrategy):
                 continue
             if _TENSION_RANK[fig.harmonic_tension] > gap_tension:
                 continue
-            if abs(_CHARACTER_RANK.get(fig.character, 1) - gap_char) > 1:
+            if abs(_CHARACTER_RANK.get(fig.character, 1) - gap_char) > 2:
                 continue
             if gap.near_cadence and not fig.cadential_safe:
                 continue

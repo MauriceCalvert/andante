@@ -397,7 +397,12 @@ def _compute_interval(
     target: PlanAnchor,
     is_upper: bool,
 ) -> str:
-    """Compute diatonic interval name between source and target."""
+    """Compute diatonic interval name between source and target.
+    
+    Maps to available vocabulary: unison, step, third, fourth, fifth,
+    sixth, octave. Sevenths map to sixth (both large leaps).
+    Intervals > octave reduce modulo 7.
+    """
     if is_upper:
         source_step: int = source.upper_pitch.step
         target_step: int = target.upper_pitch.step
@@ -409,21 +414,20 @@ def _compute_interval(
     if abs_diff == 0:
         return "unison"
     direction: str = "up" if diff > 0 else "down"
-    if abs_diff == 1:
-        return f"step_{direction}"
-    if abs_diff == 2:
-        return f"third_{direction}"
-    if abs_diff == 3:
-        return f"fourth_{direction}"
-    if abs_diff == 4:
-        return f"fifth_{direction}"
-    if abs_diff == 5:
-        return f"sixth_{direction}"
-    if abs_diff == 6:
-        return f"seventh_{direction}"
-    if abs_diff == 7:
+    reduced: int = abs_diff % 7
+    if reduced == 0:
         return f"octave_{direction}"
-    return f"step_{direction}"
+    if reduced == 1:
+        return f"step_{direction}"
+    if reduced == 2:
+        return f"third_{direction}"
+    if reduced == 3:
+        return f"fourth_{direction}"
+    if reduced == 4:
+        return f"fifth_{direction}"
+    if reduced == 5:
+        return f"sixth_{direction}"
+    return f"sixth_{direction}"
 
 
 def _is_ascending(
