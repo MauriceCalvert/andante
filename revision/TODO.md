@@ -42,13 +42,11 @@ this file and status.md must be updated after every step.
 - [x] Implement filter pipeline in figuration_strategy.py
 - [x] Reuse get_diminutions(), compute_rhythmic_distribution(), sort_by_weight()
 - [x] Fallback to pillar if all figures rejected
-Note: Completed as part of Phase 6a
 
 ## Phase 6c: Counterpoint checking
 - [x] Wire voice_checks.py into candidate_filter callback
 - [x] check_consonance, check_parallels, check_direct_motion, check_range, check_strong_beat_consonance
 - [x] revision/test_counterpoint.py (7/7 pass)
-Note: Implemented in Phase 6a; tests verify correctness
 
 ## Phase 6d: Sequencing strategies
 - [x] independent — default, each gap independent
@@ -62,14 +60,21 @@ Note: Implemented in Phase 6a; tests verify correctness
 - [x] revision/test_sequencing.py (2/2 pass for anacrusis)
 
 ## Phase 7: Enrich planner output
-- [ ] Planner produces VoicePlan per voice
-- [ ] Collect density, character, hemiola, cadence flags into explicit plan
-- [ ] Role per section, shared_actuator_with, rhythmic asymmetry
+- [x] planner/voice_planning.py — build_composition_plan()
+- [x] Schema section detection from anchors
+- [x] Sequencing assignment (repeating for sequential schemas)
+- [x] Affect-driven density/character per GapPlan
+- [x] Function-based writing mode selection
+- [x] Hemiola near cadences in triple metre
+- [x] Anacrusis support from genre upbeat
+- [x] planner/planner.py — now calls voice_planning directly
+- [x] Tests updated: warn-and-continue behavior
 
 ## Phase 8: Delete old builder execution path
-- [ ] Delete builder/figuration/ (176KB)
-- [ ] Delete realisation.py, realisation_bass.py, realisation_util.py
-- [ ] Delete or simplify constraints.py, costs.py, solver.py, greedy_solver.py, counterpoint.py, slice.py
+- [ ] Delete builder/bridge.py (now superseded by voice_planning.py)
+- [ ] Delete builder/realisation.py, realisation_bass.py, realisation_util.py
+- [ ] Delete or simplify constraints.py, costs.py, solver.py, greedy_solver.py
+- [ ] Delete builder/figuration/ directory (176KB) if no longer needed
 
 ## Phase 9: Integration + faults.py updates
 - [ ] faults.py: accept actuator ranges, check all voice pairs
@@ -84,3 +89,13 @@ Note: Implemented in Phase 6a; tests verify correctness
 - revision/test_counterpoint.py: 7 passed
 - revision/test_sequencing.py: 4 passed
 - **Total: 31 passed**
+
+## Pipeline Test
+```
+from planner.planner import generate
+result = generate('invention', 'Zaertlichkeit')
+# Voices: ['upper', 'lower']
+# Upper notes: 49
+# Lower notes: 37
+# Tempo: 105, Metre: 4/4
+```
