@@ -7,7 +7,10 @@ import logging
 from dataclasses import replace
 from fractions import Fraction
 from random import Random
+from builder.cadential_strategy import CadentialStrategy
+from builder.figuration_strategy import FigurationStrategy
 from builder.pillar_strategy import PillarStrategy
+from builder.staggered_strategy import StaggeredStrategy
 from builder.types import Note
 from builder.voice_checks import check_range
 from builder.writing_strategy import WritingStrategy
@@ -24,7 +27,12 @@ from shared.plan_types import (
 from shared.voice_types import Role
 
 _log: logging.Logger = logging.getLogger(__name__)
-_IMPLEMENTED_MODES: frozenset[WritingMode] = frozenset({WritingMode.PILLAR})
+_IMPLEMENTED_MODES: frozenset[WritingMode] = frozenset({
+    WritingMode.PILLAR,
+    WritingMode.FIGURATION,
+    WritingMode.CADENTIAL,
+    WritingMode.STAGGERED,
+})
 
 
 class VoiceWriter:
@@ -43,6 +51,11 @@ class VoiceWriter:
         self._prior_voices: dict[str, tuple[Note, ...]] = prior_voices
         self._rng: Random = Random(plan.seed)
         self._pillar: PillarStrategy = PillarStrategy()
+        self._figuration: FigurationStrategy = FigurationStrategy()
+        self._cadential: CadentialStrategy = CadentialStrategy()
+        self._staggered: StaggeredStrategy = StaggeredStrategy(
+            fill_strategy=self._figuration,
+        )
         self._prev_figure_name: str = ""
         self._prev_leap_direction: int = 0
         self._prev_exit_pitch: DiatonicPitch | None = None
@@ -59,7 +72,7 @@ class VoiceWriter:
     # ── Section-level ─────────────────────────────────────
 
     def _compose_section(self, section: SectionPlan) -> list[Note]:
-        """Compose one section (independent sequencing only for 6a)."""
+        """Compose one section (independent sequencing only for 6a/6b)."""
         assert section.role in (Role.SCHEMA_UPPER, Role.SCHEMA_LOWER), (
             f"Role {section.role.name} not yet implemented"
         )
@@ -131,7 +144,7 @@ class VoiceWriter:
         offset: Fraction,
         duration: Fraction,
     ) -> bool:
-        """Return True if candidate passes all checks (6a: range only)."""
+        """Return True if candidate passes all checks (6b: range only)."""
         midi: int = self._home_key.diatonic_to_midi(pitch)
         return check_range(midi, self._plan.actuator_range)
 
@@ -164,6 +177,12 @@ class VoiceWriter:
         )
         if mode == WritingMode.PILLAR:
             return self._pillar
+        if mode == WritingMode.FIGURATION:
+            return self._figuration
+        if mode == WritingMode.CADENTIAL:
+            return self._cadential
+        if mode == WritingMode.STAGGERED:
+            return self._staggered
         assert False, f"Unreachable: {mode.name}"
 
     # ── Helpers ───────────────────────────────────────────

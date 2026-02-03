@@ -21,7 +21,7 @@ this file and status.md must be updated after every step.
 - [x] shared/voice_types.py — Role, Range, Actuator, Voice, etc.
 - [x] shared/key.py — diatonic_to_midi(), midi_to_diatonic()
 - [x] revision/test_pitch.py — property tests
-- [ ] Run test_pitch.py, fix if needed
+- [x] Run test_pitch.py, fix if needed
 - [ ] Commit Phase 5
 
 ## Phase 6a: Skeleton + PillarStrategy
