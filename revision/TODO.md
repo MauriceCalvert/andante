@@ -21,7 +21,6 @@ this file and status.md must be updated after every step.
 - [x] shared/voice_types.py — Role, Range, Actuator, Voice, etc.
 - [x] shared/key.py — diatonic_to_midi(), midi_to_diatonic()
 - [x] revision/test_pitch.py — property tests (15/15 pass)
-- [x] Run test_pitch.py, fix if needed
 - [x] Commit Phase 5
 
 ## Phase 6a: Skeleton + PillarStrategy
@@ -43,20 +42,24 @@ this file and status.md must be updated after every step.
 - [x] Implement filter pipeline in figuration_strategy.py
 - [x] Reuse get_diminutions(), compute_rhythmic_distribution(), sort_by_weight()
 - [x] Fallback to pillar if all figures rejected
-Note: Already completed as part of Phase 6a
+Note: Completed as part of Phase 6a
 
 ## Phase 6c: Counterpoint checking
 - [x] Wire voice_checks.py into candidate_filter callback
 - [x] check_consonance, check_parallels, check_direct_motion, check_range, check_strong_beat_consonance
 - [x] revision/test_counterpoint.py (7/7 pass)
-Note: Already implemented in Phase 6a; tests verify correctness
+Note: Implemented in Phase 6a; tests verify correctness
 
 ## Phase 6d: Sequencing strategies
-- [x] repeating, static sequencing implemented
-- [ ] accelerating, relaxing, dyadic (Fortspinnung) — deferred
+- [x] independent — default, each gap independent
+- [x] repeating — transpose figure across gaps
+- [x] static — reuse figure unchanged
+- [x] revision/test_sequencing.py (2/2 pass)
+- [ ] accelerating, relaxing, dyadic (Fortspinnung) — DEFERRED
 
 ## Phase 6e: Anacrusis support
 - [x] Handle anacrusis in VoiceWriter._compose_anacrusis
+- [x] revision/test_sequencing.py (2/2 pass for anacrusis)
 
 ## Phase 7: Enrich planner output
 - [ ] Planner produces VoicePlan per voice
@@ -79,4 +82,5 @@ Note: Already implemented in Phase 6a; tests verify correctness
 - revision/test_pitch.py: 15 passed
 - revision/test_smoke_pillar.py: 5 passed  
 - revision/test_counterpoint.py: 7 passed
-- Total: 27 passed
+- revision/test_sequencing.py: 4 passed
+- **Total: 31 passed**
