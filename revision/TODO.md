@@ -46,14 +46,17 @@ this file and status.md must be updated after every step.
 Note: Already completed as part of Phase 6a
 
 ## Phase 6c: Counterpoint checking
-- [ ] Wire voice_checks.py into candidate_filter callback
-- [ ] check_consonance, check_parallels, check_direct_motion, check_range, check_strong_beat_consonance
+- [x] Wire voice_checks.py into candidate_filter callback
+- [x] check_consonance, check_parallels, check_direct_motion, check_range, check_strong_beat_consonance
+- [x] revision/test_counterpoint.py (7/7 pass)
+Note: Already implemented in Phase 6a; tests verify correctness
 
 ## Phase 6d: Sequencing strategies
-- [ ] repeating, accelerating, relaxing, static, dyadic (Fortspinnung)
+- [x] repeating, static sequencing implemented
+- [ ] accelerating, relaxing, dyadic (Fortspinnung) — deferred
 
 ## Phase 6e: Anacrusis support
-- [ ] Handle anacrusis in VoiceWriter
+- [x] Handle anacrusis in VoiceWriter._compose_anacrusis
 
 ## Phase 7: Enrich planner output
 - [ ] Planner produces VoicePlan per voice
@@ -69,3 +72,11 @@ Note: Already completed as part of Phase 6a
 - [ ] faults.py: accept actuator ranges, check all voice pairs
 - [ ] Compose all YAML pieces, assert zero faults
 - [ ] Compare MIDI output with pre-revision for musical plausibility
+
+---
+
+## Current Test Summary
+- revision/test_pitch.py: 15 passed
+- revision/test_smoke_pillar.py: 5 passed  
+- revision/test_counterpoint.py: 7 passed
+- Total: 27 passed
