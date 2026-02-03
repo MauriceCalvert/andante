@@ -8,17 +8,16 @@ The layers:
 3. Schematic: Tonal plan → Schema chain
 4. Metric: Schema chain + tonal plan → Bar assignments + anchors
 5. Textural: Genre + bar assignments → Passage assignments
-6. Rhythmic: Currently unused (anchors provide timing directly)
-7. Melodic: Currently unused (anchors provide pitches directly)
+6. Voice Planning: Anchors + passages → CompositionPlan (Phase 7)
 
 Category B: Orchestrator that validates and delegates.
 """
 from pathlib import Path
 from typing import Any
 
+from builder.compose import compose_voices
 from builder.config_loader import load_configs
 from builder.io import write_midi_file, write_musicxml_file, write_note_file
-from builder.realisation import realise_with_figuration
 from builder.types import Composition, PassageAssignment, SchemaChain
 from planner.dramaturgy import get_suggested_key
 from planner.metric.layer import layer_4_metric
@@ -26,6 +25,8 @@ from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic
 from planner.textural import layer_5_textural
 from planner.tonal import layer_2_tonal
+from planner.voice_planning import build_composition_plan
+from shared.plan_types import CompositionPlan
 from shared.tracer import get_tracer
 
 
@@ -97,16 +98,19 @@ def generate(
     )
     tracer.L5("Textural", passage_count=len(passage_assignments))
     tracer.passage_assignments(passage_assignments)
-    return realise_with_figuration(
-        anchors,
-        passage_assignments,
-        key_config,
-        affect_config,
-        genre_config,
-        form_config,
-        total_bars,
-        tempo_override=tempo_override,
+    # Layer 6: Voice Planning (Phase 7)
+    plan: CompositionPlan = build_composition_plan(
+        anchors=anchors,
+        passage_assignments=passage_assignments,
+        key_config=key_config,
+        affect_config=affect_config,
+        genre_config=genre_config,
+        schemas=schemas,
+        seed=42,
+        tempo_override=tempo,
     )
+    tracer.L6("VoicePlanning", voice_count=len(plan.voice_plans))
+    return compose_voices(plan)
 
 
 def generate_to_files(

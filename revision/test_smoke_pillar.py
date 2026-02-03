@@ -3,6 +3,7 @@
 Verifies that compose_voices() produces correct output for the
 simplest possible plan.  See phase6_design.md §6a.
 """
+import logging
 import pytest
 from fractions import Fraction
 from builder.compose import compose_voices
@@ -311,8 +312,8 @@ class TestSmokePillar:
         )
         assert notes[0].pitch != midi_c_major
 
-    def test_range_violation_fails(self) -> None:
-        """Anchor pitch outside actuator range fails at assertion."""
+    def test_range_violation_logs_warning(self, caplog) -> None:
+        """Anchor pitch outside actuator range logs warning but continues."""
         home_key: Key = Key(tonic="C", mode="major")
         upper_step: int = 50
         lower_step: int = 28
@@ -352,8 +353,10 @@ class TestSmokePillar:
             voice_plans=(voice_plan,),
             anchors=anchors,
         )
-        with pytest.raises(AssertionError):
-            compose_voices(plan)
+        with caplog.at_level(logging.WARNING):
+            result: Composition = compose_voices(plan)
+        assert "rejected by filter" in caplog.text
+        assert len(result.voices["soprano"]) == 1
 
 
 if __name__ == "__main__":

@@ -1,0 +1,516 @@
+"""Voice planning: build CompositionPlan from planner output.
+
+Layer 6 equivalent: converts anchors and passage assignments into
+the VoicePlan contract for the new builder.
+
+Replaces bridge.py with richer section detection, sequencing assignment,
+and affect-driven GapPlan parameters.
+"""
+from fractions import Fraction
+from typing import Sequence
+from builder.types import (
+    Anchor,
+    AffectConfig,
+    FormConfig,
+    GenreConfig,
+    KeyConfig,
+    PassageAssignment,
+    SchemaConfig,
+)
+from shared.constants import VOICE_RANGES
+from shared.diatonic_pitch import DiatonicPitch
+from shared.key import Key
+from shared.pitch import place_anchors_in_tessitura
+from shared.plan_types import (
+    AnacrusisPlan,
+    CompositionPlan,
+    GapPlan,
+    PlanAnchor,
+    SectionPlan,
+    VoicePlan,
+    WritingMode,
+)
+from shared.voice_types import Range, Role
+
+_DENSITY_FROM_AFFECT: dict[str, str] = {
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+}
+_CHARACTER_FROM_AFFECT: dict[str, str] = {
+    "low": "plain",
+    "medium": "expressive",
+    "high": "energetic",
+}
+_FUNCTION_TO_DENSITY: dict[str, str] = {
+    "subject": "medium",
+    "answer": "medium",
+    "episode": "high",
+    "coda": "low",
+    "cadential": "low",
+    "sequence": "high",
+    "development": "high",
+    "recapitulation": "medium",
+}
+_FUNCTION_TO_CHARACTER: dict[str, str] = {
+    "subject": "plain",
+    "answer": "plain",
+    "episode": "energetic",
+    "coda": "plain",
+    "cadential": "expressive",
+    "sequence": "energetic",
+    "development": "energetic",
+    "recapitulation": "plain",
+}
+
+
+def build_composition_plan(
+    anchors: Sequence[Anchor],
+    passage_assignments: Sequence[PassageAssignment] | None,
+    key_config: KeyConfig,
+    affect_config: AffectConfig,
+    genre_config: GenreConfig,
+    schemas: dict[str, SchemaConfig] | None = None,
+    seed: int = 42,
+    tempo_override: int | None = None,
+) -> CompositionPlan:
+    """Build a CompositionPlan from planner layer outputs.
+
+    This is the main entry point for Phase 7 voice planning.
+    """
+    if not anchors:
+        home_key: Key = _key_config_to_key(key_config)
+        return _empty_plan(home_key, genre_config, tempo_override)
+    upper_range: tuple[int, int] = VOICE_RANGES[0]
+    lower_range: tuple[int, int] = VOICE_RANGES[3]
+    placed_anchors: list[Anchor] = place_anchors_in_tessitura(
+        list(anchors), upper_range, lower_range,
+    )
+    home_key = placed_anchors[0].local_key
+    plan_anchors: tuple[PlanAnchor, ...] = _convert_anchors(placed_anchors, home_key)
+    schema_sections: list[tuple[int, int, str]] = _detect_schema_sections(plan_anchors)
+    base_density: str = _DENSITY_FROM_AFFECT.get(affect_config.density, "medium")
+    base_character: str = _CHARACTER_FROM_AFFECT.get(affect_config.density, "plain")
+    upper_sections: tuple[SectionPlan, ...] = _build_sections(
+        plan_anchors=plan_anchors,
+        schema_sections=schema_sections,
+        passage_assignments=passage_assignments,
+        schemas=schemas,
+        base_density=base_density,
+        base_character=base_character,
+        metre=genre_config.metre,
+        is_upper=True,
+        affect_config=affect_config,
+    )
+    lower_sections: tuple[SectionPlan, ...] = _build_sections(
+        plan_anchors=plan_anchors,
+        schema_sections=schema_sections,
+        passage_assignments=passage_assignments,
+        schemas=schemas,
+        base_density=base_density,
+        base_character=base_character,
+        metre=genre_config.metre,
+        is_upper=False,
+        affect_config=affect_config,
+    )
+    tessitura_upper: int = (upper_range[0] + upper_range[1]) // 2
+    tessitura_lower: int = (lower_range[0] + lower_range[1]) // 2
+    anacrusis: AnacrusisPlan | None = None
+    if genre_config.upbeat > Fraction(0) and plan_anchors:
+        anacrusis = AnacrusisPlan(
+            target_pitch=plan_anchors[0].upper_pitch,
+            duration=genre_config.upbeat,
+            note_count=max(1, int(genre_config.upbeat / Fraction(1, 8))),
+            ascending=True,
+        )
+    upper_plan: VoicePlan = VoicePlan(
+        voice_id="upper",
+        actuator_range=Range(low=upper_range[0], high=upper_range[1]),
+        tessitura_median=home_key.midi_to_diatonic(tessitura_upper),
+        composition_order=0,
+        seed=seed,
+        metre=genre_config.metre,
+        rhythmic_unit=Fraction(1, 8),
+        sections=upper_sections,
+        anacrusis=anacrusis,
+    )
+    lower_plan: VoicePlan = VoicePlan(
+        voice_id="lower",
+        actuator_range=Range(low=lower_range[0], high=lower_range[1]),
+        tessitura_median=home_key.midi_to_diatonic(tessitura_lower),
+        composition_order=1,
+        seed=seed + 1,
+        metre=genre_config.metre,
+        rhythmic_unit=Fraction(1, 8),
+        sections=lower_sections,
+        anacrusis=None,
+    )
+    tempo: int = tempo_override if tempo_override else genre_config.tempo
+    return CompositionPlan(
+        home_key=home_key,
+        tempo=tempo,
+        upbeat=genre_config.upbeat,
+        voice_plans=(upper_plan, lower_plan),
+        anchors=plan_anchors,
+    )
+
+
+def _empty_plan(
+    home_key: Key,
+    genre_config: GenreConfig,
+    tempo_override: int | None,
+) -> CompositionPlan:
+    """Create an empty plan for edge cases."""
+    tempo: int = tempo_override if tempo_override else genre_config.tempo
+    return CompositionPlan(
+        home_key=home_key,
+        tempo=tempo,
+        upbeat=genre_config.upbeat,
+        voice_plans=(),
+        anchors=(),
+    )
+
+
+def _key_config_to_key(key_config: KeyConfig) -> Key:
+    """Convert KeyConfig to Key object."""
+    parts: list[str] = key_config.name.split()
+    tonic: str = parts[0]
+    mode: str = parts[1].lower() if len(parts) > 1 else "major"
+    return Key(tonic=tonic, mode=mode)
+
+
+def _convert_anchors(
+    anchors: Sequence[Anchor],
+    home_key: Key,
+) -> tuple[PlanAnchor, ...]:
+    """Convert old Anchor sequence to PlanAnchor tuple."""
+    result: list[PlanAnchor] = []
+    for anchor in anchors:
+        upper_midi: int = anchor.upper_midi if anchor.upper_midi else 60
+        lower_midi: int = anchor.lower_midi if anchor.lower_midi else 48
+        upper_pitch: DiatonicPitch = home_key.midi_to_diatonic(upper_midi)
+        lower_pitch: DiatonicPitch = home_key.midi_to_diatonic(lower_midi)
+        plan_anchor: PlanAnchor = PlanAnchor(
+            bar_beat=anchor.bar_beat,
+            upper_degree=anchor.upper_degree,
+            lower_degree=anchor.lower_degree,
+            upper_pitch=upper_pitch,
+            lower_pitch=lower_pitch,
+            local_key=anchor.local_key,
+            schema=anchor.schema,
+            stage=anchor.stage,
+            upper_direction=anchor.upper_direction,
+            lower_direction=anchor.lower_direction,
+            section=anchor.section,
+        )
+        result.append(plan_anchor)
+    return tuple(result)
+
+
+def _detect_schema_sections(
+    anchors: tuple[PlanAnchor, ...],
+) -> list[tuple[int, int, str]]:
+    """Detect contiguous sections by schema name.
+
+    Returns list of (start_gap_idx, end_gap_idx, schema_name).
+    """
+    if len(anchors) < 2:
+        return []
+    sections: list[tuple[int, int, str]] = []
+    current_schema: str = anchors[0].schema
+    section_start: int = 0
+    for i in range(1, len(anchors)):
+        if anchors[i].schema != current_schema:
+            sections.append((section_start, i, current_schema))
+            current_schema = anchors[i].schema
+            section_start = i
+    sections.append((section_start, len(anchors) - 1, current_schema))
+    return sections
+
+
+def _build_sections(
+    plan_anchors: tuple[PlanAnchor, ...],
+    schema_sections: list[tuple[int, int, str]],
+    passage_assignments: Sequence[PassageAssignment] | None,
+    schemas: dict[str, SchemaConfig] | None,
+    base_density: str,
+    base_character: str,
+    metre: str,
+    is_upper: bool,
+    affect_config: AffectConfig,
+) -> tuple[SectionPlan, ...]:
+    """Build SectionPlan tuple for a voice."""
+    if not schema_sections:
+        if len(plan_anchors) < 2:
+            return ()
+        gaps: tuple[GapPlan, ...] = _build_gaps_for_range(
+            plan_anchors=plan_anchors,
+            start_idx=0,
+            end_idx=len(plan_anchors) - 1,
+            passage_assignments=passage_assignments,
+            base_density=base_density,
+            base_character=base_character,
+            metre=metre,
+            is_upper=is_upper,
+            affect_config=affect_config,
+        )
+        section: SectionPlan = SectionPlan(
+            start_gap_index=0,
+            end_gap_index=len(plan_anchors) - 1,
+            schema_name=None,
+            sequencing="independent",
+            figure_profile=None,
+            role=Role.SCHEMA_UPPER if is_upper else Role.SCHEMA_LOWER,
+            follows=None,
+            follow_interval=None,
+            follow_delay=None,
+            shared_actuator_with=None,
+            gaps=gaps,
+        )
+        return (section,)
+    result: list[SectionPlan] = []
+    for start_idx, end_idx, schema_name in schema_sections:
+        if start_idx >= end_idx:
+            continue
+        sequencing: str = _get_sequencing(schema_name, schemas)
+        gaps = _build_gaps_for_range(
+            plan_anchors=plan_anchors,
+            start_idx=start_idx,
+            end_idx=end_idx,
+            passage_assignments=passage_assignments,
+            base_density=base_density,
+            base_character=base_character,
+            metre=metre,
+            is_upper=is_upper,
+            affect_config=affect_config,
+        )
+        section = SectionPlan(
+            start_gap_index=start_idx,
+            end_gap_index=end_idx,
+            schema_name=schema_name,
+            sequencing=sequencing,
+            figure_profile=None,
+            role=Role.SCHEMA_UPPER if is_upper else Role.SCHEMA_LOWER,
+            follows=None,
+            follow_interval=None,
+            follow_delay=None,
+            shared_actuator_with=None,
+            gaps=gaps,
+        )
+        result.append(section)
+    return tuple(result)
+
+
+def _get_sequencing(
+    schema_name: str,
+    schemas: dict[str, SchemaConfig] | None,
+) -> str:
+    """Determine sequencing strategy from schema properties."""
+    if schemas is None or schema_name not in schemas:
+        return "independent"
+    schema: SchemaConfig = schemas[schema_name]
+    if schema.sequential:
+        return "repeating"
+    return "independent"
+
+
+def _build_gaps_for_range(
+    plan_anchors: tuple[PlanAnchor, ...],
+    start_idx: int,
+    end_idx: int,
+    passage_assignments: Sequence[PassageAssignment] | None,
+    base_density: str,
+    base_character: str,
+    metre: str,
+    is_upper: bool,
+    affect_config: AffectConfig,
+) -> tuple[GapPlan, ...]:
+    """Build GapPlan tuple for gaps in [start_idx, end_idx)."""
+    result: list[GapPlan] = []
+    for i in range(start_idx, end_idx):
+        source: PlanAnchor = plan_anchors[i]
+        target: PlanAnchor = plan_anchors[i + 1]
+        bar_num: int = int(source.bar_beat.split(".")[0])
+        gap_duration: Fraction = _compute_gap_duration(
+            source.bar_beat, target.bar_beat, metre,
+        )
+        interval: str = _compute_interval(source, target, is_upper)
+        ascending: bool = _is_ascending(source, target, is_upper)
+        writing_mode: WritingMode = _get_writing_mode(
+            passage_assignments, bar_num, is_upper,
+        )
+        near_cadence: bool = _is_near_cadence(source, target)
+        function: str = _get_function(passage_assignments, bar_num)
+        density: str = _get_density(base_density, function, is_upper)
+        character: str = _get_character(base_character, function)
+        use_hemiola: bool = _should_use_hemiola(
+            affect_config, near_cadence, metre,
+        )
+        gap: GapPlan = GapPlan(
+            bar_num=bar_num,
+            writing_mode=writing_mode,
+            interval=interval,
+            ascending=ascending,
+            gap_duration=gap_duration,
+            density=density,
+            character=character,
+            harmonic_tension="low",
+            bar_function=_get_bar_function(source, near_cadence),
+            near_cadence=near_cadence,
+            use_hemiola=use_hemiola,
+            overdotted=affect_config.density == "high",
+            start_beat=1 if is_upper else 2,
+            next_anchor_strength="strong" if near_cadence else "weak",
+            required_note_count=None,
+            compound_allowed=False,
+        )
+        result.append(gap)
+    return tuple(result)
+
+
+def _compute_gap_duration(
+    source_bar_beat: str,
+    target_bar_beat: str,
+    metre: str,
+) -> Fraction:
+    """Compute duration between two bar.beat positions."""
+    source_offset: Fraction = _bar_beat_to_offset(source_bar_beat, metre)
+    target_offset: Fraction = _bar_beat_to_offset(target_bar_beat, metre)
+    return target_offset - source_offset
+
+
+def _bar_beat_to_offset(bar_beat: str, metre: str) -> Fraction:
+    """Convert 'bar.beat' string to absolute offset in whole notes."""
+    parts: list[str] = bar_beat.split(".")
+    bar: int = int(parts[0])
+    beat: int = int(parts[1])
+    num_str, den_str = metre.split("/")
+    den: int = int(den_str)
+    num: int = int(num_str)
+    bar_length: Fraction = Fraction(num, den)
+    beat_unit: Fraction = Fraction(1, den)
+    return (bar - 1) * bar_length + (beat - 1) * beat_unit
+
+
+def _compute_interval(
+    source: PlanAnchor,
+    target: PlanAnchor,
+    is_upper: bool,
+) -> str:
+    """Compute diatonic interval name between source and target."""
+    if is_upper:
+        source_step: int = source.upper_pitch.step
+        target_step: int = target.upper_pitch.step
+    else:
+        source_step = source.lower_pitch.step
+        target_step = target.lower_pitch.step
+    diff: int = target_step - source_step
+    abs_diff: int = abs(diff)
+    if abs_diff == 0:
+        return "unison"
+    direction: str = "up" if diff > 0 else "down"
+    if abs_diff == 1:
+        return f"step_{direction}"
+    if abs_diff == 2:
+        return f"third_{direction}"
+    if abs_diff == 3:
+        return f"fourth_{direction}"
+    if abs_diff == 4:
+        return f"fifth_{direction}"
+    if abs_diff == 5:
+        return f"sixth_{direction}"
+    if abs_diff == 6:
+        return f"seventh_{direction}"
+    if abs_diff == 7:
+        return f"octave_{direction}"
+    return f"step_{direction}"
+
+
+def _is_ascending(
+    source: PlanAnchor,
+    target: PlanAnchor,
+    is_upper: bool,
+) -> bool:
+    """Determine if motion is ascending."""
+    if is_upper:
+        return target.upper_pitch.step > source.upper_pitch.step
+    return target.lower_pitch.step > source.lower_pitch.step
+
+
+def _get_writing_mode(
+    passage_assignments: Sequence[PassageAssignment] | None,
+    bar_num: int,
+    is_upper: bool,
+) -> WritingMode:
+    """Determine writing mode from passage assignment."""
+    if is_upper:
+        return WritingMode.FIGURATION
+    if passage_assignments is None:
+        return WritingMode.PILLAR
+    for pa in passage_assignments:
+        if pa.start_bar <= bar_num < pa.end_bar:
+            if pa.accompany_texture == "pillar":
+                return WritingMode.PILLAR
+            if pa.accompany_texture == "staggered":
+                return WritingMode.STAGGERED
+            if pa.accompany_texture == "walking":
+                return WritingMode.FIGURATION
+            if pa.accompany_texture == "complementary":
+                return WritingMode.FIGURATION
+    return WritingMode.PILLAR
+
+
+def _is_near_cadence(source: PlanAnchor, target: PlanAnchor) -> bool:
+    """Determine if gap is near a cadence."""
+    if "cadenz" in source.schema.lower():
+        return True
+    if "cadenz" in target.schema.lower():
+        return True
+    return False
+
+
+def _get_function(
+    passage_assignments: Sequence[PassageAssignment] | None,
+    bar_num: int,
+) -> str:
+    """Get passage function for a bar."""
+    if passage_assignments is None:
+        return "subject"
+    for pa in passage_assignments:
+        if pa.start_bar <= bar_num < pa.end_bar:
+            return pa.function
+    return "subject"
+
+
+def _get_density(base_density: str, function: str, is_upper: bool) -> str:
+    """Get density, adjusted for function and voice."""
+    if not is_upper:
+        return "low"
+    return _FUNCTION_TO_DENSITY.get(function, base_density)
+
+
+def _get_character(base_character: str, function: str) -> str:
+    """Get character based on function."""
+    return _FUNCTION_TO_CHARACTER.get(function, base_character)
+
+
+def _should_use_hemiola(
+    affect_config: AffectConfig,
+    near_cadence: bool,
+    metre: str,
+) -> bool:
+    """Determine if hemiola should be used."""
+    if not near_cadence:
+        return False
+    if metre not in ("3/4", "6/8", "3/2"):
+        return False
+    return affect_config.density in ("medium", "high")
+
+
+def _get_bar_function(source: PlanAnchor, near_cadence: bool) -> str:
+    """Determine bar function from context."""
+    if near_cadence:
+        return "cadential"
+    if "arrival" in source.schema.lower():
+        return "schema_arrival"
+    return "passing"

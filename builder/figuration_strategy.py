@@ -27,6 +27,7 @@ _CHARACTER_RANK: dict[str, int] = {
     "plain": 0, "expressive": 1, "energetic": 2, "ornate": 3, "bold": 4,
 }
 MAX_FIGURE_ATTEMPTS: int = 20
+MIN_NOTE_COUNT: int = 2
 
 
 class FigurationStrategy(WritingStrategy):
@@ -71,34 +72,38 @@ class FigurationStrategy(WritingStrategy):
         candidate_filter: Callable[[DiatonicPitch, Fraction], bool],
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...]:
         """Select and expand a diminution figure for this gap."""
-        note_count: int = self._target_note_count(gap)
         all_figures: list[Figure] = self._diminutions.get(gap.interval, [])
         assert len(all_figures) > 0, (
             f"No diminution figures for interval '{gap.interval}'"
         )
-        filtered: list[Figure] = self.filter_figures(
-            gap, all_figures, note_count, home_key,
-        )
-        durations: tuple[Fraction, ...] = self._get_rhythm(
-            note_count, gap, metre,
-        )
-        rng.shuffle(filtered)
-        ranked: list[Figure] = sorted(filtered, key=lambda f: -f.weight)
-        for figure in ranked[:MAX_FIGURE_ATTEMPTS]:
-            pairs: tuple[tuple[DiatonicPitch, Fraction], ...] | None = (
-                _expand_and_check(
-                    figure, note_count, source_pitch,
-                    durations, candidate_filter,
-                )
+        note_count: int = self._target_note_count(gap)
+        while note_count >= MIN_NOTE_COUNT:
+            filtered: list[Figure] = self.filter_figures(
+                gap, all_figures, note_count, home_key, strict_density=True,
             )
-            if pairs is not None:
-                return pairs
+            if not filtered:
+                filtered = self.filter_figures(
+                    gap, all_figures, note_count, home_key, strict_density=False,
+                )
+            if filtered:
+                durations: tuple[Fraction, ...] = self._get_rhythm(
+                    note_count, gap, metre,
+                )
+                rng.shuffle(filtered)
+                ranked: list[Figure] = sorted(filtered, key=lambda f: -f.weight)
+                for figure in ranked[:MAX_FIGURE_ATTEMPTS]:
+                    pairs: tuple[tuple[DiatonicPitch, Fraction], ...] | None = (
+                        _expand_and_check(
+                            figure, note_count, source_pitch,
+                            durations, candidate_filter,
+                        )
+                    )
+                    if pairs is not None:
+                        return pairs
+            note_count = note_count // 2
         _log.warning(
             "All figures rejected at bar %d — falling back to pillar",
             gap.bar_num,
-        )
-        assert candidate_filter(source_pitch, Fraction(0)), (
-            f"Pillar fallback also fails at bar {gap.bar_num}"
         )
         return ((source_pitch, gap.gap_duration),)
 
@@ -108,6 +113,7 @@ class FigurationStrategy(WritingStrategy):
         figures: list[Figure],
         note_count: int,
         home_key: Key,
+        strict_density: bool = True,
     ) -> list[Figure]:
         """Return figures passing all GapPlan criteria."""
         result: list[Figure] = []
@@ -118,7 +124,7 @@ class FigurationStrategy(WritingStrategy):
         for fig in figures:
             if not _count_compatible(fig, note_count):
                 continue
-            if _DENSITY_RANK[fig.max_density] < gap_density:
+            if strict_density and _DENSITY_RANK[fig.max_density] < gap_density:
                 continue
             if _TENSION_RANK[fig.harmonic_tension] > gap_tension:
                 continue
