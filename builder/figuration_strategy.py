@@ -73,9 +73,13 @@ class FigurationStrategy(WritingStrategy):
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...]:
         """Select and expand a diminution figure for this gap."""
         all_figures: list[Figure] = self._diminutions.get(gap.interval, [])
-        assert len(all_figures) > 0, (
-            f"No diminution figures for interval '{gap.interval}'"
-        )
+        if len(all_figures) == 0:
+            _log.warning(
+                "No diminution figures for interval '%s' at bar %d — "
+                "falling back to pillar",
+                gap.interval, gap.bar_num,
+            )
+            return ((source_pitch, gap.gap_duration),)
         note_count: int = self._target_note_count(gap)
         while note_count >= MIN_NOTE_COUNT:
             filtered: list[Figure] = self.filter_figures(

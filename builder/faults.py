@@ -368,23 +368,30 @@ def _check_tessitura(
     voice_idx: int,
     metre: str,
     voice_count: int,
+    actuator_ranges: dict[int, tuple[int, int]] | None = None,
 ) -> list[Fault]:
-    """Check for notes outside fixed voice range (one fault per bar).
+    """Check for notes outside voice range (one fault per bar).
     
-    Uses VOICE_RANGES from shared/constants.py. In future, ranges should come
-    from scoring -> actuator -> range lookup per voices.md.
+    If actuator_ranges is provided, uses those ranges per voice index.
+    Otherwise falls back to VOICE_RANGES from shared/constants.py.
     """
     faults: list[Fault] = []
-    if voice_count == 2:
+    if actuator_ranges is not None:
+        if voice_idx not in actuator_ranges:
+            return faults
+        low, high = actuator_ranges[voice_idx]
+    elif voice_count == 2:
         ranges: dict[int, tuple[int, int]] = {
             0: VOICE_RANGES[0],  # Soprano
             1: VOICE_RANGES[3],  # Bass
         }
+        if voice_idx not in ranges:
+            return faults
+        low, high = ranges[voice_idx]
     else:
-        ranges = VOICE_RANGES
-    if voice_idx not in ranges:
-        return faults
-    low, high = ranges[voice_idx]
+        if voice_idx not in VOICE_RANGES:
+            return faults
+        low, high = VOICE_RANGES[voice_idx]
     bar_dur: Fraction = _bar_duration(metre)
     bar_worst: dict[int, tuple[int, int, Fraction, str]] = {}
     for note in voice_notes:
@@ -567,8 +574,16 @@ def _check_parallel_rhythm(
 def find_faults(
     voices: Sequence[Sequence[Note]],
     metre: str,
+    actuator_ranges: dict[int, tuple[int, int]] | None = None,
 ) -> list[Fault]:
-    """Find all faults in a multi-voice composition."""
+    """Find all faults in a multi-voice composition.
+    
+    Args:
+        voices: Sequence of note sequences, one per voice (index 0 = upper).
+        metre: Time signature string (e.g. "4/4").
+        actuator_ranges: Optional dict mapping voice index to (low, high) MIDI range.
+            If not provided, uses default VOICE_RANGES.
+    """
     assert 1 <= len(voices) <= 4, f"Expected 1-4 voices, got {len(voices)}"
     assert "/" in metre, f"Invalid metre format: {metre}"
     voice_count: int = len(voices)
@@ -576,7 +591,7 @@ def find_faults(
     for v_idx, voice in enumerate(voices):
         faults.extend(_check_consecutive_leaps(voice, v_idx, metre))
         faults.extend(_check_grotesque_leap(voice, v_idx, metre))
-        faults.extend(_check_tessitura(voice, v_idx, metre, voice_count))
+        faults.extend(_check_tessitura(voice, v_idx, metre, voice_count, actuator_ranges))
         if v_idx == 0:
             faults.extend(_check_ugly_leaps(voice, v_idx, metre))
     faults.extend(_check_cross_relation(voices, metre))
@@ -588,6 +603,32 @@ def find_faults(
     faults.extend(_check_voice_overlap(voices, metre))
     faults.sort(key=lambda f: (_parse_bar_beat(f.bar_beat), f.category))
     return faults
+
+
+def find_faults_from_composition(
+    composition: "Composition",
+    actuator_ranges: dict[str, tuple[int, int]] | None = None,
+) -> list[Fault]:
+    """Find faults from a Composition object.
+    
+    Args:
+        composition: Composition with voices dict and metre.
+        actuator_ranges: Optional dict mapping voice_id to (low, high) MIDI range.
+    
+    Returns:
+        List of Fault objects sorted by bar_beat.
+    """
+    from builder.types import Composition
+    voice_names: list[str] = sorted(composition.voices.keys())
+    voices: list[Sequence[Note]] = [composition.voices[name] for name in voice_names]
+    ranges: dict[int, tuple[int, int]] | None = None
+    if actuator_ranges is not None:
+        ranges = {
+            i: actuator_ranges[name]
+            for i, name in enumerate(voice_names)
+            if name in actuator_ranges
+        }
+    return find_faults(voices, composition.metre, ranges)
 
 
 def print_faults(faults: list[Fault]) -> None:
