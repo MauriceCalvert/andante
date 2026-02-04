@@ -324,14 +324,22 @@ class VoiceWriter:
                 dp, gap_offset + delay + offset, check_melodic=False,
             )
         else:
-            candidate_filter = lambda dp, offset, is_first: (
-                None if is_first
-                else self._check_candidate(
+            def candidate_filter(
+                dp: DiatonicPitch, offset: Fraction, is_first: bool,
+            ) -> str | None:
+                if is_first:
+                    # Anchor note is a harmonic obligation — skip checks but
+                    # update state so subsequent notes measure motion from here,
+                    # not from the previous gap's exit pitch.
+                    midi: int = self._home_key.diatonic_to_midi(dp)
+                    self._prev_candidate_midi = midi
+                    self._prev_candidate_offset = gap_offset + delay + offset
+                    return None
+                return self._check_candidate(
                     dp, gap_offset + delay + offset,
                     check_melodic=False,
                     check_consonance=False,
                 )
-            )
         pairs: tuple[tuple[DiatonicPitch, Fraction], ...] = strategy.fill_gap(
             gap=effective_gap,
             source_pitch=source_pitch,

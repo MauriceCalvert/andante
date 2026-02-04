@@ -286,3 +286,44 @@ Minuet note counts (3/4, medium density):
 | step     | 6      | 3     |
 | third    | 6      | 4     |
 | fourth+  | 6      | 6     |
+
+---
+
+# Cadential Figure Rejection Fix
+
+## Symptom
+
+Minuet generation (G major, zierlich) crashed at bar 20 with
+`FigureRejectionError`: all 4 cadential figures for `step_up` /
+`target_5` rejected with "direct (similar) motion to P5".
+
+## Root Cause
+
+Two issues combined:
+
+1. **Hemiola filter discarded fallbacks.** When `use_hemiola=True`,
+   `cadential_strategy.py` replaced the figure list with only hemiola
+   figures. If the single hemiola figure failed, no non-hemiola fallback
+   was available.
+
+2. **Stale `_prev_candidate_midi` during figure expansion.** The
+   candidate filter for FIGURATION/CADENTIAL modes skips checks for the
+   first note (anchor pitch) but does NOT update `_prev_candidate_midi`.
+   Subsequent notes measure their "leap" from the previous gap's exit
+   pitch rather than from the anchor. A stepwise cadential figure
+   (degrees [0, 1]) appeared to leap when measured from the distant
+   exit pitch, triggering the direct motion rule.
+
+## Fix
+
+### builder/cadential_strategy.py
+
+Changed hemiola handling from exclusive filter to preference sort:
+hemiola figures tried first, non-hemiola figures available as fallback.
+
+### builder/voice_writer.py
+
+The `candidate_filter` for non-PILLAR modes now updates
+`_prev_candidate_midi` and `_prev_candidate_offset` when processing
+the first (anchor) note. Subsequent notes correctly measure motion
+from the anchor, not from the previous gap's exit.

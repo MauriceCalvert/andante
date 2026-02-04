@@ -66,11 +66,7 @@ class CadentialStrategy(WritingStrategy):
             gap.interval, [],
         )
         if gap.use_hemiola:
-            hemiola_figs: list[CadentialFigure] = [
-                f for f in figures if f.hemiola
-            ]
-            if hemiola_figs:
-                figures = hemiola_figs
+            figures = sorted(figures, key=lambda f: not f.hemiola)
         rejections: list[FigureRejection] = []
         for fig in figures:
             note_count: int = len(fig.degrees)
