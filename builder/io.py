@@ -70,7 +70,12 @@ def write_note_file(comp: Composition, path: Path) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_midi_file(comp: Composition, path: Path) -> None:
+def write_midi_file(
+    comp: Composition,
+    path: Path,
+    tonic: str = "C",
+    mode: str = "major",
+) -> None:
     """Write notes to MIDI file."""
     from shared.midi_writer import SimpleNote, write_midi_notes
     all_notes: list[Note] = _all_notes_sorted(comp)
@@ -87,7 +92,14 @@ def write_midi_file(comp: Composition, path: Path) -> None:
             track=note.voice,
         ))
     time_sig = _parse_time_signature(comp.metre)
-    write_midi_notes(str(path), midi_notes, tempo=comp.tempo, time_signature=time_sig)
+    write_midi_notes(
+        str(path),
+        midi_notes,
+        tempo=comp.tempo,
+        time_signature=time_sig,
+        tonic=tonic,
+        mode=mode,
+    )
 
 
 def _parse_time_signature(metre: str) -> tuple[int, int]:

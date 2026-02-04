@@ -311,6 +311,9 @@ class PassageAssignment:
     function: str           # Section function from genre YAML
     lead_voice: int | None  # 0=upper, 1=lower, None=equal
     accompany_texture: str | None = None  # pillar, walking, staggered, complementary
+    follow_voice: int | None = None       # Voice index that imitates the lead
+    follow_delay: Fraction | None = None  # Delay before imitation starts
+    follow_interval: int | None = None    # Diatonic interval for transposition
 
 
 @dataclass(frozen=True)

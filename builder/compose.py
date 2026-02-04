@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from builder.types import Composition, Note
 from builder.voice_writer import VoiceWriter
 from shared.plan_types import CompositionPlan, SectionPlan, VoicePlan
+from shared.voice_types import Role
 
 
 @dataclass
@@ -89,10 +90,14 @@ def _build_schedule(plan: CompositionPlan) -> list[CompositionTask]:
 
 def _section_is_lead(section: SectionPlan) -> bool:
     """Determine if section is the lead voice.
-    
+
+    IMITATIVE sections are never lead — they must wait for the source
+    voice to compose first so its notes are available for copying.
     Lead sections have higher-density figuration; following sections
     have low density (accompaniment texture).
     """
+    if section.role == Role.IMITATIVE:
+        return False
     if not section.gaps:
         return True
     lead_count: int = 0

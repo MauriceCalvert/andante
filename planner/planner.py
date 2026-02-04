@@ -127,8 +127,8 @@ def generate_to_files(
     midi_path: Path = output_dir / f"{name}.midi"
     xml_path: Path = output_dir / name
     write_note_file(result, note_path)
-    write_midi_file(result, midi_path)
     tonic, mode = _parse_key(key) if key else ("C", "major")
+    write_midi_file(result, midi_path, tonic, mode)
     write_musicxml_file(result, xml_path, tonic, mode)
     return result
 

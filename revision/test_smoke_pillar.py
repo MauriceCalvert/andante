@@ -7,7 +7,7 @@ import pytest
 from fractions import Fraction
 from builder.compose import compose_voices
 from builder.types import Composition, Note
-from shared.constants import GATE_FACTOR
+
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
 from shared.plan_types import (
@@ -113,8 +113,7 @@ class TestSmokePillar:
         expected_midi: int = home_key.diatonic_to_midi(DiatonicPitch(step=upper_step))
         assert note.pitch == expected_midi
         assert note.offset == Fraction(0)
-        expected_dur: Fraction = Fraction(1, 1) * GATE_FACTOR
-        assert note.duration == expected_dur
+        assert note.duration == Fraction(1, 1)
         assert note.voice == 0
 
     def test_two_voices_pillar(self) -> None:
@@ -255,8 +254,7 @@ class TestSmokePillar:
             assert note.pitch == expected_midi
             expected_offset: Fraction = Fraction(i, 1)
             assert note.offset == expected_offset
-            expected_dur: Fraction = Fraction(1, 1) * GATE_FACTOR
-            assert note.duration == expected_dur
+            assert note.duration == Fraction(1, 1)
 
     def test_minor_key(self) -> None:
         """PILLAR in minor key produces correct MIDI values."""

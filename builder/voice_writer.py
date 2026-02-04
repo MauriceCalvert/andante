@@ -26,7 +26,7 @@ from builder.voice_checks import (
     format_interval,
 )
 from builder.writing_strategy import WritingStrategy
-from shared.constants import GATE_FACTOR
+
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
 from shared.plan_types import (
@@ -385,12 +385,16 @@ class VoiceWriter:
             new_offset: Fraction = note.offset + delay
             if self._check_candidate(transposed, new_offset, check_melodic=is_first) is None:
                 new_note: Note = self._to_note(
-                    transposed, new_offset, note.duration / GATE_FACTOR,
+                    transposed, new_offset, note.duration,
                 )
                 result.append(new_note)
                 self._prev_candidate_midi = new_note.pitch
                 self._prev_candidate_offset = new_note.offset
                 is_first = False
+        self._current_voice_notes.extend(result)
+        if result:
+            last_note: Note = result[-1]
+            self._prev_exit_pitch = self._home_key.midi_to_diatonic(last_note.pitch)
         return result
 
     def _compose_anacrusis(self) -> list[Note]:
@@ -634,11 +638,10 @@ class VoiceWriter:
     ) -> Note:
         """Convert DiatonicPitch + timing to a Note."""
         midi: int = self._home_key.diatonic_to_midi(pitch)
-        gated_duration: Fraction = duration * GATE_FACTOR
         return Note(
             offset=offset,
             pitch=midi,
-            duration=gated_duration,
+            duration=duration,
             voice=self._plan.composition_order,
             lyric=self._prev_figure_name,
         )
@@ -681,7 +684,7 @@ class VoiceWriter:
             rel_offset: Fraction = note.offset - gap_offset
             dp: DiatonicPitch = self._home_key.midi_to_diatonic(note.pitch)
             interval: int = dp.step - source_pitch.step
-            result.append((DiatonicPitch(step=interval), note.duration / GATE_FACTOR))
+            result.append((DiatonicPitch(step=interval), note.duration))
         return tuple(result)
 
     def _apply_sequenced_figure(

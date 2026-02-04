@@ -67,8 +67,12 @@ _FUNCTION_TO_CHARACTER: dict[str, str] = {
     "development": "energetic",
     "recapitulation": "plain",
 }
-TRACK_SOPRANO: int = 0
-TRACK_BASS: int = 3
+_SOPRANO_RANGE_IDX: int = 0   # index into VOICE_RANGES for soprano range
+_BASS_RANGE_IDX: int = 3      # index into VOICE_RANGES for bass range
+TRACK_SOPRANO: int = 0        # composition_order for upper voice
+TRACK_BASS: int = 1           # composition_order for lower voice
+
+_VOICE_INDEX_TO_ID: dict[int, str] = {0: "upper", 1: "lower"}
 
 
 def build_composition_plan(
@@ -88,8 +92,8 @@ def build_composition_plan(
     if not anchors:
         home_key: Key = _key_config_to_key(key_config)
         return _empty_plan(home_key, genre_config, tempo_override)
-    upper_range: tuple[int, int] = VOICE_RANGES[TRACK_SOPRANO]
-    lower_range: tuple[int, int] = VOICE_RANGES[TRACK_BASS]
+    upper_range: tuple[int, int] = VOICE_RANGES[_SOPRANO_RANGE_IDX]
+    lower_range: tuple[int, int] = VOICE_RANGES[_BASS_RANGE_IDX]
     home_key = anchors[0].local_key
     plan_anchors: tuple[PlanAnchor, ...] = _convert_anchors(anchors)
     schema_sections: list[tuple[int, int, str]] = _detect_schema_sections(plan_anchors)
@@ -105,6 +109,7 @@ def build_composition_plan(
         metre=genre_config.metre,
         is_upper=True,
         affect_config=affect_config,
+        voice_id="upper",
     )
     lower_sections: tuple[SectionPlan, ...] = _build_sections(
         plan_anchors=plan_anchors,
@@ -117,6 +122,7 @@ def build_composition_plan(
         is_upper=False,
         affect_config=affect_config,
         bass_treatment=genre_config.bass_treatment,
+        voice_id="lower",
     )
     tessitura_upper: int = (upper_range[0] + upper_range[1]) // 2
     tessitura_lower: int = (lower_range[0] + lower_range[1]) // 2
@@ -232,6 +238,48 @@ def _detect_schema_sections(
     return sections
 
 
+def _get_imitation_config(
+    passage_assignments: Sequence[PassageAssignment] | None,
+    plan_anchors: tuple[PlanAnchor, ...],
+    start_idx: int,
+    end_idx: int,
+    voice_id: str,
+    metre: str,
+) -> tuple[str, int, Fraction] | None:
+    """Return (lead_voice_id, interval, delay) if this voice imitates here.
+
+    Checks whether any passage assignment overlapping the schema section's
+    bar range has follow_voice set, and whether this voice_id is the follower.
+    """
+    if passage_assignments is None:
+        return None
+    section_start_bar: int = int(plan_anchors[start_idx].bar_beat.split(".")[0])
+    section_end_bar: int = int(plan_anchors[end_idx].bar_beat.split(".")[0])
+    for pa in passage_assignments:
+        if pa.start_bar >= section_end_bar or pa.end_bar <= section_start_bar:
+            continue
+        if pa.follow_voice is None:
+            continue
+        follower_id: str = _VOICE_INDEX_TO_ID[pa.follow_voice]
+        if follower_id != voice_id:
+            continue
+        assert pa.lead_voice is not None, (
+            f"PassageAssignment bars {pa.start_bar}-{pa.end_bar}: "
+            f"follow_voice set but lead_voice is None"
+        )
+        assert pa.follow_delay is not None, (
+            f"PassageAssignment bars {pa.start_bar}-{pa.end_bar}: "
+            f"follow_voice set but follow_delay is None"
+        )
+        assert pa.follow_interval is not None, (
+            f"PassageAssignment bars {pa.start_bar}-{pa.end_bar}: "
+            f"follow_voice set but follow_interval is None"
+        )
+        lead_voice_id: str = _VOICE_INDEX_TO_ID[pa.lead_voice]
+        return (lead_voice_id, pa.follow_interval, pa.follow_delay)
+    return None
+
+
 def _build_sections(
     plan_anchors: tuple[PlanAnchor, ...],
     schema_sections: list[tuple[int, int, str]],
@@ -243,11 +291,27 @@ def _build_sections(
     is_upper: bool,
     affect_config: AffectConfig,
     bass_treatment: str = "contrapuntal",
+    voice_id: str = "upper",
 ) -> tuple[SectionPlan, ...]:
     """Build SectionPlan tuple for a voice."""
     if not schema_sections:
         if len(plan_anchors) < 2:
             return ()
+        imit: tuple[str, int, Fraction] | None = _get_imitation_config(
+            passage_assignments, plan_anchors, 0,
+            len(plan_anchors) - 1, voice_id, metre,
+        )
+        if imit is not None:
+            lead_voice_id, interval, delay = imit
+            role: Role = Role.IMITATIVE
+            follows: str | None = lead_voice_id
+            follow_interval: int | None = interval
+            follow_delay: Fraction | None = delay
+        else:
+            role = Role.SCHEMA_UPPER if is_upper else Role.SCHEMA_LOWER
+            follows = None
+            follow_interval = None
+            follow_delay = None
         gaps: tuple[GapPlan, ...] = _build_gaps_for_range(
             plan_anchors=plan_anchors,
             start_idx=0,
@@ -266,10 +330,10 @@ def _build_sections(
             schema_name=None,
             sequencing="independent",
             figure_profile=None,
-            role=Role.SCHEMA_UPPER if is_upper else Role.SCHEMA_LOWER,
-            follows=None,
-            follow_interval=None,
-            follow_delay=None,
+            role=role,
+            follows=follows,
+            follow_interval=follow_interval,
+            follow_delay=follow_delay,
             shared_actuator_with=None,
             gaps=gaps,
         )
@@ -281,6 +345,21 @@ def _build_sections(
             continue
         sequencing: str = _get_sequencing(schema_name, schemas)
         is_final: bool = idx == num_sections - 1
+        imit = _get_imitation_config(
+            passage_assignments, plan_anchors, start_idx, end_idx,
+            voice_id, metre,
+        )
+        if imit is not None:
+            lead_voice_id, interval, delay = imit
+            role = Role.IMITATIVE
+            follows = lead_voice_id
+            follow_interval = interval
+            follow_delay = delay
+        else:
+            role = Role.SCHEMA_UPPER if is_upper else Role.SCHEMA_LOWER
+            follows = None
+            follow_interval = None
+            follow_delay = None
         gaps = _build_gaps_for_range(
             plan_anchors=plan_anchors,
             start_idx=start_idx,
@@ -300,10 +379,10 @@ def _build_sections(
             schema_name=schema_name,
             sequencing=sequencing,
             figure_profile=None,
-            role=Role.SCHEMA_UPPER if is_upper else Role.SCHEMA_LOWER,
-            follows=None,
-            follow_interval=None,
-            follow_delay=None,
+            role=role,
+            follows=follows,
+            follow_interval=follow_interval,
+            follow_delay=follow_delay,
             shared_actuator_with=None,
             gaps=gaps,
         )

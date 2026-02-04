@@ -12,6 +12,8 @@ Per vocabulary.md:
 - function field holds the passage function name
 - lead_voice indicates which voice leads (0=upper, 1=lower, None=equal)
 """
+from fractions import Fraction
+
 from builder.types import GenreConfig, PassageAssignment
 
 
@@ -37,12 +39,31 @@ def layer_5_textural(
         function: str = section.get("function", "subject")
         lead_voice: int | None = section.get("lead_voice")
         accompany_texture: str | None = section.get("accompany_texture")
+        follow_voice: int | None = section.get("follow_voice")
+        raw_delay: str | None = section.get("follow_delay")
+        follow_delay: Fraction | None = None
+        follow_interval: int | None = section.get("follow_interval")
+        if follow_voice is not None:
+            assert raw_delay is not None, (
+                f"Section '{section_name}': follow_voice requires follow_delay"
+            )
+            assert follow_interval is not None, (
+                f"Section '{section_name}': follow_voice requires follow_interval"
+            )
+            follow_delay = Fraction(raw_delay)
+            assert follow_delay > 0, (
+                f"Section '{section_name}': follow_delay must be positive, "
+                f"got {follow_delay}"
+            )
         assignments.append(PassageAssignment(
             start_bar=start_bar,
             end_bar=end_bar,
             function=function,
             lead_voice=lead_voice,
             accompany_texture=accompany_texture,
+            follow_voice=follow_voice,
+            follow_delay=follow_delay,
+            follow_interval=follow_interval,
         ))
     return assignments
 

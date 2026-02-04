@@ -164,17 +164,18 @@ def _check_follows_references(
 
 
 def _check_follows_order(voice_plans: tuple[VoicePlan, ...]) -> None:
-    order_map: dict[str, int] = {
-        vp.voice_id: vp.composition_order for vp in voice_plans
-    }
+    """Verify no circular imitation within overlapping sections."""
+    follows_graph: dict[str, set[str]] = {}
     for vp in voice_plans:
         for sp in vp.sections:
             if sp.follows is not None:
-                assert order_map[sp.follows] < vp.composition_order, (
-                    f"Voice '{vp.voice_id}' (order {vp.composition_order}) "
-                    f"follows '{sp.follows}' (order {order_map[sp.follows]}), "
-                    f"but followed voice must have lower composition_order"
-                )
+                follows_graph.setdefault(vp.voice_id, set()).add(sp.follows)
+    for vid, targets in follows_graph.items():
+        for target in targets:
+            assert vid not in follows_graph.get(target, set()), (
+                f"Circular imitation: '{vid}' follows '{target}' and "
+                f"'{target}' follows '{vid}'"
+            )
 
 
 def _check_role_fields(voice_plans: tuple[VoicePlan, ...]) -> None:

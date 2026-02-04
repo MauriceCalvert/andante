@@ -30,8 +30,10 @@ bass_treatment: contrapuntal
 sections:
   - name: exordium
     schema_sequence: [do_re_mi, prinner]
-    accompany_texture: walking
     lead_voice: 0
+    follow_voice: 1
+    follow_delay: "1/1"
+    follow_interval: -7
 
   - name: narratio
     schema_sequence: [fonte, monte]
@@ -40,8 +42,10 @@ sections:
 
   - name: confirmatio
     schema_sequence: [romanesca, fenaroli]
-    accompany_texture: arpeggiated
     lead_voice: 0
+    follow_voice: 1
+    follow_delay: "1/1"
+    follow_interval: -7
 
   - name: peroratio
     schema_sequence: [passo_indietro, cadenza_composta]

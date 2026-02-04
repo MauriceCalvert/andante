@@ -327,3 +327,73 @@ The `candidate_filter` for non-PILLAR modes now updates
 `_prev_candidate_midi` and `_prev_candidate_offset` when processing
 the first (anchor) note. Subsequent notes correctly measure motion
 from the anchor, not from the previous gap's exit.
+
+---
+
+# FEAT-001: Imitation Implementation
+
+## Summary
+
+Wired up `Role.IMITATIVE` and `_compose_imitative_section()` so the
+invention genre produces imitative counterpoint. The planner now creates
+IMITATIVE sections when the genre YAML specifies `follow_voice`,
+`follow_delay`, and `follow_interval` on a section.
+
+In the invention, the exordium and confirmatio sections use imitation:
+upper voice leads, lower voice enters one bar later transposed an octave
+below. Narratio and peroratio keep their existing textures.
+
+## Files Modified
+
+### data/genres/invention.yaml
+
+Added `follow_voice: 1`, `follow_delay: "1/1"`, `follow_interval: -7`
+to exordium and confirmatio sections. Removed `accompany_texture` from
+those sections (imitation replaces accompaniment).
+
+### builder/types.py
+
+Added three optional fields to `PassageAssignment`: `follow_voice`,
+`follow_delay`, `follow_interval`.
+
+### planner/textural.py
+
+`layer_5_textural()` reads the three new fields from genre section dicts.
+Validates that `follow_delay` and `follow_interval` are present when
+`follow_voice` is set, and that `follow_delay` is positive.
+
+### planner/voice_planning.py
+
+- Decoupled VOICE_RANGES lookup indices from composition_order: added
+  `_SOPRANO_RANGE_IDX` (0) and `_BASS_RANGE_IDX` (3) for range lookups,
+  changed `TRACK_BASS` from 3 to 1 for composition_order.
+- Added `_VOICE_INDEX_TO_ID` mapping (0→"upper", 1→"lower").
+- Added `_get_imitation_config()`: checks if a voice should imitate in a
+  given schema section by matching passage assignments with follow_voice.
+- `_build_sections()` accepts `voice_id` parameter and creates
+  `Role.IMITATIVE` sections with `follows`, `follow_interval`, and
+  `follow_delay` when imitation config is found.
+
+### builder/compose.py
+
+`_section_is_lead()` returns False for `Role.IMITATIVE` sections,
+ensuring the lead voice composes first so its notes are available.
+
+### builder/voice_writer.py
+
+`_compose_imitative_section()` now updates `_current_voice_notes` and
+`_prev_exit_pitch` after the imitation loop, so subsequent non-imitative
+sections have correct state for melodic continuity.
+
+### shared/plan_types.py
+
+`_check_follows_order()` replaced static composition_order check with
+circular-follows detection. The old check prevented upper (order 0) from
+ever following lower (order 1). The scheduler in compose.py guarantees
+correct ordering per time span via `_section_is_lead()`.
+
+## Verification
+
+All 6 integration tests pass. Imitation verified: lower voice notes are
+upper voice notes delayed by 1 bar and transposed exactly 12 semitones
+down (diatonic octave). Zero parallel fifths/octaves.
