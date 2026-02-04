@@ -45,6 +45,7 @@ def compose_voices(plan: CompositionPlan) -> Composition:
                 home_key=plan.home_key,
                 anchors=plan.anchors,
                 prior_voices=prior,
+                upbeat=plan.upbeat,
             )
         else:
             writers[voice_id].update_prior_voices(prior)

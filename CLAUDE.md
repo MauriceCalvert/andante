@@ -49,3 +49,8 @@ rng is forbidden in the builder, it must be deterministic.
 
 Quick fixes are forbidden. Changes must be canonical and robust, regardless of effort.
 Don't show changes, make them.
+
+## Logging
+
+When code has been added and tested or when a problem has been solved,
+append a description of what you did to completed.md.

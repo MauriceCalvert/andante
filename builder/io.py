@@ -21,14 +21,18 @@ def note_name(midi: int) -> str:
 
 
 def bar_beat(offset: Fraction, metre: str, upbeat: Fraction = Fraction(0)) -> tuple[int, Fraction]:
-    """Convert offset to bar number and beat position."""
+    """Convert offset to bar number and beat position.
+
+    Subtracts upbeat before computing so bar/beat labels match the
+    musical score (bar 0 = anacrusis, bar 1 = first full bar).
+    """
     if metre == "4/4":
         beats_per_bar: int = 4
     elif metre == "3/4":
         beats_per_bar = 3
     else:
         beats_per_bar = 4
-    total_beats: Fraction = offset * 4
+    total_beats: Fraction = (offset - upbeat) * 4
     bar: int = int(total_beats // beats_per_bar) + 1
     beat_in_bar: Fraction = (total_beats % beats_per_bar) + 1
     return bar, beat_in_bar

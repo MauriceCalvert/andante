@@ -95,9 +95,11 @@ class VoiceWriter:
         home_key: Key,
         anchors: tuple[PlanAnchor, ...],
         prior_voices: dict[str, tuple[Note, ...]],
+        upbeat: Fraction = Fraction(0),
     ) -> None:
         self._plan: VoicePlan = plan
         self._home_key: Key = home_key
+        self._upbeat: Fraction = upbeat
         self._anchors: tuple[PlanAnchor, ...] = anchors
         self._prior_voices: dict[str, tuple[Note, ...]] = prior_voices
         self._rng: Random = Random(plan.seed)
@@ -203,6 +205,10 @@ class VoiceWriter:
                     source_anchor, section.role, prev_anchor_midi,
                 )
                 source_midi: int = self._home_key.diatonic_to_midi(source_pitch)
+                if anchor_idx == 0 and self._anacrusis_composed:
+                    prev_anchor_midi = source_midi
+                    self._prev_exit_pitch = source_pitch
+                    continue
                 ascending_hint: bool | None = _ascending_hint_for_resolve(
                     source_anchor, target_anchor, section.role, gap.ascending,
                 )
@@ -210,7 +216,7 @@ class VoiceWriter:
                     target_anchor, section.role, source_midi, ascending_hint,
                 )
             gap_offset: Fraction = _bar_beat_to_offset(
-                source_anchor.bar_beat, self._plan.metre,
+                source_anchor.bar_beat, self._plan.metre, self._upbeat,
             )
             notes: list[Note] = self._compose_gap(
                 gap, source_pitch, target_pitch, gap_offset,
@@ -247,6 +253,10 @@ class VoiceWriter:
                     source_anchor, section.role, prev_anchor_midi,
                 )
                 source_midi: int = self._home_key.diatonic_to_midi(source_pitch)
+                if anchor_idx == 0 and self._anacrusis_composed:
+                    prev_anchor_midi = source_midi
+                    self._prev_exit_pitch = source_pitch
+                    continue
                 ascending_hint: bool | None = _ascending_hint_for_resolve(
                     source_anchor, target_anchor, section.role, gap.ascending,
                 )
@@ -254,7 +264,7 @@ class VoiceWriter:
                     target_anchor, section.role, source_midi, ascending_hint,
                 )
             gap_offset: Fraction = _bar_beat_to_offset(
-                source_anchor.bar_beat, self._plan.metre,
+                source_anchor.bar_beat, self._plan.metre, self._upbeat,
             )
             if gap_idx == 0 or base_figure is None:
                 notes: list[Note] = self._compose_gap(
@@ -375,7 +385,7 @@ class VoiceWriter:
         note_count: int = ana.note_count
         assert note_count >= 1
         dur_each: Fraction = ana.duration / note_count
-        start_offset: Fraction = -ana.duration
+        start_offset: Fraction = Fraction(0)
         target_midi: int = self._place_degree_near_median(
             self._home_key, ana.target_degree, self._plan.actuator_range,
         )
@@ -448,7 +458,7 @@ class VoiceWriter:
         picks the closest consonant one to the preferred placement.
         Falls back to preferred if no consonant alternative exists.
         """
-        offset: Fraction = _bar_beat_to_offset(bar_beat, self._plan.metre)
+        offset: Fraction = _bar_beat_to_offset(bar_beat, self._plan.metre, self._upbeat)
         prior_pitches: list[int] = self._prior_at_offset.get(offset, [])
         if not prior_pitches:
             return preferred_midi
@@ -693,12 +703,12 @@ class VoiceWriter:
     def _get_section_start_offset(self, section: SectionPlan) -> Fraction:
         """Get absolute offset of section start."""
         anchor: PlanAnchor = self._anchors[section.start_gap_index]
-        return _bar_beat_to_offset(anchor.bar_beat, self._plan.metre)
+        return _bar_beat_to_offset(anchor.bar_beat, self._plan.metre, self._upbeat)
 
     def _get_section_end_offset(self, section: SectionPlan) -> Fraction:
         """Get absolute offset of section end."""
         anchor: PlanAnchor = self._anchors[section.end_gap_index]
-        return _bar_beat_to_offset(anchor.bar_beat, self._plan.metre)
+        return _bar_beat_to_offset(anchor.bar_beat, self._plan.metre, self._upbeat)
 
     # ── Helpers ───────────────────────────────────────────
 
@@ -727,8 +737,16 @@ def _build_offset_index(
     return result
 
 
-def _bar_beat_to_offset(bar_beat: str, metre: str) -> Fraction:
-    """Convert 'bar.beat' string to absolute offset in whole notes."""
+def _bar_beat_to_offset(
+    bar_beat: str,
+    metre: str,
+    upbeat: Fraction = Fraction(0),
+) -> Fraction:
+    """Convert 'bar.beat' string to absolute offset in whole notes.
+
+    When upbeat > 0, offsets are shifted so the piece starts at offset 0.
+    Bar 0 (the anacrusis bar) maps to non-negative offsets.
+    """
     parts: list[str] = bar_beat.split(".")
     assert len(parts) == 2, f"bar_beat must be 'bar.beat', got '{bar_beat}'"
     bar: int = int(parts[0])
@@ -740,4 +758,9 @@ def _bar_beat_to_offset(bar_beat: str, metre: str) -> Fraction:
     num: int = int(num_str)
     bar_length: Fraction = Fraction(num, den)
     beat_unit: Fraction = Fraction(1, den)
-    return (bar - 1) * bar_length + (beat - 1) * beat_unit
+    result: Fraction = (bar - 1) * bar_length + (beat - 1) * beat_unit + upbeat
+    assert result >= 0, (
+        f"Negative offset {result} from bar_beat '{bar_beat}' "
+        f"with upbeat {upbeat}"
+    )
+    return result

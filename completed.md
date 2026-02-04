@@ -109,3 +109,55 @@ at low tension:
 | 6 | filled_sixth (unchanged) | already low tension |
 
 All new/changed figures: cadential_safe=true, minor_safe=true, is_compound=false.
+
+---
+
+# Upbeat Offset Fix: Negative Offsets and Soprano Polyphony
+
+## Symptom
+
+Gavotte output had two defects at bar 1 (the upbeat):
+
+1. **Polyphonic soprano**: two simultaneous track-0 notes at offset -0.5
+   (A4 from anacrusis + D5 from gap 0 figuration).
+2. **Negative offsets**: all upbeat notes had negative offset values in
+   the .note output file.
+
+## Root Cause
+
+The planner places anchor[0] at bar 0 beat 3 for pieces with an upbeat.
+`_bar_beat_to_offset("0.3", "4/4")` returns -0.5. Two problems follow:
+
+1. The anacrusis and gap 0 both cover the same time span [anchor0, anchor1).
+   `compose_section` runs both without checking for overlap, producing
+   polyphonic output in what should be a monophonic voice.
+
+2. All notes in the upbeat region get negative offsets, which are illegal.
+
+## Fix
+
+### builder/voice_writer.py
+
+**`__init__`** — accepts `upbeat: Fraction` parameter. Stored as
+`self._upbeat` and passed to all `_bar_beat_to_offset` calls.
+
+**`_bar_beat_to_offset`** — adds `upbeat` to the result, shifting all
+offsets so the piece starts at offset 0. Asserts `result >= 0`.
+
+**`_compose_anacrusis`** — `start_offset = Fraction(0)` instead of
+`-ana.duration`. With the shift, anchor[0] is at offset 0, so the
+anacrusis starts there.
+
+**`_compose_independent` / `_compose_sequenced`** — when `anchor_idx == 0`
+and `self._anacrusis_composed`, skip the gap (resolve anchor pitch for
+state continuity, then continue). The anacrusis already filled that time.
+
+### builder/compose.py
+
+Pass `plan.upbeat` to `VoiceWriter()`.
+
+### builder/io.py
+
+**`bar_beat()`** — subtracts upbeat before computing bar/beat columns:
+`total_beats = (offset - upbeat) * 4`. Bar labels match the musical score
+(bar 0 = anacrusis, bar 1 = first full bar).
