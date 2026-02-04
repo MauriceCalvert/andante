@@ -5,6 +5,8 @@ Only power-of-2 durations are valid: 1/4, 1/8, 1/16, 1/32.
 """
 from fractions import Fraction
 
+from shared.constants import DENSITY_RHYTHMIC_UNIT
+
 # Valid baroque durations in descending order
 VALID_UNITS: tuple[Fraction, ...] = (
     Fraction(1, 4),   # quarter
@@ -12,13 +14,6 @@ VALID_UNITS: tuple[Fraction, ...] = (
     Fraction(1, 16),  # sixteenth
     Fraction(1, 32),  # thirty-second (rare)
 )
-
-# Density to preferred rhythmic unit
-DENSITY_TO_UNIT: dict[str, Fraction] = {
-    "low": Fraction(1, 4),
-    "medium": Fraction(1, 8),
-    "high": Fraction(1, 16),
-}
 
 
 def compute_rhythmic_distribution(
@@ -35,7 +30,7 @@ def compute_rhythmic_distribution(
         (note_count, duration_each) where duration_each is a valid baroque value.
         All notes get the same duration. note_count * duration_each == gap.
     """
-    preferred_unit = DENSITY_TO_UNIT.get(density, Fraction(1, 8))
+    preferred_unit = DENSITY_RHYTHMIC_UNIT.get(density, Fraction(1, 8))
     # Try preferred unit first
     count = gap / preferred_unit
     if count == int(count) and count >= 1:

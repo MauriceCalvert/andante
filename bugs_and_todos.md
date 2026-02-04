@@ -13,28 +13,8 @@ Single source of truth for all bugs, planned fixes, and future work.
 ---
 
 ## BUG-004: Rhythm templates not varied across gaps
-
-**Date:** 2025-02-04
-
-**Symptom:** Every bar has uniform rhythmic density. Minuet melody is unbroken quavers throughout. No variation in note counts or rhythmic profiles between bars.
-
-**Expected:** Rhythm should vary by:
-- Gap interval (larger intervals → more fill notes)
-- Position in phrase (cadential → slower)
-- Density parameter from affect config
-
-**Diagnosis needed:**
-1. Verify `_target_note_count()` produces varying counts
-2. Check if `compute_rhythmic_distribution()` is sensitive to gap parameters
-3. Trace rhythm template lookup in `_get_rhythm()`
-4. Confirm different templates exist and are selected
-
-**Files to investigate:**
-- `builder/figuration_strategy.py` — `_get_rhythm()`, `_target_note_count()`
-- `builder/figuration/rhythm_calc.py` — `compute_rhythmic_distribution()`
-- `data/figuration/rhythm_templates.yaml` — template definitions
-
-**Root cause:** TBD (possibly working correctly but parameters too uniform)
+**Fixed:** 2026-02-04
+**Solution:** Planner now computes `required_note_count` per gap based on interval size. Small intervals (unison, step, third) reduce from the density-derived base count; large intervals keep full density. Moved `DENSITY_TO_UNIT` to shared constants as `DENSITY_RHYTHMIC_UNIT` (L017 single source of truth). Minuet note counts now vary: unison→2, step→3, fourth/sixth→6 (was uniform 6 for all bars).
 
 ---
 
@@ -189,6 +169,10 @@ figuration_profile: galant_dance
 ## BUG-003: Bass patterns not applied
 **Fixed:** 2026-02-04
 **Solution:** Wired bass_treatment/bass_pattern from GenreConfig through voice planner into voice writer. Created ArpeggiatedStrategy that realises BassPattern (degree offsets) and RhythmPattern (schema pitches) into notes.
+
+## BUG-004: Rhythm templates not varied across gaps
+**Fixed:** 2026-02-04
+**Solution:** Planner computes `required_note_count` per gap from interval size. Small intervals reduce from base; large intervals keep full density.
 
 ---
 

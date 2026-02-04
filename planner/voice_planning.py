@@ -17,7 +17,13 @@ from builder.types import (
     PassageAssignment,
     SchemaConfig,
 )
-from shared.constants import VOICE_RANGES
+from shared.constants import (
+    DENSITY_RHYTHMIC_UNIT,
+    INTERVAL_DIATONIC_SIZE,
+    MIN_FIGURATION_NOTES,
+    SMALL_INTERVAL_NOTE_REDUCTION,
+    VOICE_RANGES,
+)
 from shared.key import Key
 
 from shared.plan_types import (
@@ -354,6 +360,11 @@ def _build_gaps_for_range(
         use_hemiola: bool = _should_use_hemiola(
             affect_config, near_cadence, metre,
         )
+        note_count: int | None = (
+            _compute_note_count(gap_duration, density, interval)
+            if writing_mode == WritingMode.FIGURATION
+            else None
+        )
         gap: GapPlan = GapPlan(
             bar_num=bar_num,
             writing_mode=writing_mode,
@@ -369,7 +380,7 @@ def _build_gaps_for_range(
             overdotted=affect_config.density == "high",
             start_beat=1 if is_upper else 2,
             next_anchor_strength="strong" if near_cadence else "weak",
-            required_note_count=None,
+            required_note_count=note_count,
             compound_allowed=False,
         )
         result.append(gap)
@@ -579,6 +590,39 @@ def _is_lead_voice(
                 return is_upper
             return (lead == 0 and is_upper) or (lead == 1 and not is_upper)
     return is_upper
+
+
+def _base_note_count(gap_duration: Fraction, density: str) -> int:
+    """Compute base note count from gap duration and density."""
+    unit: Fraction = DENSITY_RHYTHMIC_UNIT.get(density, Fraction(1, 8))
+    count: Fraction = gap_duration / unit
+    if count == int(count) and count >= 1:
+        return int(count)
+    # Preferred unit doesn't divide evenly; eighth note divides all standard gaps
+    fallback: Fraction = Fraction(1, 8)
+    count = gap_duration / fallback
+    assert count == int(count) and count >= 1, (
+        f"Gap duration {gap_duration} not divisible by fallback unit {fallback}"
+    )
+    return int(count)
+
+
+def _compute_note_count(
+    gap_duration: Fraction,
+    density: str,
+    interval: str,
+) -> int:
+    """Compute target note count for a figuration gap.
+
+    Small intervals (unison, step, third) reduce from base count because
+    less pitch space needs fewer fill notes.  Large intervals (fourth+)
+    keep the full base count — their figure vocabulary only has viable
+    fills at specific sizes.
+    """
+    base: int = _base_note_count(gap_duration, density)
+    interval_size: int = INTERVAL_DIATONIC_SIZE.get(interval, 0)
+    reduction: int = SMALL_INTERVAL_NOTE_REDUCTION.get(interval_size, 0)
+    return max(MIN_FIGURATION_NOTES, base - reduction)
 
 
 def _get_density(base_density: str, function: str, is_lead: bool) -> str:

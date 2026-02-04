@@ -225,3 +225,64 @@ from `bass_patterns.yaml`) or `RhythmPattern` (schema-driven pitches, from
 | gavotte | half_bar | Two notes per bar (current + next degree) |
 | sarabande | continuo_sustained | Sustained root (same as before, explicit) |
 | bourree | continuo_walking | Stepwise quarter notes through bar |
+
+---
+
+# BUG-004 Fix: Rhythm Templates Not Varied Across Gaps
+
+## Symptom
+
+Every bar in a minuet had uniform rhythmic density — unbroken quavers
+(6 eighth notes per bar) throughout. No variation in note counts or
+rhythmic profiles between bars regardless of interval or phrase position.
+
+## Root Cause
+
+`_build_gaps_for_range()` in `voice_planning.py` set
+`required_note_count=None` for all figuration gaps. This delegated to
+`compute_rhythmic_distribution()` which computes count from `gap_duration`
+and `density` alone. For a minuet with no passage assignments, all gaps
+had density="medium" (function always "subject") and gap_duration=3/4,
+producing exactly 6 eighth notes for every bar.
+
+## Fix
+
+### shared/constants.py
+
+Added three constants:
+- `MIN_FIGURATION_NOTES = 2`: minimum notes for a figuration gap
+- `INTERVAL_DIATONIC_SIZE`: maps interval names to diatonic step count
+- `DENSITY_RHYTHMIC_UNIT`: preferred rhythmic unit per density level
+  (moved from `rhythm_calc.py` for L017 single source of truth)
+- `SMALL_INTERVAL_NOTE_REDUCTION`: reduction from base count by interval
+  size — unison (-4), step (-3), third (-2); large intervals keep full base
+
+### builder/figuration/rhythm_calc.py
+
+Replaced local `DENSITY_TO_UNIT` with import of `DENSITY_RHYTHMIC_UNIT`
+from shared constants.
+
+### planner/voice_planning.py
+
+Added `_base_note_count()`: computes base note count from gap duration
+and density (same arithmetic as `compute_rhythmic_distribution` but
+planner-side, avoiding cross-layer import).
+
+Added `_compute_note_count()`: reduces base count for small intervals
+using `SMALL_INTERVAL_NOTE_REDUCTION`. Large intervals (fourth+) keep
+full base count because their figure vocabulary only has low-tension fills
+at specific note counts.
+
+Wired into `_build_gaps_for_range()`: sets `required_note_count` for
+`WritingMode.FIGURATION` gaps; other modes keep `None`.
+
+## Result
+
+Minuet note counts (3/4, medium density):
+
+| Interval | Before | After |
+|----------|--------|-------|
+| unison   | 6      | 2     |
+| step     | 6      | 3     |
+| third    | 6      | 4     |
+| fourth+  | 6      | 6     |

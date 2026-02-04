@@ -213,3 +213,39 @@ GATE_FACTOR: Fraction = Fraction(19, 20)
 # Duration threshold for articulation tagging (eighth note in 4/4)
 STACCATO_DURATION_THRESHOLD: Fraction = Fraction(1, 8)
 
+# =============================================================================
+# Rhythmic Density Constants (BUG-004: vary note counts across gaps)
+# =============================================================================
+
+# Minimum notes for a figuration gap
+MIN_FIGURATION_NOTES: int = 2
+
+# Diatonic interval size (scale steps) for gap interval names
+# Used by voice planner to scale rhythmic density by interval
+INTERVAL_DIATONIC_SIZE: dict[str, int] = {
+    "unison": 0,
+    "step_up": 1, "step_down": 1,
+    "third_up": 2, "third_down": 2,
+    "fourth_up": 3, "fourth_down": 3,
+    "fifth_up": 4, "fifth_down": 4,
+    "sixth_up": 5, "sixth_down": 5,
+    "octave_up": 7, "octave_down": 7,
+}
+
+# Preferred rhythmic unit per density level (whole-note fractions)
+DENSITY_RHYTHMIC_UNIT: dict[str, Fraction] = {
+    "low": Fraction(1, 4),
+    "medium": Fraction(1, 8),
+    "high": Fraction(1, 16),
+}
+
+# Note count reduction from base, keyed by diatonic interval size.
+# Small intervals need fewer fill notes (less pitch space to traverse).
+# Large intervals (>=3 steps) are absent: they keep the full base count
+# because the figure vocabulary only has low-tension fills at specific sizes.
+SMALL_INTERVAL_NOTE_REDUCTION: dict[int, int] = {
+    0: 4,  # unison
+    1: 3,  # step
+    2: 2,  # third
+}
+
