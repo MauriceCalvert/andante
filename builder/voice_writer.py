@@ -373,24 +373,29 @@ class VoiceWriter:
         delay: Fraction = section.follow_delay
         section_start: Fraction = self._get_section_start_offset(section=section)
         section_end: Fraction = self._get_section_end_offset(section=section)
+        used_offsets: set[Fraction] = {n.offset for n in self._current_voice_notes}
         result: list[Note] = []
-        is_first: bool = True
         for note in source_notes:
             if note.offset < section_start:
                 continue
             if note.offset >= section_end:
                 continue
+            new_offset: Fraction = note.offset + delay
+            if new_offset in used_offsets:
+                continue
             dp: DiatonicPitch = self._home_key.midi_to_diatonic(midi=note.pitch)
             transposed: DiatonicPitch = dp.transpose(steps=interval)
-            new_offset: Fraction = note.offset + delay
-            if self._check_candidate(pitch=transposed, offset=new_offset, check_melodic=is_first) is None:
+            rejection: str | None = self._check_candidate(
+                pitch=transposed, offset=new_offset, check_melodic=False, check_consonance=False,
+            )
+            if rejection is None:
                 new_note: Note = self._to_note(
                     pitch=transposed, offset=new_offset, duration=note.duration,
                 )
                 result.append(new_note)
+                used_offsets.add(new_offset)
                 self._prev_candidate_midi = new_note.pitch
                 self._prev_candidate_offset = new_note.offset
-                is_first = False
         self._current_voice_notes.extend(result)
         if result:
             last_note: Note = result[-1]

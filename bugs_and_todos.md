@@ -23,54 +23,54 @@ Single source of truth for all bugs, planned fixes, and future work.
 ## FEAT-001: Imitation not implemented
 
 **Date:** 2025-02-04
+**Status:** Deferred — naive copying approach abandoned
 
-**Problem:** Invention genre expects imitative counterpoint but only produces parallel figuration. The `VoiceWriter._compose_imitative_section()` method exists but is never called.
+**Problem:** Invention genre expects imitative counterpoint but current architecture cannot support it. Naive transposition of lead voice material creates guaranteed dissonances.
 
-**Current behaviour:**
-- `_build_sections()` only assigns `Role.SCHEMA_UPPER` or `Role.SCHEMA_LOWER`
-- `Role.IMITATIVE` is never assigned
-- Genre config `lead_voice` only affects which voice gets FIGURATION vs PILLAR
-- Both voices fill gaps independently from schema anchors
+**Why naive copying fails:**
+- Lead voice composes figuration without knowledge of what follower will play
+- Delayed transposition places notes against incompatible harmonies
+- No tonal answer (5th→4th adjustments required to stay in key)
+- No countersubject concept
 
-**Expected behaviour:**
-- Lead voice composes first (already works)
-- Follow voice copies lead material, transposed and delayed
-- Delay specified by `follow_delay` in SectionPlan
-- Interval specified by `follow_interval` (e.g., -7 for octave below, -4 for fifth below)
+**Proper Baroque imitation requires:**
+1. Pre-composed **subject** designed to work contrapuntally with itself
+2. **Tonal answer** — not just transposition, needs 5th→4th mutations
+3. **Countersubject** composed against the answer using consonance checks
+4. Subject/answer/countersubject wired into section composition
 
-**Implementation plan:**
+**Current workaround:** Invention uses `accompany_texture: walking` instead of imitation. Produces contrapuntal but not imitative texture.
 
-### Step 1: Extend genre config
-```yaml
-sections:
-  - name: exordium
-    lead_voice: 0
-    follow_voice: 1
-    follow_delay: "1/4"      # quarter note delay
-    follow_interval: -7      # octave below (diatonic steps)
-    follow_mode: strict      # strict | free
-```
+**Implementation plan (future):**
 
-### Step 2: Update `_build_sections()` in `voice_planning.py`
-- When section has `follow_voice`, create SectionPlan with `Role.IMITATIVE`
-- Set `follows`, `follow_interval`, `follow_delay` fields
+### Step 1: Subject integration
+- Use `subject_generator.py` output as lead material
+- Store subject as note sequence in genre config or runtime
 
-### Step 3: Wire up in `compose_voices()` in `compose.py`
-- Compose lead voice section first
-- Pass lead notes to follow voice writer via `update_prior_voices()`
-- Follow voice calls `_compose_imitative_section()`
+### Step 2: Tonal answer generation
+- Implement answer rules: real answer vs tonal answer
+- 5th in subject → 4th in answer (and vice versa) at key boundaries
 
-### Step 4: Fix `_compose_imitative_section()` in `voice_writer.py`
-- Currently broken: filters by section offset but source notes use different offset model
-- Needs: proper offset alignment, octave adjustment for range
+### Step 3: Countersubject composition
+- Compose against answer using existing consonance/parallel checks
+- Must be invertible (work as upper or lower voice)
+
+### Step 4: Section assembly
+- Bar 1: subject in lead voice, rest in follower
+- Bar 2+: answer in follower, countersubject in lead
+- Episodes: free figuration using subject fragments
 
 **Files:**
-- `data/genres/invention.yaml` — add imitation config
-- `planner/voice_planning.py` — assign Role.IMITATIVE
-- `builder/compose.py` — section-by-section voice scheduling
-- `builder/voice_writer.py` — fix imitation logic
+- `motifs/subject_generator.py` — already exists
+- `planner/answer_generator.py` — new, tonal answer logic
+- `planner/countersubject.py` — new, countersubject composition
+- `builder/imitative_strategy.py` — new, replaces naive copying
 
-**Effort:** Medium
+**Effort:** Large — requires subject-aware architecture
+
+**References:**
+- Bach Two-Part Inventions analysis
+- Fux Gradus ad Parnassum species counterpoint
 
 ---
 

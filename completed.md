@@ -397,3 +397,97 @@ correct ordering per time span via `_section_is_lead()`.
 All 6 integration tests pass. Imitation verified: lower voice notes are
 upper voice notes delayed by 1 bar and transposed exactly 12 semitones
 down (diatonic octave). Zero parallel fifths/octaves.
+
+---
+
+# Keyword Argument Refactoring
+
+## Summary
+
+Converted all project-internal function calls from positional to keyword
+argument format across 64 non-test Python files. External, stdlib, and
+third-party calls left unchanged.
+
+## Scope
+
+| Directory | Files Modified |
+|-----------|---------------|
+| shared/ | 6 (key, midi_writer, music_math, pitch, plan_types, tracer) |
+| builder/ | 14 (all root files + figuration/bass, loader, rhythm_calc) |
+| motifs/ | 8 (enumerator, extract_melodies, figurae, head_generator, melodic_features, subject_generator, tail_generator, frequencies/analyse_intervals) |
+| planner/ | 24 (all except plannertypes, rhetorical, structure, textural, tonal) |
+| planner/metric/ | 4 (distribution, layer, pitch, schema_anchors) |
+| scripts/ | 6 (midi_to_note, note_to_midi, note_to_subject, run_pipeline, yaml_validator) |
+| root | 1 (LinesOfCode.py) |
+
+17 files needed no changes (empty __init__.py, no project-internal calls,
+or already using keyword format).
+
+---
+
+# FEAT-001 Bug Fix: Imitation Offset Filtering
+
+## Symptom
+
+In invention generation, the lower (imitating) voice had roughly half the
+notes of the upper (lead) voice. The final bar of each imitative section
+was lost.
+
+## Root Cause
+
+`_compose_imitative_section()` in `voice_writer.py` filtered source notes
+using shifted bounds `[section_start - delay, section_end - delay)`. Lead
+notes exist in `[section_start, section_end)`, so the filter excluded
+notes in the final `delay`-sized window.
+
+Example: exordium bars 1-4, delay = 1 bar. Filter selected offsets
+`[-1, 2)` instead of `[0, 3)`, losing bar 3's notes entirely.
+
+## Fix
+
+### builder/voice_writer.py
+
+Changed the source note filter from shifted bounds to actual section bounds:
+`section_start` and `section_end` instead of `section_start - delay` and
+`section_end - delay`. The delay is applied when placing the copied note
+(line 385: `new_offset = note.offset + delay`), not when selecting source
+notes.
+
+## Verification
+
+All 6 integration tests pass. Invention generation produces comparable
+note counts: upper=90, lower=85 (6% difference vs ~50% before fix).
+
+---
+
+# FEAT-001 Deferred: Imitation Reverted to Walking Texture
+
+## Summary
+
+Reverted invention genre from imitative counterpoint back to
+`accompany_texture: walking`. Naive transposition of lead material
+creates guaranteed dissonances; proper Baroque imitation requires
+pre-composed subjects, tonal answers, and countersubjects.
+
+## Changes
+
+### data/genres/invention.yaml
+
+Removed `follow_voice`, `follow_delay`, `follow_interval` from exordium
+and confirmatio sections. Replaced with `accompany_texture: walking`.
+
+### builder/voice_writer.py
+
+Hardened `_compose_imitative_section()` for future use:
+- Added `used_offsets` set to prevent duplicate notes at the same offset
+- Moved `new_offset` computation before transposition to enable early
+  dedup check
+- Relaxed candidate checks: `check_melodic=False, check_consonance=False`
+  since imitated material follows the lead voice's melodic logic
+- Removed `is_first` flag (redundant with relaxed checks)
+
+### bugs_and_todos.md
+
+Updated FEAT-001 status to "Deferred". Documented why naive copying fails
+and outlined proper implementation plan (subject integration, tonal answer
+generation, countersubject composition, section assembly).
