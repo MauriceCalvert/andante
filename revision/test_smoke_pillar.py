@@ -3,7 +3,6 @@
 Verifies that compose_voices() produces correct output for the
 simplest possible plan.  See phase6_design.md §6a.
 """
-import logging
 import pytest
 from fractions import Fraction
 from builder.compose import compose_voices
@@ -56,8 +55,6 @@ def _make_anchor(
         bar_beat=f"{bar}.{beat}",
         upper_degree=(upper_step % 7) + 1,
         lower_degree=(lower_step % 7) + 1,
-        upper_pitch=DiatonicPitch(step=upper_step),
-        lower_pitch=DiatonicPitch(step=lower_step),
         local_key=home_key,
         schema="test",
         stage=0,
@@ -93,7 +90,7 @@ class TestSmokePillar:
         voice_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -160,7 +157,7 @@ class TestSmokePillar:
         soprano_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -171,7 +168,7 @@ class TestSmokePillar:
         bass_plan: VoicePlan = VoicePlan(
             voice_id="bass",
             actuator_range=Range(low=36, high=67),
-            tessitura_median=DiatonicPitch(step=28),
+            tessitura_median=52,
             composition_order=1,
             seed=43,
             metre="4/4",
@@ -233,7 +230,7 @@ class TestSmokePillar:
         voice_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -287,7 +284,7 @@ class TestSmokePillar:
         voice_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -312,10 +309,10 @@ class TestSmokePillar:
         )
         assert notes[0].pitch != midi_c_major
 
-    def test_range_violation_logs_warning(self, caplog) -> None:
-        """Anchor pitch outside actuator range logs warning but continues."""
+    def test_degree_placed_within_range(self) -> None:
+        """Degree is always placed within actuator range regardless of step."""
         home_key: Key = Key(tonic="C", mode="major")
-        upper_step: int = 50
+        upper_step: int = 50  # High step, but degree=(50 % 7)+1=2
         lower_step: int = 28
         anchors: tuple[PlanAnchor, ...] = (
             _make_anchor(1, 1, upper_step, lower_step, home_key),
@@ -338,7 +335,7 @@ class TestSmokePillar:
         voice_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=72),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=60,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -353,10 +350,10 @@ class TestSmokePillar:
             voice_plans=(voice_plan,),
             anchors=anchors,
         )
-        with caplog.at_level(logging.WARNING):
-            result: Composition = compose_voices(plan)
-        assert "rejected by filter" in caplog.text
+        result: Composition = compose_voices(plan)
         assert len(result.voices["soprano"]) == 1
+        note: Note = result.voices["soprano"][0]
+        assert 48 <= note.pitch <= 72, f"Pitch {note.pitch} outside range 48-72"
 
 
 if __name__ == "__main__":

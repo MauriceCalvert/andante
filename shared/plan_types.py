@@ -7,7 +7,6 @@ makes zero compositional choices.
 from dataclasses import dataclass
 from enum import Enum
 from fractions import Fraction
-from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
 from shared.voice_types import Range, Role
 
@@ -24,12 +23,15 @@ class WritingMode(Enum):
 
 @dataclass(frozen=True)
 class PlanAnchor:
-    """Schema arrival constraint at specific bar.beat position."""
+    """Schema arrival constraint at specific bar.beat position.
+    
+    Degrees are 1-7. Direction hints (up/down/same/None) indicate how to
+    approach this anchor from the previous one. MIDI resolution is deferred
+    to fill time when the previous pitch is known.
+    """
     bar_beat: str
     upper_degree: int
     lower_degree: int
-    upper_pitch: DiatonicPitch
-    lower_pitch: DiatonicPitch
     local_key: Key
     schema: str
     stage: int
@@ -78,7 +80,7 @@ class SectionPlan:
 @dataclass(frozen=True)
 class AnacrusisPlan:
     """Anacrusis (upbeat) specification."""
-    target_pitch: DiatonicPitch
+    target_degree: int
     duration: Fraction
     note_count: int
     ascending: bool
@@ -89,7 +91,7 @@ class VoicePlan:
     """Complete plan for one voice."""
     voice_id: str
     actuator_range: Range
-    tessitura_median: DiatonicPitch
+    tessitura_median: int  # MIDI pitch for first-note placement
     composition_order: int
     seed: int
     metre: str

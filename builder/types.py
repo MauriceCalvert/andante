@@ -3,11 +3,124 @@
 All types are frozen dataclasses for immutability.
 Durations are Fraction. Pitches are MIDI integers.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from shared.key import Key
+@dataclass
+class FigureRejection:
+    """Record of why a figure was rejected."""
+    figure_name: str
+    note_index: int
+    pitch: str
+    offset: str
+    reason: str
+
+
+_INTERVAL_NAMES: dict[str, str] = {
+    "unison": "unison",
+    "step_up": "ascending 2nd",
+    "step_down": "descending 2nd",
+    "third_up": "ascending 3rd",
+    "third_down": "descending 3rd",
+    "fourth_up": "ascending 4th",
+    "fourth_down": "descending 4th",
+    "fifth_up": "ascending 5th",
+    "fifth_down": "descending 5th",
+    "sixth_up": "ascending 6th",
+    "sixth_down": "descending 6th",
+    "octave_up": "ascending octave",
+    "octave_down": "descending octave",
+}
+
+
+def _expand_reason(reason: str) -> str:
+    """Convert terse reason code to readable explanation."""
+    if reason == "voice_overlap":
+        return "voice crossing or overlap with other voice"
+    if reason.startswith("range("):
+        inner: str = reason[6:-1]
+        return f"pitch outside instrument range ({inner})"
+    if reason.startswith("melodic_interval("):
+        inner = reason[17:-1]
+        return f"melodic leap too large: {inner}"
+    if reason.startswith("internal_melodic("):
+        inner = reason[17:-1]
+        return f"internal melodic leap too large: {inner} semitones"
+    if reason.startswith("strong_beat_dissonance("):
+        inner = reason[23:-1]
+        return f"dissonance on strong beat: {inner}"
+    if reason.startswith("parallel("):
+        inner = reason[9:-1]
+        return f"parallel motion to {inner}"
+    if reason.startswith("direct_motion_to("):
+        inner = reason[17:-1]
+        return f"direct (similar) motion to {inner}"
+    if reason.startswith("exit_mismatch("):
+        inner = reason[14:-1]
+        return f"figure exit degree wrong: {inner}"
+    return reason
+
+
+def _format_offset(offset_str: str) -> str:
+    """Convert offset string to readable form."""
+    if offset_str == "end":
+        return "end of figure"
+    if offset_str == "0":
+        return "start of figure"
+    return f"offset {offset_str}"
+
+
+class FigureRejectionError(Exception):
+    """Raised when all figures rejected at a gap."""
+
+    def __init__(
+        self,
+        bar_num: int,
+        interval: str,
+        writing_mode: str,
+        rejections: list[FigureRejection],
+    ) -> None:
+        self.bar_num: int = bar_num
+        self.interval: str = interval
+        self.writing_mode: str = writing_mode
+        self.rejections: list[FigureRejection] = rejections
+        super().__init__(self._format_message())
+
+    def _format_message(self) -> str:
+        interval_readable: str = _INTERVAL_NAMES.get(self.interval, self.interval)
+        lines: list[str] = [
+            "",
+            "=" * 70,
+            f"FIGURE REJECTION at bar {self.bar_num}",
+            f"  Mode: {self.writing_mode}",
+            f"  Interval: {interval_readable}",
+            f"  Attempted {len(self.rejections)} figure(s), all rejected:",
+            "-" * 70,
+        ]
+        reason_groups: dict[str, list[FigureRejection]] = {}
+        for rej in self.rejections:
+            expanded: str = _expand_reason(rej.reason)
+            reason_groups.setdefault(expanded, []).append(rej)
+        for reason, group in reason_groups.items():
+            lines.append(f"\n  {reason}:")
+            shown: int = 0
+            for rej in group:
+                if shown >= 5:
+                    remaining: int = len(group) - shown
+                    lines.append(f"      ... and {remaining} more with this reason")
+                    break
+                offset_readable: str = _format_offset(rej.offset)
+                lines.append(
+                    f"    - {rej.figure_name}: note {rej.note_index} "
+                    f"({rej.pitch}) at {offset_readable}"
+                )
+                shown += 1
+        lines.append("=" * 70)
+        return "\n".join(lines)
+
+
 from shared.voice_types import (  # noqa: E402 — canonical source (voices.md)
     Actuator,
     Instrument,
@@ -57,13 +170,14 @@ class Composition:
 class Anchor:
     """Schema arrival constraint at specific bar.beat position.
     
-    Fields renamed per voices.md:
-    - upper_degree: degree for schema_upper role (was soprano_degree)
-    - lower_degree: degree for schema_lower role (was bass_degree)
-    - upper_direction: voice motion to reach this anchor (up/down/same/None for first)
-    - lower_direction: voice motion to reach this anchor (up/down/same/None for first)
-    - upper_midi: absolute MIDI pitch for upper voice (set by place_anchors_in_tessitura)
-    - lower_midi: absolute MIDI pitch for lower voice (set by place_anchors_in_tessitura)
+    Degrees are 1-7 (scale degrees). Direction hints indicate approach:
+    - up: ascending motion to reach this degree
+    - down: descending motion to reach this degree  
+    - same: unison (repeat)
+    - None: first anchor, no previous context
+    
+    MIDI resolution is deferred to fill time (voice_writer) when the
+    previous pitch is known, avoiding premature octave decisions.
     """
     bar_beat: str
     upper_degree: int
@@ -71,11 +185,9 @@ class Anchor:
     local_key: "Key"
     schema: str
     stage: int
-    upper_direction: str | None = None  # up, down, same, or None for first anchor
-    lower_direction: str | None = None  # up, down, same, or None for first anchor
-    section: str = ""  # rhetorical section (exordium, narratio, etc.)
-    upper_midi: int | None = None  # absolute MIDI, set by tessitura placement
-    lower_midi: int | None = None  # absolute MIDI, set by tessitura placement
+    upper_direction: str | None = None
+    lower_direction: str | None = None
+    section: str = ""
 
 
 @dataclass(frozen=True)

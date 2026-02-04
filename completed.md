@@ -67,3 +67,45 @@ unused imports.
 ## Test Results
 
 37/37 tests pass (7 counterpoint, 6 integration, 15 pitch, 4 sequencing, 5 smoke pillar).
+
+---
+
+# Sixth Interval Vocabulary Gap
+
+## Symptom
+
+Gavotte generation crashed at bar 18 with `FigureRejectionError`: 0 figures
+attempted for `sixth_up` in FIGURATION mode.
+
+## Root Cause
+
+The planner hardcodes `harmonic_tension="low"` for all gaps. The `sixth_up`
+vocabulary had only three figures, none viable at low tension for small note
+counts:
+
+| Notes | Figure | Tension | Passes low? |
+|-------|--------|---------|-------------|
+| 2 | direct_sixth_up | high | No |
+| 4 | arpeggiated_sixth_up | medium | No |
+| 6 | filled_sixth_up | low | Yes |
+
+When `max_count < 6` (common for medium-density gaps), every figure was
+rejected by the tension filter. The note-count loop found zero candidates
+at every count from `max_count` down to 2.
+
+## Fix
+
+### data/figuration/diminutions.yaml
+
+Expanded `sixth_up` and `sixth_down` vocabulary to cover all note counts 2-6
+at low tension:
+
+| Notes | Figure | Change |
+|-------|--------|--------|
+| 2 | direct_sixth | tension high → low (consonant interval, consistent with 4ths/5ths) |
+| 3 | broken_chord_sixth (new) | degrees [0, 2, 5] — triad skeleton, plain character |
+| 4 | arpeggiated_sixth | tension medium → low, character bold → plain |
+| 5 | partial_fill_sixth (new) | degrees [0, 1, 2, 4, 5] — lower scalar with skip |
+| 6 | filled_sixth (unchanged) | already low tension |
+
+All new/changed figures: cadential_safe=true, minor_safe=true, is_compound=false.

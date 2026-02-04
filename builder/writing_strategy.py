@@ -25,12 +25,13 @@ class WritingStrategy(ABC):
         home_key: Key,
         metre: str,
         rng: Random,
-        candidate_filter: Callable[[DiatonicPitch, Fraction], bool],
+        candidate_filter: Callable[[DiatonicPitch, Fraction, bool], str | None],
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...]:
         """Return (pitch, duration) pairs filling the gap.
 
         candidate_filter: called for each candidate note.
-        Returns True if the note passes counterpoint and range checks.
+        Args: (pitch, offset, is_first_note)
+        Returns None if passes, else rejection reason string.
         The strategy must not emit notes that fail the filter.
         """
         ...

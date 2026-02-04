@@ -81,8 +81,6 @@ def _make_anchor(
         bar_beat=f"{bar}.{beat}",
         upper_degree=(upper_step % 7) + 1,
         lower_degree=(lower_step % 7) + 1,
-        upper_pitch=DiatonicPitch(step=upper_step),
-        lower_pitch=DiatonicPitch(step=lower_step),
         local_key=home_key,
         schema="test",
         stage=0,
@@ -127,7 +125,7 @@ class TestSequencing:
         voice_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -187,7 +185,7 @@ class TestSequencing:
         voice_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -233,7 +231,7 @@ class TestAnacrusis:
             gaps=(gap,),
         )
         anacrusis: AnacrusisPlan = AnacrusisPlan(
-            target_pitch=DiatonicPitch(step=target_step),
+            target_degree=(target_step % 7) + 1,
             duration=Fraction(1, 4),
             note_count=2,
             ascending=True,
@@ -241,7 +239,7 @@ class TestAnacrusis:
         voice_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",
@@ -289,7 +287,7 @@ class TestAnacrusis:
             gaps=(gap,),
         )
         anacrusis: AnacrusisPlan = AnacrusisPlan(
-            target_pitch=DiatonicPitch(step=target_step),
+            target_degree=(target_step % 7) + 1,
             duration=Fraction(1, 4),
             note_count=2,
             ascending=False,
@@ -297,7 +295,7 @@ class TestAnacrusis:
         voice_plan: VoicePlan = VoicePlan(
             voice_id="soprano",
             actuator_range=Range(low=48, high=84),
-            tessitura_median=DiatonicPitch(step=35),
+            tessitura_median=66,
             composition_order=0,
             seed=42,
             metre="4/4",

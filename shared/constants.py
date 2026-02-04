@@ -171,10 +171,10 @@ DEFAULT_TESSITURA_MEDIANS: dict[int, int] = {
 # Voice ranges (MIDI pitch): (low, high) - standard Baroque ranges
 # Used by realisation.py for anchor placement and faults.py for tessitura checks
 VOICE_RANGES: dict[int, tuple[int, int]] = {
-    0: (58, 84),  # Soprano: Bb3 to C6
-    1: (53, 74),  # Alto: F3 to D5
-    2: (48, 69),  # Tenor: C3 to A4
-    3: (36, 67),  # Bass: C2 to G4
+    0: (55, 84),  # Soprano: G3 to C6
+    1: (50, 74),  # Alto: D3 to D5
+    2: (45, 69),  # Tenor: A2 to A4
+    3: (36, 62),  # Bass: C2 to D4
 }
 
 # Soft tessitura span: semitones from median before cost increases

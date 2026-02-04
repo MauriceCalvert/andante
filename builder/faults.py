@@ -619,16 +619,19 @@ def find_faults_from_composition(
         List of Fault objects sorted by bar_beat.
     """
     from builder.types import Composition
-    voice_names: list[str] = sorted(composition.voices.keys())
-    voices: list[Sequence[Note]] = [composition.voices[name] for name in voice_names]
-    ranges: dict[int, tuple[int, int]] | None = None
-    if actuator_ranges is not None:
-        ranges = {
-            i: actuator_ranges[name]
-            for i, name in enumerate(voice_names)
-            if name in actuator_ranges
-        }
-    return find_faults(voices, composition.metre, ranges)
+    voice_data: list[tuple[int, str, Sequence[Note]]] = []
+    for name, notes in composition.voices.items():
+        track: int = notes[0].voice if notes else 0
+        voice_data.append((track, name, notes))
+    voice_data.sort(key=lambda x: x[0])
+    voices: list[Sequence[Note]] = [notes for _, _, notes in voice_data]
+    ranges: dict[int, tuple[int, int]] = {}
+    for i, (track, name, _) in enumerate(voice_data):
+        if actuator_ranges is not None and name in actuator_ranges:
+            ranges[i] = actuator_ranges[name]
+        elif track in VOICE_RANGES:
+            ranges[i] = VOICE_RANGES[track]
+    return find_faults(voices, composition.metre, ranges if ranges else None)
 
 
 def print_faults(faults: list[Fault]) -> None:

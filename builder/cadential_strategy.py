@@ -13,6 +13,8 @@ from builder.figuration.loader import (
     get_rhythm_templates,
 )
 from builder.figuration.types import CadentialFigure, RhythmTemplate
+from builder.types import FigureRejection, FigureRejectionError
+from builder.voice_checks import check_melodic_interval
 from builder.writing_strategy import WritingStrategy
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
@@ -51,7 +53,7 @@ class CadentialStrategy(WritingStrategy):
         home_key: Key,
         metre: str,
         rng: Random,
-        candidate_filter: Callable[[DiatonicPitch, Fraction], bool],
+        candidate_filter: Callable[[DiatonicPitch, Fraction, bool], str | None],
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...]:
         """Select and expand a cadential figure."""
         target_key: str = _CADENTIAL_TARGET_DEGREE.get(
@@ -69,26 +71,25 @@ class CadentialStrategy(WritingStrategy):
             ]
             if hemiola_figs:
                 figures = hemiola_figs
+        rejections: list[FigureRejection] = []
         for fig in figures:
             note_count: int = len(fig.degrees)
             durations: tuple[Fraction, ...] = self._get_rhythm(
                 note_count, gap, metre,
             )
-            pairs: tuple[tuple[DiatonicPitch, Fraction], ...] | None = (
-                _expand_cadential(
-                    fig, source_pitch, durations, candidate_filter,
-                )
+            pairs, rejection = _expand_cadential(
+                fig, source_pitch, durations, candidate_filter, home_key,
             )
             if pairs is not None:
                 return pairs
-        _log.warning(
-            "No cadential figure fits at bar %d — using simple resolution",
-            gap.bar_num,
+            if rejection is not None:
+                rejections.append(rejection)
+        raise FigureRejectionError(
+            bar_num=gap.bar_num,
+            interval=gap.interval,
+            writing_mode="CADENTIAL",
+            rejections=rejections,
         )
-        assert candidate_filter(source_pitch, Fraction(0)), (
-            f"Cadential fallback fails at bar {gap.bar_num}"
-        )
-        return ((source_pitch, gap.gap_duration),)
 
     def _get_rhythm(
         self,
@@ -127,18 +128,42 @@ def _expand_cadential(
     figure: CadentialFigure,
     source_pitch: DiatonicPitch,
     durations: tuple[Fraction, ...],
-    candidate_filter: Callable[[DiatonicPitch, Fraction], bool],
-) -> tuple[tuple[DiatonicPitch, Fraction], ...] | None:
-    """Expand cadential figure; return None if any note fails filter."""
+    candidate_filter: Callable[[DiatonicPitch, Fraction, bool], str | None],
+    home_key: Key,
+) -> tuple[
+    tuple[tuple[DiatonicPitch, Fraction], ...] | None,
+    FigureRejection | None,
+]:
+    """Expand cadential figure; return (pairs, None) or (None, rejection)."""
     assert len(figure.degrees) == len(durations), (
         f"Degree count {len(figure.degrees)} != duration count {len(durations)}"
     )
     pairs: list[tuple[DiatonicPitch, Fraction]] = []
     elapsed: Fraction = Fraction(0)
+    prev_midi: int | None = None
     for i, deg in enumerate(figure.degrees):
         dp: DiatonicPitch = source_pitch.transpose(deg)
-        if not candidate_filter(dp, elapsed):
-            return None
+        midi: int = home_key.diatonic_to_midi(dp)
+        is_first: bool = i == 0
+        reason: str | None = candidate_filter(dp, elapsed, is_first)
+        if reason is not None:
+            return None, FigureRejection(
+                figure_name=figure.name,
+                note_index=i,
+                pitch=str(dp),
+                offset=str(elapsed),
+                reason=reason,
+            )
+        if prev_midi is not None and not check_melodic_interval(prev_midi, midi):
+            interval: int = midi - prev_midi
+            return None, FigureRejection(
+                figure_name=figure.name,
+                note_index=i,
+                pitch=str(dp),
+                offset=str(elapsed),
+                reason=f"internal_melodic({interval})",
+            )
         pairs.append((dp, durations[i]))
+        prev_midi = midi
         elapsed += durations[i]
-    return tuple(pairs)
+    return tuple(pairs), None

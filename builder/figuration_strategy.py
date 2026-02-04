@@ -14,6 +14,8 @@ from builder.figuration.loader import (
     get_rhythm_templates,
 )
 from builder.figuration.types import Figure, RhythmTemplate
+from builder.types import FigureRejection, FigureRejectionError
+from builder.voice_checks import check_melodic_interval
 from builder.writing_strategy import WritingStrategy
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
@@ -25,6 +27,21 @@ _TENSION_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2}
 _DENSITY_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2}
 _CHARACTER_RANK: dict[str, int] = {
     "plain": 0, "expressive": 1, "energetic": 2, "ornate": 3, "bold": 4,
+}
+_INTERVAL_EXIT: dict[str, int] = {
+    "unison": 0,
+    "step_up": 1,
+    "step_down": -1,
+    "third_up": 2,
+    "third_down": -2,
+    "fourth_up": 3,
+    "fourth_down": -3,
+    "fifth_up": 4,
+    "fifth_down": -4,
+    "sixth_up": 5,
+    "sixth_down": -5,
+    "octave_up": 7,
+    "octave_down": -7,
 }
 MAX_FIGURE_ATTEMPTS: int = 20
 MIN_NOTE_COUNT: int = 2
@@ -50,16 +67,19 @@ class FigurationStrategy(WritingStrategy):
         gap: GapPlan,
         home_key: Key,
         metre: str,
-        candidate_filter: Callable[[DiatonicPitch, Fraction], bool],
+        candidate_filter: Callable[[DiatonicPitch, Fraction, bool], str | None],
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...] | None:
         """Expand a single figure; return None if any note fails filter."""
         note_count: int = self._target_note_count(gap)
         durations: tuple[Fraction, ...] = self._get_rhythm(
             note_count, gap, metre,
         )
-        return _expand_and_check(
+        expected_exit: int = _INTERVAL_EXIT.get(gap.interval, 0)
+        pairs, _ = _expand_and_check(
             figure, note_count, source_pitch, durations, candidate_filter,
+            expected_exit, home_key,
         )
+        return pairs
 
     def fill_gap(
         self,
@@ -69,17 +89,24 @@ class FigurationStrategy(WritingStrategy):
         home_key: Key,
         metre: str,
         rng: Random,
-        candidate_filter: Callable[[DiatonicPitch, Fraction], bool],
+        candidate_filter: Callable[[DiatonicPitch, Fraction, bool], str | None],
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...]:
         """Select and expand a diminution figure for this gap."""
         all_figures: list[Figure] = self._diminutions.get(gap.interval, [])
         if len(all_figures) == 0:
-            _log.warning(
-                "No diminution figures for interval '%s' at bar %d — "
-                "falling back to pillar",
-                gap.interval, gap.bar_num,
+            raise FigureRejectionError(
+                bar_num=gap.bar_num,
+                interval=gap.interval,
+                writing_mode="FIGURATION",
+                rejections=[FigureRejection(
+                    figure_name="(none)",
+                    note_index=0,
+                    pitch=str(source_pitch),
+                    offset="0",
+                    reason=f"no figures for interval '{gap.interval}'",
+                )],
             )
-            return ((source_pitch, gap.gap_duration),)
+        rejections: list[FigureRejection] = []
         max_count: int = self._target_note_count(gap)
         for note_count in range(max_count, MIN_NOTE_COUNT - 1, -1):
             filtered: list[Figure] = self.filter_figures(
@@ -93,22 +120,23 @@ class FigurationStrategy(WritingStrategy):
                 durations: tuple[Fraction, ...] = self._get_rhythm(
                     note_count, gap, metre,
                 )
-                rng.shuffle(filtered)
                 ranked: list[Figure] = sorted(filtered, key=lambda f: -f.weight)
+                expected_exit: int = _INTERVAL_EXIT.get(gap.interval, 0)
                 for figure in ranked[:MAX_FIGURE_ATTEMPTS]:
-                    pairs: tuple[tuple[DiatonicPitch, Fraction], ...] | None = (
-                        _expand_and_check(
-                            figure, note_count, source_pitch,
-                            durations, candidate_filter,
-                        )
+                    pairs, rejection = _expand_and_check(
+                        figure, note_count, source_pitch,
+                        durations, candidate_filter, expected_exit, home_key,
                     )
                     if pairs is not None:
                         return pairs
-        _log.warning(
-            "All figures rejected at bar %d — falling back to pillar",
-            gap.bar_num,
+                    if rejection is not None:
+                        rejections.append(rejection)
+        raise FigureRejectionError(
+            bar_num=gap.bar_num,
+            interval=gap.interval,
+            writing_mode="FIGURATION",
+            rejections=rejections,
         )
-        return ((source_pitch, gap.gap_duration),)
 
     def filter_figures(
         self,
@@ -204,22 +232,55 @@ def _expand_and_check(
     note_count: int,
     source_pitch: DiatonicPitch,
     durations: tuple[Fraction, ...],
-    candidate_filter: Callable[[DiatonicPitch, Fraction], bool],
-) -> tuple[tuple[DiatonicPitch, Fraction], ...] | None:
-    """Expand figure to (pitch, duration) pairs; return None if any fails filter."""
+    candidate_filter: Callable[[DiatonicPitch, Fraction, bool], str | None],
+    expected_exit: int,
+    home_key: Key,
+) -> tuple[
+    tuple[tuple[DiatonicPitch, Fraction], ...] | None,
+    FigureRejection | None,
+]:
+    """Expand figure; return (pairs, None) on success or (None, rejection) on failure."""
     degrees: tuple[int, ...] = _tile_degrees(figure, note_count)
     assert len(degrees) == len(durations), (
         f"Degree count {len(degrees)} != duration count {len(durations)}"
     )
+    if degrees[-1] != expected_exit:
+        return None, FigureRejection(
+            figure_name=figure.name,
+            note_index=len(degrees) - 1,
+            pitch=f"exit_degree={degrees[-1]}",
+            offset="end",
+            reason=f"exit_mismatch(expected={expected_exit}, got={degrees[-1]})",
+        )
     pairs: list[tuple[DiatonicPitch, Fraction]] = []
     elapsed: Fraction = Fraction(0)
+    prev_midi: int | None = None
     for i, deg in enumerate(degrees):
         dp: DiatonicPitch = source_pitch.transpose(deg)
-        if not candidate_filter(dp, elapsed):
-            return None
+        midi: int = home_key.diatonic_to_midi(dp)
+        is_first: bool = i == 0
+        reason: str | None = candidate_filter(dp, elapsed, is_first)
+        if reason is not None:
+            return None, FigureRejection(
+                figure_name=figure.name,
+                note_index=i,
+                pitch=str(dp),
+                offset=str(elapsed),
+                reason=reason,
+            )
+        if prev_midi is not None and not check_melodic_interval(prev_midi, midi):
+            interval: int = midi - prev_midi
+            return None, FigureRejection(
+                figure_name=figure.name,
+                note_index=i,
+                pitch=str(dp),
+                offset=str(elapsed),
+                reason=f"internal_melodic({interval})",
+            )
         pairs.append((dp, durations[i]))
+        prev_midi = midi
         elapsed += durations[i]
-    return tuple(pairs)
+    return tuple(pairs), None
 
 
 def _tile_degrees(figure: Figure, target_count: int) -> tuple[int, ...]:

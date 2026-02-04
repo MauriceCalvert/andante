@@ -10,11 +10,30 @@ from shared.constants import (
     CONSONANT_INTERVALS_ABOVE_BASS,
     DIRECT_MOTION_STEP_THRESHOLD,
     PERFECT_INTERVALS,
+    UGLY_LEAP_SEMITONES,
 )
 from shared.voice_types import Range
 
 _CONSONANT_IC: frozenset[int] = CONSONANT_INTERVALS_ABOVE_BASS
 _PERFECT_IC: frozenset[int] = PERFECT_INTERVALS
+_UGLY_INTERVALS: frozenset[int] = frozenset({1, 6, 10, 11})
+_INTERVAL_NAMES: tuple[str, ...] = (
+    "unison", "m2", "M2", "m3", "M3", "P4", "tritone", "P5", "m6", "M6", "m7", "M7",
+)
+
+
+def format_interval(semitones: int) -> str:
+    """Format interval in semitones as readable name."""
+    if semitones < 0:
+        return f"-{format_interval(-semitones)}"
+    simple: int = semitones % 12
+    octaves: int = semitones // 12
+    name: str = _INTERVAL_NAMES[simple]
+    if octaves == 0:
+        return name
+    if octaves == 1 and simple == 0:
+        return "P8"
+    return f"{name}+{octaves}oct"
 
 
 def check_consonance(midi_a: int, midi_b: int) -> bool:
@@ -46,6 +65,19 @@ def check_direct_motion(
         return True
     upper_leap: bool = abs(upper_motion) > DIRECT_MOTION_STEP_THRESHOLD
     return not upper_leap
+
+
+def check_melodic_interval(prev_midi: int, curr_midi: int) -> bool:
+    """Return True if melodic interval is not ugly (tritone, 7th, etc.).
+    
+    Ugly intervals: minor 2nd (1), tritone (6), minor 7th (10), major 7th (11).
+    Only rejects if interval exceeds a step (> 2 semitones).
+    """
+    interval: int = abs(curr_midi - prev_midi)
+    if interval <= 2:
+        return True
+    simple: int = interval % 12
+    return simple not in _UGLY_INTERVALS
 
 
 def check_parallels(
@@ -88,6 +120,27 @@ def check_strong_beat_consonance(
     if not _is_strong_beat(offset, metre):
         return True
     return check_consonance(candidate_midi, prior_midi)
+
+
+def check_voice_overlap(
+    candidate_midi: int,
+    candidate_offset: Fraction,
+    prior_notes_by_offset: dict[Fraction, list[int]],
+    prev_offset: Fraction | None,
+) -> bool:
+    """Return True if candidate doesn't move to pitch just vacated by prior voice.
+    
+    Voice overlap occurs when one voice moves to a pitch that another voice
+    just left at the previous offset.
+    """
+    if prev_offset is None:
+        return True
+    prev_pitches: list[int] = prior_notes_by_offset.get(prev_offset, [])
+    curr_pitches: list[int] = prior_notes_by_offset.get(candidate_offset, [])
+    for prev_pitch in prev_pitches:
+        if prev_pitch == candidate_midi and prev_pitch not in curr_pitches:
+            return False
+    return True
 
 
 def _is_strong_beat(offset: Fraction, metre: str) -> bool:

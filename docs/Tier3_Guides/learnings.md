@@ -473,4 +473,253 @@ This ensures degree 1→7 with direction="down" yields diff=-1 (step_down), not 
 
 ---
 
-*Last updated: 2026-01-28*
+## Figure Rejection Debugging
+
+### The Problem: Cryptic Error Messages
+
+The original `FigureRejectionError` produced output like:
+
+```
+All figures rejected at bar 12 (interval=step_up, mode=FIGURATION):
+  circolo_up note[7] exit_degree=-2 @end: exit_mismatch(expected=1, got=-2)
+  circolo_up note[0] DiatonicPitch(step=31) @0: melodic_interval(tritone)
+```
+
+This was hard to diagnose because:
+1. Reason codes were terse ("exit_mismatch", "melodic_interval")
+2. Offsets were raw fractions, not musical positions
+3. No grouping by reason — all rejections listed linearly
+4. Interval names were internal codes ("step_up"), not readable ("ascending 2nd")
+
+### The Fix: Human-Readable Formatting
+
+Restructured `FigureRejectionError._format_message()` to:
+
+1. **Group rejections by reason** — see all "melodic leap" failures together
+2. **Expand reason codes** — "range(48-72)" becomes "pitch outside instrument range (48-72)"
+3. **Translate interval names** — "step_up" becomes "ascending 2nd"
+4. **Format offsets** — "0" becomes "start of figure", "end" stays "end of figure"
+5. **Limit per-reason output** — show 5 examples, then "... and N more"
+
+New output:
+
+```
+======================================================================
+FIGURE REJECTION at bar 12
+  Mode: FIGURATION
+  Interval: ascending 2nd
+  Attempted 5 figure(s), all rejected:
+----------------------------------------------------------------------
+
+  figure exit degree wrong: expected=1, got=-2:
+    - circolo_up: note 7 (exit_degree=-2) at end of figure
+
+  melodic leap too large: tritone:
+    - circolo_up: note 0 (DiatonicPitch(step=31)) at start of figure
+    - lower_neighbor_up: note 0 (DiatonicPitch(step=31)) at start of figure
+    - direct_step_up: note 0 (DiatonicPitch(step=31)) at start of figure
+======================================================================
+```
+
+### Files Changed
+
+- `builder/types.py`: Added `_INTERVAL_NAMES`, `_expand_reason()`, `_format_offset()`, rewrote `FigureRejectionError._format_message()`
+
+---
+
+## Chainable Figure Bug
+
+### The Problem: Oscillating Figures Cannot Chain
+
+The `_tile_degrees()` function chains figures by repeating a base unit and accumulating offsets:
+
+```python
+for _ in range(repetitions):
+    for deg in base:
+        result.append(deg + offset)
+    offset = result[-1]  # Last degree becomes new offset
+```
+
+This works for **progressive** figures where each unit advances toward the target:
+- `filled_third_up`: `[0, 1, 2]` — unit `[0, 1]` chains as `[0, 1, 1, 2]` ✓
+
+It fails for **oscillating** figures that return to their starting point:
+- `circolo_up`: `[0, 1, 0, -1, 0, 1]` with chain_unit=4
+- Base unit: `[0, 1, 0, -1]` — ends at -1, not 0
+- Tiled for 8 notes: `[0, 1, 0, -1, -1, 0, -1, -2]` — exit at -2, not +1
+
+The figure oscillates around 0 but the offset accumulates the wrong direction.
+
+### Root Cause Analysis
+
+The error manifested as:
+```
+FIGURE REJECTION at bar 12
+  figure exit degree wrong: expected=1, got=-2
+```
+
+Initial misdiagnosis: thought it was a planner problem (anchor placement creating tritones). Added validation to `place_anchors_in_tessitura()` that rejected anchors creating tritone intervals.
+
+But **anchor-level tritones are valid** — the figuration fills them stepwise. A tritone between degree 4 and degree 7 becomes a scalar run `[4, 5, 6, 7]`, no melodic tritone.
+
+The actual bug: chainable figures with oscillating contours cannot be tiled because their base unit doesn't end at the interval they're supposed to traverse.
+
+### Figures Affected
+
+All oscillating figures had incorrect `chainable: true`:
+
+| Figure | Degrees | chain_unit | Base Unit Exit | Expected Exit |
+|--------|---------|------------|----------------|---------------|
+| circolo_up | [0,1,0,-1,0,1] | 4 | -1 | +1 |
+| circolo_down | [0,-1,0,1,0,-1] | 4 | +1 | -1 |
+| turn_static | [0,1,0,-1,0] | 4 | -1 | 0 |
+| trill_static | [0,1,0,1,0] | 2 | +1 | 0 |
+
+### The Fix
+
+Set `chainable: false` for all oscillating figures in `data/figuration/diminutions.yaml`.
+
+Chaining only works for figures where:
+1. The base unit ends at a degree that progresses toward the target interval
+2. Accumulated offset correctly reaches the expected exit degree
+
+No oscillating/circling figures meet this criterion.
+
+### Architectural Insight
+
+The chaining algorithm assumes **monotonic progression**. Oscillating figures are inherently non-monotonic. Rather than complicate the tiling logic with special cases, the correct fix is to mark these figures as non-chainable.
+
+If longer oscillating patterns are needed, define them explicitly:
+```yaml
+- name: circolo_up_extended
+  degrees: [0, 1, 0, -1, 0, 1, 0, -1, 0, 1]  # 10 notes, explicit
+  chainable: false
+```
+
+### Files Changed
+
+- `data/figuration/diminutions.yaml`: Set `chainable: false` for circolo_up, circolo_down, turn_static, trill_static
+- `shared/pitch.py`: Removed overly strict anchor validation (tritones between anchors are valid when filled by figuration)
+
+---
+
+## Anchor Tritones vs Figure Tritones
+
+### Key Distinction
+
+**Anchor-level tritone**: The interval between consecutive schema anchor pitches is a tritone (e.g., B3 to F4). This is **valid** because figuration fills the gap with stepwise motion.
+
+**Figure-level tritone**: The melodic interval between the previous note and the first note of a new figure is a tritone. This is **invalid** because it creates an exposed tritone leap.
+
+### Why the Confusion
+
+The error message "melodic leap too large: tritone" appeared at "note 0 at start of figure". This could mean:
+
+1. Bad anchor placement (planner bug) — anchors too far apart
+2. Bad figure chaining (data bug) — figure exit doesn't reach target
+3. Genuine constraint conflict — no valid figuration exists
+
+The message didn't distinguish these cases.
+
+### Diagnostic Approach
+
+1. **Check exit degree first**: If figures fail with "exit_mismatch", the figure data is wrong
+2. **Check melodic interval**: If figures fail at note 0 with "melodic_interval", trace back to what produced the previous note
+3. **Check anchor sequence**: If anchors are correctly placed but tritone appears, the previous figure ended in the wrong octave
+
+### When to Validate at Which Level
+
+| Check | Level | Action |
+|-------|-------|--------|
+| Anchor degrees form valid schema | Planner | Assert schema degrees are in YAML |
+| Anchor MIDI pitches in range | Planner | `place_anchor_pitch()` constrains to voice range |
+| Figure exit matches interval | Figure data | Ensure degrees[-1] equals interval offset |
+| Melodic interval to figure start | Builder | `candidate_filter()` checks prev_midi to first note |
+
+Don't validate anchor-to-anchor intervals as melodic leaps — they're not performed directly.
+
+---
+
+## Deferred MIDI Resolution
+
+### The Problem: Premature Octave Decisions
+
+The original architecture resolved anchor degrees to MIDI pitches early in the pipeline:
+
+```
+Planner -> place_anchors_in_tessitura() -> Anchors with MIDI -> Builder
+```
+
+This created several problems:
+
+1. **No context for octave choice**: When placing anchor N, we don't know where the figuration for anchor N-1 will end
+2. **Forced bad intervals**: Pre-resolved MIDI might create tritones or awkward leaps that figuration can't fix
+3. **Direction hints ignored**: Schema direction hints (up/down) couldn't influence octave selection
+
+### The Solution: Defer to Fill Time
+
+New architecture resolves MIDI at the moment of use:
+
+```
+Planner -> Anchors with degrees + direction hints -> Builder -> resolve at fill time
+```
+
+**PlanAnchor** now contains only:
+- `upper_degree`, `lower_degree` (1-7)
+- `upper_direction`, `lower_direction` (up/down/same/None)
+- `local_key`, `bar_beat`, `schema`, `stage`, `section`
+
+**VoiceWriter._resolve_anchor_pitch()** resolves degree to MIDI using:
+1. Previous note's actual MIDI (known at resolution time)
+2. Direction hint from the anchor
+3. Voice range constraints
+
+### Resolution Algorithm
+
+```python
+def _place_degree_with_direction(key, degree, prev_midi, direction, range):
+    # Get all valid octave placements for this degree
+    candidates = [key.degree_to_midi(degree, oct) for oct in range(10)
+                  if range.low <= midi <= range.high]
+    
+    if direction == "up":
+        # Pick lowest candidate above prev_midi
+        above = [m for m in candidates if m > prev_midi]
+        return min(above) if above else max(candidates)
+    
+    if direction == "down":
+        # Pick highest candidate below prev_midi
+        below = [m for m in candidates if m < prev_midi]
+        return max(below) if below else min(candidates)
+    
+    # No direction: pick closest to prev_midi
+    return min(candidates, key=lambda m: abs(m - prev_midi))
+```
+
+### Example: Degree 1 → Degree 7
+
+With C5 (72) as previous note:
+- `direction=None`: resolves to B4 (71) - closest
+- `direction="down"`: resolves to B4 (71) - below C5
+- `direction="up"`: resolves to B5 (83) - above C5
+
+This ensures the schema's intended motion is preserved.
+
+### Files Changed
+
+- `shared/plan_types.py`: Removed `upper_pitch`, `lower_pitch`, `upper_midi`, `lower_midi` from `PlanAnchor`; `AnacrusisPlan.target_pitch` → `target_degree`; `VoicePlan.tessitura_median` is now `int` (MIDI)
+- `planner/voice_planning.py`: Removed `place_anchors_in_tessitura()` call; `_compute_interval()` and `_is_ascending()` now use degrees + direction hints
+- `builder/voice_writer.py`: Added `_resolve_anchor_pitch()`, `_place_degree_near_median()`, `_place_degree_with_direction()`; updated `_compose_independent()`, `_compose_sequenced()`, `_compose_anacrusis()`
+- `builder/types.py`: Removed `upper_midi`, `lower_midi` from `Anchor`
+- `shared/pitch.py`: `place_anchors_in_tessitura()` now unused (can be removed)
+
+### Why This Is Better
+
+1. **Context-aware**: Octave decisions made with knowledge of actual previous pitch
+2. **Direction-respecting**: Schema motion preserved (ascending stays ascending)
+3. **Eliminates class of bugs**: No more pre-resolved octaves creating impossible figuration
+4. **Simpler contract**: Planner only deals with degrees, builder handles MIDI
+
+---
+
+*Last updated: 2026-02-03*

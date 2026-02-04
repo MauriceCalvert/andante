@@ -1,19 +1,25 @@
 # Gavotte
 # Moderate duple-metre dance with half-bar upbeat
+# Graceful character with section contrast
 
 name: gavotte
 voices: 2
 form: binary
 metre: "4/4"
-rhythmic_unit: "1/8"
+rhythmic_unit: "1/16"
 tempo: 66
-upbeat: "1/2"  # Half-bar anacrusis (beats 3-4)
+upbeat: "1/2"
 bass_treatment: patterned
-bass_mode: schema
 bass_pattern: half_bar
+affect: Zierlich
 
 sections:
   - name: A
-    schema_sequence: [romanesca, prinner]
+    schema_sequence: [meyer, prinner, half_cadence]
+    accompany_texture: pillar
+    lead_voice: 0
+
   - name: B
-    schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]
+    schema_sequence: [fonte, monte, fenaroli, passo_indietro, cadenza_composta]
+    accompany_texture: walking
+    lead_voice: 1

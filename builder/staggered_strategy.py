@@ -28,7 +28,7 @@ class StaggeredStrategy(WritingStrategy):
         home_key: Key,
         metre: str,
         rng: Random,
-        candidate_filter: Callable[[DiatonicPitch, Fraction], bool],
+        candidate_filter: Callable[[DiatonicPitch, Fraction, bool], str | None],
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...]:
         """Delegate to fill strategy for the sounding portion."""
         assert gap.gap_duration > 0, (

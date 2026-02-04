@@ -77,8 +77,7 @@ unison:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.7
-    chainable: true
-    chain_unit: 4
+    chainable: false
 
   - name: trill_static
     degrees: [0, 1, 0, 1, 0]
@@ -97,8 +96,7 @@ unison:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.6
-    chainable: true
-    chain_unit: 2
+    chainable: false
 
 step_up:
   - name: direct_step_up
@@ -190,8 +188,7 @@ step_up:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.8
-    chainable: true
-    chain_unit: 4
+    chainable: false
 
 step_down:
   - name: direct_step_down
@@ -283,8 +280,7 @@ step_down:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.8
-    chainable: true
-    chain_unit: 4
+    chainable: false
 
 third_up:
   - name: direct_third_up
@@ -732,7 +728,7 @@ sixth_up:
     arrival: direct
     placement: span
     character: bold
-    harmonic_tension: high
+    harmonic_tension: low
     max_density: low
     cadential_safe: false
     repeatable: false
@@ -761,14 +757,14 @@ sixth_up:
     requires_leading_tone: false
     weight: 0.8
 
-  - name: arpeggiated_sixth_up
-    degrees: [0, 2, 4, 5]
+  - name: broken_chord_sixth_up
+    degrees: [0, 2, 5]
     contour: arpeggiated
-    polarity: upper
-    arrival: stepwise
+    polarity: balanced
+    arrival: direct
     placement: span
-    character: bold
-    harmonic_tension: medium
+    character: plain
+    harmonic_tension: low
     max_density: medium
     cadential_safe: true
     repeatable: true
@@ -777,7 +773,43 @@ sixth_up:
     is_compound: false
     minor_safe: true
     requires_leading_tone: false
-    weight: 0.6
+    weight: 0.75
+
+  - name: arpeggiated_sixth_up
+    degrees: [0, 2, 4, 5]
+    contour: arpeggiated
+    polarity: upper
+    arrival: stepwise
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: partial_fill_sixth_up
+    degrees: [0, 1, 2, 4, 5]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.75
 
 sixth_down:
   - name: direct_sixth_down
@@ -787,7 +819,7 @@ sixth_down:
     arrival: direct
     placement: span
     character: bold
-    harmonic_tension: high
+    harmonic_tension: low
     max_density: low
     cadential_safe: false
     repeatable: false
@@ -816,14 +848,14 @@ sixth_down:
     requires_leading_tone: false
     weight: 0.8
 
-  - name: arpeggiated_sixth_down
-    degrees: [0, -2, -4, -5]
+  - name: broken_chord_sixth_down
+    degrees: [0, -2, -5]
     contour: arpeggiated
-    polarity: lower
-    arrival: stepwise
+    polarity: balanced
+    arrival: direct
     placement: span
-    character: bold
-    harmonic_tension: medium
+    character: plain
+    harmonic_tension: low
     max_density: medium
     cadential_safe: true
     repeatable: true
@@ -832,7 +864,43 @@ sixth_down:
     is_compound: false
     minor_safe: true
     requires_leading_tone: false
-    weight: 0.6
+    weight: 0.75
+
+  - name: arpeggiated_sixth_down
+    degrees: [0, -2, -4, -5]
+    contour: arpeggiated
+    polarity: lower
+    arrival: stepwise
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: medium
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.7
+
+  - name: partial_fill_sixth_down
+    degrees: [0, -1, -2, -4, -5]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.75
 
 octave_up:
   - name: direct_octave_up
