@@ -429,6 +429,24 @@ third_down:
     weight: 0.6
 
 fourth_up:
+  - name: simple_fourth_up
+    degrees: [0, 3]
+    contour: ascending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: down
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
   - name: direct_fourth_up
     degrees: [0, 3]
     contour: ascending_leap
@@ -502,6 +520,24 @@ fourth_up:
     weight: 0.65
 
 fourth_down:
+  - name: simple_fourth_down
+    degrees: [0, -3]
+    contour: descending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: up
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
   - name: direct_fourth_down
     degrees: [0, -3]
     contour: descending_leap
@@ -575,6 +611,24 @@ fourth_down:
     weight: 0.65
 
 fifth_up:
+  - name: simple_fifth_up
+    degrees: [0, 4]
+    contour: ascending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: down
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
   - name: direct_fifth_up
     degrees: [0, 4]
     contour: ascending_leap
@@ -648,6 +702,24 @@ fifth_up:
     weight: 0.55
 
 fifth_down:
+  - name: simple_fifth_down
+    degrees: [0, -4]
+    contour: descending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: up
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
   - name: direct_fifth_down
     degrees: [0, -4]
     contour: descending_leap
@@ -721,6 +793,24 @@ fifth_down:
     weight: 0.55
 
 sixth_up:
+  - name: simple_sixth_up
+    degrees: [0, 5]
+    contour: ascending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: down
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
   - name: direct_sixth_up
     degrees: [0, 5]
     contour: ascending_leap
@@ -812,6 +902,24 @@ sixth_up:
     weight: 0.75
 
 sixth_down:
+  - name: simple_sixth_down
+    degrees: [0, -5]
+    contour: descending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: up
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
   - name: direct_sixth_down
     degrees: [0, -5]
     contour: descending_leap
@@ -903,6 +1011,24 @@ sixth_down:
     weight: 0.75
 
 octave_up:
+  - name: simple_octave_up
+    degrees: [0, 7]
+    contour: ascending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: down
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
   - name: direct_octave_up
     degrees: [0, 7]
     contour: ascending_leap
@@ -958,6 +1084,24 @@ octave_up:
     weight: 0.5
 
 octave_down:
+  - name: simple_octave_down
+    degrees: [0, -7]
+    contour: descending_leap
+    polarity: balanced
+    arrival: direct
+    placement: span
+    character: plain
+    harmonic_tension: low
+    max_density: low
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: true
+    compensation_direction: up
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 1.0
+
   - name: direct_octave_down
     degrees: [0, -7]
     contour: descending_leap

@@ -6,6 +6,7 @@ Durations are Fraction. Pitches are MIDI integers.
 from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import TYPE_CHECKING, Any
+from shared.constants import INTERVAL_DISPLAY_NAMES
 if TYPE_CHECKING:
     from shared.key import Key
 @dataclass
@@ -16,23 +17,6 @@ class FigureRejection:
     pitch: str
     offset: str
     reason: str
-
-
-_INTERVAL_NAMES: dict[str, str] = {
-    "unison": "unison",
-    "step_up": "ascending 2nd",
-    "step_down": "descending 2nd",
-    "third_up": "ascending 3rd",
-    "third_down": "descending 3rd",
-    "fourth_up": "ascending 4th",
-    "fourth_down": "descending 4th",
-    "fifth_up": "ascending 5th",
-    "fifth_down": "descending 5th",
-    "sixth_up": "ascending 6th",
-    "sixth_down": "descending 6th",
-    "octave_up": "ascending octave",
-    "octave_down": "descending octave",
-}
 
 
 def _expand_reason(reason: str) -> str:
@@ -89,7 +73,7 @@ class FigureRejectionError(Exception):
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
-        interval_readable: str = _INTERVAL_NAMES.get(self.interval, self.interval)
+        interval_readable: str = INTERVAL_DISPLAY_NAMES.get(self.interval, self.interval)
         lines: list[str] = [
             "",
             "=" * 70,

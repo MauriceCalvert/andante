@@ -491,3 +491,40 @@ Hardened `_compose_imitative_section()` for future use:
 Updated FEAT-001 status to "Deferred". Documented why naive copying fails
 and outlined proper implementation plan (subject integration, tonal answer
 generation, countersubject composition, section assembly).
+
+## 2026-02-04: FigureRejectionError at bar 18 (ascending 5th)
+
+### Root cause
+
+The diminution vocabulary lacked flexible 2-note figures for larger intervals
+(fourth, fifth, sixth, octave). The existing "direct_*" figures had:
+- `character: bold` (rank 4) - filtered when gap requests `plain` (rank 0)
+- `harmonic_tension: medium` - filtered when gap has `low` tension
+- `cadential_safe: false` - filtered near cadences
+- `minor_safe: false` (sixths) - filtered in minor keys
+
+When a gap required note_count=2 with low tension and plain character, no
+figures passed filter_figures(), causing 0 attempts.
+
+### Fix
+
+Added `simple_*` variants for all leap intervals in diminutions.yaml:
+- `simple_fourth_up`, `simple_fourth_down`
+- `simple_fifth_up`, `simple_fifth_down`
+- `simple_sixth_up`, `simple_sixth_down`
+- `simple_octave_up`, `simple_octave_down`
+
+These have `character: plain`, `harmonic_tension: low`, `cadential_safe: true`,
+`minor_safe: true`, and `weight: 1.0` (highest priority for plain contexts).
+
+### Also: L017 compliance - unified interval naming
+
+Merged duplicate definitions:
+- `FIGURATION_INTERVALS` in constants.py (tuple of keys)
+- `_INTERVAL_NAMES` in types.py (dict with display names)
+
+Into single source of truth:
+- `INTERVAL_DISPLAY_NAMES` in constants.py (dict: key -> readable name)
+- `FIGURATION_INTERVALS` now derived from its keys
+
+Updated types.py to import `INTERVAL_DISPLAY_NAMES` from constants.

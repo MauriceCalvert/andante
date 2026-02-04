@@ -142,12 +142,26 @@ DUX_VOICES: tuple[str, ...] = (
 # Figuration System Constants (figuration.md)
 # =============================================================================
 
-# Figuration intervals for diminution table indexing
-FIGURATION_INTERVALS: tuple[str, ...] = (
-    "unison", "step_up", "step_down", "third_up", "third_down",
-    "fourth_up", "fourth_down", "fifth_up", "fifth_down",
-    "sixth_up", "sixth_down", "octave_up", "octave_down",
-)
+# Figuration interval display names: internal key -> human-readable name
+# Single source of truth for interval naming (L017)
+INTERVAL_DISPLAY_NAMES: dict[str, str] = {
+    "unison": "unison",
+    "step_up": "ascending 2nd",
+    "step_down": "descending 2nd",
+    "third_up": "ascending 3rd",
+    "third_down": "descending 3rd",
+    "fourth_up": "ascending 4th",
+    "fourth_down": "descending 4th",
+    "fifth_up": "ascending 5th",
+    "fifth_down": "descending 5th",
+    "sixth_up": "ascending 6th",
+    "sixth_down": "descending 6th",
+    "octave_up": "ascending octave",
+    "octave_down": "descending octave",
+}
+
+# Figuration intervals for diminution table indexing (derived from display names)
+FIGURATION_INTERVALS: tuple[str, ...] = tuple(INTERVAL_DISPLAY_NAMES.keys())
 
 # Misbehaviour probability for controlled violations
 MISBEHAVIOUR_PROBABILITY: float = 0.05
