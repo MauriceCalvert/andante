@@ -32,7 +32,7 @@ from shared.tracer import get_tracer
 
 def _derive_key_from_affect(affect: str) -> str:
     """Derive key from affect using Mattheson's Affektenlehre."""
-    tonic: str = get_suggested_key(affect)
+    tonic: str = get_suggested_key(affect=affect)
     if tonic[0].islower():
         mode = "minor"
         tonic = tonic.upper()
@@ -54,50 +54,50 @@ def generate(
     """Generate composition from genre and affect, with optional key and tempo."""
     tracer = get_tracer()
     if key is None:
-        key = _derive_key_from_affect(affect)
-    tracer.config(genre, affect, key)
-    config: dict[str, Any] = load_configs(genre, key, affect)
+        key = _derive_key_from_affect(affect=affect)
+    tracer.config(genre=genre, affect=affect, key=key)
+    config: dict[str, Any] = load_configs(genre=genre, key=key, affect=affect)
     genre_config = config["genre"]
     key_config = config["key"]
     affect_config = config["affect"]
     form_config = config["form"]
     schemas = config["schemas"]
-    trajectory, rhythm_vocab, tempo = layer_1_rhetorical(genre_config)
+    trajectory, rhythm_vocab, tempo = layer_1_rhetorical(genre_config=genre_config)
     if tempo_override is not None:
         tempo = tempo_override
     else:
         tempo = tempo + affect_config.tempo_modifier
     tracer.L1("Rhetorical", trajectory=trajectory, tempo=tempo)
-    tonal_plan, density, modality = layer_2_tonal(affect_config)
+    tonal_plan, density, modality = layer_2_tonal(affect_config=affect_config)
     tracer.L2("Tonal", density=density, modality=modality)
-    tracer.tonal_plan(tonal_plan)
+    tracer.tonal_plan(plan=tonal_plan)
     schema_chain: SchemaChain = layer_3_schematic(
-        tonal_plan,
-        genre_config,
-        form_config,
-        schemas,
+        tonal_plan=tonal_plan,
+        genre_config=genre_config,
+        form_config=form_config,
+        schemas=schemas,
     )
     tracer.L3("Schematic", schema_count=len(schema_chain.schemas))
-    tracer.schema_chain(schema_chain.schemas)
+    tracer.schema_chain(schemas=schema_chain.schemas)
     bar_assignments, anchors, total_bars = layer_4_metric(
-        schema_chain,
-        genre_config,
-        form_config,
-        key_config,
-        schemas,
-        tonal_plan,
-        affect_config.answer_interval,
-        modality,
+        schema_chain=schema_chain,
+        genre_config=genre_config,
+        form_config=form_config,
+        key_config=key_config,
+        schemas=schemas,
+        tonal_plan=tonal_plan,
+        answer_interval=affect_config.answer_interval,
+        modality=modality,
     )
     tracer.L4("Metric", total_bars=total_bars, anchor_count=len(anchors))
-    tracer.bar_assignments(bar_assignments)
-    tracer.anchors_summary(anchors)
+    tracer.bar_assignments(assignments=bar_assignments)
+    tracer.anchors_summary(anchors=anchors)
     passage_assignments: list[PassageAssignment] = layer_5_textural(
-        genre_config,
-        bar_assignments,
+        genre_config=genre_config,
+        bar_assignments=bar_assignments,
     )
     tracer.L5("Textural", passage_count=len(passage_assignments))
-    tracer.passage_assignments(passage_assignments)
+    tracer.passage_assignments(assignments=passage_assignments)
     # Layer 6: Voice Planning (Phase 7)
     plan: CompositionPlan = build_composition_plan(
         anchors=anchors,
@@ -110,7 +110,7 @@ def generate(
         tempo_override=tempo,
     )
     tracer.L6("VoicePlanning", voice_count=len(plan.voice_plans))
-    return compose_voices(plan)
+    return compose_voices(plan=plan)
 
 
 def generate_to_files(
@@ -122,14 +122,14 @@ def generate_to_files(
     tempo: int | None = None,
 ) -> Composition:
     """Generate composition and write to files."""
-    result: Composition = generate(genre, affect, key, tempo)
+    result: Composition = generate(genre=genre, affect=affect, key=key, tempo_override=tempo)
     note_path: Path = output_dir / f"{name}.note"
     midi_path: Path = output_dir / f"{name}.midi"
     xml_path: Path = output_dir / name
-    write_note_file(result, note_path)
-    tonic, mode = _parse_key(key) if key else ("C", "major")
-    write_midi_file(result, midi_path, tonic, mode)
-    write_musicxml_file(result, xml_path, tonic, mode)
+    write_note_file(comp=result, path=note_path)
+    tonic, mode = _parse_key(key_str=key) if key else ("C", "major")
+    write_midi_file(comp=result, path=midi_path, tonic=tonic, mode=mode)
+    write_musicxml_file(comp=result, path=xml_path, tonic=tonic, mode=mode)
     return result
 
 

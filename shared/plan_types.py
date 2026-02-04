@@ -121,14 +121,14 @@ def validate_plan(plan: CompositionPlan) -> None:
     bugs that faults.py cannot see (faults.py checks notes, not plans).
     """
     voice_ids: list[str] = [vp.voice_id for vp in plan.voice_plans]
-    _check_unique_voice_ids(voice_ids)
-    _check_composition_order(plan.voice_plans)
-    _check_follows_references(plan.voice_plans, voice_ids)
-    _check_follows_order(plan.voice_plans)
-    _check_role_fields(plan.voice_plans)
-    _check_gap_contiguity(plan.voice_plans, len(plan.anchors))
-    _check_gap_counts(plan.voice_plans)
-    _check_shared_actuator_reciprocal(plan.voice_plans)
+    _check_unique_voice_ids(voice_ids=voice_ids)
+    _check_composition_order(voice_plans=plan.voice_plans)
+    _check_follows_references(voice_plans=plan.voice_plans, voice_ids=voice_ids)
+    _check_follows_order(voice_plans=plan.voice_plans)
+    _check_role_fields(voice_plans=plan.voice_plans)
+    _check_gap_contiguity(voice_plans=plan.voice_plans, anchor_count=len(plan.anchors))
+    _check_gap_counts(voice_plans=plan.voice_plans)
+    _check_shared_actuator_reciprocal(voice_plans=plan.voice_plans)
 
 
 def _check_unique_voice_ids(voice_ids: list[str]) -> None:

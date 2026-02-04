@@ -34,22 +34,22 @@ def generate_schema_anchors(
     """Generate anchors for a schema: one anchor per bar, one stage per bar."""
     if schema_def.sequential:
         return _generate_sequential_anchors(
-            schema_name,
-            schema_def,
-            start_bar,
-            home_key,
-            upbeat,
-            metre,
-            section,
+            schema_name=schema_name,
+            schema_def=schema_def,
+            start_bar=start_bar,
+            home_key=home_key,
+            upbeat=upbeat,
+            metre=metre,
+            section=section,
         )
     return _generate_regular_anchors(
-        schema_name,
-        schema_def,
-        start_bar,
-        home_key,
-        upbeat,
-        metre,
-        section,
+        schema_name=schema_name,
+        schema_def=schema_def,
+        start_bar=start_bar,
+        local_key=home_key,
+        upbeat=upbeat,
+        metre=metre,
+        section=section,
     )
 
 
@@ -80,7 +80,7 @@ def _generate_regular_anchors(
     stages: int = len(soprano_degrees)
     for stage in range(stages):
         if stage == 0 and upbeat > 0:
-            bar, beat = _compute_upbeat_bar_beat(start_bar, upbeat, metre)
+            bar, beat = _compute_upbeat_bar_beat(start_bar=start_bar, upbeat=upbeat, metre=metre)
         else:
             bar = start_bar + stage - (1 if upbeat > 0 else 0)
             beat = 1
@@ -135,19 +135,19 @@ def _generate_sequential_anchors(
     First segment has None direction; subsequent segments use segment_direction.
     """
     anchors: list[Anchor] = []
-    segment_count: int = _get_segment_count(schema_def)
+    segment_count: int = _get_segment_count(schema_def=schema_def)
     typical_keys: tuple[str, ...] | None = schema_def.typical_keys
     segment_direction: str | None = schema_def.segment_direction
     for seg_idx in range(segment_count):
         if seg_idx == 0 and upbeat > 0:
-            bar, beat = _compute_upbeat_bar_beat(start_bar, upbeat, metre)
+            bar, beat = _compute_upbeat_bar_beat(start_bar=start_bar, upbeat=upbeat, metre=metre)
         else:
             bar = start_bar + seg_idx - (1 if upbeat > 0 else 0)
             beat = 1
         local_key: Key = _get_segment_key(
-            home_key,
-            seg_idx,
-            typical_keys,
+            home_key=home_key,
+            segment_index=seg_idx,
+            typical_keys=typical_keys,
         )
         # First segment has no direction; subsequent segments use segment_direction
         upper_dir: str | None = segment_direction if seg_idx > 0 else None
@@ -182,4 +182,4 @@ def _get_segment_key(
     key_area: str = typical_keys[key_idx]
     if key_area == "I" or key_area == "i":
         return home_key
-    return home_key.modulate_to(key_area)
+    return home_key.modulate_to(target=key_area)

@@ -54,7 +54,7 @@ def get_nested(data: dict[str, Any], path: str) -> set[str]:
     if not path or data is None:
         return set()
     parts: list[str] = path.replace("[*]", ".*").split(".")
-    return _get_nested_recursive(data, parts)
+    return _get_nested_recursive(data=data, parts=parts)
 
 
 def _get_nested_recursive(data: Any, parts: list[str]) -> set[str]:
@@ -71,12 +71,12 @@ def _get_nested_recursive(data: Any, parts: list[str]) -> set[str]:
         if isinstance(data, dict):
             result: set[str] = set()
             for v in data.values():
-                result |= _get_nested_recursive(v, rest)
+                result |= _get_nested_recursive(data=v, parts=rest)
             return result
         if isinstance(data, list):
             result = set()
             for v in data:
-                result |= _get_nested_recursive(v, rest)
+                result |= _get_nested_recursive(data=v, parts=rest)
             return result
         return set()
     if part == "keys":
@@ -84,7 +84,7 @@ def _get_nested_recursive(data: Any, parts: list[str]) -> set[str]:
             return set(data.keys())
         return set()
     if isinstance(data, dict) and part in data:
-        return _get_nested_recursive(data[part], rest)
+        return _get_nested_recursive(data=data[part], parts=rest)
     return set()
 
 
@@ -104,17 +104,17 @@ def collect_definitions(type_spec: dict[str, Any]) -> dict[str, set[str]]:
                 for genre_file in genres_dir.glob("*.yaml"):
                     if genre_file.name.startswith("_"):
                         continue
-                    data: dict[str, Any] = load_yaml(genre_file)
-                    values |= get_nested(data, path)
+                    data: dict[str, Any] = load_yaml(path=genre_file)
+                    values |= get_nested(data=data, path=path)
         elif file_key == "cadences":
-            data = load_yaml(DATA_DIR / "cadences" / "cadences.yaml")
-            values = get_nested(data, "internal.keys") | get_nested(data, "final.keys")
+            data = load_yaml(path=DATA_DIR / "cadences" / "cadences.yaml")
+            values = get_nested(data=data, path="internal.keys") | get_nested(data=data, path="final.keys")
         else:
             yaml_path: Path = DATA_DIR / f"{file_key}.yaml"
             if not yaml_path.exists():
                 continue
-            data = load_yaml(yaml_path)
-            values = get_nested(data, path)
+            data = load_yaml(path=yaml_path)
+            values = get_nested(data=data, path=path)
         definitions[type_name] = values
     return definitions
 
@@ -141,10 +141,10 @@ def validate_references(type_spec: dict[str, Any], definitions: dict[str, set[st
                 for genre_file in genres_dir.glob("*.yaml"):
                     if genre_file.name.startswith("_"):
                         continue
-                    data: dict[str, Any] = load_yaml(genre_file)
+                    data: dict[str, Any] = load_yaml(path=genre_file)
                     for ref_path, type_spec_str in refs.items():
-                        values: set[str] = get_nested(data, ref_path)
-                        valid: set[str] = get_valid_values(type_spec_str, definitions)
+                        values: set[str] = get_nested(data=data, path=ref_path)
+                        valid: set[str] = get_valid_values(type_spec_str=type_spec_str, definitions=definitions)
                         for v in values:
                             if v and v not in valid:
                                 errors.append(
@@ -155,10 +155,10 @@ def validate_references(type_spec: dict[str, Any], definitions: dict[str, set[st
             yaml_path: Path = DATA_DIR / f"{file_key}.yaml"
             if not yaml_path.exists():
                 continue
-            data = load_yaml(yaml_path)
+            data = load_yaml(path=yaml_path)
             for ref_path, type_spec_str in refs.items():
-                values = get_nested(data, ref_path)
-                valid = get_valid_values(type_spec_str, definitions)
+                values = get_nested(data=data, path=ref_path)
+                valid = get_valid_values(type_spec_str=type_spec_str, definitions=definitions)
                 for v in values:
                     if v and v not in valid:
                         errors.append(
@@ -205,7 +205,7 @@ def build_yaml_usages() -> dict[str, list[str]]:
     py_files: list[Path] = get_all_python_files()
 
     for py_file in py_files:
-        refs: set[str] = extract_yaml_references_from_python(py_file)
+        refs: set[str] = extract_yaml_references_from_python(py_file=py_file)
         module_name: str = str(py_file.relative_to(PROJECT_DIR)).replace("\\", "/").replace(".py", "")
         for ref in refs:
             if ref not in usages:
@@ -222,6 +222,7 @@ def build_yaml_usages() -> dict[str, list[str]]:
 def find_orphaned_yaml_files(usages: dict[str, list[str]]) -> list[Path]:
     """Find YAML files not referenced by any Python module."""
     all_yaml: list[Path] = get_all_yaml_files()
+
     referenced: set[str] = set()
 
     # Normalize all references
@@ -276,7 +277,7 @@ def validate_yaml_syntax() -> list[str]:
     errors: list[str] = []
     for yaml_file in get_all_yaml_files():
         try:
-            load_yaml(yaml_file)
+            load_yaml(path=yaml_file)
         except yaml.YAMLError as e:
             rel_path: str = str(yaml_file.relative_to(PROJECT_DIR))
             errors.append(f"{rel_path}: YAML syntax error - {e}")
@@ -294,7 +295,7 @@ def validate_required_fields() -> list[str]:
         for genre_file in genres_dir.glob("*.yaml"):
             if genre_file.name.startswith("_"):
                 continue
-            data = load_yaml(genre_file)
+            data = load_yaml(path=genre_file)
             for field in required_genre_fields:
                 if field not in data:
                     rel_path = str(genre_file.relative_to(PROJECT_DIR))
@@ -305,7 +306,7 @@ def validate_required_fields() -> list[str]:
     forms_dir = DATA_DIR / "forms"
     if forms_dir.exists():
         for form_file in forms_dir.glob("*.yaml"):
-            data = load_yaml(form_file)
+            data = load_yaml(path=form_file)
             for field in required_form_fields:
                 if field not in data:
                     rel_path = str(form_file.relative_to(PROJECT_DIR))
@@ -345,8 +346,8 @@ def get_schema_bass_degrees(schema: dict[str, Any]) -> tuple[int, int]:
             return int(abs(raw))
         raw_str = str(raw).strip().lstrip("+-")
         return int(float(raw_str))
-    entry = parse_degree(bass_degrees[0])
-    exit_ = parse_degree(bass_degrees[-1])
+    entry = parse_degree(raw=bass_degrees[0])
+    exit_ = parse_degree(raw=bass_degrees[-1])
     return entry, exit_
 
 
@@ -376,12 +377,12 @@ def validate_genre_sections() -> list[str]:
     schemas_path = DATA_DIR / "schemas" / "schemas.yaml"
     if not genres_dir.exists():
         return errors
-    schemas: dict[str, Any] = load_yaml(schemas_path) if schemas_path.exists() else {}
+    schemas: dict[str, Any] = load_yaml(path=schemas_path) if schemas_path.exists() else {}
     for genre_file in genres_dir.glob("*.yaml"):
         if genre_file.name.startswith("_"):
             continue
         rel_path = str(genre_file.relative_to(PROJECT_DIR))
-        data = load_yaml(genre_file)
+        data = load_yaml(path=genre_file)
         sections = data.get("sections", [])
         if not sections:
             continue
@@ -402,9 +403,9 @@ def validate_genre_sections() -> list[str]:
                 next_name = schema_sequence[j + 1]
                 if curr_name not in schemas or next_name not in schemas:
                     continue
-                _, exit_bass = get_schema_bass_degrees(schemas[curr_name])
-                entry_bass, _ = get_schema_bass_degrees(schemas[next_name])
-                if not check_schema_transition(exit_bass, entry_bass):
+                _, exit_bass = get_schema_bass_degrees(schema=schemas[curr_name])
+                entry_bass, _ = get_schema_bass_degrees(schema=schemas[next_name])
+                if not check_schema_transition(exit_bass=exit_bass, entry_bass=entry_bass):
                     errors.append(
                         f"{rel_path}: section '{section_name}' invalid transition "
                         f"{curr_name}(exit={exit_bass}) -> {next_name}(entry={entry_bass})"
@@ -420,7 +421,7 @@ def validate_brief_files() -> list[str]:
         return errors
     for brief_file in briefs_dir.rglob("*.brief"):
         rel_path = str(brief_file.relative_to(PROJECT_DIR))
-        data = load_yaml(brief_file)
+        data = load_yaml(path=brief_file)
         brief_section = data.get("brief", {})
         if "bars" in brief_section:
             errors.append(
@@ -469,9 +470,9 @@ def validate_all() -> tuple[bool, list[str], dict[str, list[str]], list[Path]]:
     # 3. Validate cross-references per yaml_types.yaml
     type_spec_path: Path = DATA_DIR / "yaml_types.yaml"
     if type_spec_path.exists():
-        type_spec: dict[str, Any] = load_yaml(type_spec_path)
-        definitions: dict[str, set[str]] = collect_definitions(type_spec)
-        ref_errors = validate_references(type_spec, definitions)
+        type_spec: dict[str, Any] = load_yaml(path=type_spec_path)
+        definitions: dict[str, set[str]] = collect_definitions(type_spec=type_spec)
+        ref_errors = validate_references(type_spec=type_spec, definitions=definitions)
         errors.extend(ref_errors)
     else:
         errors.append("data/yaml_types.yaml not found - cannot validate cross-references")
@@ -488,7 +489,7 @@ def validate_all() -> tuple[bool, list[str], dict[str, list[str]], list[Path]]:
     usages: dict[str, list[str]] = build_yaml_usages()
 
     # 7. Find orphaned files
-    orphaned: list[Path] = find_orphaned_yaml_files(usages)
+    orphaned: list[Path] = find_orphaned_yaml_files(usages=usages)
 
     return len(errors) == 0, errors, usages, orphaned
 
@@ -501,7 +502,7 @@ def main() -> None:
     valid, errors, usages, orphaned = validate_all()
 
     # Write usages report
-    report_path = write_yaml_usages(usages, orphaned)
+    report_path = write_yaml_usages(usages=usages, orphaned=orphaned)
     print(f"Generated: {report_path.relative_to(PROJECT_DIR)}")
     print()
 

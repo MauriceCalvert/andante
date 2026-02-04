@@ -58,8 +58,8 @@ def interval_between_degrees(d1: int, d2: int, mode: str) -> int:
     Returns:
         Absolute interval in semitones
     """
-    s1 = degree_to_semitones(d1, mode)
-    s2 = degree_to_semitones(d2, mode)
+    s1 = degree_to_semitones(degree=d1, mode=mode)
+    s2 = degree_to_semitones(degree=d2, mode=mode)
     return abs(s2 - s1) % 12
 
 
@@ -82,7 +82,7 @@ def check_schema_fit(
     if not subject_degrees:
         return False, "Subject has no degrees"
 
-    schema = get_schema(schema_name)
+    schema = get_schema(name=schema_name)
     first_bass = schema.bass_degrees[0]
 
     # Normalize first bass to 1-7
@@ -130,7 +130,7 @@ def check_invertibility(degrees: tuple[int, ...], mode: str) -> tuple[bool, str]
     errors: list[str] = []
 
     for i in range(len(degrees) - 1):
-        interval = interval_between_degrees(degrees[i], degrees[i + 1], mode)
+        interval = interval_between_degrees(d1=degrees[i], d2=degrees[i + 1], mode=mode)
         inverted = (12 - interval) % 12
 
         # Check if inverted interval is consonant
@@ -237,17 +237,17 @@ def validate_subject(
         )
 
     # Check schema fit
-    fit_ok, fit_error = check_schema_fit(degrees, opening_schema)
+    fit_ok, fit_error = check_schema_fit(subject_degrees=degrees, schema_name=opening_schema)
     if not fit_ok:
         errors.append(fit_error)
 
     # Check invertibility
-    invert_ok, invert_error = check_invertibility(degrees, mode)
+    invert_ok, invert_error = check_invertibility(degrees=degrees, mode=mode)
     if not invert_ok:
         errors.append(invert_error)
 
     # Check answerability
-    answer_ok, answer_error = check_answerability(degrees, mode)
+    answer_ok, answer_error = check_answerability(degrees=degrees, mode=mode)
     if not answer_ok:
         errors.append(answer_error)
 

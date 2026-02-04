@@ -71,7 +71,7 @@ def load_genre(name: str) -> GenreConfig:
     path: Path = DATA_DIR / "genres" / f"{name}.yaml"
     assert path.exists(), f"Genre not found: {path}"
     data: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return _validate_genre(data)
+    return _validate_genre(data=data)
 
 
 def load_all_schemas() -> dict[str, SchemaConfig]:
@@ -86,7 +86,7 @@ def load_all_schemas() -> dict[str, SchemaConfig]:
             continue
         if "soprano_degrees" not in schema_data and "segment" not in schema_data:
             continue
-        schema: SchemaConfig | None = _validate_schema(name, schema_data)
+        schema: SchemaConfig | None = _validate_schema(name=name, data=schema_data)
         if schema is not None:
             result[name] = schema
     return result
@@ -99,7 +99,7 @@ def load_schemas() -> dict[str, SchemaConfig]:
 
 def load_key(name: str) -> KeyConfig:
     """Create key configuration from key name (e.g., 'c_major', 'g_minor')."""
-    tonic, mode = _parse_key_name(name)
+    tonic, mode = _parse_key_name(name=name)
     key: Key = Key(tonic=tonic, mode=mode)
     return KeyConfig(
         name=f"{tonic} {mode.capitalize()}",
@@ -132,7 +132,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
     result: dict = dict(base)
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _deep_merge(result[key], value)
+            result[key] = _deep_merge(base=result[key], override=value)
         else:
             result[key] = value
     return result
@@ -157,12 +157,12 @@ def load_affect(name: str) -> AffectConfig:
                 break
         assert canonical_name is not None, f"Affect '{name}' not found in {path}. Available: {list(all_affects.keys())}"
         override_data: dict = all_affects[canonical_name]
-        data: dict = _deep_merge(base_data, override_data)
+        data: dict = _deep_merge(base=base_data, override=override_data)
         data["name"] = canonical_name
     else:
         data = base_data
         data["name"] = "default"
-    return _validate_affect(data)
+    return _validate_affect(data=data)
 
 
 def load_form(name: str) -> FormConfig:
@@ -170,7 +170,7 @@ def load_form(name: str) -> FormConfig:
     path: Path = DATA_DIR / "forms" / f"{name}.yaml"
     assert path.exists(), f"Form not found: {path}"
     data: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return _validate_form(data)
+    return _validate_form(data=data)
 
 
 def _compute_slots_per_bar(metre: str, rhythmic_unit: str) -> int:
@@ -202,20 +202,20 @@ def _compute_total_bars(
     for section in genre_config.sections:
         schema_sequence: list[str] = section.get("schema_sequence", [])
         for name in schema_sequence:
-            total += _get_schema_stages(name, schemas)
+            total += _get_schema_stages(schema_name=name, schemas=schemas)
     return total
 
 
 def load_configs(genre: str, key: str, affect: str) -> dict[str, Any]:
     """Load all required configurations."""
-    genre_config: GenreConfig = load_genre(genre)
-    key_config: KeyConfig = load_key(key)
-    affect_config: AffectConfig = load_affect(affect)
-    form_config: FormConfig = load_form(genre_config.form)
+    genre_config: GenreConfig = load_genre(name=genre)
+    key_config: KeyConfig = load_key(name=key)
+    affect_config: AffectConfig = load_affect(name=affect)
+    form_config: FormConfig = load_form(name=genre_config.form)
     schemas: dict[str, SchemaConfig] = load_all_schemas()
     tempo: int = genre_config.tempo + affect_config.tempo_modifier
-    total_bars: int = _compute_total_bars(genre_config, schemas)
-    slots_per_bar: int = _compute_slots_per_bar(genre_config.metre, genre_config.rhythmic_unit)
+    total_bars: int = _compute_total_bars(genre_config=genre_config, schemas=schemas)
+    slots_per_bar: int = _compute_slots_per_bar(metre=genre_config.metre, rhythmic_unit=genre_config.rhythmic_unit)
     total_slots: int = total_bars * slots_per_bar
     return {
         "genre": genre_config,
@@ -242,7 +242,7 @@ def _validate_genre(data: dict) -> GenreConfig:
     bass_treatment: str | None = data.get("bass_treatment")
     bass_mode: str = data.get("bass_mode", "pattern")
     bass_pattern: str | None = data.get("bass_pattern")
-    validate_bass_treatment(bass_treatment, bass_mode, bass_pattern, genre_name)
+    validate_bass_treatment(bass_treatment=bass_treatment, bass_mode=bass_mode, bass_pattern=bass_pattern, genre_name=genre_name)
     upbeat_raw = data.get("upbeat", 0)
     upbeat = Fraction(upbeat_raw) if isinstance(upbeat_raw, str) else Fraction(upbeat_raw)
     return GenreConfig(
@@ -312,7 +312,7 @@ def _parse_signed_degrees(raw_list: list) -> tuple[tuple[int, ...], tuple[str | 
     degrees: list[int] = []
     directions: list[str | None] = []
     for i, raw in enumerate(raw_list):
-        degree, direction = _parse_signed_degree(raw, is_first=(i == 0))
+        degree, direction = _parse_signed_degree(raw=raw, is_first=(i == 0))
         degrees.append(degree)
         directions.append(direction)
     return tuple(degrees), tuple(directions)
@@ -335,9 +335,9 @@ def _validate_schema(name: str, data: dict) -> SchemaConfig:
     else:
         raw_soprano = data.get("soprano_degrees", [])
         raw_bass = data.get("bass_degrees", [])
-    soprano_degrees, soprano_directions = _parse_signed_degrees(raw_soprano)
-    bass_degrees, bass_directions = _parse_signed_degrees(raw_bass)
-    typical_keys: tuple[str, ...] | None = _parse_typical_keys(data.get("typical_keys"))
+    soprano_degrees, soprano_directions = _parse_signed_degrees(raw_list=raw_soprano)
+    bass_degrees, bass_directions = _parse_signed_degrees(raw_list=raw_bass)
+    typical_keys: tuple[str, ...] | None = _parse_typical_keys(raw=data.get("typical_keys"))
     # Derive entry/exit from first/last degrees (single source of truth)
     entry_soprano: int = soprano_degrees[0] if soprano_degrees else 1
     entry_bass: int = bass_degrees[0] if bass_degrees else 1

@@ -177,4 +177,4 @@ class Key:
         FOR EXTERNAL MIDI INPUT ONLY (e.g., figured bass, MIDI file import).
         Internal solvers should work in degree space directly.
         """
-        return FloatingNote(self.midi_to_degree(midi))
+        return FloatingNote(degree=self.midi_to_degree(midi=midi))

@@ -91,7 +91,7 @@ def load_motif(name: str, mode: str = "major") -> Motif:
 
     # Parse pitches
     pitch_names = pitches_line.split()
-    midi_pitches = [parse_note_name(p) for p in pitch_names]
+    midi_pitches = [parse_note_name(note_str=p) for p in pitch_names]
 
     # Parse durations (as decimals, convert to fractions)
     duration_strs = durations_line.split()
@@ -107,8 +107,8 @@ def load_motif(name: str, mode: str = "major") -> Motif:
         durations.append(frac)
 
     # Infer tonic and convert to degrees
-    tonic_pc = infer_tonic(midi_pitches)
-    degrees = tuple(midi_to_degree(m, tonic_pc, mode) for m in midi_pitches)
+    tonic_pc = infer_tonic(pitches=midi_pitches)
+    degrees = tuple(midi_to_degree(midi=m, tonic_pc=tonic_pc, mode=mode) for m in midi_pitches)
 
     # Calculate bar count from total duration (don't normalize - preserve rhythm)
     total_dur = sum(durations)
@@ -180,8 +180,8 @@ def load_motif_from_file(file_path: str, mode: str = "minor") -> Motif:
         raise ValueError(f"No valid notes found in {path}")
 
     # Infer tonic and convert to degrees
-    tonic_pc = infer_tonic(midi_pitches)
-    degrees = tuple(midi_to_degree(m, tonic_pc, mode) for m in midi_pitches)
+    tonic_pc = infer_tonic(pitches=midi_pitches)
+    degrees = tuple(midi_to_degree(midi=m, tonic_pc=tonic_pc, mode=mode) for m in midi_pitches)
 
     # Calculate bar count from total duration
     total_dur = sum(durations)

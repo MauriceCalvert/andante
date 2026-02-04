@@ -27,8 +27,8 @@ def check_junction(
     2. No consecutive leaps in same direction
     3. No augmented/diminished interval
     """
-    exit_midi: int = home_key.diatonic_to_midi(exit_pitch)
-    entry_midi: int = home_key.diatonic_to_midi(entry_pitch)
+    exit_midi: int = home_key.diatonic_to_midi(dp=exit_pitch)
+    entry_midi: int = home_key.diatonic_to_midi(dp=entry_pitch)
     semitones: int = abs(exit_midi - entry_midi)
     if semitones >= GROTESQUE_LEAP_SEMITONES:
         return False

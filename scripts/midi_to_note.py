@@ -67,10 +67,10 @@ def convert_midi_to_note(midi_path: Path) -> None:
         offset_bars = offset_beats / beats_per_bar
         raw_duration_beats = n["duration_ticks"] / ticks_per_beat
         raw_duration_bars = raw_duration_beats / beats_per_bar
-        duration = quantize_duration(raw_duration_bars)
+        duration = quantize_duration(duration=raw_duration_bars)
         midi_num = n["midi_num"]
         track = n["track"]
-        note_name = midi_to_note_name(midi_num)
+        note_name = midi_to_note_name(midi_num=midi_num)
 
         # Calculate bar and beat (bar 1-indexed)
         bar = int(offset_beats // beats_per_bar) + 1
@@ -103,9 +103,9 @@ def main() -> None:
             print(f"No MIDI files found in {path}")
             sys.exit(1)
         for midi_path in sorted(midi_files):
-            convert_midi_to_note(midi_path)
+            convert_midi_to_note(midi_path=midi_path)
     else:
-        convert_midi_to_note(path)
+        convert_midi_to_note(midi_path=path)
 
 
 if __name__ == "__main__":

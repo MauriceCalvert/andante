@@ -62,8 +62,8 @@ def synthesize_constraints(plan: Plan) -> PlanConstraints:
     Returns:
         PlanConstraints ready for realizer
     """
-    bar_constraints = _synthesize_bar_constraints(plan)
-    voice_constraints = _synthesize_voice_constraints(plan, bar_constraints)
+    bar_constraints = _synthesize_bar_constraints(plan=plan)
+    voice_constraints = _synthesize_voice_constraints(plan=plan, bar_constraints=bar_constraints)
 
     return PlanConstraints(
         bar_constraints=tuple(bar_constraints),
@@ -106,23 +106,23 @@ def _synthesize_bar_constraints(plan: Plan) -> List[BarConstraint]:
         # Get key area from harmonic plan
         key_area = "I"
         if plan.harmonic_plan:
-            key_area = _get_key_at_bar(plan.harmonic_plan, bar)
+            key_area = _get_key_at_bar(harmonic_plan=plan.harmonic_plan, bar=bar)
 
         # Get tension
         tension = 0.5
         if plan.tension_curve:
             tension = _get_tension_at_bar(
-                plan.tension_curve, bar, plan.actual_bars
+                tension_curve=plan.tension_curve, bar=bar, total_bars=plan.actual_bars
             )
 
         # Get rhetoric section
         rhetoric_section = "narratio"
         if plan.rhetoric:
-            rhetoric_section = _get_rhetoric_at_bar(plan.rhetoric, bar)
+            rhetoric_section = _get_rhetoric_at_bar(rhetoric=plan.rhetoric, bar=bar)
 
         # Get treatment and devices
         treatment = phrase.treatment if phrase else "free"
-        devices = _extract_devices(treatment)
+        devices = _extract_devices(treatment=treatment)
 
         # Is this the climax?
         is_climax = False
@@ -133,7 +133,7 @@ def _synthesize_bar_constraints(plan: Plan) -> List[BarConstraint]:
 
         # Get cadence if at phrase end
         cadence = None
-        if phrase and _is_phrase_end(bar, bar_to_phrase, plan.actual_bars):
+        if phrase and _is_phrase_end(bar=bar, bar_to_phrase=bar_to_phrase, total_bars=plan.actual_bars):
             cadence = phrase.cadence
 
         # Get callbacks and surprises for this bar
@@ -175,14 +175,14 @@ def _synthesize_voice_constraints(
         for voice in range(voices):
             # Determine material for this voice at this bar
             material, transform = _determine_material(
-                bc, voice, plan.material, voices
+                bc=bc, voice=voice, material=plan.material, voices=voices
             )
 
             # Determine register
-            register = _voice_to_register(voice, voices)
+            register = _voice_to_register(voice=voice, voices=voices)
 
             # Determine texture role
-            texture = _voice_to_texture(voice, voices, bc)
+            texture = _voice_to_texture(voice=voice, voices=voices, bc=bc)
 
             constraints.append(VoiceConstraint(
                 bar=bc.bar,

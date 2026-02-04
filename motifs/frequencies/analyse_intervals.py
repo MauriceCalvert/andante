@@ -113,12 +113,12 @@ def compute_tessitura_deviations(notes: list[dict], track: int) -> tuple[list[in
 
 def analyse_file(path: Path) -> dict:
     """Analyse a single file (highest track only)."""
-    notes = load_notes(path)
-    top_track = find_highest_track(notes)
+    notes = load_notes(path=path)
+    top_track = find_highest_track(notes=notes)
     track_notes = [n for n in notes if int(n['track']) == top_track]
     avg_pitch = sum(int(n['midinote']) for n in track_notes) / len(track_notes)
-    intervals = compute_intervals_per_voice(notes, top_track)
-    deviations, median, min_pitch, max_pitch = compute_tessitura_deviations(notes, top_track)
+    intervals = compute_intervals_per_voice(notes=notes, track=top_track)
+    deviations, median, min_pitch, max_pitch = compute_tessitura_deviations(notes=notes, track=top_track)
     return {
         'file': path.stem,
         'track': top_track,
@@ -141,7 +141,7 @@ def print_distribution(intervals: Counter, total: int) -> None:
         count = intervals.get(i, 0)
         pct = 100 * count / total if total > 0 else 0
         bar = '#' * int(pct / 2)
-        print(f"    {i:2d} ({interval_name(i):12s}): {count:5d} ({pct:5.1f}%) {bar}")
+        print(f"    {i:2d} ({interval_name(semitones=i):12s}): {count:5d} ({pct:5.1f}%) {bar}")
     # Larger intervals
     large = sum(c for i, c in intervals.items() if i > 12)
     if large > 0:
@@ -151,7 +151,7 @@ def print_distribution(intervals: Counter, total: int) -> None:
     print("\n  By category:")
     categories = Counter()
     for i, count in intervals.items():
-        categories[classify_interval(i)] += count
+        categories[classify_interval(semitones=i)] += count
     for cat in ['unison', 'step', 'skip', 'leap', 'large_leap']:
         count = categories.get(cat, 0)
         pct = 100 * count / total if total > 0 else 0
@@ -192,7 +192,7 @@ def main() -> None:
     print("BAROQUE CORPUS INTERVAL ANALYSIS")
     print("=" * 70)
     for path in note_files:
-        results = analyse_file(path)
+        results = analyse_file(path=path)
         print(f"\n{results['file'].upper()}")
         print("-" * 40)
         print(f"  Track {results['track']} (median: {results['median_pitch']}, range: {results['min_pitch']}-{results['max_pitch']} = {results['range']} semitones)")
@@ -204,26 +204,26 @@ def main() -> None:
         total_notes += results['note_count']
         all_ranges.append(results['range'])
         print(f"  Intervals: {file_count}, Notes: {results['note_count']}")
-        print_distribution(file_intervals, file_count)
-        print_tessitura_distribution(results['deviations'], results['note_count'])
+        print_distribution(intervals=file_intervals, total=file_count)
+        print_tessitura_distribution(deviations=results['deviations'], total=results['note_count'])
     print("\n" + "=" * 70)
     print("AGGREGATE INTERVALS (ALL FILES)")
     print("=" * 70)
     print(f"  Total intervals: {total_intervals}")
-    print_distribution(all_intervals, total_intervals)
+    print_distribution(intervals=all_intervals, total=total_intervals)
     print("\n" + "=" * 70)
     print("AGGREGATE TESSITURA (ALL FILES)")
     print("=" * 70)
     print(f"  Total notes: {total_notes}")
     print(f"  Range across pieces: {min(all_ranges)}-{max(all_ranges)} semitones (avg: {sum(all_ranges)/len(all_ranges):.1f})")
-    print_tessitura_distribution(all_deviations, total_notes)
+    print_tessitura_distribution(deviations=all_deviations, total=total_notes)
     # Derive cost ratios
     print("\n" + "=" * 70)
     print("DERIVED MELODIC COST RATIOS")
     print("=" * 70)
     categories = Counter()
     for i, count in all_intervals.items():
-        categories[classify_interval(i)] += count
+        categories[classify_interval(semitones=i)] += count
     step_count = categories.get('step', 1)
     print(f"\n  If step cost = 1.0:")
     for cat in ['unison', 'step', 'skip', 'leap', 'large_leap']:

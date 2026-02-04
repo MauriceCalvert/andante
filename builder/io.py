@@ -40,7 +40,7 @@ def bar_beat(offset: Fraction, metre: str, upbeat: Fraction = Fraction(0)) -> tu
 
 def format_note_line(note: Note, metre: str, upbeat: Fraction = Fraction(0)) -> str:
     """Format a single note as CSV line."""
-    bar, beat = bar_beat(note.offset, metre, upbeat)
+    bar, beat = bar_beat(offset=note.offset, metre=metre, upbeat=upbeat)
     return (
         f"{float(note.offset)},"
         f"{note.pitch},"
@@ -49,7 +49,7 @@ def format_note_line(note: Note, metre: str, upbeat: Fraction = Fraction(0)) -> 
         f","
         f"{bar},"
         f"{float(beat)},"
-        f"{note_name(note.pitch)}"
+        f"{note_name(midi=note.pitch)}"
     )
 
 
@@ -65,20 +65,21 @@ def _all_notes_sorted(comp: Composition) -> list[Note]:
 def write_note_file(comp: Composition, path: Path) -> None:
     """Write notes to .note CSV file."""
     lines: list[str] = ["offset,midinote,duration,track,length,bar,beat,notename"]
-    for note in _all_notes_sorted(comp):
-        lines.append(format_note_line(note, comp.metre, comp.upbeat))
+    for note in _all_notes_sorted(comp=comp):
+        lines.append(format_note_line(note=note, metre=comp.metre, upbeat=comp.upbeat))
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def write_midi_file(
     comp: Composition,
     path: Path,
+    *,
     tonic: str = "C",
     mode: str = "major",
 ) -> None:
     """Write notes to MIDI file."""
     from shared.midi_writer import SimpleNote, write_midi_notes
-    all_notes: list[Note] = _all_notes_sorted(comp)
+    all_notes: list[Note] = _all_notes_sorted(comp=comp)
     all_offsets: list[Fraction] = [n.offset for n in all_notes]
     min_offset: Fraction = min(all_offsets) if all_offsets else Fraction(0)
     shift: Fraction = -min_offset if min_offset < 0 else Fraction(0)
@@ -91,10 +92,10 @@ def write_midi_file(
             velocity=80,
             track=note.voice,
         ))
-    time_sig = _parse_time_signature(comp.metre)
+    time_sig = _parse_time_signature(metre=comp.metre)
     write_midi_notes(
-        str(path),
-        midi_notes,
+        path=str(path),
+        notes=midi_notes,
         tempo=comp.tempo,
         time_signature=time_sig,
         tonic=tonic,
@@ -108,7 +109,13 @@ def _parse_time_signature(metre: str) -> tuple[int, int]:
     return (int(parts[0]), int(parts[1]))
 
 
-def write_musicxml_file(comp: Composition, path: Path, tonic: str = "C", mode: str = "major") -> bool:
+def write_musicxml_file(
+    comp: Composition,
+    path: Path,
+    *,
+    tonic: str = "C",
+    mode: str = "major",
+) -> bool:
     """Write notes to MusicXML file."""
     from builder.musicxml_writer import write_musicxml
-    return write_musicxml(comp, path, tonic, mode)
+    return write_musicxml(comp=comp, path=path, tonic=tonic, mode=mode)

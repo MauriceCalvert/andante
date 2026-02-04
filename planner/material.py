@@ -111,7 +111,7 @@ def generate_affect_driven_motif(
     """
     from motifs.subject_generator import generate_subject
 
-    metre = parse_metre(frame.metre)
+    metre = parse_metre(metre=frame.metre)
 
     # Generate subject using head+tail construction
     generated = generate_subject(
@@ -127,7 +127,7 @@ def generate_affect_driven_motif(
 
     # Convert float durations to nearest valid Fractions
     # L005/L006/L012: Use snap to valid, not limit_denominator
-    durations = tuple(_snap_to_valid_fraction(d) for d in generated.durations)
+    durations = tuple(_snap_to_valid_fraction(value=d) for d in generated.durations)
 
     return Motif(degrees=degrees, durations=durations, bars=generated.bars)
 
@@ -135,7 +135,7 @@ def generate_affect_driven_motif(
 def _apply_motif_transform(degrees: tuple[int, ...], transform: str) -> tuple[int, ...]:
     """Apply a single transform to degrees."""
     if transform == "invert":
-        return tuple(wrap_degree(8 - d) for d in degrees)
+        return tuple(wrap_degree(deg=8 - d) for d in degrees)
     elif transform == "retrograde":
         return tuple(reversed(degrees))
     return degrees
@@ -181,23 +181,23 @@ def acquire_material(
     elif affect is not None and affect in AFFECT_DRIVEN_AFFECTS:
         # Use affect-driven generation
         try:
-            motif = generate_affect_driven_motif(affect, frame, seed)
+            motif = generate_affect_driven_motif(affect=affect, frame=frame, seed=seed)
         except Exception as e:
             # Fallback to template if generation fails
             import warnings
             warnings.warn(f"Affect-driven generation failed for {affect}: {e}. Using fallback.")
-            motif = generate_motif(frame)
+            motif = generate_motif(frame=frame)
     else:
         # Use fallback template
-        motif = generate_motif(frame)
+        motif = generate_motif(frame=frame)
 
     # Use provided counter-subject or generate one (only if genre needs it)
     cs: Motif | None
     if user_cs is not None:
         cs = user_cs
-    elif _genre_needs_cs(genre) and motif.degrees is not None:
+    elif _genre_needs_cs(genre=genre) and motif.degrees is not None:
         # Generate counter-subject using CP-SAT solver (only works with degrees, not pitches)
-        subj: Subject = Subject(motif.degrees, motif.durations, motif.bars, frame.mode, genre)
+        subj: Subject = Subject(degrees=motif.degrees, durations=motif.durations, bars=motif.bars, mode=frame.mode, genre=genre)
         cs = subj.counter_subject
     else:
         # Genre uses accompaniment bass, or motif uses pitches - no CS generation
@@ -240,12 +240,12 @@ def extend_by_repetition(
         if variation_type == "transpose":
             # Transpose entire repetition by a step
             offset = rng.choice([-1, 1])
-            repeated_degrees = tuple(wrap_degree(d + offset) for d in degrees)
+            repeated_degrees = tuple(wrap_degree(deg=d + offset) for d in degrees)
         elif variation_type == "neighbor":
             # Change one note to neighbor tone
             idx = rng.randint(0, len(degrees) - 1)
             repeated_degrees = tuple(
-                wrap_degree(d + rng.choice([-1, 1])) if i == idx else d
+                wrap_degree(deg=d + rng.choice([-1, 1])) if i == idx else d
                 for i, d in enumerate(degrees)
             )
         else:
@@ -285,7 +285,7 @@ def extend_by_sequence(
 
     for step in range(1, steps + 1):
         transposition = direction * step
-        transposed = tuple(wrap_degree(d + transposition) for d in motif.degrees)
+        transposed = tuple(wrap_degree(deg=d + transposition) for d in motif.degrees)
         all_degrees.extend(transposed)
         all_durations.extend(motif.durations)
 

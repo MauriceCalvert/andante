@@ -212,7 +212,7 @@ def load_rhythm_templates(path: Path | None = None) -> dict[tuple[int, str, bool
                 assert isinstance(durations_raw, list), \
                     f"Durations must be a list, got {type(durations_raw).__name__}"
 
-                durations = tuple(_parse_fraction(d) for d in durations_raw)
+                durations = tuple(_parse_fraction(value=d) for d in durations_raw)
                 assert len(durations) == note_count, \
                     f"Duration count {len(durations)} != note_count {note_count} for {metre}/{note_count}/{variant_name}"
 
@@ -267,7 +267,7 @@ def load_hemiola_templates(path: Path | None = None) -> dict[tuple[int, str], Rh
                     f"Hemiola {metre}/{note_count}/standard missing 'durations'"
 
                 durations_raw = variant_data["durations"]
-                durations = tuple(_parse_fraction(d) for d in durations_raw)
+                durations = tuple(_parse_fraction(value=d) for d in durations_raw)
 
                 template = RhythmTemplate(
                     note_count=note_count,

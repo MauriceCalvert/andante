@@ -43,7 +43,7 @@ def validate(plan: Plan) -> tuple[bool, list[str]]:
     pitch_count: int = len(motif.pitches) if motif.pitches else (len(motif.degrees) if motif.degrees else 0)
     if pitch_count != len(motif.durations):
         errors.append("Motif pitches/degrees and durations must have same length")
-    bar_dur: Fraction = bar_duration(plan.frame.metre)
+    bar_dur: Fraction = bar_duration(metre=plan.frame.metre)
     expected_dur: Fraction = bar_dur * motif.bars
     actual_dur: Fraction = sum(motif.durations, Fraction(0))
     if actual_dur != expected_dur:
@@ -58,7 +58,7 @@ def validate(plan: Plan) -> tuple[bool, list[str]]:
         errors.append(f"Phrase indices must be sequential from 0: got {indices}")
 
     # Koch's mechanical rules for phrase sequences and structure
-    koch_valid, koch_violations = validate_koch(plan)
+    koch_valid, koch_violations = validate_koch(plan=plan)
     for v in koch_violations:
         if v.severity == "blocker":
             errors.append(f"[{v.rule_id}] {v.message}")
@@ -164,7 +164,7 @@ def validate_schema_plan(plan: "SchemaPlan") -> tuple[bool, list[str]]:
     # Warn if final schema lacks cadence_approach
     if plan.schema_chain:
         final_slot = plan.schema_chain[-1]
-        final_schema = get_schema(final_slot.schema)
+        final_schema = get_schema(name=final_slot.schema)
         if not final_schema.cadence_approach:
             warnings.warn(
                 f"Final schema '{final_slot.schema}' lacks cadence_approach: true. "

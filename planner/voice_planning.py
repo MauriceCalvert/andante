@@ -90,13 +90,13 @@ def build_composition_plan(
     This is the main entry point for Phase 7 voice planning.
     """
     if not anchors:
-        home_key: Key = _key_config_to_key(key_config)
-        return _empty_plan(home_key, genre_config, tempo_override)
+        home_key: Key = _key_config_to_key(key_config=key_config)
+        return _empty_plan(home_key=home_key, genre_config=genre_config, tempo_override=tempo_override)
     upper_range: tuple[int, int] = VOICE_RANGES[_SOPRANO_RANGE_IDX]
     lower_range: tuple[int, int] = VOICE_RANGES[_BASS_RANGE_IDX]
     home_key = anchors[0].local_key
-    plan_anchors: tuple[PlanAnchor, ...] = _convert_anchors(anchors)
-    schema_sections: list[tuple[int, int, str]] = _detect_schema_sections(plan_anchors)
+    plan_anchors: tuple[PlanAnchor, ...] = _convert_anchors(anchors=anchors)
+    schema_sections: list[tuple[int, int, str]] = _detect_schema_sections(anchors=plan_anchors)
     base_density: str = _DENSITY_FROM_AFFECT.get(affect_config.density, "medium")
     base_character: str = _CHARACTER_FROM_AFFECT.get(affect_config.density, "plain")
     upper_sections: tuple[SectionPlan, ...] = _build_sections(
@@ -300,8 +300,8 @@ def _build_sections(
         if len(plan_anchors) < 2:
             return ()
         imit: tuple[str, int, Fraction] | None = _get_imitation_config(
-            passage_assignments, plan_anchors, 0,
-            len(plan_anchors) - 1, voice_id, metre,
+            passage_assignments=passage_assignments, plan_anchors=plan_anchors, start_idx=0,
+            end_idx=len(plan_anchors) - 1, voice_id=voice_id, metre=metre,
         )
         if imit is not None:
             lead_voice_id, interval, delay = imit
@@ -345,11 +345,11 @@ def _build_sections(
     for idx, (start_idx, end_idx, schema_name) in enumerate(schema_sections):
         if start_idx >= end_idx:
             continue
-        sequencing: str = _get_sequencing(schema_name, schemas)
+        sequencing: str = _get_sequencing(schema_name=schema_name, schemas=schemas)
         is_final: bool = idx == num_sections - 1
         imit = _get_imitation_config(
-            passage_assignments, plan_anchors, start_idx, end_idx,
-            voice_id, metre,
+            passage_assignments=passage_assignments, plan_anchors=plan_anchors, start_idx=start_idx, end_idx=end_idx,
+            voice_id=voice_id, metre=metre,
         )
         if imit is not None:
             lead_voice_id, interval, delay = imit
@@ -425,24 +425,24 @@ def _build_gaps_for_range(
         target: PlanAnchor = plan_anchors[i + 1]
         bar_num: int = int(source.bar_beat.split(".")[0])
         gap_duration: Fraction = _compute_gap_duration(
-            source.bar_beat, target.bar_beat, metre,
+            source_bar_beat=source.bar_beat, target_bar_beat=target.bar_beat, metre=metre,
         )
-        interval: str = _compute_interval(source, target, is_upper)
-        ascending: bool = _is_ascending(source, target, is_upper)
-        near_cadence: bool = _is_near_cadence(source, target)
+        interval: str = _compute_interval(source=source, target=target, is_upper=is_upper)
+        ascending: bool = _is_ascending(source=source, target=target, is_upper=is_upper)
+        near_cadence: bool = _is_near_cadence(source=source, target=target)
         writing_mode: WritingMode = _get_writing_mode(
-            passage_assignments, bar_num, is_upper, near_cadence, interval,
+            passage_assignments=passage_assignments, bar_num=bar_num, is_upper=is_upper, near_cadence=near_cadence, interval=interval,
             bass_treatment=bass_treatment,
         )
-        function: str = _get_function(passage_assignments, bar_num)
-        is_lead: bool = _is_lead_voice(passage_assignments, bar_num, is_upper)
-        density: str = _get_density(base_density, function, is_lead)
-        character: str = _get_character(base_character, function)
+        function: str = _get_function(passage_assignments=passage_assignments, bar_num=bar_num)
+        is_lead: bool = _is_lead_voice(passage_assignments=passage_assignments, bar_num=bar_num, is_upper=is_upper)
+        density: str = _get_density(base_density=base_density, function=function, is_lead=is_lead)
+        character: str = _get_character(base_character=base_character, function=function)
         use_hemiola: bool = _should_use_hemiola(
-            affect_config, near_cadence, metre,
+            affect_config=affect_config, near_cadence=near_cadence, metre=metre,
         )
         note_count: int | None = (
-            _compute_note_count(gap_duration, density, interval)
+            _compute_note_count(gap_duration=gap_duration, density=density, interval=interval)
             if writing_mode == WritingMode.FIGURATION
             else None
         )
@@ -455,7 +455,7 @@ def _build_gaps_for_range(
             density=density,
             character=character,
             harmonic_tension="low",
-            bar_function=_get_bar_function(source, near_cadence),
+            bar_function=_get_bar_function(source=source, near_cadence=near_cadence),
             near_cadence=near_cadence,
             use_hemiola=use_hemiola,
             overdotted=affect_config.density == "high",
@@ -496,8 +496,8 @@ def _compute_gap_duration(
     metre: str,
 ) -> Fraction:
     """Compute duration between two bar.beat positions."""
-    source_offset: Fraction = _bar_beat_to_offset(source_bar_beat, metre)
-    target_offset: Fraction = _bar_beat_to_offset(target_bar_beat, metre)
+    source_offset: Fraction = _bar_beat_to_offset(bar_beat=source_bar_beat, metre=metre)
+    target_offset: Fraction = _bar_beat_to_offset(bar_beat=target_bar_beat, metre=metre)
     return target_offset - source_offset
 
 
@@ -700,7 +700,7 @@ def _compute_note_count(
     keep the full base count — their figure vocabulary only has viable
     fills at specific sizes.
     """
-    base: int = _base_note_count(gap_duration, density)
+    base: int = _base_note_count(gap_duration=gap_duration, density=density)
     interval_size: int = INTERVAL_DIATONIC_SIZE.get(interval, 0)
     reduction: int = SMALL_INTERVAL_NOTE_REDUCTION.get(interval_size, 0)
     return max(MIN_FIGURATION_NOTES, base - reduction)

@@ -455,27 +455,27 @@ def extract_all_features(
     if intervals is None:
         intervals = [pitches[i + 1] - pitches[i] for i in range(len(pitches) - 1)]
     features: Dict[str, float] = {}
-    features['pitch_entropy'] = pitch_entropy(pitches)
-    features['interval_entropy'] = interval_entropy(intervals)
+    features['pitch_entropy'] = pitch_entropy(note_sequence=pitches)
+    features['interval_entropy'] = interval_entropy(intervals=intervals)
     if mode == "major":
-        features['triadic_content'] = triadic_content(pitches, key_tonic)
+        features['triadic_content'] = triadic_content(pitches=pitches, key_tonic=key_tonic)
     else:
-        features['triadic_content'] = triadic_content_minor(pitches, key_tonic)
-    features['opens_with_triad'] = 1.0 if opens_with_triad(pitches, key_tonic, mode) else 0.0
-    dist: Dict[str, float] = interval_distribution(intervals)
-    features['unusual_interval_density'] = unusual_interval_density(dist)
-    step_ratio, leap_ratio = step_leap_ratio(intervals)
+        features['triadic_content'] = triadic_content_minor(pitches=pitches, key_tonic=key_tonic)
+    features['opens_with_triad'] = 1.0 if opens_with_triad(pitches=pitches, key_tonic=key_tonic, mode=mode) else 0.0
+    dist: Dict[str, float] = interval_distribution(intervals=intervals)
+    features['unusual_interval_density'] = unusual_interval_density(distribution=dist)
+    step_ratio, leap_ratio = step_leap_ratio(intervals=intervals)
     features['step_ratio'] = step_ratio
     features['leap_ratio'] = leap_ratio
-    features['contour_parsimony'] = contour_parsimony(pitches)
-    contour: str = classify_contour(pitches)
+    features['contour_parsimony'] = contour_parsimony(pitches=pitches)
+    contour: str = classify_contour(pitches=pitches)
     features['contour_arch'] = 1.0 if contour == 'arch' else 0.0
     features['contour_descending'] = 1.0 if contour == 'descending' else 0.0
     features['contour_ascending'] = 1.0 if contour == 'ascending' else 0.0
     features['contour_valley'] = 1.0 if contour == 'valley' else 0.0
-    tessitura: Dict[str, float] = tessitura_leap_interaction(pitches)
+    tessitura: Dict[str, float] = tessitura_leap_interaction(pitches=pitches)
     features.update({f'tessitura_{k}': v for k, v in tessitura.items()})
-    range_stats: Dict[str, float] = range_utilization(pitches)
+    range_stats: Dict[str, float] = range_utilization(pitches=pitches)
     features['range'] = float(range_stats['range'])
     features['range_std'] = range_stats['std']
     return features
@@ -521,28 +521,28 @@ class MelodicFeatureScorer:
             Tuple of (total_score, feature_breakdown)
         """
         features: Dict[str, float] = extract_all_features(
-            pitches,
+            pitches=pitches,
             key_tonic=self.key_tonic,
             mode=self.mode
         )
         subscores: Dict[str, float] = {}
-        entropy_score: float = self._score_entropy(features['pitch_entropy'])
+        entropy_score: float = self._score_entropy(entropy=features['pitch_entropy'])
         subscores['pitch_entropy'] = entropy_score * self.weights.get('pitch_entropy', 0)
         triadic_score: float = features['triadic_content']
         subscores['triadic_content'] = triadic_score * self.weights.get('triadic_content', 0)
-        unusual_score: float = self._score_unusual_intervals(features['unusual_interval_density'])
+        unusual_score: float = self._score_unusual_intervals(density=features['unusual_interval_density'])
         subscores['unusual_interval_density'] = unusual_score * self.weights.get('unusual_interval_density', 0)
-        parsimony_score: float = self._score_parsimony(features['contour_parsimony'])
+        parsimony_score: float = self._score_parsimony(parsimony=features['contour_parsimony'])
         subscores['contour_parsimony'] = parsimony_score * self.weights.get('contour_parsimony', 0)
-        step_score: float = self._score_step_ratio(features['step_ratio'])
+        step_score: float = self._score_step_ratio(ratio=features['step_ratio'])
         subscores['step_ratio'] = step_score * self.weights.get('step_ratio', 0)
-        range_score: float = self._score_range(features['range'])
+        range_score: float = self._score_range(range_val=features['range'])
         subscores['range_normalised'] = range_score * self.weights.get('range_normalised', 0)
         if features['contour_arch'] > 0:
             subscores['contour_arch'] = self.weights.get('contour_arch', 0)
         if features['opens_with_triad'] > 0:
             subscores['opens_with_triad'] = self.weights.get('opens_with_triad', 0)
-        interval_ent_score: float = self._score_interval_entropy(features['interval_entropy'])
+        interval_ent_score: float = self._score_interval_entropy(entropy=features['interval_entropy'])
         subscores['interval_entropy'] = interval_ent_score * self.weights.get('interval_entropy', 0)
         total: float = sum(subscores.values())
         weight_sum: float = sum(self.weights.values())

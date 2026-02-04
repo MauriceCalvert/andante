@@ -19,23 +19,23 @@ class FloatingNote:
 
     def shift(self, interval: int) -> "FloatingNote":
         """Shift by interval, wrapping to 1-7."""
-        return FloatingNote(wrap_degree(self.degree + interval), self.exempt, self.alter)
+        return FloatingNote(degree=wrap_degree(deg=self.degree + interval), exempt=self.exempt, alter=self.alter)
 
     def as_exempt(self) -> "FloatingNote":
         """Return copy marked as guard-exempt."""
-        return FloatingNote(self.degree, exempt=True, alter=self.alter)
+        return FloatingNote(degree=self.degree, exempt=True, alter=self.alter)
 
     def with_alter(self, alter: int) -> "FloatingNote":
         """Return copy with specified chromatic alteration."""
-        return FloatingNote(self.degree, self.exempt, alter)
+        return FloatingNote(degree=self.degree, exempt=self.exempt, alter=alter)
 
     def flatten(self) -> "FloatingNote":
         """Return copy lowered by a semitone."""
-        return FloatingNote(self.degree, self.exempt, self.alter - 1)
+        return FloatingNote(degree=self.degree, exempt=self.exempt, alter=self.alter - 1)
 
     def sharpen(self) -> "FloatingNote":
         """Return copy raised by a semitone."""
-        return FloatingNote(self.degree, self.exempt, self.alter + 1)
+        return FloatingNote(degree=self.degree, exempt=self.exempt, alter=self.alter + 1)
 
 
 @dataclass(frozen=True)
@@ -91,7 +91,7 @@ def place_degree(
         MIDI pitch.
     """
     assert 1 <= degree <= 7, f"degree must be 1-7, got {degree}"
-    base_pc = key.degree_to_midi(degree, octave=0) + alter  # pitch class
+    base_pc = key.degree_to_midi(degree=degree, octave=0) + alter  # pitch class
     if prev_pitch is None:
         # First note: find octave nearest median
         octave = round((median - base_pc) / 12)
@@ -129,7 +129,7 @@ def select_octave(
     voice_range: tuple[int, int] | None = None,
 ) -> int:
     """Place scale degree as MIDI pitch, constrained to voice range."""
-    pitch = place_degree(key, degree, median, prev_pitch, alter, direction)
+    pitch = place_degree(key=key, degree=degree, median=median, prev_pitch=prev_pitch, alter=alter, direction=direction)
     if voice_range is None:
         return pitch
     low, high = voice_range

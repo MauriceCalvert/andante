@@ -67,7 +67,7 @@ def convert_note_to_subject(
             notes.append({
                 "offset": float(values[idx_offset]),
                 "midi": int(values[idx_midi]),
-                "duration": quantize_duration(raw_dur),
+                "duration": quantize_duration(duration=raw_dur),
                 "track": note_track,
             })
 
@@ -83,7 +83,7 @@ def convert_note_to_subject(
     assert notes, f"No notes found for track {track}"
 
     # Convert MIDI to degrees
-    key_obj = Key(tonic, mode)
+    key_obj = Key(tonic=tonic, mode=mode)
     base_midi = notes[0]["midi"]
     base_octave = base_midi // 12
 
@@ -93,7 +93,7 @@ def convert_note_to_subject(
     for n in notes:
         midi = n["midi"]
         octave = midi // 12
-        degree = key_obj.midi_to_degree(midi)
+        degree = key_obj.midi_to_degree(midi=midi)
         # Adjust for octave relative to base
         octave_offset = octave - base_octave
         adjusted_degree = degree + (octave_offset * 7)
@@ -115,21 +115,53 @@ def convert_note_to_subject(
 
 def main() -> None:
     """Convert .note to .subject format."""
-    if len(sys.argv) < 2:
-        print("Usage: python note_to_subject.py <note_file> [tonic] [mode] [track]")
-        print("  tonic: C, D, E, F, G, A, B (default: C)")
-        print("  mode: major, minor (default: major)")
-        print("  track: track number to extract (default: first track)")
+    import argparse
+    parser = argparse.ArgumentParser(description="Convert .note CSV to .subject YAML")
+    parser.add_argument("path", type=Path,
+                        help="Path to .note file or directory containing .note files")
+    parser.add_argument("--tonic", "-k", type=str, default="C",
+                        help="Tonic note (default: C)")
+    parser.add_argument("--mode", "-m", type=str, default="major",
+                        choices=["major", "minor"], help="Mode (default: major)")
+    parser.add_argument("--track", "-t", type=int, default=None,
+                        help="Track number to extract (default: first track)")
+    parser.add_argument("--recursive", "-r", action="store_true",
+                        help="Search directories recursively")
+    args = parser.parse_args()
+    if not args.path.exists():
+        print(f"Path not found: {args.path}")
         sys.exit(1)
-
-    note_path = Path(sys.argv[1])
-    assert note_path.exists(), f"File not found: {note_path}"
-
-    tonic = sys.argv[2] if len(sys.argv) > 2 else "C"
-    mode = sys.argv[3] if len(sys.argv) > 3 else "major"
-    track = int(sys.argv[4]) if len(sys.argv) > 4 else None
-
-    convert_note_to_subject(note_path, tonic, mode, track)
+    if args.path.is_file():
+        if args.path.suffix != ".note":
+            print(f"Not a .note file: {args.path}")
+            sys.exit(1)
+        convert_note_to_subject(
+            note_path=args.path,
+            tonic=args.tonic,
+            mode=args.mode,
+            track=args.track,
+        )
+    else:
+        pattern = "**/*.note" if args.recursive else "*.note"
+        note_files = list(args.path.glob(pattern))
+        if not note_files:
+            print(f"No .note files found in {args.path}")
+            sys.exit(1)
+        converted = 0
+        failed = 0
+        for note_file in sorted(note_files):
+            try:
+                convert_note_to_subject(
+                    note_path=note_file,
+                    tonic=args.tonic,
+                    mode=args.mode,
+                    track=args.track,
+                )
+                converted += 1
+            except Exception as e:
+                print(f"Failed: {note_file}: {e}")
+                failed += 1
+        print(f"Converted {converted} files, {failed} failed")
 
 
 if __name__ == "__main__":

@@ -178,13 +178,13 @@ def main() -> None:
     analyses: List[Dict] = []
     for note_file in note_files:
         print(f"Processing: {note_file.name}")
-        notes = parse_note_file(note_file)
+        notes = parse_note_file(path=note_file)
         if not notes:
             print("  No notes found, skipping\n")
             continue
         # Get config for this piece
-        track, min_pitch, tempo, skyline, start_off, end_off = get_config(note_file.name)
-        melody_notes = extract_melody(notes, track, min_pitch, skyline, start_off, end_off)
+        track, min_pitch, tempo, skyline, start_off, end_off = get_config(filename=note_file.name)
+        melody_notes = extract_melody(notes=notes, track=track, min_pitch=min_pitch, skyline=skyline, start_offset=start_off, end_offset=end_off)
         # Show extraction info
         track_str = "all" if track is None else str(track)
         sky_str = str(skyline) if skyline else "all"
@@ -196,11 +196,11 @@ def main() -> None:
         # Output filename
         output_name = note_file.stem + "_melody"
         output_path = note_file.parent / (output_name + ".midi")
-        notes_to_midi_and_note(melody_notes, output_path, tempo)
+        notes_to_midi_and_note(melody_notes=melody_notes, output_path=output_path, tempo=tempo)
         print(f"  Written: {output_path.name}")
         # Analyze melody
         short_name = note_file.stem.replace('_memorable_', '')[:30]
-        analysis = analyze_melody(melody_notes, short_name)
+        analysis = analyze_melody(melody_notes=melody_notes, name=short_name)
         if analysis:
             analyses.append(analysis)
         # Print melody summary

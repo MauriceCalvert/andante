@@ -111,7 +111,7 @@ def main() -> None:
         print(f"File not found: {note_path}")
         sys.exit(1)
 
-    convert_note_to_midi(note_path)
+    convert_note_to_midi(note_path=note_path)
 
 
 if __name__ == "__main__":

@@ -78,9 +78,9 @@ def run_from_args(
     trace_level: int = 0,
 ) -> Composition:
     """Generate from explicit genre/affect arguments."""
-    affect = normalize_affect(affect)
+    affect = normalize_affect(affect=affect)
     if key is not None:
-        key = normalize_key(key)
+        key = normalize_key(key=key)
     name: str = output_name or f"{genre}_{affect}"
     if verbose:
         print(f"  Genre: {genre}")
@@ -88,19 +88,19 @@ def run_from_args(
         print(f"  Affect: {affect}")
     key_display: str = key if key else "(derived from affect)"
     print(f"Generating {genre} with {affect} affect in {key_display}...")
-    result = generate_to_files(genre, affect, output_dir, name, key, tempo)
+    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key, tempo=tempo)
     for vid, vnotes in result.voices.items():
         print(f"  {vid}: {len(vnotes)} notes")
     print(f"  Tempo: {result.tempo} BPM")
     print(f"Output: {output_dir / name}.note, {output_dir / name}.midi")
     if trace_level > 0:
         trace_path = output_dir / "trace.txt"
-        get_tracer().write_to_file(trace_path)
+        get_tracer().write_to_file(path=trace_path)
         print(f"Trace: {trace_path}")
     print()
     voice_list: list[tuple] = list(result.voices.values())
-    faults = find_faults(voice_list, result.metre)
-    print_faults(faults)
+    faults = find_faults(voices=voice_list, metre=result.metre)
+    print_faults(faults=faults)
     return result
 
 
@@ -132,7 +132,7 @@ def run_from_brief(
         )
         tempo = raw_tempo
     output_name: str = brief_path.stem
-    return run_from_args(genre, affect, output_dir, key, output_name, verbose, tempo, trace_level)
+    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace_level=trace_level)
 
 
 def run_from_directory(
@@ -150,8 +150,8 @@ def run_from_directory(
     total_notes: int = 0
     for brief_path in briefs:
         reset_tracer()
-        set_trace_level(trace_level)
-        result = run_from_brief(brief_path, output_dir, verbose, trace_level)
+        set_trace_level(level=trace_level)
+        result = run_from_brief(brief_path=brief_path, output_dir=output_dir, verbose=verbose, trace_level=trace_level)
         total_notes += sum(len(v) for v in result.voices.values())
         print()
     print(f"Generated {len(briefs)} pieces ({total_notes} total notes)")
@@ -206,21 +206,21 @@ When key is omitted, derives from affect per Mattheson's Affektenlehre.
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     reset_tracer()
-    set_trace_level(args.trace)
+    set_trace_level(level=args.trace)
     first_arg: str = args.args[0]
     first_arg_clean: str = first_arg.lstrip("/\\")
     first_path: Path = Path(first_arg_clean)
     if not first_path.exists() and (PROJECT_DIR / first_arg_clean).exists():
         first_path = PROJECT_DIR / first_arg_clean
     if first_path.is_dir():
-        run_from_directory(first_path, args.output_dir, args.verbose, args.trace)
+        run_from_directory(directory=first_path, output_dir=args.output_dir, verbose=args.verbose, trace_level=args.trace)
         return
     if first_path.suffix == ".brief" or (first_path.exists() and first_path.is_file()):
         if not first_path.exists():
             print(f"File not found: {first_arg_clean}")
             print(f"  (also checked: {PROJECT_DIR / first_arg_clean})")
             return
-        run_from_brief(first_path, args.output_dir, args.verbose, args.trace)
+        run_from_brief(brief_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace_level=args.trace)
         print("\nDone!")
         return
     if len(args.args) < 2:
@@ -237,7 +237,7 @@ When key is omitted, derives from affect per Mattheson's Affektenlehre.
             output_name = args.args[3] if len(args.args) > 3 else None
         else:
             output_name = args.args[2]
-    run_from_args(genre, affect, args.output_dir, key, output_name, args.verbose, trace_level=args.trace)
+    run_from_args(genre=genre, affect=affect, output_dir=args.output_dir, key=key, output_name=output_name, verbose=args.verbose, trace_level=args.trace)
     print("\nDone!")
 
 

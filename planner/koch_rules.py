@@ -102,8 +102,8 @@ def check_phrase_sequence(phrases: list[Phrase], mode: str) -> list[KochViolatio
     }
 
     for i in range(1, len(phrases)):
-        prev_class = classify_phrase(phrases[i - 1], mode)
-        curr_class = classify_phrase(phrases[i], mode)
+        prev_class = classify_phrase(phrase=phrases[i - 1], mode=mode)
+        curr_class = classify_phrase(phrase=phrases[i], mode=mode)
         transition = (prev_class, curr_class)
 
         # Koch's rule 35: Two I-phrases in succession forbidden
@@ -210,7 +210,7 @@ def validate_caesura(
         # This is implicitly satisfied by whole-bar phrase lengths
         pass  # Bar-aligned phrases satisfy this
 
-    phrase_class = classify_phrase(phrase, mode)
+    phrase_class = classify_phrase(phrase=phrase, mode=mode)
     target = phrase.tonal_target.upper()
 
     # Rule 3: Caesura chord must match phrase type
@@ -247,7 +247,7 @@ def check_all_caesurae(
     """Check all phrase caesurae in a sequence."""
     violations: list[KochViolation] = []
     for phrase in phrases:
-        violations.extend(validate_caesura(phrase, mode, metre))
+        violations.extend(validate_caesura(phrase=phrase, mode=mode, metre=metre))
     return violations
 
 
@@ -376,11 +376,11 @@ def validate_koch(plan: Plan) -> tuple[bool, list[KochViolation]]:
     ]
 
     violations: list[KochViolation] = []
-    violations.extend(check_phrase_sequence(all_phrases, plan.frame.mode))
-    violations.extend(check_all_caesurae(all_phrases, plan.frame.mode, plan.frame.metre))
-    violations.extend(check_period_structure(plan))
-    violations.extend(check_modulation_rules(plan))
-    violations.extend(check_phrase_length(plan))
+    violations.extend(check_phrase_sequence(phrases=all_phrases, mode=plan.frame.mode))
+    violations.extend(check_all_caesurae(phrases=all_phrases, mode=plan.frame.mode, metre=plan.frame.metre))
+    violations.extend(check_period_structure(plan=plan))
+    violations.extend(check_modulation_rules(plan=plan))
+    violations.extend(check_phrase_length(plan=plan))
 
     blockers = [v for v in violations if v.severity == "blocker"]
     return (len(blockers) == 0, violations)

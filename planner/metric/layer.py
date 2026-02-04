@@ -34,22 +34,22 @@ def layer_4_metric(
     if schemas is None:
         schemas = {}
     bar_assignments: dict[str, tuple[int, int]] = _build_bar_assignments(
-        genre_config, schemas,
+        genre_config=genre_config, schemas=schemas,
     )
     total_bars: int = max(end for _, end in bar_assignments.values()) if bar_assignments else 0
     if key_config is None:
         return bar_assignments, [], total_bars
-    key: Key = _key_config_to_key(key_config)
+    key: Key = _key_config_to_key(key_config=key_config)
     if tonal_plan is None:
         tonal_plan = {}
     anchors: list[Anchor] = _generate_section_anchors(
-        genre_config.sections, schemas, key,
-        genre_config.metre, tonal_plan, answer_interval, modality,
-        bar_assignments, genre_config.upbeat,
+        sections=genre_config.sections, schemas=schemas, key=key,
+        metre=genre_config.metre, tonal_plan=tonal_plan, answer_interval=answer_interval, modality=modality,
+        bar_assignments=bar_assignments, upbeat=genre_config.upbeat,
     )
-    anchors.sort(key=lambda a: (bar_beat_to_float(a.bar_beat), a.upper_degree))
+    anchors.sort(key=lambda a: (bar_beat_to_float(bar_beat=a.bar_beat), a.upper_degree))
     for a in anchors:
-        tracer.anchor(a.bar_beat, a.upper_degree, a.lower_degree, a.local_key.tonic, a.schema, a.stage, a.section)
+        tracer.anchor(bar_beat=a.bar_beat, upper=a.upper_degree, lower=a.lower_degree, key=a.local_key.tonic, schema=a.schema, stage=a.stage, section=a.section)
     return bar_assignments, anchors, total_bars
 
 
@@ -65,7 +65,7 @@ def _build_bar_assignments(
         section_name: str = section["name"]
         schema_sequence: list[str] = section.get("schema_sequence", [])
         section_bars: int = sum(
-            get_schema_stages(name, schemas)
+            get_schema_stages(schema_name=name, schemas=schemas)
             for name in schema_sequence
         )
         assert section_bars > 0, f"Section '{section_name}' has no stages"
@@ -98,8 +98,8 @@ def _generate_section_anchors(
         start_bar, _ = bar_assignments[section_name]
         section_upbeat: Fraction = upbeat if is_first_section else Fraction(0)
         section_anchors: list[Anchor] = _generate_single_section_anchors(
-            section, schemas, key, metre, tonal_plan, answer_interval, modality,
-            start_bar, section_upbeat,
+            section=section, schemas=schemas, home_key=key, metre=metre, tonal_plan=tonal_plan, answer_interval=answer_interval, modality=modality,
+            start_bar=start_bar, upbeat=section_upbeat,
         )
         anchors.extend(section_anchors)
         is_first_section = False
@@ -132,17 +132,17 @@ def _generate_single_section_anchors(
         if schema_name not in schemas:
             continue
         schema_def: SchemaConfig = schemas[schema_name]
-        stages: int = get_schema_stages(schema_name, schemas)
+        stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas)
         schema_end: int = current_bar + stages - 1
         local_key: Key = _get_local_key(
-            home_key, i, is_exordium, key_areas, answer_interval, modality,
+            home_key=home_key, schema_index=i, is_exordium=is_exordium, key_areas=key_areas, answer_interval=answer_interval, modality=modality,
         )
         schema_upbeat: Fraction = upbeat if is_first_schema else Fraction(0)
         if schema_upbeat > 0:
             schema_end -= 1
         schema_anchors: list[Anchor] = generate_schema_anchors(
-            schema_name, schema_def, current_bar, schema_end,
-            local_key, metre, schema_upbeat, section_name,
+            schema_name=schema_name, schema_def=schema_def, start_bar=current_bar, end_bar=schema_end,
+            home_key=local_key, metre=metre, upbeat=schema_upbeat, section=section_name,
         )
         anchors.extend(schema_anchors)
         current_bar = schema_end + 1
@@ -162,16 +162,16 @@ def _get_local_key(
     if modality == "diatonic":
         return home_key
     if is_exordium and schema_index == 1:
-        return home_key.modulate_to("V")
+        return home_key.modulate_to(target="V")
     if schema_index < len(key_areas):
         area: str = key_areas[schema_index]
         if area == "I":
             return home_key
-        return home_key.modulate_to(area)
+        return home_key.modulate_to(target=area)
     area = key_areas[-1]
     if area == "I":
         return home_key
-    return home_key.modulate_to(area)
+    return home_key.modulate_to(target=area)
 
 
 def _key_config_to_key(key_config: KeyConfig) -> Key:

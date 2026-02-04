@@ -84,7 +84,7 @@ class CounterSubject:
 
     def with_valid_delays(self, delays: tuple[Fraction, ...]) -> "CounterSubject":
         """Return a new CounterSubject with valid_delays set."""
-        return CounterSubject(self.degrees, self.durations, delays)
+        return CounterSubject(degrees=self.degrees, durations=self.durations, valid_delays=delays)
 
 
 @dataclass(frozen=True)
@@ -138,8 +138,8 @@ def _degree_to_semitone(degree: int, scale: tuple[int, ...]) -> int:
 
 def _interval_class(deg1: int, deg2: int, scale: tuple[int, ...]) -> int:
     """Compute interval class (0-11) between two degrees."""
-    s1 = _degree_to_semitone(deg1, scale)
-    s2 = _degree_to_semitone(deg2, scale)
+    s1 = _degree_to_semitone(degree=deg1, scale=scale)
+    s2 = _degree_to_semitone(degree=deg2, scale=scale)
     return abs(s2 - s1) % 12
 
 
@@ -213,7 +213,7 @@ def test_delay_consonance(
 
         # If both voices are sounding, check consonance
         if subj_deg is not None and cs_deg is not None:
-            ic = _interval_class(subj_deg, cs_deg, scale)
+            ic = _interval_class(deg1=subj_deg, deg2=cs_deg, scale=scale)
             if ic not in ALL_CONSONANCES:
                 return False
 
@@ -228,7 +228,7 @@ def find_valid_delays(subject: SubjectSpec, cs: CounterSubject) -> tuple[Fractio
     """
     valid: list[Fraction] = []
     for delay in CANDIDATE_DELAYS:
-        if test_delay_consonance(subject, cs, delay):
+        if test_delay_consonance(subject=subject, cs=cs, delay=delay):
             valid.append(delay)
     return tuple(valid)
 
@@ -284,7 +284,7 @@ def generate_countersubject(
     max_cs_notes = n_subject + 2
 
     # Determine allowed durations (baroque mode excludes 16ths and dotted 8ths)
-    allowed_durations = _compute_allowed_durations(subject, baroque=use_baroque)
+    allowed_durations = _compute_allowed_durations(subject=subject, baroque=use_baroque)
 
     model = cp_model.CpModel()
 
@@ -367,52 +367,64 @@ def generate_countersubject(
     penalties: list[cp_model.LinearExpr] = []
 
     _add_vertical_constraints(
-        model, cs_degrees, cs_attacks, cs_durations, active,
-        subject, subj_attacks_scaled, target_scaled, penalties
+        model=model, cs_degrees=cs_degrees, cs_attacks=cs_attacks,
+        cs_durations=cs_durations, active=active,
+        subject=subject, subj_attacks_scaled=subj_attacks_scaled,
+        target_scaled=target_scaled, penalties=penalties
     )
 
     # === MELODIC CONSTRAINTS ===
 
     _add_melodic_constraints(
-        model, cs_degrees, active, subject, max_cs_notes, penalties
+        model=model, cs_degrees=cs_degrees, active=active,
+        subject=subject, max_cs=max_cs_notes, penalties=penalties
     )
 
     # === RHYTHMIC CONSTRAINTS ===
 
     _add_rhythmic_constraints(
-        model, cs_durations, cs_attacks, active, subject,
-        subj_attacks_scaled, allowed_scaled, max_cs_notes, target_scaled, penalties
+        model=model, cs_durations=cs_durations, cs_attacks=cs_attacks,
+        active=active, subject=subject,
+        subj_attacks_scaled=subj_attacks_scaled, allowed_scaled=allowed_scaled,
+        max_cs=max_cs_notes, target_scaled=target_scaled, penalties=penalties
     )
 
     # === CADENTIAL CONSTRAINTS ===
 
     _add_cadential_constraints(
-        model, cs_degrees, active, subject, max_cs_notes, penalties
+        model=model, cs_degrees=cs_degrees, active=active,
+        subject=subject, max_cs=max_cs_notes, penalties=penalties
     )
 
     # === LEADING TONE RESOLUTION ===
 
     _add_leading_tone_resolution(
-        model, cs_degrees, active, max_cs_notes, penalties
+        model=model, cs_degrees=cs_degrees, active=active,
+        max_cs=max_cs_notes, penalties=penalties
     )
 
     # === MOTIVIC CONSTRAINTS ===
 
     _add_motivic_constraints(
-        model, cs_durations, active, subject, allowed_scaled, max_cs_notes, penalties
+        model=model, cs_durations=cs_durations, active=active,
+        subject=subject, allowed_scaled=allowed_scaled,
+        max_cs=max_cs_notes, penalties=penalties
     )
 
     # === INVERTIBILITY CONSTRAINTS ===
 
     _add_invertibility_constraints(
-        model, cs_degrees, cs_attacks, active, subject,
-        subj_attacks_scaled, target_scaled, penalties, interleaved
+        model=model, cs_degrees=cs_degrees, cs_attacks=cs_attacks,
+        active=active, subject=subject,
+        subj_attacks_scaled=subj_attacks_scaled, target_scaled=target_scaled,
+        penalties=penalties, interleaved=interleaved
     )
 
     # === CLIMAX OFFSET ===
 
     _add_climax_constraints(
-        model, cs_degrees, active, subject, max_cs_notes, penalties
+        model=model, cs_degrees=cs_degrees, active=active,
+        subject=subject, max_cs=max_cs_notes, penalties=penalties
     )
 
     # === SOLVE ===
@@ -443,9 +455,9 @@ def generate_countersubject(
     )
 
     # Test which delays maintain consonance (Bach's empirical approach)
-    valid_delays = find_valid_delays(subject, cs)
+    valid_delays = find_valid_delays(subject=subject, cs=cs)
 
-    return cs.with_valid_delays(valid_delays)
+    return cs.with_valid_delays(delays=valid_delays)
 
 
 def _compute_allowed_durations(subject: SubjectSpec, baroque: bool = False) -> list[Fraction]:
@@ -558,7 +570,7 @@ def _add_vertical_constraints(
 
             # When overlapping, enforce consonance
             for cs_d in range(1, 8):
-                ic = _interval_class(subj_deg, cs_d, scale)
+                ic = _interval_class(deg1=subj_deg, deg2=cs_d, scale=scale)
                 is_this_deg = model.NewBoolVar(f"is_deg_{si}_{ci}_{cs_d}")
                 model.Add(cs_degrees[ci] == cs_d).OnlyEnforceIf(is_this_deg)
                 model.Add(cs_degrees[ci] != cs_d).OnlyEnforceIf(is_this_deg.Not())
@@ -578,18 +590,22 @@ def _add_vertical_constraints(
                     penalties.append(both * 50)
 
     # Parallel fifths/octaves: check consecutive subject notes
-    _add_parallel_fifth_constraints(model, cs_degrees, active, subject, penalties)
+    _add_parallel_fifth_constraints(model=model, cs_degrees=cs_degrees, active=active, subject=subject, penalties=penalties)
 
     # Consonance at subject attack times (HARD constraint)
     _add_attack_consonance(
-        model, cs_degrees, cs_attacks, cs_durations, active,
-        subject, subj_attacks_scaled, target_scaled
+        model=model, cs_degrees=cs_degrees, cs_attacks=cs_attacks,
+        cs_durations=cs_durations, active=active,
+        subject=subject, subj_attacks_scaled=subj_attacks_scaled,
+        target_scaled=target_scaled
     )
 
     # Strong beat consonance: CS attacks on strong beats must be consonant
     _add_strong_beat_consonance(
-        model, cs_degrees, cs_attacks, active,
-        subject, subj_attacks_scaled, target_scaled, penalties
+        model=model, cs_degrees=cs_degrees, cs_attacks=cs_attacks,
+        active=active, subject=subject,
+        subj_attacks_scaled=subj_attacks_scaled,
+        target_scaled=target_scaled, penalties=penalties
     )
 
 
@@ -646,7 +662,7 @@ def _add_attack_consonance(
 
             # When CS is sounding at subject attack, FORBID dissonance
             for cs_d in range(1, 8):
-                ic = _interval_class(subj_deg, cs_d, scale)
+                ic = _interval_class(deg1=subj_deg, deg2=cs_d, scale=scale)
 
                 if ic not in ALL_CONSONANCES:
                     # Dissonance: FORBID
@@ -688,8 +704,8 @@ def _add_parallel_fifth_constraints(
     for i in range(1, max_cs):
         for prev_d in range(1, 8):
             for curr_d in range(1, 8):
-                prev_semi = _degree_to_semitone(prev_d, scale)
-                curr_semi = _degree_to_semitone(curr_d, scale)
+                prev_semi = _degree_to_semitone(degree=prev_d, scale=scale)
+                curr_semi = _degree_to_semitone(degree=curr_d, scale=scale)
                 cs_motion = curr_semi - prev_semi
 
                 # For each pair of consecutive subject notes
@@ -697,8 +713,8 @@ def _add_parallel_fifth_constraints(
                     subj_prev = subject.degrees[si - 1]
                     subj_curr = subject.degrees[si]
 
-                    subj_prev_semi = _degree_to_semitone(subj_prev, scale)
-                    subj_curr_semi = _degree_to_semitone(subj_curr, scale)
+                    subj_prev_semi = _degree_to_semitone(degree=subj_prev, scale=scale)
+                    subj_curr_semi = _degree_to_semitone(degree=subj_curr, scale=scale)
                     subj_motion = subj_curr_semi - subj_prev_semi
 
                     # Skip if both voices static
@@ -714,8 +730,8 @@ def _add_parallel_fifth_constraints(
                                     (cs_motion < 0 and subj_motion < 0)
 
                     # Interval classes
-                    ic_prev = _interval_class(subj_prev, prev_d, scale)
-                    ic_curr = _interval_class(subj_curr, curr_d, scale)
+                    ic_prev = _interval_class(deg1=subj_prev, deg2=prev_d, scale=scale)
+                    ic_curr = _interval_class(deg1=subj_curr, deg2=curr_d, scale=scale)
 
                     # Check for parallel perfects (both intervals perfect, same direction)
                     is_parallel_perfect = truly_parallel and ic_prev in {0, 7} and ic_curr in {0, 7}
@@ -819,7 +835,7 @@ def _add_strong_beat_consonance(
 
             # When attacking at strong beat, FORBID dissonance AND fifths (HARD constraint)
             for cs_d in range(1, 8):
-                ic = _interval_class(subj_deg_at_pos, cs_d, scale)
+                ic = _interval_class(deg1=subj_deg_at_pos, deg2=cs_d, scale=scale)
 
                 # Forbid dissonances AND fifths on strong beats
                 # Fifths (ic=7) become 4ths when inverted, breaking invertibility
@@ -855,8 +871,8 @@ def _add_melodic_constraints(
 
         for prev_d in range(1, 8):
             for curr_d in range(1, 8):
-                prev_semi = _degree_to_semitone(prev_d, scale)
-                curr_semi = _degree_to_semitone(curr_d, scale)
+                prev_semi = _degree_to_semitone(degree=prev_d, scale=scale)
+                curr_semi = _degree_to_semitone(degree=curr_d, scale=scale)
                 motion = abs(curr_semi - prev_semi)
 
                 is_move = model.NewBoolVar(f"move_{i}_{prev_d}_{curr_d}")
@@ -896,13 +912,13 @@ def _add_melodic_constraints(
                     penalties.append(is_move * 10)
 
     # Add leap compensation constraint: after a leap, prefer step in opposite direction
-    _add_leap_compensation_constraints(model, cs_degrees, active, subject, max_cs, penalties)
+    _add_leap_compensation_constraints(model=model, cs_degrees=cs_degrees, active=active, subject=subject, max_cs=max_cs, penalties=penalties)
 
     # Add tritone outline constraint: forbid 4-note spans that outline tritone
-    _add_tritone_outline_constraints(model, cs_degrees, active, subject, max_cs, penalties)
+    _add_tritone_outline_constraints(model=model, cs_degrees=cs_degrees, active=active, subject=subject, max_cs=max_cs, penalties=penalties)
 
     # Add consecutive leap constraint: forbid two leaps in same direction
-    _add_consecutive_leap_constraints(model, cs_degrees, active, subject, max_cs, penalties)
+    _add_consecutive_leap_constraints(model=model, cs_degrees=cs_degrees, active=active, subject=subject, max_cs=max_cs, penalties=penalties)
 
 
 def _add_leap_compensation_constraints(
@@ -925,9 +941,9 @@ def _add_leap_compensation_constraints(
         for d1 in range(1, 8):
             for d2 in range(1, 8):
                 for d3 in range(1, 8):
-                    s1 = _degree_to_semitone(d1, scale)
-                    s2 = _degree_to_semitone(d2, scale)
-                    s3 = _degree_to_semitone(d3, scale)
+                    s1 = _degree_to_semitone(degree=d1, scale=scale)
+                    s2 = _degree_to_semitone(degree=d2, scale=scale)
+                    s3 = _degree_to_semitone(degree=d3, scale=scale)
 
                     leap = s2 - s1  # First interval (signed)
                     step = s3 - s2  # Second interval (signed)
@@ -982,8 +998,8 @@ def _add_tritone_outline_constraints(
 
         for d1 in range(1, 8):
             for d4 in range(1, 8):
-                s1 = _degree_to_semitone(d1, scale)
-                s4 = _degree_to_semitone(d4, scale)
+                s1 = _degree_to_semitone(degree=d1, scale=scale)
+                s4 = _degree_to_semitone(degree=d4, scale=scale)
 
                 # Check if outer interval is tritone (6 semitones)
                 if abs(s4 - s1) % 12 == 6:
@@ -1023,9 +1039,9 @@ def _add_consecutive_leap_constraints(
         for d1 in range(1, 8):
             for d2 in range(1, 8):
                 for d3 in range(1, 8):
-                    s1 = _degree_to_semitone(d1, scale)
-                    s2 = _degree_to_semitone(d2, scale)
-                    s3 = _degree_to_semitone(d3, scale)
+                    s1 = _degree_to_semitone(degree=d1, scale=scale)
+                    s2 = _degree_to_semitone(degree=d2, scale=scale)
+                    s3 = _degree_to_semitone(degree=d3, scale=scale)
 
                     leap1 = s2 - s1  # First interval (signed)
                     leap2 = s3 - s2  # Second interval (signed)
@@ -1161,8 +1177,8 @@ def _add_cadential_constraints(
 
             for pd in range(1, 8):
                 for fd in range(1, 8):
-                    p_semi = _degree_to_semitone(pd, scale)
-                    f_semi = _degree_to_semitone(fd, scale)
+                    p_semi = _degree_to_semitone(degree=pd, scale=scale)
+                    f_semi = _degree_to_semitone(degree=fd, scale=scale)
                     motion = abs(f_semi - p_semi)
 
                     if motion > 2:  # Not stepwise
@@ -1287,7 +1303,7 @@ def _add_invertibility_constraints(
         subj_deg = subject.degrees[si]
         for ci in range(max_cs):
             for cs_d in range(1, 8):
-                ic = _interval_class(subj_deg, cs_d, scale)
+                ic = _interval_class(deg1=subj_deg, deg2=cs_d, scale=scale)
                 if ic in BAD_FOR_UNISON_INVERSION:
                     is_deg = model.NewBoolVar(f"inv_deg_{si}_{ci}_{cs_d}")
                     model.Add(cs_degrees[ci] == cs_d).OnlyEnforceIf(is_deg)

@@ -17,8 +17,8 @@ def distribute_arrivals(
 ) -> list[str]:
     """Distribute arrival beats across bars."""
     arrivals: list[str] = []
-    beats_per_bar: int = get_beats_per_bar(metre)
-    strong_beats: list[int] = get_strong_beats(metre)
+    beats_per_bar: int = get_beats_per_bar(metre=metre)
+    strong_beats: list[int] = get_strong_beats(metre=metre)
     total_strong_beats: int = (end_bar - start_bar + 1) * len(strong_beats)
     if stages <= total_strong_beats:
         beat_idx: int = 0

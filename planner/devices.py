@@ -90,7 +90,7 @@ def select_figures_for_phrase(
     Returns:
         List of figure names to apply
     """
-    eligible = get_eligible_figures(affect, rhetoric_position, tension)
+    eligible = get_eligible_figures(affect=affect, rhetoric_position=rhetoric_position, tension=tension)
 
     if not eligible:
         return []
@@ -148,13 +148,13 @@ def assign_devices(
 
             for phrase in episode.phrases:
                 # Get rhetorical position
-                rhet_section = get_section_at_bar(rhetoric, current_bar)
+                rhet_section = get_section_at_bar(rhetoric=rhetoric, bar=current_bar)
                 position = rhet_section.name if rhet_section else "narratio"
 
                 # Get tension at phrase midpoint
                 mid_bar = current_bar + phrase.bars // 2
                 tension = _get_tension_at_bar(
-                    tension_curve, mid_bar, total_bars
+                    tension_curve=tension_curve, bar=mid_bar, total_bars=total_bars
                 )
 
                 # Is this the climax?

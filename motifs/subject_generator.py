@@ -32,6 +32,8 @@ from motifs.tail_generator import (
 )
 from motifs.figurae import get_figurae, score_motif_figurae, Figura
 from motifs.affect_loader import get_affect_profile, score_subject_affect
+from pathlib import Path
+from shared.midi_writer import write_midi
 
 # Supported metres
 SUPPORTED_METRES: tuple[tuple[int, int], ...] = tuple(RHYTHM_CELLS_BY_METRE.keys())
@@ -73,7 +75,7 @@ def _midi_intervals(midi_pitches: tuple[int, ...]) -> list[int]:
 
 def _has_seventh_leap(midi_pitches: tuple[int, ...]) -> bool:
     """Check if sequence has any 7th leap (10-11 semitones)."""
-    for iv in _midi_intervals(midi_pitches):
+    for iv in _midi_intervals(midi_pitches=midi_pitches):
         if abs(iv) in (10, 11):
             return True
     return False
@@ -81,7 +83,7 @@ def _has_seventh_leap(midi_pitches: tuple[int, ...]) -> bool:
 
 def _has_tritone_leap(midi_pitches: tuple[int, ...]) -> bool:
     """Check if sequence has any tritone leap (6 semitones)."""
-    for iv in _midi_intervals(midi_pitches):
+    for iv in _midi_intervals(midi_pitches=midi_pitches):
         if abs(iv) == 6:
             return True
     return False
@@ -100,7 +102,7 @@ def _has_tritone_outline(midi_pitches: tuple[int, ...]) -> bool:
 
 def _has_consecutive_leaps_same_direction(midi_pitches: tuple[int, ...]) -> bool:
     """Check if sequence has two consecutive leaps (>2 semitones) in same direction."""
-    intervals = _midi_intervals(midi_pitches)
+    intervals = _midi_intervals(midi_pitches=midi_pitches)
     for i in range(len(intervals) - 1):
         iv1, iv2 = intervals[i], intervals[i + 1]
         # Both must be leaps (> 2 semitones)
@@ -128,18 +130,25 @@ def _has_unresolved_leading_tone(scale_indices: tuple[int, ...]) -> bool:
 
 def _is_melodically_valid(midi_pitches: tuple[int, ...], scale_indices: tuple[int, ...] | None = None) -> bool:
     """Check if MIDI pitch sequence passes all melodic validation."""
-    if _has_seventh_leap(midi_pitches):
+    if _has_seventh_leap(midi_pitches=midi_pitches):
         return False
-    if _has_tritone_leap(midi_pitches):
+    if _has_tritone_leap(midi_pitches=midi_pitches):
         return False
-    if _has_tritone_outline(midi_pitches):
+    if _has_tritone_outline(midi_pitches=midi_pitches):
         return False
-    if _has_consecutive_leaps_same_direction(midi_pitches):
+    if _has_consecutive_leaps_same_direction(midi_pitches=midi_pitches):
         return False
     # Check leading tone resolution if scale indices provided
-    if scale_indices is not None and _has_unresolved_leading_tone(scale_indices):
+    if scale_indices is not None and _has_unresolved_leading_tone(scale_indices=scale_indices):
         return False
     return True
+
+
+def _midi_to_name(midi: int) -> str:
+    """Convert MIDI number to note name (e.g., 67 -> G4)."""
+    names = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
+    octave = midi // 12 - 1
+    return f"{names[midi % 12]}{octave}"
 
 
 def _largest_leap_position(intervals: list[int]) -> int:
@@ -170,11 +179,11 @@ def _is_filled(intervals: list[int], leap_pos: int) -> bool:
 
 def _is_valid_pitch(degrees: tuple[int, ...]) -> tuple[bool, int, str]:
     """Check if pitch sequence has leap + fill. Returns (valid, leap_size, direction)."""
-    intervals = _intervals(degrees)
-    leap_pos = _largest_leap_position(intervals)
+    intervals = _intervals(degrees=degrees)
+    leap_pos = _largest_leap_position(intervals=intervals)
     if leap_pos < 0:
         return False, 0, ""
-    if not _is_filled(intervals, leap_pos):
+    if not _is_filled(intervals=intervals, leap_pos=leap_pos):
         return False, 0, ""
     leap_size = abs(intervals[leap_pos])
     direction = "up" if intervals[leap_pos] > 0 else "down"
@@ -199,7 +208,7 @@ def _random_pitch_sequence(n_notes: int, rng: random.Random) -> tuple[int, ...]:
 
 def _sample_valid_head(metre: tuple[int, int], rng: random.Random, max_attempts: int = 100) -> Head | None:
     """Sample a random valid head for the given metre."""
-    rhythm_cells = get_rhythm_cells(metre)
+    rhythm_cells = get_rhythm_cells(metre=metre)
     # Filter cells with rhythm variety
     valid_cells = [(r, n) for r, n in rhythm_cells if len(set(r)) >= 2]
     if not valid_cells:
@@ -208,8 +217,8 @@ def _sample_valid_head(metre: tuple[int, int], rng: random.Random, max_attempts:
     for _ in range(max_attempts):
         rhythm, rhythm_name = rng.choice(valid_cells)
         n_notes = len(rhythm)
-        degrees = _random_pitch_sequence(n_notes, rng)
-        valid, leap_size, direction = _is_valid_pitch(degrees)
+        degrees = _random_pitch_sequence(n_notes=n_notes, rng=rng)
+        valid, leap_size, direction = _is_valid_pitch(degrees=degrees)
         if valid:
             return Head(
                 degrees=degrees,
@@ -247,11 +256,11 @@ def _combine_head_tail(
 
     Returns (degrees, rhythm, bars) or None if invalid.
     """
-    tail_degrees = tail_to_degrees(tail, head.degrees[-1])
+    tail_degrees = tail_to_degrees(tail=tail, start_degree=head.degrees[-1])
     full_degrees = head.degrees + tail_degrees[1:]
     full_rhythm = head.rhythm + tail.rhythm[1:]
 
-    if _crosses_barline(full_rhythm, bar_dur):
+    if _crosses_barline(rhythm=full_rhythm, bar_dur=bar_dur):
         return None
 
     # Calculate number of bars
@@ -285,15 +294,15 @@ def generate_subject(
         raise ValueError(f"Unsupported metre {metre}. Supported: {SUPPORTED_METRES}")
 
     rng = random.Random(seed)
-    bar_dur = _bar_duration(metre)
+    bar_dur = _bar_duration(metre=metre)
 
     # Get figurae and affect profile for this affect
     figurae_mgr = get_figurae()
     target_figurae: list[Figura] = []
     affect_profile = None
     if affect:
-        target_figurae = figurae_mgr.select_for_motif(affect, tension=0.5)
-        affect_profile = get_affect_profile(affect)
+        target_figurae = figurae_mgr.select_for_motif(affect=affect, tension=0.5)
+        affect_profile = get_affect_profile(affect=affect)
 
     if verbose:
         if affect:
@@ -310,7 +319,7 @@ def generate_subject(
             break
 
         # Sample a valid head
-        head = _sample_valid_head(metre, rng)
+        head = _sample_valid_head(metre=metre, rng=rng)
         if head is None:
             continue
 
@@ -323,12 +332,12 @@ def generate_subject(
             if target_total <= head_dur:
                 continue
 
-            tails = generate_tails_for_head(head, target_total=target_total)
+            tails = generate_tails_for_head(head=head, target_total=target_total)
             if not tails:
                 continue
 
             tail = rng.choice(tails)
-            result = _combine_head_tail(head, tail, bar_dur)
+            result = _combine_head_tail(head=head, tail=tail, bar_dur=bar_dur)
             if result is None:
                 continue
 
@@ -343,18 +352,18 @@ def generate_subject(
             satisfied: list[str] = []
             if target_figurae:
                 fig_score, satisfied = score_motif_figurae(
-                    list(degrees), list(rhythm), target_figurae
+                    indices=list(degrees), durations=list(rhythm), figurae=target_figurae
                 )
 
             # Score against affect profile (contour, intervals, rhythm density)
             affect_score = 0.0
             if affect_profile:
-                affect_score = score_subject_affect(degrees, rhythm, affect_profile)
+                affect_score = score_subject_affect(degrees=degrees, durations=rhythm, profile=affect_profile)
 
-            midi_pitches = degrees_to_midi(degrees, tonic_midi, mode)
+            midi_pitches = degrees_to_midi(degrees=degrees, tonic_midi=tonic_midi, mode=mode)
 
             # Validate melodic content (pass scale indices for leading tone check)
-            if not _is_melodically_valid(midi_pitches, degrees):
+            if not _is_melodically_valid(midi_pitches=midi_pitches, scale_indices=degrees):
                 continue
 
             # Combined score: base + figurae + affect profile
@@ -412,7 +421,7 @@ def generate_subject_batch(
         raise ValueError(f"Unsupported metre {metre}. Supported: {SUPPORTED_METRES}")
 
     rng = random.Random(seed)
-    bar_dur = _bar_duration(metre)
+    bar_dur = _bar_duration(metre=metre)
 
     results: List[GeneratedSubject] = []
     seen_degrees: set[tuple[int, ...]] = set()
@@ -422,7 +431,7 @@ def generate_subject_batch(
         if len(results) >= count:
             break
 
-        head = _sample_valid_head(metre, rng)
+        head = _sample_valid_head(metre=metre, rng=rng)
         if head is None:
             continue
 
@@ -434,12 +443,12 @@ def generate_subject_batch(
             if target_total <= head_dur:
                 continue
 
-            tails = generate_tails_for_head(head, target_total=target_total)
+            tails = generate_tails_for_head(head=head, target_total=target_total)
             if not tails:
                 continue
 
             tail = rng.choice(tails)
-            result = _combine_head_tail(head, tail, bar_dur)
+            result = _combine_head_tail(head=head, tail=tail, bar_dur=bar_dur)
             if result is None:
                 continue
 
@@ -451,10 +460,10 @@ def generate_subject_batch(
             if len(set(rhythm)) < 2:
                 continue
 
-            midi_pitches = degrees_to_midi(degrees, tonic_midi, mode)
+            midi_pitches = degrees_to_midi(degrees=degrees, tonic_midi=tonic_midi, mode=mode)
 
             # Validate melodic content (pass scale indices for leading tone check)
-            if not _is_melodically_valid(midi_pitches, degrees):
+            if not _is_melodically_valid(midi_pitches=midi_pitches, scale_indices=degrees):
                 continue
 
             seen_degrees.add(degrees)
@@ -482,21 +491,92 @@ def generate_subject_batch(
     return results
 
 
-def main() -> None:
-    """Test subject generation."""
-    print("Generating subjects (head + tail)...")
-    print()
+def write_note_file(subject: GeneratedSubject, path: Path, track: int = 0) -> None:
+    """Write subject to .note CSV file."""
+    lines: list[str] = ["offset,midi,duration,track,length,bar,beat,pitch,lyric"]
+    offset = 0.0
+    for midi, dur in zip(subject.midi_pitches, subject.durations):
+        bar = int(offset) + 1
+        beat = (offset % 1.0) * 4 + 1
+        name = _midi_to_name(midi)
+        lines.append(f"{offset},{midi},{dur},{track},,{bar},{beat},{name},")
+        offset += dur
+    path.write_text("\n".join(lines), encoding="utf-8")
 
-    subjects = generate_subject_batch(
-        mode="major",
-        metre=(4, 4),
-        seed=42,
-        tonic_midi=60,
-        count=10,
-        verbose=True,
+
+def write_midi_file(
+    subject: GeneratedSubject,
+    path: Path,
+    tempo: int = 100,
+    tonic: str = "C",
+) -> None:
+    """Write subject to MIDI file."""
+    write_midi(
+        path=str(path),
+        pitches=list(subject.midi_pitches),
+        durations=list(subject.durations),
+        tempo=tempo,
+        tonic=tonic,
+        mode=subject.mode,
     )
 
-    print(f"\nGenerated {len(subjects)} subjects")
+
+def main() -> None:
+    """Generate subjects and write to .midi and .note files."""
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate fugue subjects")
+    parser.add_argument("--output", "-o", type=Path, default=Path("subject"),
+                        help="Output path without extension (default: subject)")
+    parser.add_argument("--mode", "-m", type=str, default="major",
+                        choices=["major", "minor"], help="Mode (default: major)")
+    parser.add_argument("--metre", type=str, default="4/4",
+                        help="Time signature (default: 4/4)")
+    parser.add_argument("--seed", "-s", type=int, default=None,
+                        help="Random seed")
+    parser.add_argument("--tonic", "-k", type=str, default="C",
+                        help="Tonic note (default: C)")
+    parser.add_argument("--tempo", "-t", type=int, default=100,
+                        help="Tempo in BPM (default: 100)")
+    parser.add_argument("--affect", "-a", type=str, default=None,
+                        help="Affect name for figurae scoring")
+    parser.add_argument("--batch", "-b", type=int, default=None,
+                        help="Generate batch of N subjects")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Print details")
+    args = parser.parse_args()
+    metre_parts = args.metre.split("/")
+    metre = (int(metre_parts[0]), int(metre_parts[1]))
+    tonic_midi = {"C": 60, "D": 62, "E": 64, "F": 65, "G": 67, "A": 69, "B": 71,
+                  "C#": 61, "Db": 61, "D#": 63, "Eb": 63, "F#": 66, "Gb": 66,
+                  "G#": 68, "Ab": 68, "A#": 70, "Bb": 70}.get(args.tonic, 60)
+    if args.batch:
+        subjects = generate_subject_batch(
+            mode=args.mode,
+            metre=metre,
+            seed=args.seed,
+            tonic_midi=tonic_midi,
+            count=args.batch,
+            verbose=args.verbose,
+        )
+        for i, subj in enumerate(subjects):
+            base = args.output.parent / f"{args.output.stem}_{i:02d}"
+            write_note_file(subj, base.with_suffix(".note"))
+            write_midi_file(subj, base.with_suffix(".midi"), args.tempo, args.tonic)
+            if args.verbose:
+                print(f"  Wrote {base}.note and {base}.midi")
+        print(f"Generated {len(subjects)} subjects")
+    else:
+        subject = generate_subject(
+            mode=args.mode,
+            metre=metre,
+            seed=args.seed,
+            tonic_midi=tonic_midi,
+            verbose=args.verbose,
+            affect=args.affect,
+        )
+        write_note_file(subject, args.output.with_suffix(".note"))
+        write_midi_file(subject, args.output.with_suffix(".midi"), args.tempo, args.tonic)
+        print(f"Wrote {args.output}.note and {args.output}.midi ({subject.bars} bars)")
 
 
 if __name__ == "__main__":

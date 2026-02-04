@@ -71,10 +71,10 @@ class CadentialStrategy(WritingStrategy):
         for fig in figures:
             note_count: int = len(fig.degrees)
             durations: tuple[Fraction, ...] = self._get_rhythm(
-                note_count, gap, metre,
+                note_count=note_count, gap=gap, metre=metre,
             )
             pairs, rejection = _expand_cadential(
-                fig, source_pitch, durations, candidate_filter, home_key,
+                figure=fig, source_pitch=source_pitch, durations=durations, candidate_filter=candidate_filter, home_key=home_key,
             )
             if pairs is not None:
                 return pairs
@@ -138,8 +138,8 @@ def _expand_cadential(
     elapsed: Fraction = Fraction(0)
     prev_midi: int | None = None
     for i, deg in enumerate(figure.degrees):
-        dp: DiatonicPitch = source_pitch.transpose(deg)
-        midi: int = home_key.diatonic_to_midi(dp)
+        dp: DiatonicPitch = source_pitch.transpose(steps=deg)
+        midi: int = home_key.diatonic_to_midi(dp=dp)
         is_first: bool = i == 0
         reason: str | None = candidate_filter(dp, elapsed, is_first)
         if reason is not None:
@@ -150,7 +150,7 @@ def _expand_cadential(
                 offset=str(elapsed),
                 reason=reason,
             )
-        if prev_midi is not None and not check_melodic_interval(prev_midi, midi):
+        if prev_midi is not None and not check_melodic_interval(prev_midi=prev_midi, curr_midi=midi):
             interval: int = midi - prev_midi
             return None, FigureRejection(
                 figure_name=figure.name,

@@ -166,11 +166,11 @@ def layer_6_rhythmic(
 
     # Convert anchors to slot indices
     anchor_slots: frozenset[int] = frozenset(
-        _bar_beat_to_slot(a.bar_beat, slots_per_bar) for a in anchors
+        _bar_beat_to_slot(bar_beat=a.bar_beat, slots_per_bar=slots_per_bar) for a in anchors
     )
 
     # Get phrase boundary slots
-    phrase_boundaries = _get_phrase_boundaries(treatments, slots_per_bar)
+    phrase_boundaries = _get_phrase_boundaries(treatments=treatments, slots_per_bar=slots_per_bar)
 
     soprano_active: set[int] = set()
     bass_active: set[int] = set()
@@ -186,7 +186,7 @@ def layer_6_rhythmic(
         is_soprano_lead = lead_voice == 0
         is_bass_lead = lead_voice == 1
         s_slots, s_durs = _select_slots_for_voice(
-            start_bar, end_bar,
+            bar_start=start_bar, bar_end=end_bar,
             is_lead_voice=is_soprano_lead,
             density=density,
             slots_per_bar=slots_per_bar,
@@ -196,7 +196,7 @@ def layer_6_rhythmic(
         soprano_active.update(s_slots)
         soprano_durations.update(s_durs)
         b_slots, b_durs = _select_slots_for_voice(
-            start_bar, end_bar,
+            bar_start=start_bar, bar_end=end_bar,
             is_lead_voice=is_bass_lead,
             density=density,
             slots_per_bar=slots_per_bar,

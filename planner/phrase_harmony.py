@@ -73,5 +73,5 @@ def generate_phrase_harmony(
         return tuple(cadence_chords[-bars:])
     lead_in_bars = bars - cadence_len
     first_cadence_chord = cadence_chords[0]
-    lead_in = _get_lead_in(lead_in_bars, first_cadence_chord, prev_end)
+    lead_in = _get_lead_in(bars_needed=lead_in_bars, target=first_cadence_chord, prev_end=prev_end)
     return tuple(lead_in + cadence_chords)

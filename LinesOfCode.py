@@ -35,7 +35,7 @@ def is_excluded(path: Path, exclude_dirs: tuple[str, ...]) -> bool:
 
 def iter_files(root: Path, suffix: str, exclude_dirs: tuple[str, ...]) -> Iterable[Path]:
     for path in root.rglob(f"*{suffix}"):
-        if is_excluded(path, exclude_dirs):
+        if is_excluded(path=path, exclude_dirs=exclude_dirs):
             continue
         yield path
 
@@ -70,29 +70,29 @@ def main() -> int:
     exclude_dirs: tuple[str, ...] = DEFAULT_EXCLUDE_DIRS
     per_dir: Dict[str, Totals] = {}
     failed: list[Path] = []
-    for path in iter_files(root, ".py", exclude_dirs):
-        key: str = top_level_dir(root, path)
+    for path in iter_files(root=root, suffix=".py", exclude_dirs=exclude_dirs):
+        key: str = top_level_dir(root=root, path=path)
         totals: Totals = per_dir.get(key, Totals(0, 0, 0, 0, 0, 0, 0))
         try:
             text: str = path.read_text(encoding="utf-8", errors="replace")
             metrics = analyze(text)
             per_dir[key] = Totals(
-                blank=totals.blank + safe_int(metrics, "blank"),
-                comments=totals.comments + safe_int(metrics, "comments"),
+                blank=totals.blank + safe_int(obj=metrics, name="blank"),
+                comments=totals.comments + safe_int(obj=metrics, name="comments"),
                 files_py=totals.files_py + 1,
                 files_yaml=totals.files_yaml,
-                loc_py=totals.loc_py + safe_int(metrics, "loc"),
-                sloc_py=totals.sloc_py + safe_int(metrics, "sloc"),
+                loc_py=totals.loc_py + safe_int(obj=metrics, name="loc"),
+                sloc_py=totals.sloc_py + safe_int(obj=metrics, name="sloc"),
                 loc_yaml=totals.loc_yaml,
             )
         except Exception:
             failed.append(path)
-    for path in iter_files(root, ".yaml", exclude_dirs):
-        key: str = top_level_dir(root, path)
+    for path in iter_files(root=root, suffix=".yaml", exclude_dirs=exclude_dirs):
+        key: str = top_level_dir(root=root, path=path)
         totals: Totals = per_dir.get(key, Totals(0, 0, 0, 0, 0, 0, 0))
         try:
             text: str = path.read_text(encoding="utf-8", errors="replace")
-            loc_yaml: int = count_lines(text)
+            loc_yaml: int = count_lines(text=text)
             per_dir[key] = Totals(
                 blank=totals.blank,
                 comments=totals.comments,
@@ -109,7 +109,7 @@ def main() -> int:
     grand: Totals = Totals(0, 0, 0, 0, 0, 0, 0)
     for key in sorted(per_dir.keys()):
         totals = per_dir[key]
-        grand = add_totals(grand, totals)
+        grand = add_totals(a=grand, b=totals)
         print(f"\n[{key}]")
         print(f"\tPython files: {totals.files_py}")
         print(f"\tYAML files: {totals.files_yaml}")

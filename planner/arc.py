@@ -35,8 +35,8 @@ def select_tension_curve(brief: Brief) -> str:
 
 def build_tension_curve(brief: Brief, macro_form: MacroForm | None = None) -> TensionCurve:
     """Build tension curve from template."""
-    curves: dict = load_yaml("rhetoric/tension_curves.yaml")
-    curve_name: str = select_tension_curve(brief)
+    curves: dict = load_yaml(name="rhetoric/tension_curves.yaml")
+    curve_name: str = select_tension_curve(brief=brief)
     assert curve_name in curves, f"Unknown tension curve: {curve_name}"
     curve_def: dict = curves[curve_name]
     raw_points: list[list[float]] = curve_def["points"]
@@ -86,5 +86,5 @@ def tension_to_energy(level: float) -> str:
 def get_energy_for_bar(curve: TensionCurve, bar: int, total_bars: int) -> str:
     """Get energy level for a specific bar."""
     position: float = bar / total_bars if total_bars > 0 else 0.0
-    level: float = get_tension_at_position(curve, position)
-    return tension_to_energy(level)
+    level: float = get_tension_at_position(curve=curve, position=position)
+    return tension_to_energy(level=level)

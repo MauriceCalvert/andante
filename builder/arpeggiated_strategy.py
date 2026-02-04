@@ -37,9 +37,9 @@ class ArpeggiatedStrategy(WritingStrategy):
 
     def __init__(self, pattern_name: str) -> None:
         self._pattern_name: str = pattern_name
-        self._bass_pattern: BassPattern | None = get_bass_pattern(pattern_name)
+        self._bass_pattern: BassPattern | None = get_bass_pattern(name=pattern_name)
         self._rhythm_pattern: RhythmPattern | None = (
-            get_rhythm_pattern(pattern_name)
+            get_rhythm_pattern(name=pattern_name)
             if self._bass_pattern is None
             else None
         )
@@ -61,11 +61,11 @@ class ArpeggiatedStrategy(WritingStrategy):
         """Return (pitch, duration) pairs from the bass pattern."""
         if self._rhythm_pattern is not None:
             return self._fill_rhythm(
-                gap, source_pitch, target_pitch, metre, candidate_filter,
+                gap=gap, source_pitch=source_pitch, target_pitch=target_pitch, metre=metre, candidate_filter=candidate_filter,
             )
         assert self._bass_pattern is not None
         return self._fill_bass_pattern(
-            gap, source_pitch, metre, candidate_filter,
+            gap=gap, source_pitch=source_pitch, metre=metre, candidate_filter=candidate_filter,
         )
 
     def _fill_bass_pattern(
@@ -79,7 +79,7 @@ class ArpeggiatedStrategy(WritingStrategy):
         assert self._bass_pattern is not None
         pattern: BassPattern = self._bass_pattern
         effective_metre: str = metre if pattern.metre == "any" else pattern.metre
-        bpb: int = _beats_per_bar(effective_metre)
+        bpb: int = _beats_per_bar(metre=effective_metre)
         beat_unit: Fraction = gap.gap_duration / bpb
         result: list[tuple[DiatonicPitch, Fraction]] = []
         for beat in pattern.beats:
@@ -89,13 +89,13 @@ class ArpeggiatedStrategy(WritingStrategy):
             if local_offset >= gap.gap_duration:
                 continue
             dur: Fraction = _resolve_duration(
-                beat.duration, gap.gap_duration, beat_unit,
+                raw=beat.duration, gap_duration=gap.gap_duration, beat_unit=beat_unit,
             )
             if local_offset + dur > gap.gap_duration:
                 dur = gap.gap_duration - local_offset
             if dur <= 0:
                 continue
-            pitch: DiatonicPitch = source_pitch.transpose(beat.degree_offset)
+            pitch: DiatonicPitch = source_pitch.transpose(steps=beat.degree_offset)
             is_first: bool = len(result) == 0
             reason: str | None = candidate_filter(pitch, local_offset, is_first)
             if reason is not None:
@@ -124,7 +124,7 @@ class ArpeggiatedStrategy(WritingStrategy):
         assert self._rhythm_pattern is not None
         pattern: RhythmPattern = self._rhythm_pattern
         effective_metre: str = metre if pattern.metre == "any" else pattern.metre
-        bpb: int = _beats_per_bar(effective_metre)
+        bpb: int = _beats_per_bar(metre=effective_metre)
         beat_unit: Fraction = gap.gap_duration / bpb
         result: list[tuple[DiatonicPitch, Fraction]] = []
         for beat in pattern.beats:
@@ -132,7 +132,7 @@ class ArpeggiatedStrategy(WritingStrategy):
             if local_offset >= gap.gap_duration:
                 continue
             dur: Fraction = _resolve_duration(
-                beat.duration, gap.gap_duration, beat_unit,
+                raw=beat.duration, gap_duration=gap.gap_duration, beat_unit=beat_unit,
             )
             if local_offset + dur > gap.gap_duration:
                 dur = gap.gap_duration - local_offset

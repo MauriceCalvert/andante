@@ -25,7 +25,7 @@ _INTERVAL_NAMES: tuple[str, ...] = (
 def format_interval(semitones: int) -> str:
     """Format interval in semitones as readable name."""
     if semitones < 0:
-        return f"-{format_interval(-semitones)}"
+        return f"-{format_interval(semitones=-semitones)}"
     simple: int = semitones % 12
     octaves: int = semitones // 12
     name: str = _INTERVAL_NAMES[simple]
@@ -117,9 +117,9 @@ def check_strong_beat_consonance(
     metre: str,
 ) -> bool:
     """Return True if consonant on strong beat, or not a strong beat."""
-    if not _is_strong_beat(offset, metre):
+    if not _is_strong_beat(offset=offset, metre=metre):
         return True
-    return check_consonance(candidate_midi, prior_midi)
+    return check_consonance(midi_a=candidate_midi, midi_b=prior_midi)
 
 
 def check_voice_overlap(

@@ -205,7 +205,7 @@ def compute_tension_curve(
 
     for bar in range(1, total_bars + 1):
         position = bar / total_bars
-        tension = _interpolate_tension(position, control_points)
+        tension = _interpolate_tension(position=position, control_points=control_points)
 
         points.append(TensionPoint(position=position, level=tension))
 
@@ -250,7 +250,7 @@ def get_tension_at_bar(
 ) -> float:
     """Get tension level at a specific bar."""
     position = bar / total_bars
-    return _get_tension_at_position(tension_curve, position)
+    return _get_tension_at_position(tension_curve=tension_curve, position=position)
 
 
 def _get_tension_at_position(
@@ -503,7 +503,7 @@ def get_affect_characteristics(affect: str) -> Dict[str, str]:
 
     These inform melodic generation to match the affect.
     """
-    params = select_parameters(affect)
+    params = select_parameters(affect=affect)
     return {
         "interval_profile": params.interval_profile,
         "contour": params.contour,
@@ -534,7 +534,7 @@ def get_suggested_key(affect: str, preference: int = 0) -> str:
         return suggestions[0]
 
     # Fall back to legacy mode+character mapping
-    params = select_parameters(affect)
+    params = select_parameters(affect=affect)
     key_character = params.key_character
     mode = params.mode
     key_category = f"{key_character}_{mode}"
@@ -547,7 +547,7 @@ def get_suggested_key(affect: str, preference: int = 0) -> str:
 
 def get_tempo_marking(affect: str) -> str:
     """Get the appropriate tempo marking for an affect."""
-    params = select_parameters(affect)
+    params = select_parameters(affect=affect)
     return params.tempo
 
 
@@ -562,7 +562,7 @@ def get_tempo_bpm(affect: str, variation: float = 0.0) -> int:
     Returns:
         Integer BPM value
     """
-    params = select_parameters(affect)
+    params = select_parameters(affect=affect)
     min_bpm, max_bpm = params.tempo_bpm_range
 
     # Calculate BPM from variation

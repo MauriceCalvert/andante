@@ -67,7 +67,7 @@ def quantize_duration(d: Fraction) -> Fraction:
 
     Used as fallback when other methods produce invalid durations.
     """
-    if is_valid_duration(d):
+    if is_valid_duration(d=d):
         return d
     # Find nearest valid unit
     best = VALID_UNITS[0]

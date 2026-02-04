@@ -101,7 +101,7 @@ class FigureRejectionError(Exception):
         ]
         reason_groups: dict[str, list[FigureRejection]] = {}
         for rej in self.rejections:
-            expanded: str = _expand_reason(rej.reason)
+            expanded: str = _expand_reason(reason=rej.reason)
             reason_groups.setdefault(expanded, []).append(rej)
         for reason, group in reason_groups.items():
             lines.append(f"\n  {reason}:")
@@ -111,7 +111,7 @@ class FigureRejectionError(Exception):
                     remaining: int = len(group) - shown
                     lines.append(f"      ... and {remaining} more with this reason")
                     break
-                offset_readable: str = _format_offset(rej.offset)
+                offset_readable: str = _format_offset(offset_str=rej.offset)
                 lines.append(
                     f"    - {rej.figure_name}: note {rej.note_index} "
                     f"({rej.pitch}) at {offset_readable}"

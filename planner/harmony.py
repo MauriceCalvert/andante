@@ -71,7 +71,7 @@ def plan_harmony(
         HarmonicPlan with targets and modulations
     """
     # Get key scheme for this archetype and mode
-    key_scheme = get_key_scheme(rhetoric.archetype, mode)
+    key_scheme = get_key_scheme(archetype=rhetoric.archetype, mode=mode)
 
     targets: List[HarmonicTarget] = []
     modulations: List[Tuple[int, str, str]] = []
@@ -84,8 +84,8 @@ def plan_harmony(
 
         # Get tension at section end
         section_position = section.end_bar / total_bars
-        tension = _get_tension_at_position(tension_curve, section_position)
-        t_cat = tension_category(tension)
+        tension = _get_tension_at_position(tension_curve=tension_curve, position=section_position)
+        t_cat = tension_category(level=tension)
 
         # Select cadence type
         cadence = CADENCE_BY_POSITION.get(
@@ -110,7 +110,7 @@ def plan_harmony(
 
     # Add internal targets at phrase boundaries (every 4 bars or so)
     internal_targets = _plan_internal_targets(
-        rhetoric, tension_curve, key_scheme, total_bars
+        rhetoric=rhetoric, tension_curve=tension_curve, key_scheme=key_scheme, total_bars=total_bars
     )
     targets.extend(internal_targets)
 
@@ -146,8 +146,8 @@ def _plan_internal_targets(
 
             for bar in internal_bars:
                 # Get tension at this bar
-                tension = _get_tension_at_bar(tension_curve, bar, total_bars)
-                t_cat = tension_category(tension)
+                tension = _get_tension_at_bar(tension_curve=tension_curve, bar=bar, total_bars=total_bars)
+                t_cat = tension_category(level=tension)
 
                 # Internal targets use half or imperfect cadences
                 if t_cat == "high":
@@ -190,7 +190,7 @@ def _get_tension_at_bar(
 ) -> float:
     """Get tension level at a specific bar."""
     position = bar / total_bars
-    return _get_tension_at_position(tension_curve, position)
+    return _get_tension_at_position(tension_curve=tension_curve, position=position)
 
 
 def get_key_at_bar(

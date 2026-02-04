@@ -194,17 +194,17 @@ def generate_tails_for_head(
 
     # Find rhythm combinations (these are for notes after the shared one)
     rhythm_combos = _find_rhythm_combinations(
-        rhythm_pool,
-        remaining,
-        min_tail_notes - 1,
-        max_tail_notes - 1,
+        pool=rhythm_pool,
+        target=remaining,
+        min_notes=min_tail_notes - 1,
+        max_notes=max_tail_notes - 1,
     )
 
     # Build interval sequences
     # n_intervals = n_notes - 1, so for tail contribution of k notes, we need k intervals
     interval_seqs_by_len: dict[int, list[tuple[tuple[int, ...], tuple[str, ...]]]] = {}
     for n in range(min_tail_notes - 1, max_tail_notes):
-        seqs = _build_interval_sequences(direction, n, n)
+        seqs = _build_interval_sequences(target_direction=direction, min_intervals=n, max_intervals=n)
         if seqs:
             interval_seqs_by_len[n] = seqs
 
@@ -224,7 +224,7 @@ def generate_tails_for_head(
                 continue
 
             # Reject oscillating patterns (repeated back-and-forth)
-            if _is_oscillating(intervals):
+            if _is_oscillating(intervals=intervals):
                 continue
 
             # Check final degree resolves to stable tone
@@ -297,7 +297,7 @@ if __name__ == "__main__":
     heads_with_tails = 0
 
     for head in heads[:100]:
-        tails = generate_tails_for_head(head)
+        tails = generate_tails_for_head(head=head)
         if tails:
             heads_with_tails += 1
             total_tails += len(tails)
@@ -310,10 +310,10 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     shown = 0
     for head in heads:
-        tails = generate_tails_for_head(head)
+        tails = generate_tails_for_head(head=head)
         if tails and shown < 5:
             print(f"\nHead: {head.degrees} | {head.rhythm} | leap {head.leap_direction}")
             for tail in tails[:3]:
-                print(f"  Tail: {tail_to_str(tail)}")
+                print(f"  Tail: {tail_to_str(tail=tail)}")
                 print(f"    intervals: {tail.intervals}")
             shown += 1

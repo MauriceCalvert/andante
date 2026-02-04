@@ -61,11 +61,11 @@ def fill_slot(
     if note_count <= 0:
         raise MusicMathError(f"note_count must be positive, got {note_count}")
     if style == "uniform":
-        return _fill_uniform(target, note_count)
+        return _fill_uniform(target=target, note_count=note_count)
     elif style == "long_short":
-        return _fill_long_short(target, note_count)
+        return _fill_long_short(target=target, note_count=note_count)
     elif style == "varied":
-        return _fill_varied(target, note_count)
+        return _fill_varied(target=target, note_count=note_count)
     else:
         raise MusicMathError(f"Unknown fill style: {style}")
 
@@ -85,7 +85,7 @@ def _fill_uniform(target: Fraction, note_count: int) -> list[Fraction]:
             if candidate in VALID_DURATIONS:
                 return [candidate] * count
     # Fallback to greedy
-    return _fill_varied(target, note_count)
+    return _fill_varied(target=target, note_count=note_count)
 
 
 def _fill_long_short(target: Fraction, note_count: int) -> list[Fraction]:
@@ -103,7 +103,7 @@ def _fill_long_short(target: Fraction, note_count: int) -> list[Fraction]:
             for _ in range(pair_count):
                 result.extend([long, short])
             return result
-    return _fill_uniform(target, note_count)
+    return _fill_uniform(target=target, note_count=note_count)
 
 
 def _fill_varied(target: Fraction, note_count: int) -> list[Fraction]:

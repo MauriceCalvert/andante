@@ -53,17 +53,17 @@ def plan_coherence(
         CoherencePlan with callbacks, surprises, and proportion analysis
     """
     # Plan callbacks
-    callbacks = _plan_callbacks(structure, material, rhetoric, total_bars)
+    callbacks = _plan_callbacks(structure=structure, material=material, rhetoric=rhetoric, total_bars=total_bars)
 
     # Plan surprises
-    surprises = _plan_surprises(rhetoric, tension_curve, total_bars, affect)
+    surprises = _plan_surprises(rhetoric=rhetoric, tension_curve=tension_curve, total_bars=total_bars, affect=affect)
 
     # Calculate golden ratio bar
     golden_bar = round(total_bars / GOLDEN_RATIO)
 
     # Calculate proportion score
     proportion_score = _calculate_proportion_score(
-        rhetoric.climax_bar, golden_bar, total_bars
+        climax_bar=rhetoric.climax_bar, golden_bar=golden_bar, total_bars=total_bars
     )
 
     return CoherencePlan(

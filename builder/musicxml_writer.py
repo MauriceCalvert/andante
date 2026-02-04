@@ -22,7 +22,7 @@ def write_musicxml(comp: Composition, path: Path, tonic: str = "C", mode: str = 
     if not MUSIC21_AVAILABLE:
         print(f"Warning: music21 not installed, cannot write {path}")
         return False
-    score: stream.Score = _build_score(comp, tonic, mode)
+    score: stream.Score = _build_score(comp=comp, tonic=tonic, mode=mode)
     xml_path: Path = path.with_suffix(".musicxml")
     score.write("musicxml", fp=str(xml_path), makeNotation=True)
     return True
@@ -31,7 +31,7 @@ def write_musicxml(comp: Composition, path: Path, tonic: str = "C", mode: str = 
 def _build_score(comp: Composition, tonic: str, mode: str) -> stream.Score:
     """Build music21 Score from Composition."""
     score: stream.Score = stream.Score()
-    timenum, timeden = _parse_metre(comp.metre)
+    timenum, timeden = _parse_metre(metre=comp.metre)
     all_notes: list[Note] = []
     for voice_notes in comp.voices.values():
         all_notes.extend(voice_notes)
@@ -41,7 +41,7 @@ def _build_score(comp: Composition, tonic: str, mode: str) -> stream.Score:
     first_voice: bool = True
     for voice_id, voice_notes in comp.voices.items():
         part: stream.Part = _build_part(
-            voice_notes,
+            notes=voice_notes,
             part_id=voice_id.capitalize(),
             timenum=timenum,
             timeden=timeden,
@@ -98,8 +98,8 @@ def _build_part(
         m21_note: note.Note = note.Note(n.pitch)
         m21_note.quarterLength = float(n.duration) * 4
         if n.lyric:
-            _add_stacked_lyrics(m21_note, n.lyric)
-        _clean_accidental(m21_note, ky)
+            _add_stacked_lyrics(m21_note=m21_note, lyric_text=n.lyric)
+        _clean_accidental(m21_note=m21_note, ky=ky)
         offset_quarters: float = float(n.offset + shift) * 4
         part.insert(offset_quarters, m21_note)
     part.makeRests(fillGaps=True, inPlace=True)

@@ -95,7 +95,7 @@ def _interval_semitones(pitch_a: int, pitch_b: int) -> int:
 
 def _is_strong_beat(offset: Fraction, metre: str) -> bool:
     """Check if offset falls on a strong beat (beat 1 only)."""
-    bar_dur: Fraction = _bar_duration(metre)
+    bar_dur: Fraction = _bar_duration(metre=metre)
     offset_in_bar: Fraction = offset % bar_dur
     return offset_in_bar == Fraction(0)
 
@@ -127,8 +127,8 @@ def _motion_type(
 
 def _offset_to_bar_beat(offset: Fraction, metre: str) -> str:
     """Convert offset to bar.beat string."""
-    bar_dur: Fraction = _bar_duration(metre)
-    beat_dur: Fraction = _beat_duration(metre)
+    bar_dur: Fraction = _bar_duration(metre=metre)
+    beat_dur: Fraction = _beat_duration(metre=metre)
     bar: int = int(offset // bar_dur) + 1
     beat_offset: Fraction = offset % bar_dur
     beat: int = int(beat_offset // beat_dur) + 1
@@ -159,10 +159,10 @@ def _check_consecutive_leaps(
         int2: int = pitches[i + 2][1] - pitches[i + 1][1]
         if abs(int1) > SKIP_SEMITONES and abs(int2) > SKIP_SEMITONES:
             if (int1 > 0) == (int2 > 0):
-                loc: str = _offset_to_bar_beat(pitches[i + 1][0], metre)
-                p1: str = _midi_to_name(pitches[i][1])
-                p2: str = _midi_to_name(pitches[i + 1][1])
-                p3: str = _midi_to_name(pitches[i + 2][1])
+                loc: str = _offset_to_bar_beat(offset=pitches[i + 1][0], metre=metre)
+                p1: str = _midi_to_name(midi=pitches[i][1])
+                p2: str = _midi_to_name(midi=pitches[i + 1][1])
+                p3: str = _midi_to_name(midi=pitches[i + 2][1])
                 faults.append(Fault(
                     category="consecutive_leaps",
                     bar_beat=loc,
@@ -201,9 +201,9 @@ def _check_cross_relation(
                     continue
                 pair: tuple[int, int] = (min(pc, other_pc), max(pc, other_pc))
                 if pair in CROSS_RELATION_PAIRS:
-                    loc: str = _offset_to_bar_beat(offsets[i + 1], metre)
-                    n1: str = _midi_to_name(other_pitch)
-                    n2: str = _midi_to_name(pitch)
+                    loc: str = _offset_to_bar_beat(offset=offsets[i + 1], metre=metre)
+                    n1: str = _midi_to_name(midi=other_pitch)
+                    n2: str = _midi_to_name(midi=pitch)
                     faults.append(Fault(
                         category="cross_relation",
                         bar_beat=loc,
@@ -231,30 +231,30 @@ def _check_direct_motion(
             off1, off2 = common[i], common[i + 1]
             s1, s2 = s_by_off[off1], s_by_off[off2]
             o1, o2 = o_by_off[off1], o_by_off[off2]
-            motion: str = _motion_type(s1, s2, o1, o2)
+            motion: str = _motion_type(pitch_a_from=s1, pitch_a_to=s2, pitch_b_from=o1, pitch_b_to=o2)
             if motion != "similar":
                 continue
             soprano_leap: int = abs(s2 - s1)
             if soprano_leap <= DIRECT_MOTION_LEAP_SEMITONES:
                 continue
-            interval: int = _simple_interval(s2, o2)
+            interval: int = _simple_interval(pitch_a=s2, pitch_b=o2)
             if interval == 7:
-                loc: str = _offset_to_bar_beat(off2, metre)
+                loc: str = _offset_to_bar_beat(offset=off2, metre=metre)
                 faults.append(Fault(
                     category="direct_fifth",
                     bar_beat=loc,
                     voices=(0, other_idx),
                     message=f"Similar motion to fifth with soprano leap: "
-                            f"{_midi_to_name(s1)}-{_midi_to_name(s2)}",
+                            f"{_midi_to_name(midi=s1)}-{_midi_to_name(midi=s2)}",
                 ))
             if interval == 0:
-                loc = _offset_to_bar_beat(off2, metre)
+                loc = _offset_to_bar_beat(offset=off2, metre=metre)
                 faults.append(Fault(
                     category="direct_octave",
                     bar_beat=loc,
                     voices=(0, other_idx),
                     message=f"Similar motion to octave with soprano leap: "
-                            f"{_midi_to_name(s1)}-{_midi_to_name(s2)}",
+                            f"{_midi_to_name(midi=s1)}-{_midi_to_name(midi=s2)}",
                 ))
     return faults
 
@@ -274,14 +274,14 @@ def _check_dissonance(
     b_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in bass}
     common: list[Fraction] = sorted(set(s_by_off.keys()) & set(b_by_off.keys()))
     for i, off in enumerate(common):
-        if not _is_strong_beat(off, metre):
+        if not _is_strong_beat(offset=off, metre=metre):
             continue
         s_pitch: int = s_by_off[off]
         b_pitch: int = b_by_off[off]
-        interval: int = _simple_interval(s_pitch, b_pitch)
+        interval: int = _simple_interval(pitch_a=s_pitch, pitch_b=b_pitch)
         if interval in consonant:
             continue
-        loc: str = _offset_to_bar_beat(off, metre)
+        loc: str = _offset_to_bar_beat(offset=off, metre=metre)
         prepared: bool = False
         if i > 0:
             prev_off: Fraction = common[i - 1]
@@ -293,7 +293,7 @@ def _check_dissonance(
                 bar_beat=loc,
                 voices=(0, len(voices) - 1),
                 message=f"Unprepared dissonance on strong beat: "
-                        f"{_midi_to_name(s_pitch)}/{_midi_to_name(b_pitch)}",
+                        f"{_midi_to_name(midi=s_pitch)}/{_midi_to_name(midi=b_pitch)}",
             ))
             continue
         resolved: bool = False
@@ -309,7 +309,7 @@ def _check_dissonance(
                 bar_beat=loc,
                 voices=(0, len(voices) - 1),
                 message=f"Dissonance not resolved by step: "
-                        f"{_midi_to_name(s_pitch)}/{_midi_to_name(b_pitch)}",
+                        f"{_midi_to_name(midi=s_pitch)}/{_midi_to_name(midi=b_pitch)}",
             ))
     return faults
 
@@ -324,9 +324,9 @@ def _check_grotesque_leap(
     for i in range(len(voice_notes) - 1):
         interval: int = abs(voice_notes[i + 1].pitch - voice_notes[i].pitch)
         if interval > GROTESQUE_LEAP_SEMITONES:
-            loc: str = _offset_to_bar_beat(voice_notes[i + 1].offset, metre)
-            n1: str = _midi_to_name(voice_notes[i].pitch)
-            n2: str = _midi_to_name(voice_notes[i + 1].pitch)
+            loc: str = _offset_to_bar_beat(offset=voice_notes[i + 1].offset, metre=metre)
+            n1: str = _midi_to_name(midi=voice_notes[i].pitch)
+            n2: str = _midi_to_name(midi=voice_notes[i + 1].pitch)
             faults.append(Fault(
                 category="grotesque_leap",
                 bar_beat=loc,
@@ -355,10 +355,10 @@ def _check_spacing(
             if gap > 24:
                 faults.append(Fault(
                     category="spacing_error",
-                    bar_beat=_offset_to_bar_beat(off, metre),
+                    bar_beat=_offset_to_bar_beat(offset=off, metre=metre),
                     voices=(v_idx, v_idx + 1),
                     message=f"Voices more than two octaves apart: "
-                            f"{_midi_to_name(u_by_off[off])}/{_midi_to_name(l_by_off[off])}",
+                            f"{_midi_to_name(midi=u_by_off[off])}/{_midi_to_name(midi=l_by_off[off])}",
                 ))
     return faults
 
@@ -392,7 +392,7 @@ def _check_tessitura(
         if voice_idx not in VOICE_RANGES:
             return faults
         low, high = VOICE_RANGES[voice_idx]
-    bar_dur: Fraction = _bar_duration(metre)
+    bar_dur: Fraction = _bar_duration(metre=metre)
     bar_worst: dict[int, tuple[int, int, Fraction, str]] = {}
     for note in voice_notes:
         if note.pitch < low:
@@ -410,10 +410,10 @@ def _check_tessitura(
         beyond, pitch, offset, direction = bar_worst[bar]
         faults.append(Fault(
             category="tessitura_excursion",
-            bar_beat=_offset_to_bar_beat(offset, metre),
+            bar_beat=_offset_to_bar_beat(offset=offset, metre=metre),
             voices=(voice_idx,),
-            message=f"{_midi_to_name(pitch)} is {beyond} semitones {direction} "
-                    f"voice range ({_midi_to_name(low)}-{_midi_to_name(high)})",
+            message=f"{_midi_to_name(midi=pitch)} is {beyond} semitones {direction} "
+                    f"voice range ({_midi_to_name(midi=low)}-{_midi_to_name(midi=high)})",
         ))
     return faults
 
@@ -430,9 +430,9 @@ def _check_ugly_leaps(
         interval: int = abs(voice_notes[i + 1].pitch - voice_notes[i].pitch)
         simple: int = interval % 12
         if simple in ugly and interval > STEP_SEMITONES:
-            loc: str = _offset_to_bar_beat(voice_notes[i + 1].offset, metre)
-            n1: str = _midi_to_name(voice_notes[i].pitch)
-            n2: str = _midi_to_name(voice_notes[i + 1].pitch)
+            loc: str = _offset_to_bar_beat(offset=voice_notes[i + 1].offset, metre=metre)
+            n1: str = _midi_to_name(midi=voice_notes[i].pitch)
+            n2: str = _midi_to_name(midi=voice_notes[i + 1].pitch)
             if simple == 6:
                 name: str = "tritone"
             elif simple == 1:
@@ -473,9 +473,9 @@ def _check_voice_overlap(
                     if next_a.pitch == b_pitch:
                         faults.append(Fault(
                             category="voice_overlap",
-                            bar_beat=_offset_to_bar_beat(next_a.offset, metre),
+                            bar_beat=_offset_to_bar_beat(offset=next_a.offset, metre=metre),
                             voices=(v_a, v_b),
-                            message=f"Voice {v_a} moves to {_midi_to_name(next_a.pitch)} "
+                            message=f"Voice {v_a} moves to {_midi_to_name(midi=next_a.pitch)} "
                                     f"just vacated by voice {v_b}",
                         ))
     return faults
@@ -498,22 +498,22 @@ def _check_parallel_perfect(
                 off1, off2 = common[i], common[i + 1]
                 a1, a2 = a_by_off[off1], a_by_off[off2]
                 b1, b2 = b_by_off[off1], b_by_off[off2]
-                motion: str = _motion_type(a1, a2, b1, b2)
+                motion: str = _motion_type(pitch_a_from=a1, pitch_a_to=a2, pitch_b_from=b1, pitch_b_to=b2)
                 if motion not in {"similar", "parallel"}:
                     continue
                 if motion == "parallel" and a1 == a2 and b1 == b2:
                     continue
-                int1: int = _simple_interval(a1, b1)
-                int2: int = _simple_interval(a2, b2)
+                int1: int = _simple_interval(pitch_a=a1, pitch_b=b1)
+                int2: int = _simple_interval(pitch_a=a2, pitch_b=b2)
                 if int1 == int2 and int1 in {0, 7}:
-                    loc: str = _offset_to_bar_beat(off2, metre)
+                    loc: str = _offset_to_bar_beat(offset=off2, metre=metre)
                     if int1 == 0:
                         cat: str = "parallel_unison" if abs(a2 - b2) < 12 else "parallel_octave"
                     else:
                         cat = "parallel_fifth"
                     msg: str = (f"Parallel {cat.split('_')[1]}s: "
-                                f"{_midi_to_name(a1)}/{_midi_to_name(b1)} to "
-                                f"{_midi_to_name(a2)}/{_midi_to_name(b2)}")
+                                f"{_midi_to_name(midi=a1)}/{_midi_to_name(midi=b1)} to "
+                                f"{_midi_to_name(midi=a2)}/{_midi_to_name(midi=b2)}")
                     faults.append(Fault(
                         category=cat,
                         bar_beat=loc,
@@ -553,7 +553,7 @@ def _check_parallel_rhythm(
                     if run_length > MAX_PARALLEL_RHYTHM_ATTACKS:
                         faults.append(Fault(
                             category="parallel_rhythm",
-                            bar_beat=_offset_to_bar_beat(run_start, metre),
+                            bar_beat=_offset_to_bar_beat(offset=run_start, metre=metre),
                             voices=(v_a, v_b),
                             message=f"{run_length} consecutive simultaneous attacks "
                                     f"(voices move in lockstep)",
@@ -563,7 +563,7 @@ def _check_parallel_rhythm(
             if run_length > MAX_PARALLEL_RHYTHM_ATTACKS:
                 faults.append(Fault(
                     category="parallel_rhythm",
-                    bar_beat=_offset_to_bar_beat(run_start, metre),
+                    bar_beat=_offset_to_bar_beat(offset=run_start, metre=metre),
                     voices=(v_a, v_b),
                     message=f"{run_length} consecutive simultaneous attacks "
                             f"(voices move in lockstep)",
@@ -589,19 +589,19 @@ def find_faults(
     voice_count: int = len(voices)
     faults: list[Fault] = []
     for v_idx, voice in enumerate(voices):
-        faults.extend(_check_consecutive_leaps(voice, v_idx, metre))
-        faults.extend(_check_grotesque_leap(voice, v_idx, metre))
-        faults.extend(_check_tessitura(voice, v_idx, metre, voice_count, actuator_ranges))
+        faults.extend(_check_consecutive_leaps(voice_notes=voice, voice_idx=v_idx, metre=metre))
+        faults.extend(_check_grotesque_leap(voice_notes=voice, voice_idx=v_idx, metre=metre))
+        faults.extend(_check_tessitura(voice_notes=voice, voice_idx=v_idx, metre=metre, voice_count=voice_count, actuator_ranges=actuator_ranges))
         if v_idx == 0:
-            faults.extend(_check_ugly_leaps(voice, v_idx, metre))
-    faults.extend(_check_cross_relation(voices, metre))
-    faults.extend(_check_direct_motion(voices, metre))
-    faults.extend(_check_dissonance(voices, metre))
-    faults.extend(_check_parallel_perfect(voices, metre))
-    faults.extend(_check_parallel_rhythm(voices, metre))
-    faults.extend(_check_spacing(voices, metre))
-    faults.extend(_check_voice_overlap(voices, metre))
-    faults.sort(key=lambda f: (_parse_bar_beat(f.bar_beat), f.category))
+            faults.extend(_check_ugly_leaps(voice_notes=voice, voice_idx=v_idx, metre=metre))
+    faults.extend(_check_cross_relation(voices=voices, metre=metre))
+    faults.extend(_check_direct_motion(voices=voices, metre=metre))
+    faults.extend(_check_dissonance(voices=voices, metre=metre))
+    faults.extend(_check_parallel_perfect(voices=voices, metre=metre))
+    faults.extend(_check_parallel_rhythm(voices=voices, metre=metre))
+    faults.extend(_check_spacing(voices=voices, metre=metre))
+    faults.extend(_check_voice_overlap(voices=voices, metre=metre))
+    faults.sort(key=lambda f: (_parse_bar_beat(bar_beat=f.bar_beat), f.category))
     return faults
 
 
@@ -631,7 +631,7 @@ def find_faults_from_composition(
             ranges[i] = actuator_ranges[name]
         elif track in VOICE_RANGES:
             ranges[i] = VOICE_RANGES[track]
-    return find_faults(voices, composition.metre, ranges if ranges else None)
+    return find_faults(voices=voices, metre=composition.metre, actuator_ranges=ranges if ranges else None)
 
 
 def print_faults(faults: list[Fault]) -> None:

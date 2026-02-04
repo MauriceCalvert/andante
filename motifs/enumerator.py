@@ -92,7 +92,7 @@ def enumerate_all_candidates() -> Iterator[Tuple[Tuple[int, ...], Tuple[float, .
     for rhythm in rhythm_patterns:
         n = len(rhythm)
         if n not in pitch_cache:
-            pitch_cache[n] = enumerate_pitch_sequences(n)
+            pitch_cache[n] = enumerate_pitch_sequences(length=n)
 
         for pitches in pitch_cache[n]:
             yield (pitches, rhythm)
@@ -112,7 +112,7 @@ def count_candidates() -> dict:
     for rhythm in rhythm_patterns:
         n = len(rhythm)
         if n not in counts["by_length"]:
-            pitch_seqs = enumerate_pitch_sequences(n)
+            pitch_seqs = enumerate_pitch_sequences(length=n)
             counts["by_length"][n] = {
                 "rhythm_patterns": 0,
                 "pitch_sequences": len(pitch_seqs),

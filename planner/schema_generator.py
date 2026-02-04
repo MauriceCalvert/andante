@@ -93,11 +93,11 @@ def select_schema_for_position(
 
     # Filter by transition validity (if not opening)
     if prev_schema is not None:
-        allowed = set(get_allowed_next(prev_schema))
+        allowed = set(get_allowed_next(schema_name=prev_schema))
         candidates = [c for c in candidates if c in allowed]
 
     # Filter by bar fit
-    candidates = [c for c in candidates if schema_fits_bars(c, available_bars)]
+    candidates = [c for c in candidates if schema_fits_bars(schema_name=c, available_bars=available_bars)]
 
     # Soft constraint: prefer schemas not repeated more than twice
     schema_counts = {s: history.count(s) for s in set(history)}
@@ -109,10 +109,10 @@ def select_schema_for_position(
     if not candidates:
         all_schemas = get_opening_schemas() + get_sequential_schemas() + get_cadential_schemas()
         if prev_schema:
-            allowed = set(get_allowed_next(prev_schema))
-            candidates = [s for s in all_schemas if s in allowed and schema_fits_bars(s, available_bars)]
+            allowed = set(get_allowed_next(schema_name=prev_schema))
+            candidates = [s for s in all_schemas if s in allowed and schema_fits_bars(schema_name=s, available_bars=available_bars)]
         if not candidates:
-            candidates = [s for s in all_schemas if schema_fits_bars(s, available_bars)]
+            candidates = [s for s in all_schemas if schema_fits_bars(schema_name=s, available_bars=available_bars)]
 
     assert candidates, (
         f"No valid schema found for position={position}, prev={prev_schema}, "
@@ -123,7 +123,7 @@ def select_schema_for_position(
     schema_name = rng.choice(candidates)
 
     # Determine bar count within schema's range, constrained by available
-    schema = get_schema(schema_name)
+    schema = get_schema(name=schema_name)
     min_bars = schema.min_bars
     max_bars = min(schema.max_bars, available_bars)
 
@@ -160,7 +160,7 @@ def assign_treatment(
         Treatment string from SCHEMA_TREATMENTS
     """
     # Check if schema is sequential
-    schema = get_schema(schema_type)
+    schema = get_schema(name=schema_type)
     is_sequential = schema.sequential
 
     # First schema: statement
@@ -310,8 +310,8 @@ def generate_schema_chain(
     assert total_bars > 0, f"total_bars must be positive, got {total_bars}"
 
     rng = random.Random(seed)
-    genre_prefs = get_schema_preferences(genre)
-    texture = get_genre_texture(genre)
+    genre_prefs = get_schema_preferences(genre=genre)
+    texture = get_genre_texture(genre=genre)
 
     slots: list[SchemaSlot] = []
     history: list[str] = []
@@ -380,14 +380,14 @@ def generate_schema_chain(
             )
 
             # Get schema base bars for sequence calculation
-            schema = get_schema(schema_name)
+            schema = get_schema(name=schema_name)
             schema_bars = schema.min_bars
 
             # Compute stretto overlap and sequence repetitions
             # Use Fraction(1, 1) as default bar_duration (4/4 time)
             bar_duration = Fraction(1, 1)
-            stretto_overlap = _compute_stretto_overlap(treatment, bar_duration, rng)
-            sequence_reps = _compute_sequence_reps(treatment, bars, schema_bars, rng)
+            stretto_overlap = _compute_stretto_overlap(treatment=treatment, bar_duration=bar_duration, rng=rng)
+            sequence_reps = _compute_sequence_reps(treatment=treatment, slot_bars=bars, schema_bars=schema_bars, rng=rng)
 
             # Create slot with key_area from tonal section
             slot = SchemaSlot(

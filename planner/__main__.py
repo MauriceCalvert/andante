@@ -25,7 +25,7 @@ def main() -> None:
     output_dir: Path = Path(sys.argv[arg_offset]) if len(sys.argv) > arg_offset else Path("output")
     name: str = sys.argv[arg_offset + 1] if len(sys.argv) > arg_offset + 1 else f"{genre}_{affect}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    result = generate_to_files(genre, affect, output_dir, name, key)
+    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key)
     key_used: str = key if key else "(derived from affect)"
     print(f"Generated {len(result.soprano)} soprano notes, {len(result.bass)} bass notes")
     print(f"Key: {key_used}")

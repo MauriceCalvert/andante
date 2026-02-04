@@ -27,7 +27,7 @@ def compose_voices(plan: CompositionPlan) -> Composition:
     allowing the following voice to adapt to the leader's rhythm.
     """
     assert len(plan.voice_plans) > 0, "CompositionPlan must have at least one voice"
-    schedule: list[CompositionTask] = _build_schedule(plan)
+    schedule: list[CompositionTask] = _build_schedule(plan=plan)
     voice_notes: dict[str, list[Note]] = {
         vp.voice_id: [] for vp in plan.voice_plans
     }
@@ -49,9 +49,9 @@ def compose_voices(plan: CompositionPlan) -> Composition:
                 upbeat=plan.upbeat,
             )
         else:
-            writers[voice_id].update_prior_voices(prior)
+            writers[voice_id].update_prior_voices(prior_voices=prior)
         section_notes: list[Note] = writers[voice_id].compose_section(
-            task.section_idx,
+            section_idx=task.section_idx,
         )
         voice_notes[voice_id].extend(section_notes)
     final_voices: dict[str, tuple[Note, ...]] = {}
@@ -76,7 +76,7 @@ def _build_schedule(plan: CompositionPlan) -> list[CompositionTask]:
     tasks: list[CompositionTask] = []
     for voice_idx, voice_plan in enumerate(plan.voice_plans):
         for section_idx, section in enumerate(voice_plan.sections):
-            is_lead: bool = _section_is_lead(section)
+            is_lead: bool = _section_is_lead(section=section)
             tasks.append(CompositionTask(
                 voice_idx=voice_idx,
                 section_idx=section_idx,

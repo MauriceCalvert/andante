@@ -172,7 +172,7 @@ class Figurae:
 
     def melodic_figurae(self) -> list[Figura]:
         """Get melodic figurae (most relevant for motif generation)."""
-        return self.by_category("melodic")
+        return self.by_category(category="melodic")
 
     def select_for_motif(
         self,
@@ -297,7 +297,7 @@ def score_motif_figurae(
 
     satisfied: list[str] = []
     for fig in figurae:
-        passes, _ = check_motif_figura(indices, durations, fig)
+        passes, _ = check_motif_figura(indices=indices, durations=durations, figura=fig)
         if passes:
             satisfied.append(fig.name)
 

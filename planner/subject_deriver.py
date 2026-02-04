@@ -81,7 +81,7 @@ def get_subject_rhythm(genre: str) -> tuple[tuple[Fraction, ...], str]:
     Returns:
         (durations, style) where style is 'motoric' or 'lyrical'
     """
-    genre_data = _load_genre_yaml(genre)
+    genre_data = _load_genre_yaml(genre=genre)
 
     if "subject_rhythm" in genre_data:
         rhythm_data = genre_data["subject_rhythm"]
@@ -227,23 +227,23 @@ def derive_subject(
     Returns:
         Motif with degrees and durations
     """
-    schema = get_schema(opening_schema)
+    schema = get_schema(name=opening_schema)
     mode = frame.mode
 
     # Get soprano degrees from schema
     soprano_degrees = schema.soprano_degrees
 
     # Get rhythm pattern from genre
-    rhythm_pattern, style = get_subject_rhythm(genre)
+    rhythm_pattern, style = get_subject_rhythm(genre=genre)
 
     # Apply rhythm pattern to degrees
-    degrees, durations = apply_rhythm_pattern(soprano_degrees, rhythm_pattern, style)
+    degrees, durations = apply_rhythm_pattern(degrees=soprano_degrees, pattern=rhythm_pattern, style=style)
 
     # Adjust for tritones
-    degrees = adjust_for_tritone(degrees, mode)
+    degrees = adjust_for_tritone(degrees=degrees, mode=mode)
 
     # Validate durations
-    durations = ensure_valid_durations(durations)
+    durations = ensure_valid_durations(durations=durations)
 
     # Calculate total duration and bars
     total_dur = sum(durations)
@@ -255,8 +255,8 @@ def derive_subject(
         bars = max(1, round(float(total_dur)))
 
     # Verify invertibility and answerability (soft constraints - warn but don't fail)
-    invert_ok, _ = check_invertibility(degrees, mode)
-    answer_ok, _ = check_answerability(degrees, mode)
+    invert_ok, _ = check_invertibility(degrees=degrees, mode=mode)
+    answer_ok, _ = check_answerability(degrees=degrees, mode=mode)
 
     # Note: We could iterate to find better degrees, but for now accept as-is
     # The schema-derived subject is a starting point; user can override

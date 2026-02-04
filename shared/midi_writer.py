@@ -86,7 +86,7 @@ def write_midi(
     for p, d in zip(pitches, durations):
         notes.append(SimpleNote(pitch=p, offset=offset, duration=d, velocity=velocity, track=0))
         offset += d
-    return write_midi_notes(path, notes, tempo=tempo, time_signature=time_signature, tonic=tonic, mode=mode)
+    return write_midi_notes(path=path, notes=notes, tempo=tempo, time_signature=time_signature, tonic=tonic, mode=mode)
 
 
 def write_midi_notes(

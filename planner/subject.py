@@ -82,7 +82,7 @@ class Subject:
             durations=self._durations,
             mode=self._mode,
         )
-        cs_result: CounterSubject | None = generate_countersubject(cs_subj, timeout_seconds=10.0)
+        cs_result: CounterSubject | None = generate_countersubject(subject=cs_subj, timeout_seconds=10.0)
         if cs_result is None:
             raise ValueError(f"No valid counter-subject for degrees {self._degrees} in {self._mode}")
         self._cs_degrees = cs_result.degrees
@@ -101,8 +101,8 @@ class Subject:
         cs_dur: Fraction = sum(cs.durations)
         assert subj_dur == cs_dur, "Subject and CS must have same total duration"
         if budget <= subj_dur:
-            return self._trim_pair(subj, cs, budget)
-        return self._cycle_pair(subj, cs, budget, subj_dur)
+            return self._trim_pair(subj=subj, cs=cs, budget=budget)
+        return self._cycle_pair(subj=subj, cs=cs, budget=budget, cycle_dur=subj_dur)
 
     def _trim_pair(self, subj: Motif, cs: Motif, budget: Fraction) -> tuple[Motif, Motif]:
         """Trim both motifs to budget."""
@@ -131,8 +131,8 @@ class Subject:
 
     def _cycle_pair(self, subj: Motif, cs: Motif, budget: Fraction, cycle_dur: Fraction) -> tuple[Motif, Motif]:
         """Cycle both motifs independently to fill budget."""
-        ext_subj: Motif = self._cycle_single(subj, budget)
-        ext_cs: Motif = self._cycle_single(cs, budget)
+        ext_subj: Motif = self._cycle_single(motif=subj, budget=budget)
+        ext_cs: Motif = self._cycle_single(motif=cs, budget=budget)
         return ext_subj, ext_cs
 
     def _cycle_single(self, motif: Motif, budget: Fraction) -> Motif:
@@ -167,7 +167,7 @@ class Subject:
         if not name.startswith("cs_"):
             raise ValueError(f"Unknown motif name: {name}")
         cs_num: int = int(name.split("_")[1])
-        self._ensure_motifs_generated(cs_num)
+        self._ensure_motifs_generated(up_to_cs=cs_num)
         return self._motifs[name]
 
     def _ensure_motifs_generated(self, up_to_cs: int) -> None:
@@ -179,7 +179,7 @@ class Subject:
             if i == 1:
                 self._motifs[name] = self.counter_subject
             else:
-                self._generate_cs_n(i)
+                self._generate_cs_n(n=i)
 
     def _generate_cs_n(self, n: int) -> None:
         """Generate cs_N using the gold-plated generator.
@@ -193,7 +193,7 @@ class Subject:
             durations=self._durations,
             mode=self._mode,
         )
-        cs_result: CounterSubject | None = generate_countersubject(cs_subj, timeout_seconds=10.0)
+        cs_result: CounterSubject | None = generate_countersubject(subject=cs_subj, timeout_seconds=10.0)
         if cs_result is None:
             raise ValueError(f"No valid cs_{n} for degrees {self._degrees} in {self._mode}")
         self._motifs[f"cs_{n}"] = Motif(
@@ -204,8 +204,8 @@ class Subject:
 
     def get_motif_extended(self, name: str, budget: Fraction) -> Motif:
         """Get motif by name, extended/trimmed to fill budget."""
-        motif: Motif = self.get_motif(name)
-        return self._cycle_single(motif, budget)
+        motif: Motif = self.get_motif(name=name)
+        return self._cycle_single(motif=motif, budget=budget)
 
     @property
     def motif_names(self) -> tuple[str, ...]:

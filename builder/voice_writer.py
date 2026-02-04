@@ -112,7 +112,7 @@ class VoiceWriter:
             fill_strategy=self._figuration,
         )
         self._arpeggiated: ArpeggiatedStrategy | None = (
-            ArpeggiatedStrategy(plan.bass_pattern)
+            ArpeggiatedStrategy(pattern_name=plan.bass_pattern)
             if plan.bass_pattern is not None
             else None
         )
@@ -120,7 +120,7 @@ class VoiceWriter:
         self._prev_leap_direction: int = 0
         self._prev_exit_pitch: DiatonicPitch | None = None
         self._prior_at_offset: dict[Fraction, list[int]] = _build_offset_index(
-            prior_voices,
+            prior_voices=prior_voices,
         )
         self._prev_prior_at_offset: dict[Fraction, list[int]] = {}
         self._current_voice_notes: list[Note] = []
@@ -139,7 +139,7 @@ class VoiceWriter:
         for section_idx in range(len(self._plan.sections)):
             if section_idx not in self._sections_composed:
                 notes: list[Note] = self._compose_section(
-                    self._plan.sections[section_idx],
+                    section=self._plan.sections[section_idx],
                 )
                 all_notes.extend(notes)
                 self._sections_composed.add(section_idx)
@@ -160,7 +160,7 @@ class VoiceWriter:
         if section_idx in self._sections_composed:
             return result
         section: SectionPlan = self._plan.sections[section_idx]
-        section_notes: list[Note] = self._compose_section(section)
+        section_notes: list[Note] = self._compose_section(section=section)
         result.extend(section_notes)
         self._sections_composed.add(section_idx)
         return result
@@ -171,14 +171,14 @@ class VoiceWriter:
     ) -> None:
         """Update prior voices after other voice composed a section."""
         self._prior_voices = prior_voices
-        self._prior_at_offset = _build_offset_index(prior_voices)
+        self._prior_at_offset = _build_offset_index(prior_voices=prior_voices)
 
     # ── Section-level ─────────────────────────────────────
 
     def _compose_section(self, section: SectionPlan) -> list[Note]:
         """Compose one section."""
         if section.role == Role.IMITATIVE:
-            return self._compose_imitative_section(section)
+            return self._compose_imitative_section(section=section)
         assert section.role in (Role.SCHEMA_UPPER, Role.SCHEMA_LOWER), (
             f"Role {section.role.name} not yet implemented"
         )
@@ -189,8 +189,8 @@ class VoiceWriter:
         self._prev_leap_direction = 0
         self._prev_exit_pitch = None
         if section.sequencing == "independent":
-            return self._compose_independent(section)
-        return self._compose_sequenced(section)
+            return self._compose_independent(section=section)
+        return self._compose_sequenced(section=section)
 
     def _compose_independent(self, section: SectionPlan) -> list[Note]:
         """Compose section with independent gap selection."""
@@ -201,7 +201,7 @@ class VoiceWriter:
             if gap.bar_function == "final":
                 final_anchor: PlanAnchor = self._anchors[-1]
                 source_pitch: DiatonicPitch = self._resolve_anchor_pitch(
-                    final_anchor, section.role, prev_anchor_midi,
+                    anchor=final_anchor, role=section.role, prev_midi=prev_anchor_midi,
                 )
                 target_pitch: DiatonicPitch = source_pitch
                 source_anchor: PlanAnchor = final_anchor
@@ -209,24 +209,24 @@ class VoiceWriter:
                 source_anchor = self._anchors[anchor_idx]
                 target_anchor: PlanAnchor = self._anchors[anchor_idx + 1]
                 source_pitch = self._resolve_anchor_pitch(
-                    source_anchor, section.role, prev_anchor_midi,
+                    anchor=source_anchor, role=section.role, prev_midi=prev_anchor_midi,
                 )
-                source_midi: int = self._home_key.diatonic_to_midi(source_pitch)
+                source_midi: int = self._home_key.diatonic_to_midi(dp=source_pitch)
                 if anchor_idx == 0 and self._anacrusis_composed:
                     prev_anchor_midi = source_midi
                     self._prev_exit_pitch = source_pitch
                     continue
                 ascending_hint: bool | None = _ascending_hint_for_resolve(
-                    source_anchor, target_anchor, section.role, gap.ascending,
+                    source_anchor=source_anchor, target_anchor=target_anchor, role=section.role, gap_ascending=gap.ascending,
                 )
                 target_pitch = self._resolve_anchor_pitch(
-                    target_anchor, section.role, source_midi, ascending_hint,
+                    anchor=target_anchor, role=section.role, prev_midi=source_midi, ascending_hint=ascending_hint,
                 )
             gap_offset: Fraction = _bar_beat_to_offset(
-                source_anchor.bar_beat, self._plan.metre, self._upbeat,
+                bar_beat=source_anchor.bar_beat, metre=self._plan.metre, upbeat=self._upbeat,
             )
             notes: list[Note] = self._compose_gap(
-                gap, source_pitch, target_pitch, gap_offset,
+                gap=gap, source_pitch=source_pitch, target_pitch=target_pitch, gap_offset=gap_offset,
             )
             result.extend(notes)
             self._current_voice_notes.extend(notes)
@@ -234,9 +234,9 @@ class VoiceWriter:
                 last_note: Note = notes[-1]
                 prev_anchor_midi = last_note.pitch
                 self._prev_exit_pitch = self._home_key.midi_to_diatonic(
-                    last_note.pitch,
+                    midi=last_note.pitch,
                 )
-                self._update_leap_direction(notes)
+                self._update_leap_direction(notes=notes)
         return result
 
     def _compose_sequenced(self, section: SectionPlan) -> list[Note]:
@@ -249,7 +249,7 @@ class VoiceWriter:
             if gap.bar_function == "final":
                 final_anchor: PlanAnchor = self._anchors[-1]
                 source_pitch: DiatonicPitch = self._resolve_anchor_pitch(
-                    final_anchor, section.role, prev_anchor_midi,
+                    anchor=final_anchor, role=section.role, prev_midi=prev_anchor_midi,
                 )
                 target_pitch: DiatonicPitch = source_pitch
                 source_anchor: PlanAnchor = final_anchor
@@ -257,38 +257,38 @@ class VoiceWriter:
                 source_anchor = self._anchors[anchor_idx]
                 target_anchor: PlanAnchor = self._anchors[anchor_idx + 1]
                 source_pitch = self._resolve_anchor_pitch(
-                    source_anchor, section.role, prev_anchor_midi,
+                    anchor=source_anchor, role=section.role, prev_midi=prev_anchor_midi,
                 )
-                source_midi: int = self._home_key.diatonic_to_midi(source_pitch)
+                source_midi: int = self._home_key.diatonic_to_midi(dp=source_pitch)
                 if anchor_idx == 0 and self._anacrusis_composed:
                     prev_anchor_midi = source_midi
                     self._prev_exit_pitch = source_pitch
                     continue
                 ascending_hint: bool | None = _ascending_hint_for_resolve(
-                    source_anchor, target_anchor, section.role, gap.ascending,
+                    source_anchor=source_anchor, target_anchor=target_anchor, role=section.role, gap_ascending=gap.ascending,
                 )
                 target_pitch = self._resolve_anchor_pitch(
-                    target_anchor, section.role, source_midi, ascending_hint,
+                    anchor=target_anchor, role=section.role, prev_midi=source_midi, ascending_hint=ascending_hint,
                 )
             gap_offset: Fraction = _bar_beat_to_offset(
-                source_anchor.bar_beat, self._plan.metre, self._upbeat,
+                bar_beat=source_anchor.bar_beat, metre=self._plan.metre, upbeat=self._upbeat,
             )
             if gap_idx == 0 or base_figure is None:
                 notes: list[Note] = self._compose_gap(
-                    gap, source_pitch, target_pitch, gap_offset,
+                    gap=gap, source_pitch=source_pitch, target_pitch=target_pitch, gap_offset=gap_offset,
                 )
                 if notes and gap.writing_mode == WritingMode.FIGURATION:
                     base_figure = self._extract_relative_figure(
-                        notes, source_pitch, gap_offset,
+                        notes=notes, source_pitch=source_pitch, gap_offset=gap_offset,
                     )
             else:
                 notes = self._apply_sequenced_figure(
-                    base_figure, source_pitch, gap, gap_offset,
-                    section.sequencing,
+                    base_figure=base_figure, source_pitch=source_pitch, gap=gap, gap_offset=gap_offset,
+                    sequencing=section.sequencing,
                 )
                 if not notes:
                     notes = self._compose_gap(
-                        gap, source_pitch, target_pitch, gap_offset,
+                        gap=gap, source_pitch=source_pitch, target_pitch=target_pitch, gap_offset=gap_offset,
                     )
             result.extend(notes)
             self._current_voice_notes.extend(notes)
@@ -296,9 +296,9 @@ class VoiceWriter:
                 last_note = notes[-1]
                 prev_anchor_midi = last_note.pitch
                 self._prev_exit_pitch = self._home_key.midi_to_diatonic(
-                    last_note.pitch,
+                    midi=last_note.pitch,
                 )
-                self._update_leap_direction(notes)
+                self._update_leap_direction(notes=notes)
         return result
 
     def _compose_gap(
@@ -314,14 +314,14 @@ class VoiceWriter:
         note of the gap because it IS the anchor pitch — a harmonic
         requirement that must be honoured regardless of the approach interval.
         """
-        delay: Fraction = self._compute_delay(gap)
+        delay: Fraction = self._compute_delay(gap=gap)
         effective_gap: GapPlan = gap
         if delay > 0:
             effective_gap = replace(gap, gap_duration=gap.gap_duration - delay)
-        strategy: WritingStrategy = self._strategy_for_mode(gap.writing_mode)
+        strategy: WritingStrategy = self._strategy_for_mode(mode=gap.writing_mode)
         if gap.writing_mode in (WritingMode.PILLAR, WritingMode.ARPEGGIATED):
             candidate_filter = lambda dp, offset, is_first: self._check_candidate(
-                dp, gap_offset + delay + offset, check_melodic=False,
+                pitch=dp, offset=gap_offset + delay + offset, check_melodic=False,
             )
         else:
             def candidate_filter(
@@ -331,12 +331,12 @@ class VoiceWriter:
                     # Anchor note is a harmonic obligation — skip checks but
                     # update state so subsequent notes measure motion from here,
                     # not from the previous gap's exit pitch.
-                    midi: int = self._home_key.diatonic_to_midi(dp)
+                    midi: int = self._home_key.diatonic_to_midi(dp=dp)
                     self._prev_candidate_midi = midi
                     self._prev_candidate_offset = gap_offset + delay + offset
                     return None
                 return self._check_candidate(
-                    dp, gap_offset + delay + offset,
+                    pitch=dp, offset=gap_offset + delay + offset,
                     check_melodic=False,
                     check_consonance=False,
                 )
@@ -352,7 +352,7 @@ class VoiceWriter:
         notes: list[Note] = []
         elapsed: Fraction = delay
         for dp, dur in pairs:
-            note: Note = self._to_note(dp, gap_offset + elapsed, dur)
+            note: Note = self._to_note(pitch=dp, offset=gap_offset + elapsed, duration=dur)
             notes.append(note)
             self._prev_candidate_midi = note.pitch
             self._prev_candidate_offset = note.offset
@@ -371,21 +371,21 @@ class VoiceWriter:
         source_notes: tuple[Note, ...] = self._prior_voices[source_voice]
         interval: int = section.follow_interval
         delay: Fraction = section.follow_delay
-        section_start: Fraction = self._get_section_start_offset(section)
-        section_end: Fraction = self._get_section_end_offset(section)
+        section_start: Fraction = self._get_section_start_offset(section=section)
+        section_end: Fraction = self._get_section_end_offset(section=section)
         result: list[Note] = []
         is_first: bool = True
         for note in source_notes:
-            if note.offset < section_start - delay:
+            if note.offset < section_start:
                 continue
-            if note.offset >= section_end - delay:
+            if note.offset >= section_end:
                 continue
-            dp: DiatonicPitch = self._home_key.midi_to_diatonic(note.pitch)
-            transposed: DiatonicPitch = dp.transpose(interval)
+            dp: DiatonicPitch = self._home_key.midi_to_diatonic(midi=note.pitch)
+            transposed: DiatonicPitch = dp.transpose(steps=interval)
             new_offset: Fraction = note.offset + delay
-            if self._check_candidate(transposed, new_offset, check_melodic=is_first) is None:
+            if self._check_candidate(pitch=transposed, offset=new_offset, check_melodic=is_first) is None:
                 new_note: Note = self._to_note(
-                    transposed, new_offset, note.duration,
+                    pitch=transposed, offset=new_offset, duration=note.duration,
                 )
                 result.append(new_note)
                 self._prev_candidate_midi = new_note.pitch
@@ -394,7 +394,7 @@ class VoiceWriter:
         self._current_voice_notes.extend(result)
         if result:
             last_note: Note = result[-1]
-            self._prev_exit_pitch = self._home_key.midi_to_diatonic(last_note.pitch)
+            self._prev_exit_pitch = self._home_key.midi_to_diatonic(midi=last_note.pitch)
         return result
 
     def _compose_anacrusis(self) -> list[Note]:
@@ -406,20 +406,20 @@ class VoiceWriter:
         dur_each: Fraction = ana.duration / note_count
         start_offset: Fraction = Fraction(0)
         target_midi: int = self._place_degree_near_median(
-            self._home_key, ana.target_degree, self._plan.actuator_range,
+            key=self._home_key, degree=ana.target_degree, rng=self._plan.actuator_range,
         )
-        target_pitch: DiatonicPitch = self._home_key.midi_to_diatonic(target_midi)
+        target_pitch: DiatonicPitch = self._home_key.midi_to_diatonic(midi=target_midi)
         result: list[Note] = []
         for i in range(note_count):
             if ana.ascending:
                 step_offset: int = i - note_count + 1
             else:
                 step_offset = note_count - 1 - i
-            pitch: DiatonicPitch = target_pitch.transpose(step_offset)
+            pitch: DiatonicPitch = target_pitch.transpose(steps=step_offset)
             offset: Fraction = start_offset + i * dur_each
             is_first: bool = i == 0
-            if self._check_candidate(pitch, offset, check_melodic=is_first) is None:
-                note: Note = self._to_note(pitch, offset, dur_each)
+            if self._check_candidate(pitch=pitch, offset=offset, check_melodic=is_first) is None:
+                note: Note = self._to_note(pitch=pitch, offset=offset, duration=dur_each)
                 result.append(note)
                 self._prev_candidate_midi = note.pitch
                 self._prev_candidate_offset = note.offset
@@ -456,11 +456,11 @@ class VoiceWriter:
         key: Key = anchor.local_key
         rng: Range = self._plan.actuator_range
         if prev_midi is None:
-            midi: int = self._place_degree_near_median(key, degree, rng)
+            midi: int = self._place_degree_near_median(key=key, degree=degree, rng=rng)
         else:
-            midi = self._place_degree_with_direction(key, degree, prev_midi, direction, rng)
-        midi = self._adjust_for_consonance(key, degree, midi, anchor.bar_beat, rng)
-        return self._home_key.midi_to_diatonic(midi)
+            midi = self._place_degree_with_direction(key=key, degree=degree, prev_midi=prev_midi, direction=direction, rng=rng)
+        midi = self._adjust_for_consonance(key=key, degree=degree, preferred_midi=midi, bar_beat=anchor.bar_beat, rng=rng)
+        return self._home_key.midi_to_diatonic(midi=midi)
 
     def _adjust_for_consonance(
         self,
@@ -477,20 +477,20 @@ class VoiceWriter:
         picks the closest consonant one to the preferred placement.
         Falls back to preferred if no consonant alternative exists.
         """
-        offset: Fraction = _bar_beat_to_offset(bar_beat, self._plan.metre, self._upbeat)
+        offset: Fraction = _bar_beat_to_offset(bar_beat=bar_beat, metre=self._plan.metre, upbeat=self._upbeat)
         prior_pitches: list[int] = self._prior_at_offset.get(offset, [])
         if not prior_pitches:
             return preferred_midi
-        if _is_consonant(preferred_midi, prior_pitches):
+        if _is_consonant(midi=preferred_midi, prior_pitches=prior_pitches):
             return preferred_midi
-        base_pc: int = key.degree_to_midi(degree, octave=0)
+        base_pc: int = key.degree_to_midi(degree=degree, octave=0)
         candidates: list[int] = []
         for octave in range(0, 10):
             midi: int = base_pc + octave * 12
             if rng.low <= midi <= rng.high:
                 candidates.append(midi)
         consonant: list[int] = [
-            m for m in candidates if _is_consonant(m, prior_pitches)
+            m for m in candidates if _is_consonant(midi=m, prior_pitches=prior_pitches)
         ]
         if consonant:
             return min(consonant, key=lambda m: abs(m - preferred_midi))
@@ -508,7 +508,7 @@ class VoiceWriter:
         safe_low: int = rng.low + margin
         safe_high: int = rng.high - margin
         median: int = self._plan.tessitura_median
-        base_pc: int = key.degree_to_midi(degree, octave=0)
+        base_pc: int = key.degree_to_midi(degree=degree, octave=0)
         candidates: list[int] = []
         for octave in range(0, 10):
             midi: int = base_pc + octave * 12
@@ -537,7 +537,7 @@ class VoiceWriter:
         margin: int = 10
         safe_low: int = rng.low + margin
         safe_high: int = rng.high - margin
-        base_pc: int = key.degree_to_midi(degree, octave=0)
+        base_pc: int = key.degree_to_midi(degree=degree, octave=0)
         candidates: list[int] = []
         for octave in range(0, 10):
             midi: int = base_pc + octave * 12
@@ -577,43 +577,43 @@ class VoiceWriter:
         check_consonance: bool = True,
     ) -> str | None:
         """Return None if candidate passes, else rejection reason."""
-        midi: int = self._home_key.diatonic_to_midi(pitch)
+        midi: int = self._home_key.diatonic_to_midi(dp=pitch)
         rng: Range = self._plan.actuator_range
-        if not check_range(midi, rng):
+        if not check_range(midi=midi, actuator_range=rng):
             return f"range({rng.low}-{rng.high})"
         if check_melodic and self._prev_candidate_midi is not None:
-            if not check_melodic_interval(self._prev_candidate_midi, midi):
+            if not check_melodic_interval(prev_midi=self._prev_candidate_midi, curr_midi=midi):
                 interval: int = midi - self._prev_candidate_midi
-                return f"melodic_interval({format_interval(interval)})"
+                return f"melodic_interval({format_interval(semitones=interval)})"
         prior_pitches: list[int] = self._prior_at_offset.get(offset, [])
         if check_consonance:
             for prior_midi in prior_pitches:
                 if not check_strong_beat_consonance(
-                    midi, prior_midi, offset, self._plan.metre,
+                    candidate_midi=midi, prior_midi=prior_midi, offset=offset, metre=self._plan.metre,
                 ):
                     ic: int = abs(midi - prior_midi) % 12
                     return f"strong_beat_dissonance(ic={ic})"
         if not check_voice_overlap(
-            midi, offset, self._prior_at_offset, self._prev_candidate_offset,
+            candidate_midi=midi, candidate_offset=offset, prior_notes_by_offset=self._prior_at_offset, prev_offset=self._prev_candidate_offset,
         ):
             return "voice_overlap"
         if self._prev_candidate_midi is not None and prior_pitches:
-            prev_prior: list[int] = self._find_prev_prior_pitches(offset)
+            prev_prior: list[int] = self._find_prev_prior_pitches(current_offset=offset)
             for i, prior_midi in enumerate(prior_pitches):
                 if i < len(prev_prior):
                     prev_prior_midi: int = prev_prior[i]
                     if not check_parallels(
-                        self._prev_candidate_midi, prev_prior_midi,
-                        midi, prior_midi,
+                        prev_upper=self._prev_candidate_midi, prev_lower=prev_prior_midi,
+                        curr_upper=midi, curr_lower=prior_midi,
                     ):
                         curr_ic: int = abs(midi - prior_midi) % 12
-                        return f"parallel({format_interval(curr_ic)})"
+                        return f"parallel({format_interval(semitones=curr_ic)})"
                     if not check_direct_motion(
-                        self._prev_candidate_midi, prev_prior_midi,
-                        midi, prior_midi,
+                        prev_upper=self._prev_candidate_midi, prev_lower=prev_prior_midi,
+                        curr_upper=midi, curr_lower=prior_midi,
                     ):
                         curr_ic = abs(midi - prior_midi) % 12
-                        return f"direct_motion_to({format_interval(curr_ic)})"
+                        return f"direct_motion_to({format_interval(semitones=curr_ic)})"
         return None
 
     def _find_prev_prior_pitches(self, current_offset: Fraction) -> list[int]:
@@ -637,7 +637,7 @@ class VoiceWriter:
         duration: Fraction,
     ) -> Note:
         """Convert DiatonicPitch + timing to a Note."""
-        midi: int = self._home_key.diatonic_to_midi(pitch)
+        midi: int = self._home_key.diatonic_to_midi(dp=pitch)
         return Note(
             offset=offset,
             pitch=midi,
@@ -678,11 +678,11 @@ class VoiceWriter:
         gap_offset: Fraction,
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...]:
         """Extract relative pitch offsets from realized notes."""
-        source_midi: int = self._home_key.diatonic_to_midi(source_pitch)
+        source_midi: int = self._home_key.diatonic_to_midi(dp=source_pitch)
         result: list[tuple[DiatonicPitch, Fraction]] = []
         for note in notes:
             rel_offset: Fraction = note.offset - gap_offset
-            dp: DiatonicPitch = self._home_key.midi_to_diatonic(note.pitch)
+            dp: DiatonicPitch = self._home_key.midi_to_diatonic(midi=note.pitch)
             interval: int = dp.step - source_pitch.step
             result.append((DiatonicPitch(step=interval), note.duration))
         return tuple(result)
@@ -699,13 +699,13 @@ class VoiceWriter:
         notes: list[Note] = []
         elapsed: Fraction = Fraction(0)
         for i, (rel_dp, dur) in enumerate(base_figure):
-            pitch: DiatonicPitch = source_pitch.transpose(rel_dp.step)
+            pitch: DiatonicPitch = source_pitch.transpose(steps=rel_dp.step)
             abs_offset: Fraction = gap_offset + elapsed
             is_first: bool = i == 0
-            if self._check_candidate(pitch, abs_offset, check_melodic=is_first) is not None:
+            if self._check_candidate(pitch=pitch, offset=abs_offset, check_melodic=is_first) is not None:
                 return []
-            notes.append(self._to_note(pitch, abs_offset, dur))
-            self._prev_candidate_midi = self._home_key.diatonic_to_midi(pitch)
+            notes.append(self._to_note(pitch=pitch, offset=abs_offset, duration=dur))
+            self._prev_candidate_midi = self._home_key.diatonic_to_midi(dp=pitch)
             self._prev_candidate_offset = abs_offset
             elapsed += dur
         return notes
@@ -726,12 +726,12 @@ class VoiceWriter:
     def _get_section_start_offset(self, section: SectionPlan) -> Fraction:
         """Get absolute offset of section start."""
         anchor: PlanAnchor = self._anchors[section.start_gap_index]
-        return _bar_beat_to_offset(anchor.bar_beat, self._plan.metre, self._upbeat)
+        return _bar_beat_to_offset(bar_beat=anchor.bar_beat, metre=self._plan.metre, upbeat=self._upbeat)
 
     def _get_section_end_offset(self, section: SectionPlan) -> Fraction:
         """Get absolute offset of section end."""
         anchor: PlanAnchor = self._anchors[section.end_gap_index]
-        return _bar_beat_to_offset(anchor.bar_beat, self._plan.metre, self._upbeat)
+        return _bar_beat_to_offset(bar_beat=anchor.bar_beat, metre=self._plan.metre, upbeat=self._upbeat)
 
     # ── Helpers ───────────────────────────────────────────
 

@@ -40,7 +40,7 @@ class PillarStrategy(WritingStrategy):
         assert gap.gap_duration > 0, f"Gap duration must be positive, got {gap.gap_duration}"
         rejections: list[FigureRejection] = []
         for offset in _CONSONANT_OFFSETS:
-            pitch: DiatonicPitch = source_pitch.transpose(offset)
+            pitch: DiatonicPitch = source_pitch.transpose(steps=offset)
             reason: str | None = candidate_filter(pitch, Fraction(0), True)
             if reason is None:
                 if offset != 0:

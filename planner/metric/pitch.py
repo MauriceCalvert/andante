@@ -9,7 +9,7 @@ def degree_to_midi(
     octave: int,
 ) -> int:
     """Convert scale degree to MIDI pitch at given octave."""
-    return key.degree_to_midi(degree, octave=octave)
+    return key.degree_to_midi(degree=degree, octave=octave)
 
 
 def snap_to_key(
@@ -20,7 +20,7 @@ def snap_to_key(
     pc: int = midi % 12
     key_pcs: set[int] = set()
     for degree in range(1, 8):
-        degree_midi: int = key.degree_to_midi(degree, octave=0)
+        degree_midi: int = key.degree_to_midi(degree=degree, octave=0)
         key_pcs.add(degree_midi % 12)
     if pc in key_pcs:
         return midi

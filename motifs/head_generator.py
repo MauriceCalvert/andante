@@ -166,13 +166,13 @@ def _is_filled(intervals: list[int], leap_pos: int) -> bool:
 
 def _is_valid_pitch(degrees: tuple[int, ...]) -> tuple[bool, int, str]:
     """Check if pitch sequence has leap + fill. Returns (valid, leap_size, direction)."""
-    intervals = _intervals(degrees)
-    leap_pos = _largest_leap_position(intervals)
+    intervals = _intervals(degrees=degrees)
+    leap_pos = _largest_leap_position(intervals=intervals)
 
     if leap_pos < 0:
         return False, 0, ""
 
-    if not _is_filled(intervals, leap_pos):
+    if not _is_filled(intervals=intervals, leap_pos=leap_pos):
         return False, 0, ""
 
     leap_size = abs(intervals[leap_pos])
@@ -207,16 +207,16 @@ def enumerate_pitch_sequences(n_notes: int) -> Iterator[tuple[int, ...]]:
 def generate_heads(metre: tuple[int, int] = (4, 4)) -> list[Head]:
     """Generate all valid heads for a given metre (no scoring, just filtering)."""
     heads = []
-    rhythm_cells = get_rhythm_cells(metre)
+    rhythm_cells = get_rhythm_cells(metre=metre)
 
     for rhythm, rhythm_name in rhythm_cells:
-        if not _has_rhythm_variety(rhythm):
+        if not _has_rhythm_variety(rhythm=rhythm):
             continue
 
         n_notes = len(rhythm)
 
-        for degrees in enumerate_pitch_sequences(n_notes):
-            valid, leap_size, direction = _is_valid_pitch(degrees)
+        for degrees in enumerate_pitch_sequences(n_notes=n_notes):
+            valid, leap_size, direction = _is_valid_pitch(degrees=degrees)
             if not valid:
                 continue
 
@@ -246,7 +246,7 @@ def degrees_to_midi(degrees: tuple[int, ...], tonic_midi: int = 60, mode: str = 
 
 def head_to_str(head: Head, tonic_midi: int = 60, mode: str = "major") -> str:
     """Format head as readable string."""
-    midi = degrees_to_midi(head.degrees, tonic_midi, mode)
+    midi = degrees_to_midi(degrees=head.degrees, tonic_midi=tonic_midi, mode=mode)
     pitch_str = ' '.join(f"{NOTE_NAMES[m % 12]}{m // 12 - 1}" for m in midi)
     return f"{pitch_str} | {head.rhythm_name} | leap {head.leap_direction} {head.leap_size}"
 
@@ -271,4 +271,4 @@ if __name__ == "__main__":
     for n in sorted(by_length.keys()):
         print(f"\n{n}-NOTE HEADS:")
         for head in by_length[n][:5]:
-            print(f"  {head_to_str(head)}")
+            print(f"  {head_to_str(head=head)}")

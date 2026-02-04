@@ -35,6 +35,6 @@ class StaggeredStrategy(WritingStrategy):
             f"Gap duration must be positive, got {gap.gap_duration}"
         )
         return self._fill.fill_gap(
-            gap, source_pitch, target_pitch,
-            home_key, metre, rng, candidate_filter,
+            gap=gap, source_pitch=source_pitch, target_pitch=target_pitch,
+            home_key=home_key, metre=metre, rng=rng, candidate_filter=candidate_filter,
         )

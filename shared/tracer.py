@@ -47,14 +47,14 @@ class PipelineTracer:
         if isinstance(value, Fraction):
             return f"{float(value):.3g}"
         if isinstance(value, dict):
-            items = [f"{k}={self._format_value(v)}" for k, v in list(value.items())[:MAX_LIST_ITEMS]]
+            items = [f"{k}={self._format_value(value=v)}" for k, v in list(value.items())[:MAX_LIST_ITEMS]]
             suffix = f"...+{len(value) - MAX_LIST_ITEMS}" if len(value) > MAX_LIST_ITEMS else ""
             return "{" + ", ".join(items) + suffix + "}"
         if isinstance(value, (list, tuple)):
             if len(value) > MAX_LIST_ITEMS:
-                items = [self._format_value(v) for v in value[:MAX_LIST_ITEMS]]
+                items = [self._format_value(value=v) for v in value[:MAX_LIST_ITEMS]]
                 return "[" + ", ".join(items) + f"...+{len(value) - MAX_LIST_ITEMS}]"
-            return "[" + ", ".join(self._format_value(v) for v in value) + "]"
+            return "[" + ", ".join(self._format_value(value=v) for v in value) + "]"
         result = str(value)
         if len(result) > MAX_VALUE_LEN:
             return result[:MAX_VALUE_LEN] + "..."
@@ -66,7 +66,7 @@ class PipelineTracer:
             return
         indent_str = "  " * self._indent
         if kwargs:
-            parts = [f"{k}={self._format_value(v)}" for k, v in kwargs.items()]
+            parts = [f"{k}={self._format_value(value=v)}" for k, v in kwargs.items()]
             detail = ", ".join(parts)
             line = f"{indent_str}[{prefix}] {message}: {detail}"
         else:
@@ -83,7 +83,7 @@ class PipelineTracer:
     # Level 1: High-level summaries
     def config(self, genre: str, affect: str, key: str) -> None:
         """L1: Configuration summary."""
-        self._write(1, "Config", f"genre={genre}, affect={affect}, key={key}")
+        self._write(min_level=1, prefix="Config", message=f"genre={genre}, affect={affect}, key={key}")
 
     def L1(self, layer: str, **kwargs: Any) -> None:
         """L1: Layer output summary."""
@@ -112,35 +112,35 @@ class PipelineTracer:
     # Level 2: Mid-level details
     def schema_chain(self, schemas: tuple[str, ...]) -> None:
         """L2: Schema chain listing."""
-        self._write(2, "L3 Detail", f"schema_chain has {len(schemas)} schemas")
+        self._write(min_level=2, prefix="L3 Detail", message=f"schema_chain has {len(schemas)} schemas")
         for i, s in enumerate(schemas):
-            self._write_sub(2, f"[{i}] {s}")
+            self._write_sub(min_level=2, message=f"[{i}] {s}")
 
     def bar_assignments(self, assignments: dict[str, tuple[int, int]]) -> None:
         """L2: Bar assignments per section."""
-        self._write(2, "L4 Detail", "bar_assignments")
+        self._write(min_level=2, prefix="L4 Detail", message="bar_assignments")
         for name, (start, end) in assignments.items():
-            self._write_sub(2, f"{name}: bars {start}-{end}")
+            self._write_sub(min_level=2, message=f"{name}: bars {start}-{end}")
 
     def anchors_summary(self, anchors: list, limit: int = 10) -> None:
         """L2: Anchor summary with limit."""
-        self._write(2, "L4 Detail", f"anchors={len(anchors)}")
+        self._write(min_level=2, prefix="L4 Detail", message=f"anchors={len(anchors)}")
         for a in anchors[:limit]:
-            self._write_sub(2, f"bar {a.bar_beat}: U={a.upper_degree} L={a.lower_degree} key={a.local_key.tonic} ({a.schema})")
+            self._write_sub(min_level=2, message=f"bar {a.bar_beat}: U={a.upper_degree} L={a.lower_degree} key={a.local_key.tonic} ({a.schema})")
         if len(anchors) > limit:
-            self._write_sub(2, f"...and {len(anchors) - limit} more anchors")
+            self._write_sub(min_level=2, message=f"...and {len(anchors) - limit} more anchors")
 
     def passage_assignments(self, assignments: list) -> None:
         """L2: Passage assignments listing."""
-        self._write(2, "L5 Detail", f"{len(assignments)} passage assignments")
+        self._write(min_level=2, prefix="L5 Detail", message=f"{len(assignments)} passage assignments")
         for pa in assignments:
-            self._write_sub(2, f"bars {pa.start_bar}-{pa.end_bar}: {pa.function}, lead={pa.lead_voice}")
+            self._write_sub(min_level=2, message=f"bars {pa.start_bar}-{pa.end_bar}: {pa.function}, lead={pa.lead_voice}")
 
     def tonal_plan(self, plan: dict[str, tuple[str, ...]]) -> None:
         """L2: Tonal plan per section."""
-        self._write(2, "L2 Detail", "tonal_plan")
+        self._write(min_level=2, prefix="L2 Detail", message="tonal_plan")
         for section, areas in plan.items():
-            self._write_sub(2, f"{section}: {' -> '.join(areas)}")
+            self._write_sub(min_level=2, message=f"{section}: {' -> '.join(areas)}")
 
     # Level 3: Fine-grained details
     def anchor(self, bar_beat: str, upper: int, lower: int, key: str, schema: str, stage: int, section: str = "") -> None:
@@ -174,7 +174,7 @@ class PipelineTracer:
     # Context managers for nested sections
     def section(self, name: str, min_level: int = 2) -> "TracerSection":
         """Create a nested section with increased indentation."""
-        return TracerSection(self, name, min_level)
+        return TracerSection(tracer=self, name=name, min_level=min_level)
 
     # Output methods
     def get_output(self) -> str:
@@ -201,7 +201,7 @@ class TracerSection:
 
     def __enter__(self) -> "TracerSection":
         if TRACE_LEVEL >= self._min_level:
-            self._tracer._write(self._min_level, "Section", self._name)
+            self._tracer._write(min_level=self._min_level, prefix="Section", message=self._name)
             self._tracer._indent += 1
         return self
 

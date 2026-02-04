@@ -40,7 +40,7 @@ def layer_3_schematic(
             current_schema: str = schema_sequence[i]
             next_schema: str = schema_sequence[i + 1]
             if current_schema in schemas and next_schema in schemas:
-                if not _check_connection(schemas[current_schema], schemas[next_schema]):
+                if not _check_connection(exit_schema=schemas[current_schema], entry_schema=schemas[next_schema]):
                     free_passages.add((i, i + 1))
     return SchemaChain(
         schemas=tuple(schema_sequence),
@@ -82,9 +82,9 @@ def enumerate_valid_chains(
     genre section definitions.
     """
     chain: SchemaChain = layer_3_schematic(
-        tonal_plan,
-        genre_config,
-        None,  # type: ignore
-        schemas,
+        tonal_plan=tonal_plan,
+        genre_config=genre_config,
+        form_config=None,  # type: ignore
+        schemas=schemas,
     )
     return [chain]

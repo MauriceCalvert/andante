@@ -83,7 +83,7 @@ def _parse_beat_position(
 ) -> Fraction:
     """Parse beat position, handling 'half' token."""
     if beat == "half":
-        beats_per_bar = _get_beats_per_bar(metre)
+        beats_per_bar = _get_beats_per_bar(metre=metre)
         return Fraction(beats_per_bar // 2 + 1)
     return Fraction(beat)
 
@@ -104,8 +104,8 @@ def load_bass_patterns(path: Path | None = None) -> dict[str, BassPattern]:
         assert harmonic_rhythm in VALID_HARMONIC_RHYTHMS, f"Invalid harmonic_rhythm '{harmonic_rhythm}' in pattern '{name}'"
         beats: list[BassPatternBeat] = []
         for beat_data in data.get("beats", []):
-            beat_pos = _parse_beat_position(beat_data["beat"], metre)
-            dur = _parse_duration(beat_data["duration"], metre)
+            beat_pos = _parse_beat_position(beat=beat_data["beat"], metre=metre)
+            dur = _parse_duration(dur=beat_data["duration"], metre=metre)
             beats.append(BassPatternBeat(
                 beat=beat_pos,
                 degree_offset=int(beat_data["degree_offset"]),
@@ -143,8 +143,8 @@ def load_rhythm_patterns(path: Path | None = None) -> dict[str, RhythmPattern]:
         metre = data.get("metre", "any")
         beats: list[RhythmBeat] = []
         for beat_data in data.get("beats", []):
-            beat_pos = _parse_beat_position(beat_data["beat"], metre)
-            dur = _parse_duration(beat_data["duration"], metre)
+            beat_pos = _parse_beat_position(beat=beat_data["beat"], metre=metre)
+            dur = _parse_duration(dur=beat_data["duration"], metre=metre)
             beats.append(RhythmBeat(
                 beat=beat_pos,
                 duration=dur,
@@ -269,7 +269,7 @@ def realise_bass_pattern(
         List of (offset, midi_pitch, duration) tuples.
     """
     result: list[tuple[Fraction, int, Fraction]] = []
-    beats_per_bar = _get_beats_per_bar(pattern.metre) if pattern.metre != "any" else 4
+    beats_per_bar = _get_beats_per_bar(metre=pattern.metre) if pattern.metre != "any" else 4
     beat_duration = bar_duration / beats_per_bar
     current_prev: int | None = prev_pitch
     first_note_midi: int | None = None
@@ -277,9 +277,9 @@ def realise_bass_pattern(
         bar_index = pattern_beat.bar - 1
         beat_offset = (pattern_beat.beat - 1) * beat_duration
         note_offset = bar_offset + (bar_index * bar_duration) + beat_offset
-        target_degree = _wrap_degree(bass_degree + pattern_beat.degree_offset)
+        target_degree = _wrap_degree(degree=bass_degree + pattern_beat.degree_offset)
         midi_pitch = select_octave(
-            key, target_degree, bass_median, current_prev, pattern_beat.semitone_offset,
+            key=key, degree=target_degree, median=bass_median, prev_pitch=current_prev, alter=pattern_beat.semitone_offset,
         )
         if midi_pitch < MIN_BASS_MIDI:
             midi_pitch += 12
@@ -383,7 +383,7 @@ def realise_bass_schema(
         List of (offset, midi_pitch, duration) tuples.
     """
     result: list[tuple[Fraction, int, Fraction]] = []
-    beats_per_bar = _get_beats_per_bar(pattern.metre) if pattern.metre != "any" else 4
+    beats_per_bar = _get_beats_per_bar(metre=pattern.metre) if pattern.metre != "any" else 4
     beat_duration = bar_duration / beats_per_bar
     current_prev: int | None = prev_pitch
     for rhythm_beat in pattern.beats:
@@ -393,7 +393,7 @@ def realise_bass_schema(
             degree = next_degree
         else:
             degree = current_degree
-        midi_pitch = select_octave(key, degree, bass_median, current_prev)
+        midi_pitch = select_octave(key=key, degree=degree, median=bass_median, prev_pitch=current_prev)
         if midi_pitch < MIN_BASS_MIDI:
             midi_pitch += 12
         current_prev = midi_pitch

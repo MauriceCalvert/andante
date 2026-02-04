@@ -65,7 +65,7 @@ def _load_yaml(name: str) -> dict[str, Any]:
 @lru_cache(maxsize=1)
 def _load_transitions() -> dict[str, Any]:
     """Load schema transitions YAML (cached)."""
-    return _load_yaml("schemas/schema_transitions.yaml")
+    return _load_yaml(name="schemas/schema_transitions.yaml")
 
 
 def _parse_signed_degree(raw: str | int | float, is_first: bool) -> tuple[int, str | None]:
@@ -100,7 +100,7 @@ def _parse_signed_degrees(raw_list: list) -> tuple[tuple[int, ...], tuple[str | 
     degrees: list[int] = []
     directions: list[str | None] = []
     for i, raw in enumerate(raw_list):
-        degree, direction = _parse_signed_degree(raw, is_first=(i == 0))
+        degree, direction = _parse_signed_degree(raw=raw, is_first=(i == 0))
         degrees.append(degree)
         directions.append(direction)
     return tuple(degrees), tuple(directions)
@@ -149,9 +149,9 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
     else:
         raw_soprano = data.get("soprano_degrees", [])
         raw_bass = data.get("bass_degrees", [])
-    soprano_degrees, soprano_directions = _parse_signed_degrees(raw_soprano)
-    bass_degrees, bass_directions = _parse_signed_degrees(raw_bass)
-    min_bars, max_bars = _parse_bars(data["bars"])
+    soprano_degrees, soprano_directions = _parse_signed_degrees(raw_list=raw_soprano)
+    bass_degrees, bass_directions = _parse_signed_degrees(raw_list=raw_bass)
+    min_bars, max_bars = _parse_bars(data=data["bars"])
     # Derive entry/exit from first/last degrees
     entry = Arrival(soprano=soprano_degrees[0], bass=bass_degrees[0])
     exit = Arrival(soprano=soprano_degrees[-1], bass=bass_degrees[-1])
@@ -169,26 +169,26 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
         sequential=data.get("sequential", False),
         direction=data.get("direction"),
         segment_direction=data.get("segment_direction"),
-        segments=_parse_segments(data.get("segments", 1)),
+        segments=_parse_segments(data=data.get("segments", 1)),
         pedal=data.get("pedal"),
         chromatic=data.get("chromatic", False),
         figuration_profile=data.get("figuration_profile", "galant_general"),
         cadence_approach=data.get("cadence_approach", False),
-        typical_keys=_parse_typical_keys(data.get("typical_keys")),
+        typical_keys=_parse_typical_keys(raw=data.get("typical_keys")),
     )
 
 
 @lru_cache(maxsize=1)
 def load_schemas() -> dict[str, Schema]:
     """Load all schemas from data/schemas/schemas.yaml."""
-    raw = _load_yaml("schemas/schemas.yaml")
+    raw = _load_yaml(name="schemas/schemas.yaml")
     schemas: dict[str, Schema] = {}
     for name, data in raw.items():
         if not isinstance(data, dict):
             continue
         if "soprano_degrees" not in data and "segment" not in data:
             continue
-        schemas[name] = _parse_schema(name, data)
+        schemas[name] = _parse_schema(name=name, data=data)
     return schemas
 
 
@@ -207,27 +207,27 @@ def get_schemas_by_position(position: str) -> list[str]:
 
 def get_opening_schemas() -> list[str]:
     """Return schema names valid for opening."""
-    return get_schemas_by_position("opening")
+    return get_schemas_by_position(position="opening")
 
 
 def get_riposte_schemas() -> list[str]:
     """Return schema names valid for riposte."""
-    return get_schemas_by_position("riposte")
+    return get_schemas_by_position(position="riposte")
 
 
 def get_continuation_schemas() -> list[str]:
     """Return schema names valid for continuation."""
-    return get_schemas_by_position("continuation")
+    return get_schemas_by_position(position="continuation")
 
 
 def get_pre_cadential_schemas() -> list[str]:
     """Return schema names valid for pre-cadential."""
-    return get_schemas_by_position("pre_cadential")
+    return get_schemas_by_position(position="pre_cadential")
 
 
 def get_cadential_schemas() -> list[str]:
     """Return schema names valid for cadence."""
-    return get_schemas_by_position("cadential")
+    return get_schemas_by_position(position="cadential")
 
 
 def get_sequential_schemas() -> list[str]:
@@ -238,7 +238,7 @@ def get_sequential_schemas() -> list[str]:
 
 def get_typical_position(schema_name: str) -> str:
     """Get the typical formal position for a schema."""
-    schema = get_schema(schema_name)
+    schema = get_schema(name=schema_name)
     return schema.position
 
 
@@ -248,7 +248,7 @@ def schema_fits_bars(schema_name: str, available_bars: int) -> bool:
     A schema fits if its min_bars <= available_bars.
     The schema will use between min_bars and min(max_bars, available_bars).
     """
-    schema = get_schema(schema_name)
+    schema = get_schema(name=schema_name)
     return schema.min_bars <= available_bars
 
 
@@ -260,8 +260,8 @@ def can_connect_direct(from_schema: str, to_schema: str) -> bool:
     2. Step: |exit.bass - entry.bass| == 1
     3. Dominant resolution: exit.bass == 5 and entry.bass == 1
     """
-    from_s = get_schema(from_schema)
-    to_s = get_schema(to_schema)
+    from_s = get_schema(name=from_schema)
+    to_s = get_schema(name=to_schema)
     exit_bass = from_s.exit.bass
     entry_bass = to_s.entry.bass
     if exit_bass == entry_bass:
@@ -297,7 +297,7 @@ def get_allowed_next(schema_name: str) -> list[str]:
 
 def get_schema_figuration_profile(schema_name: str) -> str:
     """Get figuration profile name for a schema."""
-    schema = get_schema(schema_name)
+    schema = get_schema(name=schema_name)
     return schema.figuration_profile
 
 
@@ -322,7 +322,7 @@ def get_arrival_beats(schema_name: str, bars: int, metre: tuple[int, int] = (4, 
     Returns:
         List of beat positions as bar.beat (e.g., 1.1, 1.3, 2.1).
     """
-    schema = get_schema(schema_name)
+    schema = get_schema(name=schema_name)
     num_arrivals = schema.stage_count
     if metre[0] == 4:
         strong_beats = [1, 3]
@@ -343,5 +343,5 @@ def get_arrival_beats(schema_name: str, bars: int, metre: tuple[int, int] = (4, 
 
 def get_typical_keys(schema_name: str) -> tuple[str, ...] | None:
     """Get key journey for a sequential schema."""
-    schema = get_schema(schema_name)
+    schema = get_schema(name=schema_name)
     return schema.typical_keys
