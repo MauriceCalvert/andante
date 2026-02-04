@@ -642,7 +642,7 @@ class VoiceWriter:
             offset=offset,
             pitch=midi,
             duration=duration,
-            voice=self._plan.composition_order,
+            voice=self._plan.midi_track,
             lyric=self._prev_figure_name,
         )
 

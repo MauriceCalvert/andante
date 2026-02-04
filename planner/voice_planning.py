@@ -69,8 +69,8 @@ _FUNCTION_TO_CHARACTER: dict[str, str] = {
 }
 _SOPRANO_RANGE_IDX: int = 0   # index into VOICE_RANGES for soprano range
 _BASS_RANGE_IDX: int = 3      # index into VOICE_RANGES for bass range
-TRACK_SOPRANO: int = 0        # composition_order for upper voice
-TRACK_BASS: int = 1           # composition_order for lower voice
+TRACK_SOPRANO: int = 0        # MIDI track for upper voice
+TRACK_BASS: int = 3           # MIDI track for lower voice
 
 _VOICE_INDEX_TO_ID: dict[int, str] = {0: "upper", 1: "lower"}
 
@@ -138,7 +138,8 @@ def build_composition_plan(
         voice_id="upper",
         actuator_range=Range(low=upper_range[0], high=upper_range[1]),
         tessitura_median=tessitura_upper,
-        composition_order=TRACK_SOPRANO,
+        composition_order=0,
+        midi_track=TRACK_SOPRANO,
         seed=seed,
         metre=genre_config.metre,
         rhythmic_unit=Fraction(1, 8),
@@ -154,7 +155,8 @@ def build_composition_plan(
         voice_id="lower",
         actuator_range=Range(low=lower_range[0], high=lower_range[1]),
         tessitura_median=tessitura_lower,
-        composition_order=TRACK_BASS,
+        composition_order=1,
+        midi_track=TRACK_BASS,
         seed=seed + 1,
         metre=genre_config.metre,
         rhythmic_unit=Fraction(1, 8),

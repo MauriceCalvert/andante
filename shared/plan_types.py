@@ -93,6 +93,7 @@ class VoicePlan:
     actuator_range: Range
     tessitura_median: int  # MIDI pitch for first-note placement
     composition_order: int
+    midi_track: int         # MIDI track/channel number (e.g. 0=soprano, 3=bass)
     seed: int
     metre: str
     rhythmic_unit: Fraction
