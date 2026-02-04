@@ -1,26 +1,12 @@
-"""Constants for metric planning."""
+"""Constants for metric planning.
 
-# Key area transpositions in semitones from tonic
-KEY_AREA_SEMITONES: dict[str, int] = {
-    "I": 0,
-    "II": 2,
-    "ii": 2,
-    "III": 4,
-    "iii": 4,
-    "IV": 5,
-    "iv": 5,
-    "V": 7,
-    "v": 7,
-    "VI": 9,
-    "vi": 9,
-    "VII": 11,
-    "vii": 11,
-}
-
-# Clausula cantizans pattern for sequential schemas (Monte, Fonte)
-# Approach: suspended fourth over dominant (scale degrees)
-CLAUSULA_APPROACH_SOPRANO: int = 4
-CLAUSULA_APPROACH_BASS: int = 7
-# Arrival: third over tonic (scale degrees)
-CLAUSULA_ARRIVAL_SOPRANO: int = 3
-CLAUSULA_ARRIVAL_BASS: int = 1
+All constants centralised in shared.constants; re-exported here for
+backwards compatibility with existing imports.
+"""
+from shared.constants import (  # noqa: F401
+    CLAUSULA_APPROACH_BASS,
+    CLAUSULA_APPROACH_SOPRANO,
+    CLAUSULA_ARRIVAL_BASS,
+    CLAUSULA_ARRIVAL_SOPRANO,
+    KEY_AREA_SEMITONES,
+)

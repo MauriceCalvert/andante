@@ -1,10 +1,11 @@
 # Freude Invention
 # Affect: Freudigkeit (joy, brightness, energetic happiness)
-# Subject: derived from opening schema
+# Subject: from fugue library
 brief:
   affect: Freudigkeit
   genre: invention
   forces: keyboard
+  subject: fugue2
 frame:
   key: C
   mode: major

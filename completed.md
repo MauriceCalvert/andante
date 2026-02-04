@@ -528,3 +528,343 @@ Into single source of truth:
 - `FIGURATION_INTERVALS` now derived from its keys
 
 Updated types.py to import `INTERVAL_DISPLAY_NAMES` from constants.
+
+## Constants Centralisation
+
+Unified all scattered interval, degree, and music-theory constants into
+`shared/constants.py`, organised into 15 alphabetical sections with constants
+sorted alphabetically within each section.
+
+### Constants moved (35 new entries)
+
+| Constant | Source file(s) | Notes |
+|---|---|---|
+| `ALL_CONSONANCES` | `planner/cs_generator.py` | Derived: `PERFECT_INTERVALS \| IMPERFECT_CONSONANCES` |
+| `BASS_CLEF_THRESHOLD` | `builder/musicxml_writer.py` | |
+| `BASS_VOICE_IDX` | `planner/voice_planning.py` | Was `_SOPRANO_RANGE_IDX` (renamed) |
+| `CADENTIAL_INTERVALS` | `planner/voice_planning.py` | Was `_CADENTIAL_INTERVALS` |
+| `CADENTIAL_TARGET_DEGREE` | `builder/cadential_strategy.py` | Was `_CADENTIAL_TARGET_DEGREE` |
+| `CLAUSULA_*` (4 constants) | `planner/metric/constants.py` | |
+| `CONSONANT_DEGREES_WITH_TONIC` | `planner/subject_validator.py` | Was `CONSONANT_WITH_TONIC` |
+| `CONSONANT_INTERVALS_WITH_OCTAVE` | `planner/subject_validator.py` | Was local `CONSONANT_INTERVALS` (includes 12) |
+| `CONSONANT_PITCH_OFFSETS` | `builder/pillar_strategy.py` | Was `_CONSONANT_OFFSETS` |
+| `CROSS_RELATION_PAIRS` | `builder/faults.py` | |
+| `DIATONIC_DEGREES` | `planner/subject_validator.py` | Unified `MAJOR_DEGREES`/`MINOR_DEGREES` |
+| `IMPERFECT_CONSONANCES` | `planner/cs_generator.py` | |
+| `INTERVAL_EXIT_DEGREES` | `builder/figuration_strategy.py` | Was `_INTERVAL_EXIT` |
+| `INTERVAL_NAMES_SHORT` | `builder/voice_checks.py` | Was `_INTERVAL_NAMES` |
+| `INVERTIBLE_CONSONANCES` | `planner/cs_generator.py` | Alias for `IMPERFECT_CONSONANCES` |
+| `KEY_AREA_SEMITONES` | `planner/metric/constants.py` | |
+| `MAX_BASS_LEAP` | `builder/figuration/bass.py` | |
+| `MAX_LEAP_SEMITONES` | `builder/junction.py` | Was `_MAX_LEAP_SEMITONES` |
+| `MIN_BASS_MIDI` | `builder/figuration/bass.py` | |
+| `SOPRANO_VOICE_IDX` | `planner/voice_planning.py` | Was `_BASS_RANGE_IDX` (renamed) |
+| `STABLE_DEGREES` | `motifs/tail_generator.py` | |
+| `TONIC_TO_MIDI` | `scripts/subject_to_midi.py` | |
+| `TONIC_TRIAD_DEGREES` | `motifs/enumerator.py`, `motifs/head_generator.py` | Was duplicate `START_DEGREES` |
+| `TRACK_BASS`, `TRACK_SOPRANO` | `planner/voice_planning.py` | |
+| `TRITONE_SEMITONES` | `builder/figuration/bass.py` | |
+| `UGLY_INTERVALS` | `builder/junction.py`, `builder/voice_checks.py` | Was `_UGLY_INTERVALS` in 3 files |
+| `VALID_BASS_MODES` | `builder/figuration/bass.py` | |
+| `VALID_BASS_TREATMENTS` | `builder/figuration/bass.py` | |
+| `VALID_DENOMINATORS` | `planner/motif_loader.py` | |
+| `VALID_DIRECTIONS` | `builder/config_loader.py` | |
+| `VALID_HARMONIC_RHYTHMS` | `builder/figuration/bass.py` | |
+| `VALID_TEXTURES` | `builder/figuration/bass.py` | |
+
+### Duplicates eliminated
+
+- `_UGLY_INTERVALS` defined in 3 places → single `UGLY_INTERVALS`
+- `START_DEGREES` defined in 2 places → single `TONIC_TRIAD_DEGREES`
+- `INTERVAL_NAMES` duplicate in `analyse_intervals.py` → import from constants
+- `MAJOR_INTERVALS`/`MINOR_INTERVALS` in `subject_to_midi.py` → use `MAJOR_SCALE`/`NATURAL_MINOR_SCALE`
+- `MAJOR_DEGREES`/`MINOR_DEGREES` (identical sets) → single `DIATONIC_DEGREES`
+- `_DISSONANT_ICS` in `voice_writer.py` → use existing `STRONG_BEAT_DISSONANT`
+- `PERFECT_CONSONANCES` in `cs_generator.py` → use existing `PERFECT_INTERVALS`
+- `MIN_NOTE_COUNT` in `figuration_strategy.py` → use existing `MIN_FIGURATION_NOTES`
+
+### Files updated (20 files)
+
+`builder/cadential_strategy.py`, `builder/config_loader.py`, `builder/faults.py`,
+`builder/figuration/bass.py`, `builder/figuration_strategy.py`, `builder/junction.py`,
+`builder/musicxml_writer.py`, `builder/pillar_strategy.py`, `builder/voice_checks.py`,
+`builder/voice_writer.py`, `motifs/enumerator.py`, `motifs/frequencies/analyse_intervals.py`,
+`motifs/head_generator.py`, `motifs/subject_generator.py`, `motifs/tail_generator.py`,
+`planner/cs_generator.py`, `planner/metric/constants.py`, `planner/motif_loader.py`,
+`planner/subject_validator.py`, `planner/voice_planning.py`
+
+---
+
+## 2025-02-04: Tonal Answer Mutation Fix
+
+### Root cause
+
+`_apply_tonal_mutation()` in `answer_generator.py` used interval arithmetic
+with accumulated offsets that was never applied. The function tracked
+`accumulated_offset` after each mutation but subsequent notes used interval
+preservation from the previous answer note, causing register drift.
+
+Example: Little Fugue subject (0, 4, 2, 0, ...) produced answer
+(4, 0, -2, -4, ...) instead of (4, 7, 6, 4, ...).
+
+### Fix
+
+Rewrote `_apply_tonal_mutation()` to use direct transposition with single-degree
+adjustments at mutation points:
+
+- Every note: `real_transposed = deg + REAL_TRANSPOSITION` (+4 degrees)
+- At mutation point (note following boundary crossing):
+  - 1->5 mutation: subtract 1 (contracts 5th to 4th)
+  - 5->1 mutation: add 1 (expands 4th to 5th)
+
+Result: subject interval +4 becomes answer interval +3 at mutation points,
+remaining intervals preserved exactly.
+
+### Also: L019 compliance
+
+Replaced Unicode arrow characters in test output with ASCII equivalents.
+
+### Also: L018 compliance
+
+Emptied `motifs/__init__.py` which had re-exports violating the empty __init__ rule.
+
+---
+
+## Phase 2 Design: Countersubject Generator
+
+Designed minimal CP-SAT constraint set for invertible countersubject generation.
+
+### Key insight
+
+Work entirely in scale degrees (mod 7), not semitones. Eliminates mode-dependent
+interval calculation.
+
+### Degree interval classification
+
+| (cs - subj) % 7 | Interval class | Invertible consonance? |
+|-----------------|----------------|------------------------|
+| 0 | unison/octave | Yes |
+| 1 | second | No (dissonant) |
+| 2 | third | Yes |
+| 3 | fourth | No (dissonant) |
+| 4 | fifth | No (becomes 4th) |
+| 5 | sixth | Yes |
+| 6 | seventh | No (dissonant) |
+
+### Constraint set
+
+| Type | Constraint | Notes |
+|------|------------|-------|
+| Hard | Strong-beat: `(cs - subj) % 7 in {0, 2, 5}` | Invertible consonances |
+| Hard | Weak-beat: `(cs - subj) % 7 in {0, 1, 2, 4, 5, 6}` | Allow passing tones + 5ths |
+| Hard | No consecutive unisons | Standard |
+| Hard | No direct motion to unison | Hidden unisons |
+| Hard | `min_deg <= cs[i] <= max_deg` | Range |
+| Soft | Weak-beat 5th penalty (20) | Prefer other consonances |
+| Soft | Weak-beat dissonance penalty (10) | Prefer consonances |
+| Soft | Contrary motion reward (15) | Independence |
+| Soft | Leap > 4 penalty (30) | Singability |
+| Soft | Repeated pitch penalty (25) | Interest |
+
+### Design decisions
+
+1. Same rhythm as subject (pitch-only optimisation)
+2. Answer verification post-hoc (optimise against subject only)
+3. Voice crossing allowed (L004)
+4. Natural minor throughout (L007 - raised 7th is subject's cadential responsibility)
+5. Weak-beat 5ths allowed (become passing 4ths when inverted - acceptable Baroque practice)
+
+---
+
+## Phase 2 Implementation: Countersubject Generator
+
+Implemented `motifs/countersubject_generator.py` using CP-SAT optimisation per the design.
+
+### Key features
+
+- Hard constraints enforced via `AddAllowedAssignments` for strong/weak beat intervals
+- Soft constraints as weighted penalties/rewards in objective function
+- 5-second solver timeout, returns best feasible solution
+- Verification function to check constraints post-generation
+
+### Test results
+
+50/50 seeds produced valid countersubjects with no constraint violations.
+
+---
+
+## Fugue Triple Generation
+
+Added `generate_fugue_triple()` to `motifs/subject_generator.py` that coordinates:
+1. Subject generation
+2. Answer generation (tonal or real)
+3. Countersubject generation (CP-SAT optimised)
+
+### Output formats
+
+- `.fugue` YAML file containing degrees, durations, and metadata
+- `.midi` demonstration file with:
+  - Subject alone
+  - 1 bar rest
+  - Answer alone  
+  - 1 bar rest
+  - Countersubject alone
+  - 1 bar rest
+  - Subject + CS (bass)
+  - 1 bar rest
+  - Answer + CS (bass)
+  - 1 bar rest
+  - CS (bass) + Subject
+
+### New files
+
+- `motifs/fugue_loader.py` - Loads `.fugue` files into `LoadedFugue` dataclass
+
+---
+
+## Fugue Integration into Pipeline
+
+Wired fugue material through the composition pipeline so `.brief` files can specify
+a pre-composed subject.
+
+### Changes
+
+**briefs/builder/invention.brief**
+- Fixed `subject: fugue1` to `subject: fugue2` (correct filename)
+
+**scripts/run_pipeline.py**
+- `run_from_brief()` loads fugue when `subject` field present in brief
+- Passes `LoadedFugue` through to `generate()` and `generate_to_files()`
+
+**planner/planner.py**
+- `generate()` and `generate_to_files()` accept optional `fugue` parameter
+- Passes fugue to `build_composition_plan()`
+
+**planner/voice_planning.py**
+- `build_composition_plan()` accepts optional `fugue` parameter
+- Includes fugue in returned `CompositionPlan`
+
+**shared/plan_types.py**
+- Added `fugue: LoadedFugue | None = None` field to `CompositionPlan`
+
+**builder/compose.py**
+- Passes `plan.fugue` to `VoiceWriter`
+
+**builder/voice_writer.py**
+- `__init__` accepts optional `fugue` parameter
+- `_get_fugue_material_for_section()` determines which fugue element to use:
+  - Section 0: upper=subject, lower=countersubject
+  - Section 1: upper=countersubject, lower=answer
+  - Section 2+: falls back to normal composition
+- `_compose_fugue_thematic()` inserts literal MIDI pitches from fugue
+
+### Result
+
+When invention.brief specifies `subject: fugue2`, the first two sections use
+the pre-composed subject, answer, and countersubject pitches instead of
+generating figuration.
+
+---
+
+## 2026-02-04: Duplicate Fugue Material in Schema Sections
+
+### Symptom
+
+Bar 4 crash with `FigureRejectionError`: all figures rejected for `descending 2nd`
+in FIGURATION mode with "parallel motion to unison".
+
+### Root cause
+
+`_build_sections()` in `voice_planning.py` creates a `SectionPlan` for each
+*schema section* (e.g., do_re_mi, prinner), not each *form section* (exordium,
+narratio). When a form section contains multiple schemas, each schema section
+received fugue material assignment.
+
+Example in exordium (form section 0):
+- do_re_mi schema section: `lead_material="subject"` -> soprano plays subject bars 1-2
+- prinner schema section: `lead_material="subject"` -> soprano plays subject AGAIN at bar 4
+
+This caused the subject to repeat within a single form section, creating
+voice-leading conflicts as the subject's opening clashed with prior notes.
+
+### Fix
+
+Added `form_sections_with_material` tracking set to `_build_sections()`. Fugue
+material (`lead_material`, `accompany_material`) is only assigned to the **first**
+schema section within each form section. Subsequent schema sections within the
+same form section get `None` and use normal figuration.
+
+### Files modified
+
+**planner/voice_planning.py**
+- Added `form_sections_with_material: set[str]` to track which form sections
+  have already received fugue material
+- Added `is_first_in_form_section` check before assigning material
+- Only first schema section in each form section gets fugue material
+- Updated docstring to document the behaviour
+
+### Result
+
+Invention pipeline completes successfully. Remaining faults are unrelated
+voice-leading issues (parallel rhythm, parallel octaves) that need separate fixes.
+
+---
+
+## 2026-02-04: Brief Sections Override Not Applied
+
+### Symptom
+
+Brief files with custom `sections` definitions (like demo_fantasia.brief) were
+ignored. The planner always used the genre YAML's sections instead.
+
+### Root cause
+
+`run_from_brief()` in `run_pipeline.py` only extracted basic fields (genre, key,
+affect, tempo, subject) from the brief. The `sections` field was never passed
+through the pipeline to override the genre config.
+
+### Fix
+
+**briefs/builder/demo_fantasia.brief**
+- Changed `label:` to `name:` in all 5 sections to match genre YAML format
+
+**scripts/run_pipeline.py**
+- Added `_convert_brief_sections()` to convert brief section format to genre format:
+  - Extract `schema` from each phrase in `phrases` -> `schema_sequence`
+  - Preserve `lead_voice`, `accompany_texture`, `tonal_path`, `final_cadence`
+- `run_from_brief()` extracts sections from brief and calls conversion
+- `run_from_args()` accepts `sections_override` parameter
+
+**planner/planner.py**
+- Added `_with_sections_override()` helper using `dataclasses.replace()`
+- `generate()` accepts `sections_override` parameter and applies it to genre_config
+- `generate_to_files()` passes through `sections_override`
+
+### Result
+
+demo_fantasia.brief now uses its 5 custom sections (295 notes) instead of
+fantasia.yaml's single section. invention.brief continues to work correctly.
+
+---
+
+## 2026-02-04: MusicXML Lyric Labels and YAML Unknown Key Validation
+
+### Issue 1: Fugue material lyrics all showing 'fugue'
+
+MusicXML lyric labels were hardcoded to 'fugue' for all fugue material instead
+of showing specific material type (subject, answer, countersubject).
+
+**Fix** in `builder/voice_writer.py`:
+- Added `_MATERIAL_LYRICS` dict mapping material names to concise labels:
+  `subject` → `S`, `answer` → `A`, `countersubject` → `CS`
+- Added `_material_to_lyric()` helper function
+- `_get_fugue_material_for_section()` now returns 3-tuple including material name
+- `_compose_fugue_thematic()` accepts `material_name` and uses it for lyric
+
+### Issue 2: YAML validator not catching unknown keys
+
+**Fix** in `scripts/yaml_validator.py`:
+- Added `VALID_GENRE_KEYS`, `VALID_GENRE_SECTION_KEYS` frozensets
+- Added `VALID_BRIEF_KEYS`, `VALID_BRIEF_SECTION_KEYS`, `VALID_BRIEF_PHRASE_KEYS`
+- Added `validate_unknown_keys()` function checking genre and brief files
+- Integrated into `validate_all()` as step 3

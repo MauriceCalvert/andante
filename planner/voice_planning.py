@@ -7,7 +7,7 @@ Replaces bridge.py with richer section detection, sequencing assignment,
 and affect-driven GapPlan parameters.
 """
 from fractions import Fraction
-from typing import Sequence
+from typing import Sequence, TYPE_CHECKING
 from builder.types import (
     Anchor,
     AffectConfig,
@@ -18,10 +18,15 @@ from builder.types import (
     SchemaConfig,
 )
 from shared.constants import (
+    BASS_VOICE_IDX,
+    CADENTIAL_INTERVALS,
     DENSITY_RHYTHMIC_UNIT,
     INTERVAL_DIATONIC_SIZE,
     MIN_FIGURATION_NOTES,
     SMALL_INTERVAL_NOTE_REDUCTION,
+    SOPRANO_VOICE_IDX,
+    TRACK_BASS,
+    TRACK_SOPRANO,
     VOICE_RANGES,
 )
 from shared.key import Key
@@ -36,6 +41,9 @@ from shared.plan_types import (
     WritingMode,
 )
 from shared.voice_types import Range, Role
+
+if TYPE_CHECKING:
+    from motifs.fugue_loader import LoadedFugue
 
 _DENSITY_FROM_AFFECT: dict[str, str] = {
     "low": "low",
@@ -67,11 +75,6 @@ _FUNCTION_TO_CHARACTER: dict[str, str] = {
     "development": "energetic",
     "recapitulation": "plain",
 }
-_SOPRANO_RANGE_IDX: int = 0   # index into VOICE_RANGES for soprano range
-_BASS_RANGE_IDX: int = 3      # index into VOICE_RANGES for bass range
-TRACK_SOPRANO: int = 0        # MIDI track for upper voice
-TRACK_BASS: int = 3           # MIDI track for lower voice
-
 _VOICE_INDEX_TO_ID: dict[int, str] = {0: "upper", 1: "lower"}
 
 
@@ -84,16 +87,21 @@ def build_composition_plan(
     schemas: dict[str, SchemaConfig] | None = None,
     seed: int = 42,
     tempo_override: int | None = None,
+    fugue: 'LoadedFugue | None' = None,
 ) -> CompositionPlan:
     """Build a CompositionPlan from planner layer outputs.
 
     This is the main entry point for Phase 7 voice planning.
     """
+    form_sections: tuple[dict, ...] = genre_config.sections
+    form_section_map: dict[str, int] = {
+        sec.get("name", ""): idx for idx, sec in enumerate(form_sections)
+    }
     if not anchors:
         home_key: Key = _key_config_to_key(key_config=key_config)
         return _empty_plan(home_key=home_key, genre_config=genre_config, tempo_override=tempo_override)
-    upper_range: tuple[int, int] = VOICE_RANGES[_SOPRANO_RANGE_IDX]
-    lower_range: tuple[int, int] = VOICE_RANGES[_BASS_RANGE_IDX]
+    upper_range: tuple[int, int] = VOICE_RANGES[SOPRANO_VOICE_IDX]
+    lower_range: tuple[int, int] = VOICE_RANGES[BASS_VOICE_IDX]
     home_key = anchors[0].local_key
     plan_anchors: tuple[PlanAnchor, ...] = _convert_anchors(anchors=anchors)
     schema_sections: list[tuple[int, int, str]] = _detect_schema_sections(anchors=plan_anchors)
@@ -110,6 +118,8 @@ def build_composition_plan(
         is_upper=True,
         affect_config=affect_config,
         voice_id="upper",
+        form_sections=form_sections,
+        form_section_map=form_section_map,
     )
     lower_sections: tuple[SectionPlan, ...] = _build_sections(
         plan_anchors=plan_anchors,
@@ -123,6 +133,8 @@ def build_composition_plan(
         affect_config=affect_config,
         bass_treatment=genre_config.bass_treatment,
         voice_id="lower",
+        form_sections=form_sections,
+        form_section_map=form_section_map,
     )
     tessitura_upper: int = (upper_range[0] + upper_range[1]) // 2
     tessitura_lower: int = (lower_range[0] + lower_range[1]) // 2
@@ -171,6 +183,7 @@ def build_composition_plan(
         upbeat=genre_config.upbeat,
         voice_plans=(upper_plan, lower_plan),
         anchors=plan_anchors,
+        fugue=fugue,
     )
 
 
@@ -294,8 +307,15 @@ def _build_sections(
     affect_config: AffectConfig,
     bass_treatment: str = "contrapuntal",
     voice_id: str = "upper",
+    form_sections: tuple[dict, ...] = (),
+    form_section_map: dict[str, int] | None = None,
 ) -> tuple[SectionPlan, ...]:
-    """Build SectionPlan tuple for a voice."""
+    """Build SectionPlan tuple for a voice.
+
+    Fugue material (lead_material, accompany_material) is only assigned to the
+    first schema section within each form section. Subsequent schema sections
+    within the same form section get None to use normal figuration.
+    """
     if not schema_sections:
         if len(plan_anchors) < 2:
             return ()
@@ -342,6 +362,7 @@ def _build_sections(
         return (section,)
     result: list[SectionPlan] = []
     num_sections: int = len(schema_sections)
+    form_sections_with_material: set[str] = set()
     for idx, (start_idx, end_idx, schema_name) in enumerate(schema_sections):
         if start_idx >= end_idx:
             continue
@@ -375,6 +396,28 @@ def _build_sections(
             is_final_section=is_final,
             bass_treatment=bass_treatment,
         )
+        lead_material: str | None = None
+        accompany_material: str | None = None
+        form_lead_voice: int | None = None
+        anchor_section_name: str = plan_anchors[start_idx].section
+        is_first_in_form_section: bool = anchor_section_name not in form_sections_with_material
+        if form_section_map is not None and anchor_section_name in form_section_map:
+            form_section_idx: int = form_section_map[anchor_section_name]
+            if form_section_idx < len(form_sections):
+                form_sec: dict = form_sections[form_section_idx]
+                form_lead_voice = form_sec.get("lead_voice")
+                if is_first_in_form_section:
+                    lead_material = form_sec.get("lead_material")
+                    accompany_material = form_sec.get("accompany_material")
+                    if lead_material is None or accompany_material is None:
+                        inferred_lead, inferred_accomp = _infer_fugue_material(
+                            form_section_idx=form_section_idx,
+                        )
+                        if lead_material is None:
+                            lead_material = inferred_lead
+                        if accompany_material is None:
+                            accompany_material = inferred_accomp
+                    form_sections_with_material.add(anchor_section_name)
         section = SectionPlan(
             start_gap_index=start_idx,
             end_gap_index=end_idx,
@@ -387,9 +430,29 @@ def _build_sections(
             follow_delay=follow_delay,
             shared_actuator_with=None,
             gaps=gaps,
+            lead_material=lead_material,
+            accompany_material=accompany_material,
+            form_lead_voice=form_lead_voice,
         )
         result.append(section)
     return tuple(result)
+
+
+def _infer_fugue_material(
+    form_section_idx: int,
+) -> tuple[str | None, str | None]:
+    """Infer lead_material and accompany_material from form section index.
+
+    Defaults:
+    Section 0: lead=subject, accompany=free
+    Section 1: lead=answer, accompany=countersubject
+    Section 2+: lead=subject, accompany=countersubject
+    """
+    if form_section_idx == 0:
+        return ("subject", "free")
+    if form_section_idx == 1:
+        return ("answer", "countersubject")
+    return ("subject", "countersubject")
 
 
 def _get_sequencing(
@@ -584,9 +647,6 @@ def _is_ascending(
     return raw_diff > 0
 
 
-_CADENTIAL_INTERVALS: frozenset[str] = frozenset({
-    "unison", "step_up", "step_down", "third_up", "third_down",
-})
 
 
 def _get_writing_mode(
@@ -604,7 +664,7 @@ def _get_writing_mode(
     Patterned bass: lower voice uses ARPEGGIATED instead of PILLAR.
     Default: upper leads with FIGURATION, lower accompanies with PILLAR.
     """
-    if near_cadence and interval in _CADENTIAL_INTERVALS:
+    if near_cadence and interval in CADENTIAL_INTERVALS:
         return WritingMode.CADENTIAL
     bass_patterned: bool = bass_treatment == "patterned" and not is_upper
     if passage_assignments is None:

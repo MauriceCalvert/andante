@@ -9,6 +9,7 @@ A tail continues from the head with:
 from dataclasses import dataclass
 from itertools import product
 from motifs.head_generator import Head
+from shared.constants import STABLE_DEGREES
 
 
 # Interval cells for tails - each has a net direction
@@ -42,9 +43,6 @@ TAIL_CELLS: tuple[tuple[tuple[int, ...], str, int], ...] = (
     ((1, 1, 2), "run-skip-up", 4),
     ((2, 1, 1), "skip-run-up", 4),
 )
-
-# Stable degrees for resolution (tonic triad across octaves)
-STABLE_DEGREES = frozenset({0, 2, 4, 7, 9, 11, 14})
 
 
 @dataclass(frozen=True)

@@ -2,26 +2,27 @@
 
 ## Coding Rules
 
-| ID    | Rule                                                                                                                                                                                                |
-|-------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| L001  | Try blocks forbidden — use membership test or let it raise                                                                                                                                          |
-| L002  | No magic numbers — named constants or data-driven                                                                                                                                                   |
-| L003  | No hard range constraints — floors, ceilings, hard tessituras forbidden; soft tessitura hints allowed; hard limits indicate upstream error                                                          |
-| L004  | Voice crossing allowed — Bach crosses freely in counterpoint                                                                                                                                        |
-| L005  | Arithmetic on durations forbidden — use music_math functions                                                                                                                                        |
-| L006  | All durations must be in VALID_DURATIONS — no division                                                                                                                                              |
-| L007  | Natural minor for melodic content — raised 6/7 only in cadential contexts, not throughout phrases                                                                                                   |
-| L008  | Tonal targets are harmonic functions — they indicate phrase destination, not scale selection                                                                                                        |
-| L009  | Tonal targets are functions, not modulations — realiser uses home_key for all melodic content; modulating creates chromatic accidents (e.g., D# in A major targeting V)                             |
+| ID     | Rule                                                                                                                                                                                                 |
+|-------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| L001  | Try blocks forbidden — use membership test or let it raise                                                                                                                                           |
+| L002  | No magic numbers — named constants or data-driven                                                                                                                                                    |
+| L003  | No hard range constraints — floors, ceilings, hard tessituras forbidden; soft tessitura hints allowed; hard limits indicate upstream error                                                           |
+| L004  | Voice crossing allowed — Bach crosses freely in counterpoint                                                                                                                                         |
+| L005  | Arithmetic on durations forbidden — use music_math functions                                                                                                                                         |
+| L006  | All durations must be in VALID_DURATIONS — no division                                                                                                                                               |
+| L007  | Natural minor for melodic content — raised 6/7 only in cadential contexts, not throughout phrases                                                                                                    |
+| L008  | Tonal targets are harmonic functions — they indicate phrase destination, not scale selection                                                                                                         |
+| L009  | Tonal targets are functions, not modulations — realiser uses home_key for all melodic content; modulating creates chromatic accidents (e.g., D# in A major targeting V)                              |
 | L010  | Leading tone reserved for subject cadences — counter-subject and bass voice must not use degree 7; sequence expansion can create degree 7 from transposition, so bass uses avoid_leading_tone filter |
-| L011  | While loops must have guards — assert preconditions (e.g., dur > 0) and throw if max_iterations exceeded; no silent infinite loops                                                                  |
-| L012  | No quantization — if durations need rounding to valid values, the upstream source is wrong; patterns must use valid durations from the start                                                        |
-| L013  | MIDI gate time 95% — notes must be shortened to 95% of notated duration to avoid legato/slur rendering in players                                                                                   |
-| L014  | No side effects on parameters — functions must clone data before modification; never mutate passed arguments; validation functions like realise_phrase must be pure                                 |
-| L015  | Avoid tuples for structured data — use NamedTuple or dataclass instead; tuples obscure field meaning and cause order-dependent bugs                                                                 |
-| L016  | No print statements — use logging module instead; print is reserved for CLI progress messages and explicit debug output                                                                             |
-| L017  | Single source of truth. Definitions must not be repeated, they must be inherited and over-ridden                                                                                                    |
-| L018  | `__init__.py` files must be empty — no re-exports; use direct imports from modules                                                                                                                  |
+| L011  | While loops must have guards — assert preconditions (e.g., dur > 0) and throw if max_iterations exceeded; no silent infinite loops                                                                   |
+| L012  | No quantization — if durations need rounding to valid values, the upstream source is wrong; patterns must use valid durations from the start                                                         |
+| L013  | MIDI gate time 95% — notes must be shortened to 95% of notated duration to avoid legato/slur rendering in players                                                                                    |
+| L014  | No side effects on parameters — functions must clone data before modification; never mutate passed arguments; validation functions like realise_phrase must be pure                                  |
+| L015  | Avoid tuples for structured data — use NamedTuple or dataclass instead; tuples obscure field meaning and cause order-dependent bugs                                                                  |
+| L016  | No print statements — use logging module instead; print is reserved for CLI progress messages and explicit debug output                                                                              |
+| L017  | Single source of truth. Definitions must not be repeated, they must be inherited and over-ridden                                                                                                     |
+| L018  | `__init__.py` files must be empty — no re-exports; use direct imports from modules                                                                                                                   |
+| L019  | never use UTF8 symbols, only ASCII                                                                                                                                                                   |
 
 ## Design Rules
 

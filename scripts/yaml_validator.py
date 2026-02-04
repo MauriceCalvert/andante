@@ -284,10 +284,29 @@ def validate_yaml_syntax() -> list[str]:
     return errors
 
 
+VALID_GENRE_KEYS: frozenset[str] = frozenset({
+    "name", "voices", "form", "metre", "rhythmic_unit", "tempo",
+    "bass_treatment", "bass_mode", "bass_pattern", "sections", "upbeat",
+})
+VALID_GENRE_SECTION_KEYS: frozenset[str] = frozenset({
+    "name", "schema_sequence", "lead_voice", "lead_material",
+    "accompany_material", "accompany_texture", "tonal_path", "final_cadence",
+})
+VALID_BRIEF_KEYS: frozenset[str] = frozenset({
+    "brief", "frame", "material", "sections",
+})
+VALID_BRIEF_SECTION_KEYS: frozenset[str] = frozenset({
+    "name", "tonal_path", "final_cadence", "phrases",
+    "lead_voice", "accompany_texture",
+})
+VALID_BRIEF_PHRASE_KEYS: frozenset[str] = frozenset({
+    "schema", "treatment", "bars", "tonal_target", "cadence",
+})
+
+
 def validate_required_fields() -> list[str]:
     """Validate that required fields exist in key configuration files."""
     errors: list[str] = []
-
     # Check genre files have required fields
     required_genre_fields = ["name", "voices", "form", "metre"]
     genres_dir = DATA_DIR / "genres"
@@ -300,7 +319,6 @@ def validate_required_fields() -> list[str]:
                 if field not in data:
                     rel_path = str(genre_file.relative_to(PROJECT_DIR))
                     errors.append(f"{rel_path}: missing required field '{field}'")
-
     # Check form files have required fields (in data/forms/)
     required_form_fields = ["name"]
     forms_dir = DATA_DIR / "forms"
@@ -311,7 +329,46 @@ def validate_required_fields() -> list[str]:
                 if field not in data:
                     rel_path = str(form_file.relative_to(PROJECT_DIR))
                     errors.append(f"{rel_path}: missing required field '{field}'")
+    return errors
 
+
+def validate_unknown_keys() -> list[str]:
+    """Validate that YAML files don't contain unknown keys."""
+    errors: list[str] = []
+    # Check genre files
+    genres_dir = DATA_DIR / "genres"
+    if genres_dir.exists():
+        for genre_file in genres_dir.glob("*.yaml"):
+            if genre_file.name.startswith("_"):
+                continue
+            rel_path = str(genre_file.relative_to(PROJECT_DIR))
+            data = load_yaml(path=genre_file)
+            for key in data.keys():
+                if key not in VALID_GENRE_KEYS:
+                    errors.append(f"{rel_path}: unknown key '{key}'")
+            for i, section in enumerate(data.get("sections", [])):
+                section_name = section.get("name", f"section_{i}")
+                for key in section.keys():
+                    if key not in VALID_GENRE_SECTION_KEYS:
+                        errors.append(f"{rel_path}: section '{section_name}' has unknown key '{key}'")
+    # Check brief files
+    briefs_dir = PROJECT_DIR / "briefs"
+    if briefs_dir.exists():
+        for brief_file in briefs_dir.rglob("*.brief"):
+            rel_path = str(brief_file.relative_to(PROJECT_DIR))
+            data = load_yaml(path=brief_file)
+            for key in data.keys():
+                if key not in VALID_BRIEF_KEYS:
+                    errors.append(f"{rel_path}: unknown top-level key '{key}'")
+            for i, section in enumerate(data.get("sections", [])):
+                section_name = section.get("name", section.get("label", f"section_{i}"))
+                for key in section.keys():
+                    if key not in VALID_BRIEF_SECTION_KEYS:
+                        errors.append(f"{rel_path}: section '{section_name}' has unknown key '{key}'")
+                for j, phrase in enumerate(section.get("phrases", [])):
+                    for key in phrase.keys():
+                        if key not in VALID_BRIEF_PHRASE_KEYS:
+                            errors.append(f"{rel_path}: section '{section_name}' phrase {j+1} has unknown key '{key}'")
     return errors
 
 
@@ -458,16 +515,16 @@ def validate_all() -> tuple[bool, list[str], dict[str, list[str]], list[Path]]:
         (all_valid, errors, usages, orphaned_files)
     """
     errors: list[str] = []
-
     # 1. Validate YAML syntax
     syntax_errors = validate_yaml_syntax()
     errors.extend(syntax_errors)
-
     # 2. Validate required fields
     field_errors = validate_required_fields()
     errors.extend(field_errors)
-
-    # 3. Validate cross-references per yaml_types.yaml
+    # 3. Validate unknown keys
+    unknown_key_errors = validate_unknown_keys()
+    errors.extend(unknown_key_errors)
+    # 4. Validate cross-references per yaml_types.yaml
     type_spec_path: Path = DATA_DIR / "yaml_types.yaml"
     if type_spec_path.exists():
         type_spec: dict[str, Any] = load_yaml(path=type_spec_path)
@@ -476,21 +533,16 @@ def validate_all() -> tuple[bool, list[str], dict[str, list[str]], list[Path]]:
         errors.extend(ref_errors)
     else:
         errors.append("data/yaml_types.yaml not found - cannot validate cross-references")
-
-    # 4. Validate genre section structure and schema-bar coherence
+    # 5. Validate genre section structure and schema-bar coherence
     section_errors = validate_genre_sections()
     errors.extend(section_errors)
-
-    # 5. Validate brief files don't conflict with genre sections
+    # 6. Validate brief files don't conflict with genre sections
     brief_errors = validate_brief_files()
     errors.extend(brief_errors)
-
-    # 6. Build usages map
+    # 7. Build usages map
     usages: dict[str, list[str]] = build_yaml_usages()
-
-    # 7. Find orphaned files
+    # 8. Find orphaned files
     orphaned: list[Path] = find_orphaned_yaml_files(usages=usages)
-
     return len(errors) == 0, errors, usages, orphaned
 
 

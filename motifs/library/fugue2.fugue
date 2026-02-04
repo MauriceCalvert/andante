@@ -1,0 +1,101 @@
+subject:
+  degrees:
+  - 2
+  - 2
+  - 0
+  - 3
+  - 2
+  - 0
+  - 1
+  - -1
+  - 0
+  - -2
+  - -3
+  durations:
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  mode: major
+  bars: 2
+  head_name: alternating
+  leap_size: 3
+  leap_direction: up
+answer:
+  degrees:
+  - 6
+  - 6
+  - 4
+  - 7
+  - 6
+  - 4
+  - 5
+  - 3
+  - 4
+  - 2
+  - 1
+  durations:
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  type: real
+  mutation_points: []
+countersubject:
+  degrees:
+  - -5
+  - -7
+  - -5
+  - -6
+  - -3
+  - -2
+  - -4
+  - -3
+  - -5
+  - -4
+  - -3
+  durations:
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  vertical_intervals:
+  - 0
+  - 2
+  - 5
+  - 2
+  - 5
+  - 2
+  - 5
+  - 2
+  - 5
+  - 2
+  - 0
+metadata:
+  metre:
+  - 4
+  - 4
+  tonic: C
+  tonic_midi: 60
+  seed: 0

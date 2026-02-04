@@ -10,7 +10,7 @@ Enumerates all (pitch_sequence, rhythm_pattern) pairs that:
 from typing import List, Tuple, Iterator
 from functools import lru_cache
 
-from shared.constants import SCALE_DEGREES
+from shared.constants import SCALE_DEGREES, TONIC_TRIAD_DEGREES
 
 # Valid durations in whole notes (4/4 bar = 1.0)
 VALID_DURATIONS = (0.0625, 0.125, 0.1875, 0.25, 0.375, 0.5)
@@ -24,7 +24,6 @@ MAX_NOTES = 7
 
 # Pitch constraints
 MAX_INTERVAL = 3  # Max interval between adjacent notes (includes leaps)
-START_DEGREES = (0, 2, 4)  # Tonic triad
 
 
 @lru_cache(maxsize=1)
@@ -76,7 +75,7 @@ def enumerate_pitch_sequences(length: int) -> Tuple[Tuple[int, ...], ...]:
                 current.pop()
 
     # Start on tonic triad
-    for start in START_DEGREES:
+    for start in TONIC_TRIAD_DEGREES:
         recurse([start])
 
     return tuple(sequences)

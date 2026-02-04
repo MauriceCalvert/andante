@@ -20,6 +20,7 @@ from builder.types import (
     AffectConfig, FormConfig, GenreConfig,
     KeyConfig, MotiveWeights, SchemaConfig,
 )
+from shared.constants import VALID_DIRECTIONS
 from shared.key import Key
 
 
@@ -258,9 +259,6 @@ def _validate_genre(data: dict) -> GenreConfig:
         sections=tuple(data.get("sections", [])),
         upbeat=upbeat,
     )
-
-
-VALID_DIRECTIONS: frozenset[str] = frozenset({"up", "down", "same"})
 
 
 def _parse_signed_degree(raw: str | int | float, is_first: bool) -> tuple[int, str | None]:

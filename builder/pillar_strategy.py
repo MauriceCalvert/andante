@@ -10,12 +10,12 @@ from typing import Callable
 
 from builder.types import FigureRejection, FigureRejectionError
 from builder.writing_strategy import WritingStrategy
+from shared.constants import CONSONANT_PITCH_OFFSETS
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
 from shared.plan_types import GapPlan
 
 _log: logging.Logger = logging.getLogger(__name__)
-_CONSONANT_OFFSETS: tuple[int, ...] = (0, -7, 7, -2, 2, -4, 4, -5, 5, -3, 3)
 
 
 class PillarStrategy(WritingStrategy):
@@ -39,7 +39,7 @@ class PillarStrategy(WritingStrategy):
         """
         assert gap.gap_duration > 0, f"Gap duration must be positive, got {gap.gap_duration}"
         rejections: list[FigureRejection] = []
-        for offset in _CONSONANT_OFFSETS:
+        for offset in CONSONANT_PITCH_OFFSETS:
             pitch: DiatonicPitch = source_pitch.transpose(steps=offset)
             reason: str | None = candidate_filter(pitch, Fraction(0), True)
             if reason is None:

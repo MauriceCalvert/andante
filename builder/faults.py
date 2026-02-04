@@ -47,6 +47,7 @@ from typing import Sequence
 
 from builder.types import Note
 from shared.constants import (
+    CROSS_RELATION_PAIRS,
     DIRECT_MOTION_LEAP_SEMITONES,
     GROTESQUE_LEAP_SEMITONES,
     MAX_PARALLEL_RHYTHM_ATTACKS,
@@ -65,15 +66,6 @@ class Fault:
     bar_beat: str
     voices: tuple[int, ...]
     message: str
-
-
-CROSS_RELATION_PAIRS: frozenset[tuple[int, int]] = frozenset({
-    (0, 1),   # C / C#
-    (2, 3),   # D / D#
-    (5, 6),   # F / F#
-    (7, 8),   # G / G#
-    (9, 10),  # A / A#
-})
 
 
 def _bar_duration(metre: str) -> Fraction:

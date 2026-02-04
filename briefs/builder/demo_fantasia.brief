@@ -1,0 +1,115 @@
+# =========================================================================
+# SUMMARY
+# =========================================================================
+# Total bars: ~54
+# Schemas used: all 16 (prinner ×6, fonte ×2, passo_indietro ×2, ponte ×2,
+#                     cadenza_semplice ×2, meyer ×2, others ×1)
+# Treatments used: all 24 (one per phrase)
+# Transitions: all validated against schema_transitions.yaml
+# Structure: pedagogical demonstration following natural schema flow
+
+brief:
+  affect: Freudigkeit
+  genre: fantasia
+  forces: keyboard
+  subject: fugue2
+
+frame:
+  key: C
+  mode: major
+  metre: 4/4
+  tempo: 130
+  voices: 2
+
+sections:
+# =========================================================================
+# SECTION 1: Opening schemas (10 bars)
+# =========================================================================
+- name: opening
+  tonal_path: [I, V, I]
+  final_cadence: open
+  phrases:
+    - {schema: do_re_mi, treatment: statement, bars: 2, tonal_target: I}
+    # Exit 3/1 -> Entry 5/1 (direct, bass 1->1)
+    - {schema: sol_fa_mi, treatment: dialogue, bars: 2, tonal_target: V}
+    # Exit 3/1 -> Entry 4/7 in ii (direct, bass 1->7)
+    - {schema: fonte, treatment: sequence, bars: 4, tonal_target: I}
+    # Exit 3/1 (fonte arrival) -> Entry 6/4 (free passage)
+    - {schema: prinner, treatment: imitation, bars: 2, tonal_target: I}
+
+# =========================================================================
+# SECTION 2: Continuation - sequential development (14 bars)
+# =========================================================================
+- name: continuation_a
+  tonal_path: [I, IV, V, I]
+  final_cadence: half_closed
+  phrases:
+    # Exit 3/1 (closed) -> Entry 4/5 (free passage, comma restart)
+    - {schema: comma, treatment: schema, bars: 1, tonal_target: I}
+    # Exit 3/1 -> Entry 4/7 in IV (direct, bass 1->7)
+    - {schema: monte, treatment: head_sequence, bars: 4, tonal_target: IV}
+    # Exit 3/1 -> Entry 4/7 (direct)
+    - {schema: fenaroli, treatment: fragmentation, bars: 2, tonal_target: V}
+    # Exit 1/3 -> Entry 4/7 in ii (free passage, new fonte)
+    - {schema: fonte, treatment: tail_development, bars: 4, tonal_target: I}
+    # Exit 3/1 -> Entry 6/4 (free passage)
+    - {schema: prinner, treatment: augmentation, bars: 2, tonal_target: I}
+    # Exit 3/1 (closed) -> Entry 2/5 (free passage)
+    - {schema: half_cadence, treatment: melody_accompaniment, bars: 1, tonal_target: V}
+
+# =========================================================================
+# SECTION 3: Riposte variations (14 bars)
+# =========================================================================
+- name: development
+  tonal_path: [I, ii, V, I]
+  final_cadence: open
+  phrases:
+    # Exit 2/5 -> Entry 3/1 (direct, dominant resolution)
+    - {schema: romanesca, treatment: inversion, bars: 4, tonal_target: I}
+    # Exit 5/3 -> Entry 6/4 (direct, bass 3->4)
+    - {schema: prinner, treatment: diminution, bars: 2, tonal_target: ii}
+    # Exit 3/1 (closed) -> Entry 1/1 (free passage, meyer restart)
+    - {schema: meyer, treatment: dialogue_invert, bars: 2, tonal_target: V}
+    # Exit 3/1 -> Entry 6/4 (free passage)
+    - {schema: prinner, treatment: retrograde, bars: 2, tonal_target: I}
+    # Exit 3/1 (closed) -> Entry 2/5 (free passage)
+    - {schema: ponte, treatment: hold, bars: 2, tonal_target: V}
+    # Exit 2/5 -> Entry 6/4 (direct, bass 5->4)
+    - {schema: prinner, treatment: stretto, bars: 2, tonal_target: I}
+
+# =========================================================================
+# SECTION 4: Pre-cadential preparation (10 bars)
+# =========================================================================
+- name: pre_cadential
+  tonal_path: [IV, V, I]
+  final_cadence: open
+  phrases:
+    # Exit 3/1 (closed) -> Entry 6/4 (free passage, passo restart)
+    - {schema: passo_indietro, treatment: bass_development, bars: 2, tonal_target: IV}
+    # Exit 5/5 -> Entry 2/4 (free passage)
+    - {schema: indugio, treatment: bass_sequence, bars: 2, tonal_target: IV}
+    # Exit 7/4 -> Entry 6/4 (free passage)
+    - {schema: passo_indietro, treatment: bass_statement, bars: 2, tonal_target: V}
+    # Exit 5/5 -> Entry 2/5 (direct, identity)
+    - {schema: ponte, treatment: repose, bars: 2, tonal_target: V}
+    # Exit 2/5 -> Entry 4/4 (direct, bass 5->4)
+    - {schema: cadenza_composta, treatment: imitation_cs, bars: 2, tonal_target: I}
+
+# =========================================================================
+# SECTION 5: Cadential conclusion (8 bars)
+# =========================================================================
+- name: cadential
+  tonal_path: [V, I]
+  final_cadence: authentic
+  phrases:
+    # Exit 1/1 (closed) -> Entry 2/5 (free passage, cadenza restart)
+    - {schema: cadenza_semplice, treatment: voice_exchange, bars: 1, tonal_target: V}
+    # Exit 1/1 -> Entry 1/1 (direct, identity)
+    - {schema: quiescenza, treatment: pedal_tonic, bars: 2, tonal_target: I}
+    # Exit 1/1 -> Entry 1/1 (direct, meyer restart after closed)
+    - {schema: meyer, treatment: pedal_dominant, bars: 2, tonal_target: V}
+    # Exit 3/1 -> Entry 6/4 (free passage)
+    - {schema: prinner, treatment: bass_development, bars: 2, tonal_target: I}
+    # Exit 3/1 (closed) -> Entry 2/5 (free passage, final cadence)
+    - {schema: cadenza_semplice, treatment: statement, bars: 1, tonal_target: I, cadence: authentic}
+

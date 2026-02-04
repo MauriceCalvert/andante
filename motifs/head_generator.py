@@ -12,14 +12,13 @@ All valid heads are equal candidates - no scoring.
 from dataclasses import dataclass
 from typing import Iterator
 
-from shared.constants import MAJOR_SCALE, MINOR_SCALE, NOTE_NAMES
+from shared.constants import MAJOR_SCALE, MINOR_SCALE, NOTE_NAMES, TONIC_TRIAD_DEGREES
 
 # Pitch constraints
 MIN_LEAP = 3  # Minimum interval to count as a leap
 MAX_INTERVAL = 7  # Octave
 MIN_DEGREE = 0
 MAX_DEGREE = 14  # Two octaves
-START_DEGREES = (0, 2, 4)  # Tonic triad
 
 # Rhythm cells indexed by metre - only those with 2+ distinct durations are valid
 # Minimum 4 notes per head
@@ -200,7 +199,7 @@ def enumerate_pitch_sequences(n_notes: int) -> Iterator[tuple[int, ...]]:
                 yield from recurse(current)
                 current.pop()
 
-    for start in START_DEGREES:
+    for start in TONIC_TRIAD_DEGREES:
         yield from recurse([start])
 
 

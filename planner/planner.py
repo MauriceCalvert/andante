@@ -19,6 +19,7 @@ from builder.compose import compose_voices
 from builder.config_loader import load_configs
 from builder.io import write_midi_file, write_musicxml_file, write_note_file
 from builder.types import Composition, PassageAssignment, SchemaChain
+from motifs.fugue_loader import LoadedFugue
 from planner.dramaturgy import get_suggested_key
 from planner.metric.layer import layer_4_metric
 from planner.rhetorical import layer_1_rhetorical
@@ -45,11 +46,22 @@ def _derive_key_from_affect(affect: str) -> str:
     return f"{tonic}_{mode}"
 
 
+def _with_sections_override(
+    genre_config: Any,
+    sections_override: tuple[dict, ...],
+) -> Any:
+    """Return a new GenreConfig with sections replaced."""
+    from dataclasses import replace
+    return replace(genre_config, sections=sections_override)
+
+
 def generate(
     genre: str,
     affect: str,
     key: str | None = None,
     tempo_override: int | None = None,
+    fugue: LoadedFugue | None = None,
+    sections_override: tuple[dict, ...] | None = None,
 ) -> Composition:
     """Generate composition from genre and affect, with optional key and tempo."""
     tracer = get_tracer()
@@ -58,6 +70,11 @@ def generate(
     tracer.config(genre=genre, affect=affect, key=key)
     config: dict[str, Any] = load_configs(genre=genre, key=key, affect=affect)
     genre_config = config["genre"]
+    if sections_override is not None:
+        genre_config = _with_sections_override(
+            genre_config=genre_config,
+            sections_override=sections_override,
+        )
     key_config = config["key"]
     affect_config = config["affect"]
     form_config = config["form"]
@@ -108,6 +125,7 @@ def generate(
         schemas=schemas,
         seed=42,
         tempo_override=tempo,
+        fugue=fugue,
     )
     tracer.L6("VoicePlanning", voice_count=len(plan.voice_plans))
     return compose_voices(plan=plan)
@@ -120,9 +138,11 @@ def generate_to_files(
     name: str,
     key: str | None = None,
     tempo: int | None = None,
+    fugue: LoadedFugue | None = None,
+    sections_override: tuple[dict, ...] | None = None,
 ) -> Composition:
     """Generate composition and write to files."""
-    result: Composition = generate(genre=genre, affect=affect, key=key, tempo_override=tempo)
+    result: Composition = generate(genre=genre, affect=affect, key=key, tempo_override=tempo, fugue=fugue, sections_override=sections_override)
     note_path: Path = output_dir / f"{name}.note"
     midi_path: Path = output_dir / f"{name}.midi"
     xml_path: Path = output_dir / name

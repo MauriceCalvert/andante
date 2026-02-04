@@ -6,6 +6,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from builder.types import Composition, Note
+from shared.constants import BASS_CLEF_THRESHOLD
 
 try:
     from music21 import clef, key, meter, note, stream, tempo
@@ -13,8 +14,6 @@ try:
     MUSIC21_AVAILABLE: bool = True
 except ImportError:
     MUSIC21_AVAILABLE = False
-
-BASS_CLEF_THRESHOLD: int = 60
 
 
 def write_musicxml(comp: Composition, path: Path, tonic: str = "C", mode: str = "major") -> bool:

@@ -1,6 +1,6 @@
 # Subject Generation Algorithm
 
-This document specifies the complete rules and constraints for generating fugue subjects, heads, tails, and counter-subjects in Andante.
+This document specifies the complete rules and constraints for generating fugue subjects, answers, and countersubjects in Andante.
 
 ## Overview
 
@@ -8,8 +8,9 @@ Subject generation follows a **head + tail construction** method inspired by Bar
 
 1. **Head**: The memorable opening gesture (3-6 notes)
 2. **Tail**: The continuation leading to resolution (3-12 notes)
-3. **Subject**: Head + Tail combined (spans exactly 2 bars)
-4. **Counter-subject**: A complementary melody generated via CP-SAT optimization
+3. **Subject**: Head + Tail combined (spans exactly 1-4 bars)
+4. **Answer**: The subject transposed to the dominant, with tonal mutations
+5. **Countersubject**: A complementary melody that works with both subject and answer
 
 ---
 
@@ -227,9 +228,21 @@ The total duration must equal an **integer number of bars**. The number of bars 
 | 2/2 | 1.0 | 1, 2, 3, or 4 |
 | 6/8 | 0.75 | 1, 2, 3, or 4 |
 
-### 3.4 Selection Algorithm (Random Sampling)
+### 3.4 Melodic Validation
 
-The algorithm uses **random sampling** rather than exhaustive enumeration for performance:
+Subjects must pass melodic validation before acceptance:
+
+| Check | Description | Forbidden |
+|-------|-------------|-----------|
+| Seventh leap | Any interval of 10-11 semitones | Yes |
+| Tritone leap | Any interval of 6 semitones | Yes |
+| Tritone outline | 4-note span outlining 6 semitones | Yes |
+| Consecutive leaps | Two leaps (>2 semitones) same direction | Yes |
+| Leading tone | Degree 7 not resolving to tonic | Yes |
+
+### 3.5 Selection Algorithm (Random Sampling)
+
+The algorithm uses **random sampling** rather than exhaustive enumeration:
 
 1. **Sample a valid head** (up to 100 random attempts per head):
    - Pick a random rhythm cell from the metre's cells
@@ -245,6 +258,7 @@ The algorithm uses **random sampling** rather than exhaustive enumeration for pe
    - Must have at least 2 distinct durations
    - Must not cross barlines
    - Must span an integer number of bars
+   - Must pass melodic validation
 
 4. **Affect scoring** (if affect specified):
    - Generate 50 candidates
@@ -253,96 +267,263 @@ The algorithm uses **random sampling** rather than exhaustive enumeration for pe
 
 5. **Otherwise** return first valid combination (after 5 candidates found)
 
-This approach generates subjects in ~50-100ms regardless of metre complexity.
+---
+
+## 4. Answer Generation
+
+**Source**: `motifs/answer_generator.py`
+
+The answer is the subject transposed to the dominant key, with tonal mutations to preserve harmonic coherence.
+
+### 4.1 Real vs Tonal Answer
+
+**Real answer**: Exact transposition up a 5th (4 scale degrees). Valid only when the subject doesn't prominently cross the tonic-dominant boundary.
+
+**Tonal answer**: Certain intervals are mutated to maintain tonal coherence. Required when the subject opens with motion between tonic and dominant.
+
+### 4.2 Tonal Mutation Rules
+
+The fundamental principle: when the subject emphasises the tonic-dominant axis, the answer reciprocates.
+
+| Subject Motion | Answer Motion | Reason |
+|----------------|---------------|--------|
+| 1 → 5 (tonic to dominant) | 5 → 1 (dominant to tonic) | Maintains tonal balance |
+| 5 → 1 (dominant to tonic) | 1 → 5 (tonic to dominant) | Reciprocal |
+| Other intervals | Real transposition (+4 degrees) | No boundary crossing |
+
+### 4.3 Boundary Detection
+
+The tonic-dominant boundary is typically crossed in the subject's **head** (first strong beat). Common patterns requiring tonal mutation:
+
+| Subject Opening | Requires Tonal Answer |
+|-----------------|----------------------|
+| Starts on 1, leaps to 5 | Yes |
+| Starts on 5, moves to 1 | Yes |
+| Starts on 1, stays within 1-3 | No (real answer OK) |
+| Starts on 5, stays within 5-7 | No (real answer OK) |
+
+### 4.4 Algorithm
+
+```
+for each note in subject:
+    if this is a boundary-crossing interval:
+        apply tonal mutation (contract/expand)
+    else:
+        apply real transposition (+4 degrees)
+```
+
+The mutation typically affects only the first 1-3 notes; the remainder uses real transposition.
+
+### 4.5 Example: Little Fugue BWV 578
+
+Subject (G minor): G4 → D5 → Bb4 → G4 → Bb4 → A4 → G4 → F#4 → A4 → D4
+
+- Opens with G → D (scale degrees 1 → 5)
+- Answer must mutate: D → G (5 → 1) instead of D → A (5 → 2)
+- Remainder: real transposition at the 5th
+
+Answer: D5 → G5 → F5 → D5 → F5 → E5 → D5 → C#5 → E5 → A4
+
+### 4.6 Output
+
+```python
+@dataclass
+class GeneratedAnswer:
+    scale_indices: tuple[int, ...]    # Degrees in dominant key
+    durations: tuple[float, ...]       # Same as subject
+    midi_pitches: tuple[int, ...]
+    answer_type: str                   # "real" or "tonal"
+    mutation_points: tuple[int, ...]   # Indices where mutation applied
+```
 
 ---
 
-## 4. Counter-Subject Generation
+## 5. Countersubject Generation
 
-**Source**: `planner/cs_generator.py`
+**Source**: `motifs/countersubject_generator.py`
 
-Counter-subjects are generated using Google OR-Tools CP-SAT solver for joint optimization of pitch and rhythm.
+The countersubject is a melodic line that:
+1. Accompanies the subject (when one voice has the subject)
+2. Works correctly when voices are swapped (invertible counterpoint at the octave)
+3. Has melodic independence from the subject
 
-### 4.1 Valid Durations
+### 5.1 Design Simplifications
 
-| Value | Name |
-|-------|------|
-| 1/2 | Half note |
-| 3/8 | Dotted quarter |
-| 1/4 | Quarter note |
-| 3/16 | Dotted eighth |
-| 1/8 | Eighth note |
-| 1/16 | Sixteenth note |
+| Decision | Rationale |
+|----------|----------|
+| Same rhythm as subject | Pitch-only optimisation; rhythmic complement deferred to Phase 5 |
+| Same note count | One CS pitch variable per subject note |
+| Optimise against subject only | Answer verification post-hoc; answer is subject +4 degrees with minor mutations |
+| Work in scale degrees | Mode-independent; eliminates semitone interval calculation |
+| Voice crossing allowed | L004: Bach crosses freely in counterpoint |
 
-Allowed CS durations:
-- All durations present in the subject
-- One step faster than subject's fastest
-- One step slower than subject's slowest
+### 5.2 Degree-Based Interval Classification
 
-### 4.2 Consonant Intervals
+Vertical intervals are computed as `abs(cs_degree - subject_degree) % 7`:
 
-| Type | Interval Classes (semitones mod 12) |
-|------|-------------------------------------|
-| Perfect consonances | 0 (unison), 7 (fifth) |
-| Imperfect consonances | 3, 4 (thirds), 8, 9 (sixths) |
+| Degree Interval | Musical Interval | Invertibility |
+|-----------------|------------------|---------------|
+| 0 | Unison/Octave | Consonant, stays consonant |
+| 1 | Second/Ninth | Dissonant, stays dissonant |
+| 2 | Third/Tenth | Consonant, becomes 6th (consonant) |
+| 3 | Fourth/Eleventh | Dissonant, becomes 5th (consonant) |
+| 4 | Fifth/Twelfth | Consonant, becomes 4th (DISSONANT) |
+| 5 | Sixth/Thirteenth | Consonant, becomes 3rd (consonant) |
+| 6 | Seventh/Fourteenth | Dissonant, becomes 2nd (dissonant) |
 
-All other intervals are **dissonant** and forbidden at attack points.
+**Invertible consonances**: {0, 2, 5} mod 7 (unison, third, sixth)
 
-### 4.3 Hard Constraints
+**Critical insight**: Perfect 5ths (degree interval 4) are consonant but become dissonant 4ths when inverted. They must be restricted.
 
-| Constraint | Description |
-|------------|-------------|
-| H1: Duration Match | CS total duration = subject total duration |
-| H2: Contiguous Notes | No gaps (if note i is inactive, note i+1 must be inactive) |
-| H3: Note Count | min(3, n_subject - 2) ≤ CS notes ≤ n_subject + 2 |
-| H4: Forbidden Degrees | Major: avoid 7; Minor: avoid 6, 7 |
-| H5: No Dissonance | All vertical intervals must be consonant |
-| H6: No Parallel Fifths/Octaves | Consecutive perfect intervals in parallel motion forbidden |
+### 5.3 Strong vs Weak Beat Treatment
 
-### 4.4 Soft Constraints (Penalties)
+Baroque practice allows passing dissonances and 5ths on weak beats:
 
-| Constraint | Penalty | Description |
-|------------|---------|-------------|
-| Perfect fifth | 80 | Avoid (becomes dissonant when inverted) |
-| Interior unison | 120 | Avoid unisons except at start/end |
-| Immediate repetition | 20 | Don't repeat same pitch |
-| Large leap (6-7 semitones) | 30 | Prefer smaller intervals |
-| Very large leap (>7 semitones) | 150 | Strongly discourage |
-| Non-stepwise motion | 10 | Prefer stepwise (70% target) |
-| Attack collision on weak beat | 100 | Avoid simultaneous attacks off strong beats |
-| Consecutive equal durations | 15 | Encourage rhythmic variety |
-| Non-final ending degree | 50 | Final note should be 1 or 5 |
-| Non-stepwise approach to final | 40 | Penultimate should approach by step |
-| Non-subject duration | 5 | Prefer subject's duration vocabulary |
-| Climax collision | 25 | CS high point shouldn't match subject's |
+| Beat Type | Allowed Degree Intervals | Rationale |
+|-----------|-------------------------|----------|
+| Strong (1, 3 in 4/4) | {0, 2, 5} | Invertible consonances only |
+| Weak (2, 4 in 4/4) | {0, 1, 2, 4, 5, 6} | Passing tones + 5ths allowed |
 
-### 4.5 Invertibility Constraints
+Weak-beat 5ths become passing 4ths when inverted, which is acceptable Baroque practice.
 
-For standard counterpoint:
-- Perfect fifths are penalized (become fourths when inverted)
+### 5.4 CP-SAT Constraint Set
 
-For **interleaved (Goldberg-style)** counterpoint:
-- Seconds (1-2 semitones) are **strongly penalized** (200 points)
-- These become sevenths when inverted at the unison
-- Thirds and sixths are preferred (remain consonant when inverted)
+**Hard Constraints** (must be satisfied):
 
-### 4.6 Strong Beats
+| ID | Constraint | Formula |
+|----|------------|--------|
+| H1 | Strong-beat invertible consonance | `(cs[i] - subj[i]) % 7 in {0, 2, 5}` when beat is strong |
+| H2 | Weak-beat non-tritone | `(cs[i] - subj[i]) % 7 != 3` (no tritones even on weak beats) |
+| H3 | No consecutive unisons | `not (interval[i] == 0 and interval[i+1] == 0)` |
+| H4 | No direct motion to unison | If both voices move same direction, target != unison |
+| H5 | Degree range | `min_degree <= cs[i] <= max_degree` |
 
-Strong beats (where attack collisions are acceptable):
-- Beat 1 (position 0 within bar)
-- Beat 3 (position 0.5 within bar in 4/4)
+**Soft Constraints** (penalties):
 
-### 4.7 Solver Configuration
+| ID | Constraint | Penalty | Rationale |
+|----|------------|---------|----------|
+| S1 | Weak-beat 5th | 20 | Prefer other consonances |
+| S2 | Weak-beat dissonance | 10 | Prefer consonances |
+| S3 | Leap > 4 degrees | 30 | Singability |
+| S4 | Repeated pitch | 25 | Melodic interest |
+| S5 | Interior unison | 15 | Reserve for boundaries |
+| S6 | Parallel motion | 10 | Prefer contrary/oblique |
 
-- Timeout: 10 seconds default
-- Workers: 4 parallel search threads
-- Accepts OPTIMAL or FEASIBLE solutions
+**Rewards** (bonuses):
+
+| ID | Constraint | Reward | Rationale |
+|----|------------|--------|----------|
+| R1 | Contrary motion | 15 | Voice independence |
+| R2 | Stepwise motion | 5 | Singability |
+| R3 | Start/end on stable degree | 10 | Tonal grounding |
+
+### 5.5 Beat Classification
+
+Beat strength depends on metre:
+
+| Metre | Strong Beats | Weak Beats |
+|-------|--------------|------------|
+| 4/4 | 1, 3 | 2, 4 |
+| 3/4 | 1 | 2, 3 |
+| 2/4 | 1 | 2 |
+| 6/8 | 1, 4 | 2, 3, 5, 6 |
+| 2/2 | 1, 3 | 2, 4 |
+
+Beat position is computed from cumulative duration at each note onset.
+
+### 5.6 Algorithm
+
+```
+1. Create CP-SAT model
+2. Add variables: cs[i] for i in 0..n-1, domain [min_degree, max_degree]
+3. Compute beat positions from subject durations and metre
+4. For each note i:
+   a. Compute interval = (cs[i] - subject[i]) % 7
+   b. If strong beat: add H1 constraint
+   c. Always: add H2 constraint (no tritones)
+5. For consecutive pairs (i, i+1):
+   a. Add H3 (no consecutive unisons)
+   b. Add H4 (no direct motion to unison)
+6. Add soft constraints as weighted penalties
+7. Add rewards as weighted bonuses
+8. Solve with timeout
+9. Extract solution, convert to MIDI
+```
+
+### 5.7 Post-Generation Verification
+
+After generation, verify against answer:
+
+1. Transpose subject by +4 degrees (with tonal mutations) to get answer
+2. Check all strong-beat intervals between CS and answer
+3. If any violations, log warning but accept (answer mutations are minor)
+
+### 5.8 Output
+
+```python
+@dataclass
+class GeneratedCountersubject:
+    scale_indices: tuple[int, ...]      # 0-indexed degrees
+    durations: tuple[float, ...]        # Same as subject
+    midi_pitches: tuple[int, ...]       # Resolved pitches
+    vertical_intervals: tuple[int, ...] # Degree intervals against subject
+```
 
 ---
 
-## 5. Degree Representation
+## 6. Fugue Triple: Subject + Answer + Countersubject
 
-### 5.1 Internal Representation (0-indexed)
+### 6.1 Coordination
+
+The three components must work together:
+
+```
+Voice 1: [--SUBJECT--][--COUNTERSUBJECT--]...
+Voice 2:              [----ANSWER----][--CS--]...
+Voice 3:                               [--SUBJ--]...
+```
+
+### 6.2 Verification Tests
+
+| Test | Description |
+|------|-------------|
+| CS + Subject | Countersubject valid against subject |
+| CS + Answer | Countersubject valid against answer |
+| Inverted CS + Subject | Swapped voices still valid |
+| Inverted CS + Answer | Swapped voices still valid |
+
+### 6.3 File Format
+
+Proposed `.fugue` YAML format:
+
+```yaml
+subject:
+  degrees: [0, 4, 2, 1, 2, 0, 1, -1, 0]
+  durations: [0.375, 0.125, 0.125, 0.125, 0.25, 0.125, 0.125, 0.125, 0.5]
+  mode: minor
+  
+answer:
+  degrees: [4, 7, 6, 5, 6, 4, 5, 3, 4]
+  durations: [0.375, 0.125, 0.125, 0.125, 0.25, 0.125, 0.125, 0.125, 0.5]
+  type: tonal
+  mutation_points: [0, 1]
+  
+countersubject:
+  degrees: [2, 1, 2, 4, 3, 2, 1, 0, 2]
+  durations: [0.125, 0.125, 0.25, 0.125, 0.125, 0.25, 0.125, 0.25, 0.5]
+  invertible: true
+  
+metadata:
+  metre: [4, 4]
+  tonic: G
+  seed: 42
+```
+
+---
+
+## 7. Degree Representation
+
+### 7.1 Internal Representation (0-indexed)
 
 Used throughout head/tail generation:
 - 0 = tonic (1st degree)
@@ -354,7 +535,7 @@ Used throughout head/tail generation:
 
 Extended range: -4 to 14 for two-octave span.
 
-### 5.2 External Representation (1-indexed)
+### 7.2 External Representation (1-indexed)
 
 Used in YAML files and planner output:
 - 1 = tonic
@@ -364,7 +545,7 @@ Used in YAML files and planner output:
 
 Conversion: `external_degree = (internal_degree % 7) + 1`
 
-### 5.3 MIDI Conversion
+### 7.3 MIDI Conversion
 
 ```python
 MAJOR_SCALE = (0, 2, 4, 5, 7, 9, 11)  # Semitones from tonic
@@ -379,7 +560,7 @@ def degree_to_midi(degree, tonic_midi, mode):
 
 ---
 
-## 6. Supported Time Signatures
+## 8. Supported Time Signatures
 
 | Metre | Supported | Notes |
 |-------|-----------|-------|
@@ -391,7 +572,7 @@ def degree_to_midi(degree, tonic_midi, mode):
 
 ---
 
-## 7. Affect Integration
+## 9. Affect Integration
 
 When an affect is specified:
 
@@ -407,27 +588,151 @@ Figurae scoring considers:
 
 ---
 
-## 8. Algorithm Complexity
+## 10. Algorithm Complexity
 
-| Component | Complexity | Typical Count |
-|-----------|------------|---------------|
-| Head enumeration | O(cells × 15^notes) | ~21,000 heads for 4/4 |
-| Tail generation per head | O(rhythm_combos × interval_seqs) | 0-100 tails per head |
-| Subject assembly | O(1) | 1 per head+tail pair |
-| CS generation | CP-SAT (NP-hard) | 10s timeout |
-
-Note: For 3/4 metre, only ~3% of heads produce valid tails due to stricter constraints.
+| Component | Complexity | Typical Time |
+|-----------|------------|--------------|
+| Head sampling | O(attempts × notes) | <10ms |
+| Tail generation | O(rhythm_combos × interval_seqs) | <50ms |
+| Subject assembly | O(1) | <1ms |
+| Answer generation | O(n) | <1ms |
+| CS generation (CP-SAT) | NP-hard | <10s |
 
 ---
 
-## 9. Example Subject Generation
+## 11. Implementation Plan
+
+### Phase 1: Answer Generator
+
+**File**: `motifs/answer_generator.py`
+
+**Scope**: ~80 lines
+
+**Functions**:
+```python
+def detect_boundary_crossing(degrees: tuple[int, ...]) -> list[int]:
+    """Return indices where subject crosses tonic-dominant boundary."""
+
+def generate_answer(
+    subject: GeneratedSubject,
+    mode: str = "major",
+) -> GeneratedAnswer:
+    """Generate tonal or real answer for a subject."""
+```
+
+**Algorithm**:
+1. Scan subject for 1→5 or 5→1 motion in head region
+2. If found: apply tonal mutation at those points
+3. Apply real transposition (+4 degrees) elsewhere
+4. Convert to MIDI pitches in dominant key
+
+**Test cases**:
+- Little Fugue BWV 578 (tonal answer, 1→5 opening)
+- Subject starting on 3 (should use real answer)
+- Subject with multiple boundary crossings
+
+### Phase 2: Countersubject Generator
+
+**File**: `motifs/countersubject_generator.py`
+
+**Scope**: ~150 lines
+
+**Approach**: CP-SAT optimisation with degree-based intervals
+
+**Variables**:
+- `cs[i]`: Scale degree of note i (domain: min_degree to max_degree)
+- Same rhythm as subject (no duration variables)
+
+**Hard constraints**:
+- H1: Strong-beat intervals in {0, 2, 5} mod 7 (invertible consonances)
+- H2: No tritones (interval 3 mod 7) even on weak beats
+- H3: No consecutive unisons
+- H4: No direct motion to unison
+- H5: Degree range bounds
+
+**Soft constraints (penalties)**:
+- Weak-beat 5th: 20
+- Weak-beat dissonance: 10
+- Leap > 4 degrees: 30
+- Repeated pitch: 25
+- Interior unison: 15
+- Parallel motion: 10
+
+**Rewards**:
+- Contrary motion: +15
+- Stepwise motion: +5
+- Start/end on stable degree: +10
+
+### Phase 3: Invertibility Checker
+
+**File**: `motifs/invertibility.py`
+
+**Scope**: ~50 lines
+
+**Functions**:
+```python
+def check_invertible_octave(
+    subject_pitches: tuple[int, ...],
+    cs_pitches: tuple[int, ...],
+) -> tuple[bool, list[str]]:
+    """Check if CS is invertible at the octave against subject.
+    
+    Returns (valid, list of violations).
+    """
+
+def invert_countersubject(
+    cs_pitches: tuple[int, ...],
+    subject_pitches: tuple[int, ...],
+) -> tuple[int, ...]:
+    """Return CS pitches transposed to work below the subject."""
+```
+
+### Phase 4: Integration and Testing
+
+**File**: `motifs/fugue_triple.py`
+
+**Scope**: ~100 lines
+
+**Functions**:
+```python
+def generate_fugue_triple(
+    mode: str = "minor",
+    metre: tuple[int, int] = (4, 4),
+    seed: int | None = None,
+    affect: str | None = None,
+) -> FugueTriple:
+    """Generate coordinated subject, answer, and countersubject."""
+
+def verify_fugue_triple(triple: FugueTriple) -> tuple[bool, list[str]]:
+    """Verify all combinations are contrapuntally valid."""
+
+def write_fugue_file(triple: FugueTriple, path: Path) -> None:
+    """Write fugue triple to YAML file."""
+```
+
+**Validation suite**:
+1. Generate 100 triples
+2. Verify each against counterpoint rules
+3. Test invertibility of each countersubject
+4. Compare statistical properties to Little Fugue reference
+
+### Phase 5: Refinement
+
+Based on listening tests and statistical analysis:
+- Tune penalty weights in CS generator
+- Add affect-aware countersubject generation
+- Implement double/triple fugue extensions
+- Add episode material generation
+
+---
+
+## 12. Example Subject Generation
 
 ### Input
 ```python
 generate_subject(
     mode="major",
     metre=(4, 4),
-    duration_bars=2,
     seed=42,
     tonic_midi=60  # C4
 )
@@ -436,18 +741,18 @@ generate_subject(
 ### Output
 ```python
 GeneratedSubject(
-    scale_indices=(0, 0, 3, 2, 1, 4, 3, 2, 5, 4, 0, 2),
-    durations=(0.25, 0.125, 0.125, 0.25, 0.25, 0.125, 0.125, 0.25, 0.25, 0.125, 0.125, 0.25),
-    midi_pitches=(60, 60, 65, 64, 62, 67, 65, 64, 69, 67, 60, 64),
-    head_name="long-short-short-long",
-    leap_size=3,
+    scale_indices=(0, 4, 2, 1, 3, 1, 2, 0, 1, -1, -2),
+    durations=(0.375, 0.125, 0.125, 0.125, 0.25, 0.125, 0.125, 0.125, 0.125, 0.125, 0.375),
+    midi_pitches=(60, 67, 64, 62, 65, 62, 64, 60, 62, 59, 57),
+    bars=2,
+    head_name="dotted-quarters",
+    leap_size=4,
     leap_direction="up",
     tail_direction="down"
 )
 ```
 
 ### Interpretation
-- Head: C4 → C4 → F4 → E4 (leap up of 3, filled by step down)
-- Tail: Descending motion E4 → D4 → G4 → F4 → E4 → A4 → G4 → C4 → E4
-- Total duration: 2.0 (exactly 2 bars in 4/4)
-- Final note: E4 (mediant, stable)
+- Head: C4 → G4 (leap up of 4 = perfect 5th), gap-filled by E4
+- Tail: Descending motion back toward tonic
+- Opens with 1 → 5, so answer will require tonal mutation

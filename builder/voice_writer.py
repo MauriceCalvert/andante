@@ -6,10 +6,15 @@ plan and executes them mechanically.  Makes zero compositional choices.
 Supports section-by-section composition for lead-voice scheduling.
 """
 import logging
+import math
 from dataclasses import replace
 from fractions import Fraction
 from random import Random
+from typing import TYPE_CHECKING
 from builder.arpeggiated_strategy import ArpeggiatedStrategy
+
+if TYPE_CHECKING:
+    from motifs.fugue_loader import LoadedFugue
 from builder.cadential_strategy import CadentialStrategy
 from builder.figuration_strategy import FigurationStrategy
 from builder.junction import check_junction
@@ -37,6 +42,7 @@ from shared.plan_types import (
     VoicePlan,
     WritingMode,
 )
+from shared.constants import STRONG_BEAT_DISSONANT
 from shared.voice_types import Range, Role
 
 _log: logging.Logger = logging.getLogger(__name__)
@@ -52,16 +58,23 @@ _IMPLEMENTED_SEQUENCING: frozenset[str] = frozenset({
     "repeating",
     "static",
 })
+_MATERIAL_LYRICS: dict[str, str] = {
+    "subject": "S",
+    "answer": "A",
+    "countersubject": "CS",
+}
 
 
-_DISSONANT_ICS: frozenset[int] = frozenset({1, 2, 6, 10, 11})
+def _material_to_lyric(material: str) -> str:
+    """Convert fugue material name to concise lyric label."""
+    return _MATERIAL_LYRICS.get(material, material)
 
 
 def _is_consonant(midi: int, prior_pitches: list[int]) -> bool:
     """Check if midi is consonant with all prior pitches."""
     for p in prior_pitches:
         ic: int = abs(midi - p) % 12
-        if ic in _DISSONANT_ICS:
+        if ic in STRONG_BEAT_DISSONANT:
             return False
     return True
 
@@ -98,12 +111,14 @@ class VoiceWriter:
         anchors: tuple[PlanAnchor, ...],
         prior_voices: dict[str, tuple[Note, ...]],
         upbeat: Fraction = Fraction(0),
+        fugue: 'LoadedFugue | None' = None,
     ) -> None:
         self._plan: VoicePlan = plan
         self._home_key: Key = home_key
         self._upbeat: Fraction = upbeat
         self._anchors: tuple[PlanAnchor, ...] = anchors
         self._prior_voices: dict[str, tuple[Note, ...]] = prior_voices
+        self._fugue: 'LoadedFugue | None' = fugue
         self._rng: Random = Random(plan.seed)
         self._pillar: PillarStrategy = PillarStrategy()
         self._figuration: FigurationStrategy = FigurationStrategy()
@@ -182,6 +197,14 @@ class VoiceWriter:
         assert section.role in (Role.SCHEMA_UPPER, Role.SCHEMA_LOWER), (
             f"Role {section.role.name} not yet implemented"
         )
+        fugue_material = self._get_fugue_material_for_section(section=section)
+        if fugue_material is not None:
+            return self._compose_fugue_thematic(
+                section=section,
+                pitches=fugue_material[0],
+                durations=fugue_material[1],
+                material_name=fugue_material[2],
+            )
         assert section.sequencing in _IMPLEMENTED_SEQUENCING, (
             f"Sequencing '{section.sequencing}' not yet implemented"
         )
@@ -191,6 +214,282 @@ class VoiceWriter:
         if section.sequencing == "independent":
             return self._compose_independent(section=section)
         return self._compose_sequenced(section=section)
+
+    def _get_fugue_material_for_section(
+        self,
+        section: SectionPlan,
+    ) -> tuple[tuple[int, ...], tuple[float, ...], str] | None:
+        """Determine which fugue material to use for this section, if any.
+
+        Uses section.lead_material and section.accompany_material from plan.
+        Lead voice gets lead_material, accompanying voice gets accompany_material.
+        Material values: 'subject', 'answer', 'countersubject', 'free', None.
+
+        Returns:
+            (pitches, durations, material_name) or None if no fugue material.
+
+        TODO: Extract subject fragments for episode sequences in remaining gaps.
+        Currently gaps after fugue material are filled with normal figuration.
+        """
+        if self._fugue is None:
+            return None
+        is_lead: bool = self._is_lead_voice(section=section)
+        material: str | None = (
+            section.lead_material if is_lead else section.accompany_material
+        )
+        if material is None or material == "free":
+            return None
+        tonic_midi: int = self._get_material_tonic(section=section, material=material)
+        pitches_durations = self._get_material_pitches(material=material, tonic_midi=tonic_midi)
+        if pitches_durations is None:
+            return None
+        return (pitches_durations[0], pitches_durations[1], material)
+
+    def _is_lead_voice(self, section: SectionPlan) -> bool:
+        """Determine if this voice is the lead for a section."""
+        form_lead: int | None = section.form_lead_voice
+        if form_lead is None:
+            return section.role == Role.SCHEMA_UPPER
+        is_upper: bool = self._plan.midi_track == 0
+        lead_is_upper: bool = form_lead == 0
+        return is_upper == lead_is_upper
+
+    def _get_material_tonic(self, section: SectionPlan, material: str) -> int:
+        """Get the tonic MIDI for fugue material."""
+        if material == "answer":
+            return self._fugue.tonic_midi
+        section_idx: int = self._plan.sections.index(section)
+        if section_idx >= 2:
+            return self._get_section_local_tonic(section=section)
+        return self._fugue.tonic_midi
+
+    def _get_material_pitches(
+        self,
+        material: str,
+        tonic_midi: int,
+    ) -> tuple[tuple[int, ...], tuple[float, ...]] | None:
+        """Get MIDI pitches and durations for a fugue material type."""
+        if material == "subject":
+            return (self._fugue.subject_midi(tonic_midi=tonic_midi), self._fugue.subject.durations)
+        if material == "answer":
+            return (self._fugue.answer_midi(tonic_midi=tonic_midi), self._fugue.answer.durations)
+        if material == "countersubject":
+            return (self._fugue.countersubject_midi(tonic_midi=tonic_midi), self._fugue.countersubject.durations)
+        return None
+
+    def _get_section_local_tonic(self, section: SectionPlan) -> int:
+        """Get the local tonic MIDI for a section from its first anchor.
+
+        Returns tonic at octave 4 (e.g., C4=60, G4=67). The pitches will
+        be transposed to voice range by _transpose_to_range anyway.
+        """
+        first_anchor: PlanAnchor = self._anchors[section.start_gap_index]
+        tonic_pc: int = first_anchor.local_key.tonic_pc
+        tonic_octave_4: int = tonic_pc + 60
+        return tonic_octave_4
+
+    def _compose_fugue_thematic(
+        self,
+        section: SectionPlan,
+        pitches: tuple[int, ...],
+        durations: tuple[float, ...],
+        material_name: str,
+    ) -> list[Note]:
+        """Compose section using literal fugue pitches, then fill remaining gaps."""
+        lyric: str = _material_to_lyric(material=material_name)
+        section_start: Fraction = self._get_section_start_offset(section=section)
+        transposed: tuple[int, ...] = self._transpose_to_range_avoiding_crossing(
+            pitches=pitches,
+            durations=durations,
+            start_offset=section_start,
+        )
+        result: list[Note] = []
+        offset: Fraction = section_start
+        for midi, dur in zip(transposed, durations):
+            adjusted: int = self._adjust_fugue_pitch_for_consonance(
+                midi=midi,
+                offset=offset,
+            )
+            frac_dur: Fraction = Fraction(dur).limit_denominator(64)
+            note: Note = Note(
+                offset=offset,
+                pitch=adjusted,
+                duration=frac_dur,
+                voice=self._plan.midi_track,
+                lyric=lyric,
+            )
+            result.append(note)
+            self._prev_candidate_midi = adjusted
+            self._prev_candidate_offset = offset
+            offset += frac_dur
+        self._current_voice_notes.extend(result)
+        if result:
+            self._prev_exit_pitch = self._home_key.midi_to_diatonic(midi=result[-1].pitch)
+        fugue_end: Fraction = offset
+        remaining: list[Note] = self._fill_remaining_gaps(
+            section=section,
+            filled_until=fugue_end,
+        )
+        result.extend(remaining)
+        return result
+
+    def _adjust_fugue_pitch_for_consonance(
+        self,
+        midi: int,
+        offset: Fraction,
+    ) -> int:
+        """Adjust fugue pitch by octave if dissonant or crossing prior voices."""
+        prior_pitches: list[int] = self._prior_at_offset.get(offset, [])
+        if not prior_pitches:
+            return midi
+        rng: Range = self._plan.actuator_range
+        is_upper: bool = self._plan.midi_track == 0
+        def is_valid(candidate: int) -> bool:
+            if candidate < rng.low or candidate > rng.high:
+                return False
+            if not _is_consonant(midi=candidate, prior_pitches=prior_pitches):
+                return False
+            for prior in prior_pitches:
+                if is_upper and candidate < prior:
+                    return False
+                if not is_upper and candidate > prior:
+                    return False
+            return True
+        if is_valid(candidate=midi):
+            return midi
+        for shift in (12, -12, 24, -24):
+            candidate: int = midi + shift
+            if is_valid(candidate=candidate):
+                return candidate
+        return midi
+
+    def _transpose_to_range_avoiding_crossing(
+        self,
+        pitches: tuple[int, ...],
+        durations: tuple[float, ...],
+        start_offset: Fraction,
+    ) -> tuple[int, ...]:
+        """Transpose pitches to range, then adjust to avoid crossing prior voices."""
+        transposed: tuple[int, ...] = self._transpose_to_range(pitches=pitches)
+        if not transposed:
+            return transposed
+        is_upper: bool = self._plan.midi_track == 0
+        rng: Range = self._plan.actuator_range
+        offset: Fraction = start_offset
+        crossing_count: int = 0
+        for midi, dur in zip(transposed, durations):
+            prior_pitches: list[int] = self._prior_at_offset.get(offset, [])
+            for prior in prior_pitches:
+                if is_upper and midi < prior:
+                    crossing_count += 1
+                elif not is_upper and midi > prior:
+                    crossing_count += 1
+            offset += Fraction(dur).limit_denominator(64)
+        if crossing_count == 0:
+            return transposed
+        shift: int = 12 if is_upper else -12
+        shifted: tuple[int, ...] = tuple(p + shift for p in transposed)
+        if all(rng.low <= p <= rng.high for p in shifted):
+            return shifted
+        return transposed
+
+    def _transpose_to_range(self, pitches: tuple[int, ...]) -> tuple[int, ...]:
+        """Transpose pitches by octaves to fit within actuator_range.
+
+        Finds an octave shift such that all transposed pitches lie within
+        the voice's actuator_range, preferring shifts that centre the
+        material near the tessitura median.
+        """
+        if not pitches:
+            return pitches
+        rng: Range = self._plan.actuator_range
+        min_pitch: int = min(pitches)
+        max_pitch: int = max(pitches)
+        pitch_span: int = max_pitch - min_pitch
+        voice_span: int = rng.high - rng.low
+        assert pitch_span <= voice_span, (
+            f"Fugue pitch span ({pitch_span} semitones) exceeds voice range "
+            f"({voice_span} semitones): cannot fit within [{rng.low}-{rng.high}]"
+        )
+        min_shift: int = math.ceil((rng.low - min_pitch) / 12)
+        max_shift: int = math.floor((rng.high - max_pitch) / 12)
+        assert min_shift <= max_shift, (
+            f"No valid octave shift: need >= {min_shift} and <= {max_shift}"
+        )
+        median: int = self._plan.tessitura_median
+        pitch_centre: int = (min_pitch + max_pitch) // 2
+        best_shift: int = min_shift
+        best_distance: int = abs(pitch_centre + min_shift * 12 - median)
+        for shift in range(min_shift, max_shift + 1):
+            distance: int = abs(pitch_centre + shift * 12 - median)
+            if distance < best_distance:
+                best_distance = distance
+                best_shift = shift
+        transposed: tuple[int, ...] = tuple(p + best_shift * 12 for p in pitches)
+        return transposed
+
+    def _fill_remaining_gaps(
+        self,
+        section: SectionPlan,
+        filled_until: Fraction,
+    ) -> list[Note]:
+        """Fill gaps in section that start at or after filled_until."""
+        result: list[Note] = []
+        prev_anchor_midi: int | None = self._prev_candidate_midi
+        for gap_idx, gap in enumerate(section.gaps):
+            anchor_idx: int = section.start_gap_index + gap_idx
+            source_anchor: PlanAnchor = self._anchors[anchor_idx]
+            gap_offset: Fraction = _bar_beat_to_offset(
+                bar_beat=source_anchor.bar_beat,
+                metre=self._plan.metre,
+                upbeat=self._upbeat,
+            )
+            if gap_offset < filled_until:
+                continue
+            if gap.bar_function == "final":
+                final_anchor: PlanAnchor = self._anchors[-1]
+                source_pitch: DiatonicPitch = self._resolve_anchor_pitch(
+                    anchor=final_anchor,
+                    role=section.role,
+                    prev_midi=prev_anchor_midi,
+                )
+                target_pitch: DiatonicPitch = source_pitch
+            else:
+                target_anchor: PlanAnchor = self._anchors[anchor_idx + 1]
+                source_pitch = self._resolve_anchor_pitch(
+                    anchor=source_anchor,
+                    role=section.role,
+                    prev_midi=prev_anchor_midi,
+                )
+                source_midi: int = self._home_key.diatonic_to_midi(dp=source_pitch)
+                ascending_hint: bool | None = _ascending_hint_for_resolve(
+                    source_anchor=source_anchor,
+                    target_anchor=target_anchor,
+                    role=section.role,
+                    gap_ascending=gap.ascending,
+                )
+                target_pitch = self._resolve_anchor_pitch(
+                    anchor=target_anchor,
+                    role=section.role,
+                    prev_midi=source_midi,
+                    ascending_hint=ascending_hint,
+                )
+            notes: list[Note] = self._compose_gap(
+                gap=gap,
+                source_pitch=source_pitch,
+                target_pitch=target_pitch,
+                gap_offset=gap_offset,
+            )
+            result.extend(notes)
+            self._current_voice_notes.extend(notes)
+            if notes:
+                last_note: Note = notes[-1]
+                prev_anchor_midi = last_note.pitch
+                self._prev_exit_pitch = self._home_key.midi_to_diatonic(
+                    midi=last_note.pitch,
+                )
+                self._update_leap_direction(notes=notes)
+        return result
 
     def _compose_independent(self, section: SectionPlan) -> list[Note]:
         """Compose section with independent gap selection."""

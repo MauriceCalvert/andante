@@ -7,19 +7,11 @@ Validates that a user-provided subject fits the schema-first model:
 """
 from planner.plannertypes import Motif, SubjectValidation
 from planner.schema_loader import get_schema
-
-
-# Consonant intervals in semitones (unison, m3, M3, P4, P5, m6, M6, octave)
-CONSONANT_INTERVALS: frozenset[int] = frozenset({0, 3, 4, 5, 7, 8, 9, 12})
-
-# Degrees consonant with bass degree 1 (tonic triad: 1, 3, 5)
-CONSONANT_WITH_TONIC: frozenset[int] = frozenset({1, 3, 5})
-
-# Scale degrees in major mode (for answerability check)
-MAJOR_DEGREES: frozenset[int] = frozenset({1, 2, 3, 4, 5, 6, 7})
-
-# Scale degrees in minor mode (natural minor)
-MINOR_DEGREES: frozenset[int] = frozenset({1, 2, 3, 4, 5, 6, 7})
+from shared.constants import (
+    CONSONANT_DEGREES_WITH_TONIC,
+    CONSONANT_INTERVALS_WITH_OCTAVE,
+    DIATONIC_DEGREES,
+)
 
 
 def degree_to_semitones(degree: int, mode: str) -> int:
@@ -90,14 +82,14 @@ def check_schema_fit(
 
     # Determine consonant degrees based on bass
     if first_bass_normalized == 1:
-        consonant = CONSONANT_WITH_TONIC
+        consonant = CONSONANT_DEGREES_WITH_TONIC
     elif first_bass_normalized == 5:
         consonant = frozenset({5, 7, 2})  # Dominant triad
     elif first_bass_normalized == 4:
         consonant = frozenset({4, 6, 1})  # Subdominant triad
     else:
         # For other bass degrees, allow tonic triad as fallback
-        consonant = CONSONANT_WITH_TONIC
+        consonant = CONSONANT_DEGREES_WITH_TONIC
 
     # Check first degree
     first_degree = ((subject_degrees[0] - 1) % 7) + 1
@@ -134,11 +126,11 @@ def check_invertibility(degrees: tuple[int, ...], mode: str) -> tuple[bool, str]
         inverted = (12 - interval) % 12
 
         # Check if inverted interval is consonant
-        if interval not in CONSONANT_INTERVALS:
+        if interval not in CONSONANT_INTERVALS_WITH_OCTAVE:
             # Original interval is already dissonant - may be intentional
             continue
 
-        if inverted not in CONSONANT_INTERVALS:
+        if inverted not in CONSONANT_INTERVALS_WITH_OCTAVE:
             errors.append(
                 f"Interval {interval} semitones (degrees {degrees[i]}->{degrees[i+1]}) "
                 f"inverts to {inverted} semitones, which is dissonant"
@@ -177,7 +169,7 @@ def check_answerability(
     # For simplicity, we check that transposition stays diatonic
 
     errors: list[str] = []
-    valid_degrees = MAJOR_DEGREES if mode == "major" else MINOR_DEGREES
+    valid_degrees = DIATONIC_DEGREES
 
     for deg in degrees:
         normalized = ((deg - 1) % 7) + 1

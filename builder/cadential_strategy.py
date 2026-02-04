@@ -16,19 +16,12 @@ from builder.figuration.types import CadentialFigure, RhythmTemplate
 from builder.types import FigureRejection, FigureRejectionError
 from builder.voice_checks import check_melodic_interval
 from builder.writing_strategy import WritingStrategy
+from shared.constants import CADENTIAL_TARGET_DEGREE
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
 from shared.plan_types import GapPlan
 
 _log: logging.Logger = logging.getLogger(__name__)
-
-_CADENTIAL_TARGET_DEGREE: dict[str, str] = {
-    "step_down": "target_1",
-    "step_up": "target_5",
-    "third_down": "target_1",
-    "third_up": "target_5",
-    "unison": "target_1",
-}
 
 
 class CadentialStrategy(WritingStrategy):
@@ -56,7 +49,7 @@ class CadentialStrategy(WritingStrategy):
         candidate_filter: Callable[[DiatonicPitch, Fraction, bool], str | None],
     ) -> tuple[tuple[DiatonicPitch, Fraction], ...]:
         """Select and expand a cadential figure."""
-        target_key: str = _CADENTIAL_TARGET_DEGREE.get(
+        target_key: str = CADENTIAL_TARGET_DEGREE.get(
             gap.interval, "target_1",
         )
         approach_figs: dict[str, list[CadentialFigure]] = (

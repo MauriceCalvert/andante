@@ -3,12 +3,9 @@
 Checks that the transition from the last note of one gap to the
 first note of the next gap is melodically acceptable.
 """
-from shared.constants import GROTESQUE_LEAP_SEMITONES
+from shared.constants import GROTESQUE_LEAP_SEMITONES, UGLY_INTERVALS
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
-
-_MAX_LEAP_SEMITONES: int = 12
-_UGLY_INTERVALS: frozenset[int] = frozenset({1, 6, 10, 11})
 
 
 def check_junction(
@@ -38,6 +35,6 @@ def check_junction(
         if junction_direction == prev_leap_direction:
             return False
     ic: int = semitones % 12
-    if ic in _UGLY_INTERVALS and semitones > 2:
+    if ic in UGLY_INTERVALS and semitones > 2:
         return False
     return True

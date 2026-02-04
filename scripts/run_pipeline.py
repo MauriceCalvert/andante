@@ -33,6 +33,7 @@ from pathlib import Path
 import yaml
 
 from builder.faults import find_faults, print_faults
+from motifs.fugue_loader import LoadedFugue, load_fugue
 from builder.types import Composition
 from planner.planner import generate_to_files
 from shared.tracer import get_tracer, reset_tracer, set_trace_level
@@ -76,6 +77,8 @@ def run_from_args(
     verbose: bool = False,
     tempo: int | None = None,
     trace_level: int = 0,
+    fugue: LoadedFugue | None = None,
+    sections_override: tuple[dict, ...] | None = None,
 ) -> Composition:
     """Generate from explicit genre/affect arguments."""
     affect = normalize_affect(affect=affect)
@@ -88,7 +91,7 @@ def run_from_args(
         print(f"  Affect: {affect}")
     key_display: str = key if key else "(derived from affect)"
     print(f"Generating {genre} with {affect} affect in {key_display}...")
-    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key, tempo=tempo)
+    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key, tempo=tempo, fugue=fugue, sections_override=sections_override)
     for vid, vnotes in result.voices.items():
         print(f"  {vid}: {len(vnotes)} notes")
     print(f"  Tempo: {result.tempo} BPM")
@@ -102,6 +105,38 @@ def run_from_args(
     faults = find_faults(voices=voice_list, metre=result.metre)
     print_faults(faults=faults)
     return result
+
+
+def _convert_brief_sections(brief_sections: list[dict]) -> tuple[dict, ...]:
+    """Convert brief sections format to genre sections format.
+
+    Brief format:
+        - name: opening
+          phrases:
+            - {schema: do_re_mi, treatment: statement, bars: 2, tonal_target: I}
+
+    Genre format:
+        - name: opening
+          schema_sequence: [do_re_mi, ...]
+    """
+    result: list[dict] = []
+    for section in brief_sections:
+        converted: dict = {}
+        assert "name" in section, f"Section missing 'name': {section}"
+        converted["name"] = section["name"]
+        phrases: list[dict] = section.get("phrases", [])
+        schema_sequence: list[str] = [p["schema"] for p in phrases if "schema" in p]
+        converted["schema_sequence"] = schema_sequence
+        if "lead_voice" in section:
+            converted["lead_voice"] = section["lead_voice"]
+        if "accompany_texture" in section:
+            converted["accompany_texture"] = section["accompany_texture"]
+        if "tonal_path" in section:
+            converted["tonal_path"] = section["tonal_path"]
+        if "final_cadence" in section:
+            converted["final_cadence"] = section["final_cadence"]
+        result.append(converted)
+    return tuple(result)
 
 
 def run_from_brief(
@@ -131,8 +166,19 @@ def run_from_brief(
             f"Use e.g. 'tempo: 100' not 'tempo: allegro'"
         )
         tempo = raw_tempo
+    subject_name: str | None = brief_data.get("subject")
+    fugue: LoadedFugue | None = None
+    if subject_name:
+        fugue = load_fugue(name=subject_name)
+        if verbose:
+            print(f"  Loaded fugue: {subject_name}")
+    sections_override: tuple[dict, ...] | None = None
+    if "sections" in data:
+        sections_override = _convert_brief_sections(brief_sections=data["sections"])
+        if verbose:
+            print(f"  Sections override: {len(sections_override)} sections")
     output_name: str = brief_path.stem
-    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace_level=trace_level)
+    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace_level=trace_level, fugue=fugue, sections_override=sections_override)
 
 
 def run_from_directory(

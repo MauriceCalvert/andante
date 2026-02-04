@@ -14,15 +14,20 @@ from typing import Any
 
 import yaml
 
-from shared.constants import SKIP_SEMITONES
+from shared.constants import (
+    MAX_BASS_LEAP,
+    MIN_BASS_MIDI,
+    SKIP_SEMITONES,
+    TRITONE_SEMITONES,
+    VALID_BASS_MODES,
+    VALID_BASS_TREATMENTS,
+    VALID_HARMONIC_RHYTHMS,
+    VALID_TEXTURES,
+)
 from shared.key import Key
 from shared.pitch import select_octave
 
 DATA_PATH: Path = Path(__file__).parent.parent.parent / "data" / "figuration" / "bass_patterns.yaml"
-MIN_BASS_MIDI: int = 40  # E2 - lowest acceptable bass note (matches VOICE_RANGES)
-VALID_BASS_TREATMENTS: frozenset[str] = frozenset({"contrapuntal", "patterned"})
-VALID_TEXTURES: frozenset[str] = frozenset({"continuo", "arpeggiated", "ostinato", "pedal"})
-VALID_HARMONIC_RHYTHMS: frozenset[str] = frozenset({"per_bar", "per_half", "per_beat", "none"})
 
 
 @dataclass(frozen=True)
@@ -200,9 +205,6 @@ def get_patterns_for_metre(metre: str) -> list[BassPattern]:
     return [p for p in patterns.values() if p.metre == metre or p.metre == "any"]
 
 
-VALID_BASS_MODES: frozenset[str] = frozenset({"schema", "pattern"})
-
-
 def validate_bass_treatment(
     bass_treatment: str | None,
     bass_mode: str,
@@ -232,12 +234,6 @@ def validate_bass_treatment(
             f"Genre '{genre_name}' specifies unknown bass_pattern '{bass_pattern}'; "
             f"available: {', '.join(sorted(all_patterns))}"
         )
-
-
-# Tritone interval in semitones
-TRITONE_SEMITONES: int = 6
-# Maximum acceptable leap in bass (octave)
-MAX_BASS_LEAP: int = 12
 
 
 def realise_bass_pattern(

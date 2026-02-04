@@ -9,17 +9,15 @@ from fractions import Fraction
 from shared.constants import (
     CONSONANT_INTERVALS_ABOVE_BASS,
     DIRECT_MOTION_STEP_THRESHOLD,
+    INTERVAL_NAMES_SHORT,
     PERFECT_INTERVALS,
+    UGLY_INTERVALS,
     UGLY_LEAP_SEMITONES,
 )
 from shared.voice_types import Range
 
 _CONSONANT_IC: frozenset[int] = CONSONANT_INTERVALS_ABOVE_BASS
 _PERFECT_IC: frozenset[int] = PERFECT_INTERVALS
-_UGLY_INTERVALS: frozenset[int] = frozenset({1, 6, 10, 11})
-_INTERVAL_NAMES: tuple[str, ...] = (
-    "unison", "m2", "M2", "m3", "M3", "P4", "tritone", "P5", "m6", "M6", "m7", "M7",
-)
 
 
 def format_interval(semitones: int) -> str:
@@ -28,7 +26,7 @@ def format_interval(semitones: int) -> str:
         return f"-{format_interval(semitones=-semitones)}"
     simple: int = semitones % 12
     octaves: int = semitones // 12
-    name: str = _INTERVAL_NAMES[simple]
+    name: str = INTERVAL_NAMES_SHORT[simple]
     if octaves == 0:
         return name
     if octaves == 1 and simple == 0:
@@ -77,7 +75,7 @@ def check_melodic_interval(prev_midi: int, curr_midi: int) -> bool:
     if interval <= 2:
         return True
     simple: int = interval % 12
-    return simple not in _UGLY_INTERVALS
+    return simple not in UGLY_INTERVALS
 
 
 def check_parallels(

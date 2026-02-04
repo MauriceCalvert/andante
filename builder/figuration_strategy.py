@@ -17,6 +17,7 @@ from builder.figuration.types import Figure, RhythmTemplate
 from builder.types import FigureRejection, FigureRejectionError
 from builder.voice_checks import check_melodic_interval
 from builder.writing_strategy import WritingStrategy
+from shared.constants import INTERVAL_EXIT_DEGREES, MIN_FIGURATION_NOTES
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
 from shared.plan_types import GapPlan
@@ -28,23 +29,7 @@ _DENSITY_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2}
 _CHARACTER_RANK: dict[str, int] = {
     "plain": 0, "expressive": 1, "energetic": 2, "ornate": 3, "bold": 4,
 }
-_INTERVAL_EXIT: dict[str, int] = {
-    "unison": 0,
-    "step_up": 1,
-    "step_down": -1,
-    "third_up": 2,
-    "third_down": -2,
-    "fourth_up": 3,
-    "fourth_down": -3,
-    "fifth_up": 4,
-    "fifth_down": -4,
-    "sixth_up": 5,
-    "sixth_down": -5,
-    "octave_up": 7,
-    "octave_down": -7,
-}
 MAX_FIGURE_ATTEMPTS: int = 20
-MIN_NOTE_COUNT: int = 2
 
 
 class FigurationStrategy(WritingStrategy):
@@ -74,7 +59,7 @@ class FigurationStrategy(WritingStrategy):
         durations: tuple[Fraction, ...] = self._get_rhythm(
             note_count, gap, metre,
         )
-        expected_exit: int = _INTERVAL_EXIT.get(gap.interval, 0)
+        expected_exit: int = INTERVAL_EXIT_DEGREES.get(gap.interval, 0)
         pairs, _ = _expand_and_check(
             figure, note_count, source_pitch, durations, candidate_filter,
             expected_exit, home_key,
@@ -108,7 +93,7 @@ class FigurationStrategy(WritingStrategy):
             )
         rejections: list[FigureRejection] = []
         max_count: int = self._target_note_count(gap)
-        for note_count in range(max_count, MIN_NOTE_COUNT - 1, -1):
+        for note_count in range(max_count, MIN_FIGURATION_NOTES - 1, -1):
             filtered: list[Figure] = self.filter_figures(
                 gap, all_figures, note_count, home_key, strict_density=True,
             )
@@ -121,7 +106,7 @@ class FigurationStrategy(WritingStrategy):
                     note_count, gap, metre,
                 )
                 ranked: list[Figure] = sorted(filtered, key=lambda f: -f.weight)
-                expected_exit: int = _INTERVAL_EXIT.get(gap.interval, 0)
+                expected_exit: int = INTERVAL_EXIT_DEGREES.get(gap.interval, 0)
                 for figure in ranked[:MAX_FIGURE_ATTEMPTS]:
                     pairs, rejection = _expand_and_check(
                         figure, note_count, source_pitch,

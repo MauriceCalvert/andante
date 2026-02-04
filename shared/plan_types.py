@@ -9,6 +9,10 @@ from enum import Enum
 from fractions import Fraction
 from shared.key import Key
 from shared.voice_types import Range, Role
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from motifs.fugue_loader import LoadedFugue
 
 
 class WritingMode(Enum):
@@ -75,6 +79,9 @@ class SectionPlan:
     follow_delay: Fraction | None
     shared_actuator_with: str | None
     gaps: tuple[GapPlan, ...]
+    lead_material: str | None = None
+    accompany_material: str | None = None
+    form_lead_voice: int | None = None
 
 
 @dataclass(frozen=True)
@@ -110,6 +117,7 @@ class CompositionPlan:
     upbeat: Fraction
     voice_plans: tuple[VoicePlan, ...]
     anchors: tuple[PlanAnchor, ...]
+    fugue: 'LoadedFugue | None' = None
 
 
 # ── validate_plan ────────────────────────────────────────────────────────────

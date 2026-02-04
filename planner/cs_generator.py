@@ -18,12 +18,19 @@ from typing import Optional
 import yaml
 from ortools.sat.python import cp_model
 
-from shared.constants import MAJOR_SCALE, MINOR_SCALE
+from shared.constants import (
+    ALL_CONSONANCES,
+    IMPERFECT_CONSONANCES,
+    INVERTIBLE_CONSONANCES,
+    MAJOR_SCALE,
+    MINOR_SCALE,
+    PERFECT_INTERVALS,
+)
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
 
 # Valid durations in descending order
-VALID_DURATIONS: tuple[Fraction, ...] = (
+CS_VALID_DURATIONS: tuple[Fraction, ...] = (
     Fraction(1, 2),    # Half note
     Fraction(3, 8),    # Dotted quarter
     Fraction(1, 4),    # Quarter note
@@ -34,7 +41,7 @@ VALID_DURATIONS: tuple[Fraction, ...] = (
 
 # Baroque-style durations: beat-aligned, no 16ths or dotted 8ths
 # For interleaved/invertible counterpoint where modern syncopation sounds wrong
-BAROQUE_DURATIONS: tuple[Fraction, ...] = (
+CS_BAROQUE_DURATIONS: tuple[Fraction, ...] = (
     Fraction(1, 2),    # Half note
     Fraction(3, 8),    # Dotted quarter (on beat)
     Fraction(1, 4),    # Quarter note
@@ -49,16 +56,6 @@ BAROQUE_MIN_CS_DURATION: Fraction = Fraction(1, 8)
 
 # Duration scale for integer arithmetic (LCM of denominators)
 DURATION_SCALE: int = 32
-
-# Consonant interval classes (semitones mod 12)
-PERFECT_CONSONANCES: frozenset[int] = frozenset({0, 7})  # Unison, fifth
-IMPERFECT_CONSONANCES: frozenset[int] = frozenset({3, 4, 8, 9})  # 3rds, 6ths
-ALL_CONSONANCES: frozenset[int] = PERFECT_CONSONANCES | IMPERFECT_CONSONANCES
-
-# Invertible consonances: 3rds and 6ths only (Bach's practice)
-# 5ths become 4ths when inverted (dissonant against bass)
-# Unisons reduce voice independence
-INVERTIBLE_CONSONANCES: frozenset[int] = IMPERFECT_CONSONANCES  # {3, 4, 8, 9}
 
 # Strong beats in common time (positions where collisions are OK)
 # Expressed as fractions of a bar
@@ -478,7 +475,7 @@ def _compute_allowed_durations(subject: SubjectSpec, baroque: bool = False) -> l
                 - All onsets on 1/8 grid
     """
     # Select base duration set based on mode
-    valid_set = BAROQUE_DURATIONS if baroque else VALID_DURATIONS
+    valid_set = CS_BAROQUE_DURATIONS if baroque else CS_VALID_DURATIONS
 
     subj_durs = subject.duration_vocabulary
     subj_min = min(subj_durs)

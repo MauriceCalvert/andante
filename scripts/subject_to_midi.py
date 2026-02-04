@@ -7,15 +7,8 @@ from typing import Sequence
 
 import yaml
 
+from shared.constants import MAJOR_SCALE, NATURAL_MINOR_SCALE, TONIC_TO_MIDI
 from shared.midi_writer import write_midi
-
-MAJOR_INTERVALS = (0, 2, 4, 5, 7, 9, 11)
-MINOR_INTERVALS = (0, 2, 3, 5, 7, 8, 10)
-TONIC_TO_MIDI = {
-    'C': 60, 'C#': 61, 'Db': 61, 'D': 62, 'D#': 63, 'Eb': 63,
-    'E': 64, 'F': 65, 'F#': 66, 'Gb': 66, 'G': 67, 'G#': 68,
-    'Ab': 68, 'A': 69, 'A#': 70, 'Bb': 70, 'B': 71,
-}
 
 
 def degrees_to_midi(
@@ -27,7 +20,7 @@ def degrees_to_midi(
     """Convert degrees to MIDI, choosing octave to minimise leaps."""
     assert tonic in TONIC_TO_MIDI, f"Unknown tonic: {tonic}"
     assert mode in ('major', 'minor'), f"Mode must be 'major' or 'minor', got {mode}"
-    intervals = MAJOR_INTERVALS if mode == 'major' else MINOR_INTERVALS
+    intervals = MAJOR_SCALE if mode == 'major' else NATURAL_MINOR_SCALE
     base = TONIC_TO_MIDI[tonic]
     pitches: list[int] = []
     prev: int = base + (start_octave - 4) * 12

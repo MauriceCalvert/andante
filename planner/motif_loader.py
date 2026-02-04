@@ -5,13 +5,10 @@ import csv
 import re
 
 from planner.plannertypes import Motif
-from shared.constants import MAJOR_SCALE, MINOR_SCALE, NOTE_NAME_MAP
+from shared.constants import MAJOR_SCALE, MINOR_SCALE, NOTE_NAME_MAP, VALID_DENOMINATORS
 
 MOTIFS_DIR: Path = Path(__file__).parent.parent / "motifs"
 BASE_DIR: Path = Path(__file__).parent.parent
-
-# Valid musical duration denominators (powers of 2, with triplet variants)
-VALID_DENOMINATORS: frozenset[int] = frozenset({1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64})
 
 
 def parse_note_name(note_str: str) -> int:
