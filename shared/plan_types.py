@@ -98,6 +98,7 @@ class VoicePlan:
     rhythmic_unit: Fraction
     sections: tuple[SectionPlan, ...]
     anacrusis: AnacrusisPlan | None
+    bass_pattern: str | None = None
 
 
 @dataclass(frozen=True)

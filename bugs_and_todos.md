@@ -7,26 +7,8 @@ Single source of truth for all bugs, planned fixes, and future work.
 # Part 1: Active Bugs
 
 ## BUG-003: Bass patterns not applied
-
-**Date:** 2025-02-04
-
-**Symptom:** Genre configs specify bass patterns (`arpeggiated_3_4`, `half_bar`) but output shows whole-bar sustained notes. Minuet bass: G2 for 3 beats, F#2 for 3 beats. Gavotte bass: D3 for whole bar.
-
-**Expected:** Minuet with `bass_pattern: arpeggiated_3_4` should produce broken chord (root, third, fifth) per bar.
-
-**Diagnosis needed:**
-1. Trace from genre config load → VoicePlan → VoiceWriter
-2. Check if `bass_treatment: patterned` triggers pattern lookup
-3. Verify `realise_bass_pattern()` is called at all
-4. Check if rhythm pattern durations are being applied or overwritten
-
-**Files to investigate:**
-- `builder/compose.py` — entry point
-- `planner/voice_planning.py` — builds VoicePlan
-- `builder/voice_writer.py` — writes notes
-- `builder/figuration/bass.py` — pattern realisation
-
-**Root cause:** TBD
+**Fixed:** 2026-02-04
+**Solution:** Wired bass_treatment/bass_pattern from GenreConfig through voice planner into voice writer. Created ArpeggiatedStrategy that realises BassPattern (degree offsets) and RhythmPattern (schema pitches) into notes. Lower voice now uses WritingMode.ARPEGGIATED instead of PILLAR when bass_treatment is "patterned".
 
 ---
 
@@ -203,6 +185,10 @@ figuration_profile: galant_dance
 ## BUG-002: Broken backtracking for inner voice parallel motion
 **Fixed:** 2026-01-09
 **Solution:** Proper backtracking tree, chord tone fallback.
+
+## BUG-003: Bass patterns not applied
+**Fixed:** 2026-02-04
+**Solution:** Wired bass_treatment/bass_pattern from GenreConfig through voice planner into voice writer. Created ArpeggiatedStrategy that realises BassPattern (degree offsets) and RhythmPattern (schema pitches) into notes.
 
 ---
 

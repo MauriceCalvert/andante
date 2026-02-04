@@ -161,3 +161,67 @@ Pass `plan.upbeat` to `VoiceWriter()`.
 **`bar_beat()`** — subtracts upbeat before computing bar/beat columns:
 `total_beats = (offset - upbeat) * 4`. Bar labels match the musical score
 (bar 0 = anacrusis, bar 1 = first full bar).
+
+---
+
+# BUG-003 Fix: Bass Patterns Not Applied
+
+## Symptom
+
+Genre configs specify `bass_treatment: patterned` with `bass_pattern` names
+(e.g. `arpeggiated_3_4` for minuet, `half_bar` for gavotte) but the bass
+voice always produced whole-bar sustained notes identical to PILLAR mode.
+
+## Root Cause
+
+`voice_planning.py` ignored `GenreConfig.bass_treatment` and
+`GenreConfig.bass_pattern`. The function `_get_writing_mode()` always
+assigned `WritingMode.PILLAR` to non-lead lower voice gaps. The
+`realise_bass_pattern()` and `realise_bass_schema()` functions in
+`builder/figuration/bass.py` were never called.
+
+## Fix
+
+### shared/plan_types.py
+
+Added `bass_pattern: str | None = None` field to `VoicePlan`. Carries the
+pattern name from planner to voice writer.
+
+### planner/voice_planning.py
+
+- `build_composition_plan()` sets `bass_pattern` on the lower `VoicePlan`
+  when `bass_treatment == "patterned"`.
+- `_build_sections()` and `_build_gaps_for_range()` accept `bass_treatment`
+  parameter, passed through to `_get_writing_mode()`.
+- `_get_writing_mode()` returns `WritingMode.ARPEGGIATED` instead of
+  `WritingMode.PILLAR` when `bass_treatment == "patterned"` and
+  `is_upper == False`. Cadential mode still takes priority.
+
+### builder/arpeggiated_strategy.py (new)
+
+`ArpeggiatedStrategy` implements `WritingStrategy.fill_gap()`. Auto-detects
+whether the named pattern is a `BassPattern` (degree offsets from root,
+from `bass_patterns.yaml`) or `RhythmPattern` (schema-driven pitches, from
+`rhythm_patterns.yaml`).
+
+- BassPattern: transposes source_pitch by each beat's `degree_offset`.
+- RhythmPattern: uses `source_pitch` or `target_pitch` per beat's `use_next`.
+- Duration tokens `bar`/`half`/beats resolved from gap duration and metre.
+- Candidate filter applied per note; falls back to root on rejection.
+
+### builder/voice_writer.py
+
+- Added `WritingMode.ARPEGGIATED` to `_IMPLEMENTED_MODES`.
+- Creates `ArpeggiatedStrategy` in `__init__` when `plan.bass_pattern` is set.
+- `_strategy_for_mode()` dispatches ARPEGGIATED to the strategy.
+- `_compose_gap()` treats ARPEGGIATED like PILLAR for candidate filtering
+  (no melodic interval checks between pattern notes).
+
+## Affected Genres
+
+| Genre | bass_pattern | Effect |
+|-------|-------------|--------|
+| minuet | arpeggiated_3_4 | Root-third-fifth broken chord per bar |
+| gavotte | half_bar | Two notes per bar (current + next degree) |
+| sarabande | continuo_sustained | Sustained root (same as before, explicit) |
+| bourree | continuo_walking | Stepwise quarter notes through bar |

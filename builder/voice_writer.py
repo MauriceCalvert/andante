@@ -9,6 +9,7 @@ import logging
 from dataclasses import replace
 from fractions import Fraction
 from random import Random
+from builder.arpeggiated_strategy import ArpeggiatedStrategy
 from builder.cadential_strategy import CadentialStrategy
 from builder.figuration_strategy import FigurationStrategy
 from builder.junction import check_junction
@@ -44,6 +45,7 @@ _IMPLEMENTED_MODES: frozenset[WritingMode] = frozenset({
     WritingMode.FIGURATION,
     WritingMode.CADENTIAL,
     WritingMode.STAGGERED,
+    WritingMode.ARPEGGIATED,
 })
 _IMPLEMENTED_SEQUENCING: frozenset[str] = frozenset({
     "independent",
@@ -108,6 +110,11 @@ class VoiceWriter:
         self._cadential: CadentialStrategy = CadentialStrategy()
         self._staggered: StaggeredStrategy = StaggeredStrategy(
             fill_strategy=self._figuration,
+        )
+        self._arpeggiated: ArpeggiatedStrategy | None = (
+            ArpeggiatedStrategy(plan.bass_pattern)
+            if plan.bass_pattern is not None
+            else None
         )
         self._prev_figure_name: str = ""
         self._prev_leap_direction: int = 0
@@ -312,7 +319,7 @@ class VoiceWriter:
         if delay > 0:
             effective_gap = replace(gap, gap_duration=gap.gap_duration - delay)
         strategy: WritingStrategy = self._strategy_for_mode(gap.writing_mode)
-        if gap.writing_mode == WritingMode.PILLAR:
+        if gap.writing_mode in (WritingMode.PILLAR, WritingMode.ARPEGGIATED):
             candidate_filter = lambda dp, offset, is_first: self._check_candidate(
                 dp, gap_offset + delay + offset, check_melodic=False,
             )
@@ -644,6 +651,11 @@ class VoiceWriter:
             return self._cadential
         if mode == WritingMode.STAGGERED:
             return self._staggered
+        if mode == WritingMode.ARPEGGIATED:
+            assert self._arpeggiated is not None, (
+                "WritingMode.ARPEGGIATED requires bass_pattern in VoicePlan"
+            )
+            return self._arpeggiated
         assert False, f"Unreachable: {mode.name}"
 
     # ── Sequencing helpers ────────────────────────────────

@@ -110,6 +110,7 @@ def build_composition_plan(
         metre=genre_config.metre,
         is_upper=False,
         affect_config=affect_config,
+        bass_treatment=genre_config.bass_treatment,
     )
     tessitura_upper: int = (upper_range[0] + upper_range[1]) // 2
     tessitura_lower: int = (lower_range[0] + lower_range[1]) // 2
@@ -132,6 +133,11 @@ def build_composition_plan(
         sections=upper_sections,
         anacrusis=anacrusis,
     )
+    bass_pattern_name: str | None = (
+        genre_config.bass_pattern
+        if genre_config.bass_treatment == "patterned"
+        else None
+    )
     lower_plan: VoicePlan = VoicePlan(
         voice_id="lower",
         actuator_range=Range(low=lower_range[0], high=lower_range[1]),
@@ -142,6 +148,7 @@ def build_composition_plan(
         rhythmic_unit=Fraction(1, 8),
         sections=lower_sections,
         anacrusis=None,
+        bass_pattern=bass_pattern_name,
     )
     tempo: int = tempo_override if tempo_override else genre_config.tempo
     return CompositionPlan(
@@ -229,6 +236,7 @@ def _build_sections(
     metre: str,
     is_upper: bool,
     affect_config: AffectConfig,
+    bass_treatment: str = "contrapuntal",
 ) -> tuple[SectionPlan, ...]:
     """Build SectionPlan tuple for a voice."""
     if not schema_sections:
@@ -244,6 +252,7 @@ def _build_sections(
             metre=metre,
             is_upper=is_upper,
             affect_config=affect_config,
+            bass_treatment=bass_treatment,
         )
         section: SectionPlan = SectionPlan(
             start_gap_index=0,
@@ -277,6 +286,7 @@ def _build_sections(
             is_upper=is_upper,
             affect_config=affect_config,
             is_final_section=is_final,
+            bass_treatment=bass_treatment,
         )
         section = SectionPlan(
             start_gap_index=start_idx,
@@ -319,6 +329,7 @@ def _build_gaps_for_range(
     is_upper: bool,
     affect_config: AffectConfig,
     is_final_section: bool = False,
+    bass_treatment: str = "contrapuntal",
 ) -> tuple[GapPlan, ...]:
     """Build GapPlan tuple for gaps in [start_idx, end_idx)."""
     result: list[GapPlan] = []
@@ -334,6 +345,7 @@ def _build_gaps_for_range(
         near_cadence: bool = _is_near_cadence(source, target)
         writing_mode: WritingMode = _get_writing_mode(
             passage_assignments, bar_num, is_upper, near_cadence, interval,
+            bass_treatment=bass_treatment,
         )
         function: str = _get_function(passage_assignments, bar_num)
         is_lead: bool = _is_lead_voice(passage_assignments, bar_num, is_upper)
@@ -491,17 +503,22 @@ def _get_writing_mode(
     is_upper: bool,
     near_cadence: bool = False,
     interval: str = "unison",
+    bass_treatment: str = "contrapuntal",
 ) -> WritingMode:
     """Determine writing mode from passage assignment and lead voice.
-    
+
     Near cadence: both voices use CADENTIAL if interval has cadential figures.
     Lead voice gets FIGURATION; accompany voice gets the accompany_texture.
+    Patterned bass: lower voice uses ARPEGGIATED instead of PILLAR.
     Default: upper leads with FIGURATION, lower accompanies with PILLAR.
     """
     if near_cadence and interval in _CADENTIAL_INTERVALS:
         return WritingMode.CADENTIAL
+    bass_patterned: bool = bass_treatment == "patterned" and not is_upper
     if passage_assignments is None:
-        return WritingMode.FIGURATION if is_upper else WritingMode.PILLAR
+        if is_upper:
+            return WritingMode.FIGURATION
+        return WritingMode.ARPEGGIATED if bass_patterned else WritingMode.PILLAR
     for pa in passage_assignments:
         if pa.start_bar <= bar_num < pa.end_bar:
             lead: int | None = pa.lead_voice
@@ -512,15 +529,17 @@ def _get_writing_mode(
                 return WritingMode.FIGURATION
             texture: str | None = pa.accompany_texture
             if texture == "pillar":
-                return WritingMode.PILLAR
+                return WritingMode.ARPEGGIATED if bass_patterned else WritingMode.PILLAR
             if texture == "staggered":
                 return WritingMode.STAGGERED
             if texture == "walking":
                 return WritingMode.FIGURATION
             if texture == "complementary":
                 return WritingMode.FIGURATION
-            return WritingMode.PILLAR
-    return WritingMode.FIGURATION if is_upper else WritingMode.PILLAR
+            return WritingMode.ARPEGGIATED if bass_patterned else WritingMode.PILLAR
+    if is_upper:
+        return WritingMode.FIGURATION
+    return WritingMode.ARPEGGIATED if bass_patterned else WritingMode.PILLAR
 
 
 def _is_near_cadence(source: PlanAnchor, target: PlanAnchor) -> bool:
