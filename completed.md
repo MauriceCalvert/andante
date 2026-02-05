@@ -868,3 +868,219 @@ of showing specific material type (subject, answer, countersubject).
 - Added `VALID_BRIEF_KEYS`, `VALID_BRIEF_SECTION_KEYS`, `VALID_BRIEF_PHRASE_KEYS`
 - Added `validate_unknown_keys()` function checking genre and brief files
 - Integrated into `validate_all()` as step 3
+
+### Issue 3: Lyric labels on every note instead of first only
+
+**Fix** in `builder/voice_writer.py`:
+- `_compose_fugue_thematic()` now only sets lyric on first note (`i == 0`)
+
+### Issue 4: Fantasia bass mostly semibreves
+
+`bass_treatment: contrapuntal` was falling through to PILLAR mode because
+`_get_writing_mode()` only checked for "patterned" bass, not "contrapuntal".
+
+**Fix** in `planner/voice_planning.py`:
+- Added `bass_contrapuntal` flag in `_get_writing_mode()`
+- Contrapuntal bass now returns `WritingMode.FIGURATION` instead of PILLAR
+
+### Issue 5: FigureRejectionError with contrapuntal bass
+
+With both voices doing FIGURATION, voice-leading conflicts (direct motion
+to unison) caused all figures to be rejected.
+
+**Root cause**: Parallels/direct motion checks applied to every note, but
+baroque practice only enforces these on strong beats. Off-beat figuration
+has more freedom.
+
+**Fix 1** - Gap-by-gap interleaved composition in `builder/compose.py`:
+- Replaced section-level scheduling with `GapTask` gap-level scheduling
+- After each gap, other voice's `prior_at_offset` is updated
+- Both voices see each other's intermediate figuration notes
+- Enables invertible counterpoint
+
+**Fix 2** - Added `compose_single_gap()` in `builder/voice_writer.py`:
+- Composes one gap at a time for interleaved scheduling
+- Tracks `_gaps_composed`, `_section_initialized`, `_prev_anchor_midi`
+- IMITATIVE and fugue-thematic sections still compose atomically
+
+**Fix 3** - Strong-beat-only voice-leading checks in `_check_candidate()`:
+- Added `_is_strong_beat()` helper (beat 1 of bar)
+- Parallels/direct motion only checked on strong beats
+- Off-beat figuration notes have freedom per baroque practice
+
+### Issue 6: Human-readable FigureRejectionError messages
+
+Pitch displayed as "DiatonicPitch(step=37)" instead of note name.
+
+**Fix** in `builder/figuration_strategy.py`:
+- Added `_midi_to_note_name()` helper converting MIDI to "C4", "F#3" etc
+- `_expand_and_check()` now reports pitch as note name
+
+### Issue 7: Anchor placement too high for ascending figures
+
+Ascending gaps need headroom above source anchor for figuration.
+Source anchor was placed without considering departure direction.
+
+**Fix** in `builder/voice_writer.py`:
+- Added `departure_ascending` parameter to `_resolve_anchor_pitch()`
+- Added `_adjust_for_departure()` method: shifts anchor down an octave
+  if ascending gap and anchor is within 12 semitones of range top
+- Updated all source anchor resolution calls to pass `gap.ascending`
+
+### Issue 7 (revised): Anchor placement departure headroom - proper fix
+
+The previous `_adjust_for_departure()` violated D008 (no downstream fixes).
+It adjusted anchor octave AFTER initial placement - wrong approach.
+
+**Proper fix** in `builder/voice_writer.py` and `shared/constants.py`:
+- Added `ANCHOR_DEPARTURE_HEADROOM = 12` constant
+- Added `_filter_for_departure_headroom()` method: filters candidate octaves
+  during initial selection, not as post-hoc adjustment
+- Modified `_place_degree_near_median()` and `_place_degree_with_direction()`
+  to accept `departure_ascending` parameter and apply headroom filter
+- Removed `_adjust_for_departure()` entirely
+- Constraint now propagates upward per D002: placement considers departure
+  direction from the start, not as a fix afterward
+
+---
+
+## 2026-02-04: Rhythmic and Tonal Planning Specifications
+
+### Problem
+
+demo_fantasia.note exhibited monotonous rhythm: approximately 80% of soprano
+bars used identical 5/8 + 1/8 + 1/4 pattern (dotted crotchet, quaver, crotchet).
+
+### Root cause analysis
+
+1. **No rhythmic planning layer**: Tonal planning decides anchors (pitch targets),
+   but nothing plans rhythm at phrase level.
+
+2. **Gap filling is mechanical**: `voice_planning.py` sets `overdotted=True` when
+   `affect_config.density == "high"` (line 524). This causes all gaps to use the
+   same overdotted template.
+
+3. **"Density" is a proxy, not rhythm**: High density means more notes, but the
+   *pattern* of those notes is fixed. A 3-note fill in 4/4 always uses template
+   `[5/2, 1/2, 1]` beats when overdotted.
+
+4. **No phrase-level motif development**: Each gap independently queries the
+   template table with identical parameters. No rhythmic continuity or variation.
+
+### Documentation created
+
+Created two specification documents in `docs/Tier1_Normative/`:
+
+**tonal_planning.md**
+- Documents existing schema-based anchor planning
+- Theoretical foundation: Gjerdingen schemas, GTTM hierarchical structure
+- Schema transition rules and validation
+- Tonal region planning (modulation vs tonicization)
+- Cadence planning and variety constraints
+- Interface contract with gap filling
+
+**rhythmic_planning.md** (NEW SYSTEM)
+- Documents missing rhythmic planning layer
+- Theoretical foundation:
+  - Cooper & Meyer: rhythm vs metre distinction
+  - GTTM: grouping structure, metrical structure
+  - Baroque conventions: notes inégales, overdotting, lombardic rhythm, hemiola
+  - Mattheson Affektenlehre: rhythm-affect correspondence
+- Three-level architecture:
+  - Section profile (affect → rhythmic character)
+  - Phrase motif (rhythmic cell selection and development)
+  - Gap template (exact durations from motif slice)
+- Motif vocabulary (14 foundational cells for 4/4)
+- Development techniques (diminution, augmentation, displacement, fragmentation)
+- Variety rules (V-R001 through V-R005)
+- Implementation requirements (new components, data files)
+- Anti-patterns (X-R001 through X-R004)
+
+### References consulted
+
+1. Gjerdingen (2007) - *Music in the Galant Style*
+2. Lerdahl & Jackendoff (1983) - *A Generative Theory of Tonal Music*
+3. Cooper & Meyer (1960) - *The Rhythmic Structure of Music*
+4. Mattheson (1739) - *Der vollkommene Capellmeister*
+5. Quantz (1752) - *Versuch einer Anweisung die Flöte traversiere zu spielen*
+6. Hefling (1993) - *Rhythmic Alteration in Seventeenth- and Eighteenth-Century Music*
+7. Hotteterre (1719) - *L'art de préluder sur la flûte traversière*
+8. Caplin (1998) - *Classical Form*
+9. Hasty (1997) - *Meter as Rhythm*
+10. London (2012) - *Hearing in Time*
+
+## Tonal Planning Upgrade (completed)
+
+- Phase 1: Added `SectionTonalPlan`, `TonalPlan` to builder/types.py; `CADENCE_DEGREES` to constants; extended `SchemaChain` with cadences and section_boundaries.
+- Phase 2: Created planner/variety.py with V-T001 (no adjacent schema repetition), V-T002 (opening schemas at section starts only), V-T003 (cadence variety), V-T004 (tonal path variety).
+- Phase 3: Rewrote planner/tonal.py with key area assignment, cadence assignment, seeded RNG, variety validation.
+- Phase 4: Rewrote planner/schematic.py with graph-walk schema selection, affect weighting, bass continuity, free passage marking, V-T001/V-T002 validation.
+- Phase 5: Added hierarchical anchors to metric/layer.py — piece-level (start/end), section-level (cadence targets), phrase-level (schema stages), with deduplication and sort.
+- Phase 6: Integrated into planner.py (L2 feeds L3, L3 feeds L4 with TonalPlan). Fixed missing `_deduplicate_anchors`. Fixed V-T002 violation in `_select_next_schema` (opening schemas excluded from mid-section graph walk). End-to-end tested: invention, minuet, bourree, gavotte, sarabande all pass.
+
+## Rhythmic Planning Upgrade (completed)
+
+Hierarchical rhythmic planning: section profile -> phrase motif -> gap rhythm, replacing flat slot-activation system.
+
+- Phase 1: Replaced old RhythmPlan (slot-based) with RhythmicProfile, RhythmicMotif, GapRhythm, and new RhythmPlan in builder/types.py. Added GapPlan.gap_rhythm field to shared/plan_types.py. Added INEQUALITY_RATIOS, OVERDOTTING_FACTORS, and related constants to shared/constants.py.
+- Phase 2: Created data/rhythm/motif_vocabulary.yaml (foundational cells for 4/4, 3/4, cadential cells) and data/rhythm/affect_profiles.yaml (Mattheson affect-to-rhythm mappings with section function modifiers).
+- Phase 3: Implemented planner/rhythmic_profile.py — loads affect profiles from YAML, computes section profiles with density trajectory, climax bar, hemiola zones, and tonal density coordination.
+- Phase 4: Implemented planner/rhythmic_motif.py — loads motif vocabulary from YAML, selects motifs filtered by phrase position/character/metre with V-R001 consecutive-identical prevention, and applies development operations (diminute, augment, fragment, invert, displace).
+- Phase 5: Implemented planner/rhythmic_gap.py — derives gap rhythms from phrase motifs by extracting slices scaled to gap duration, with inequality and overdotting application per section profile.
+- Phase 6: Implemented planner/rhythmic_variety.py — validators for V-R001 (no consecutive identical rhythms), V-R002 (phrase motif variation), V-R003 (cadential rhythmic change), V-R004 (section density arc), V-R005 (cross-phrase continuity).
+- Phase 7: Rewrote planner/rhythmic.py as orchestrator: detects phrase boundaries from passage assignments, computes section profiles, selects/develops motifs per phrase, derives gap rhythms, outputs RhythmPlan.
+- Phase 8: Integrated into pipeline. voice_planning.py accepts RhythmPlan and populates GapPlan.gap_rhythm. planner.py calls layer_6_rhythmic between L5 (textural) and L7 (voice planning), passing RhythmPlan through. Added L7 tracer method.
+- BUG FIX: Final cadence missing from gavotte, invention, minuet. In voice_planning.py _build_sections, is_final was computed as idx == num_sections - 1, but single-anchor trailing sections (section_cadence_authentic) were skipped by start_idx >= end_idx guard, stealing the final designation. Changed is_final to end_idx == len(plan_anchors) - 1 so the last section with actual gaps gets the final pillar note appended.
+
+
+## Rhythm Bug Fix (Phase 1) — 4 fixes applied
+
+### Bug 1: Default density forced `high` globally
+- Changed `default` density from `high` to `medium` in `data/rhetoric/affects.yaml`
+- Added explicit `density` field to all 10 named affects (mapped from rhythm_density: sparse→low, moderate→medium, dense→high)
+
+### Bug 3b: Small-interval note reduction inverted
+- Zeroed out `SMALL_INTERVAL_NOTE_REDUCTION` dict in `shared/constants.py` (was removing 2-4 notes for unison/step/third gaps, collapsing note counts to minimum)
+
+### Bug 3a: Non-lead voices unconditionally got density="low"
+- Modified `_get_density()` in `planner/voice_planning.py` to accept `is_upper` and `bass_treatment` parameters
+- Contrapuntal bass now gets function-based density (same as lead voices) instead of hard-coded "low"
+- Patterned bass and non-lead upper voices still default to "low"
+
+### Bug 2 (partial): `overdotted` was density-driven (always True)
+- Added `OVERDOTTED_CHARACTERS` constant in `shared/constants.py`: {"bold", "energetic"}
+- Changed `overdotted` assignment in `voice_planning.py` from `affect_config.density == "high"` to `character in OVERDOTTED_CHARACTERS`
+- Overdotting now only applies to bold/energetic character gaps, not globally
+
+### Bug 2 (full): Template vocabulary expansion — deferred to Phase 2
+
+## Overdotting Removal (S001: performance practice out of scope)
+
+Added law S001: "Performance practice out of scope; score notation only."
+
+Removed all overdotting infrastructure:
+- `OVERDOTTED_CHARACTERS`, `OVERDOTTING_FACTORS`, `VALID_OVERDOTTING_LEVELS` from `shared/constants.py`
+- `overdotted: bool` field from `GapPlan` in `shared/plan_types.py`
+- `overdotted: bool` field from `RhythmTemplate` in `builder/figuration/types.py`
+- `overdotting: str` field from `RhythmicProfile` in `builder/types.py`
+- `OVERDOTTED_CHARACTERS` import and usage from `planner/voice_planning.py`
+- Overdotted template lookup and fallback from `builder/figuration_strategy.py` and `builder/cadential_strategy.py` (key now `(note_count, metre)`)
+- `apply_overdotting()` function and `OVERDOTTING_FACTORS` import from `planner/rhythmic_gap.py`
+- Overdotting validation/loading from `planner/rhythmic_profile.py`
+- All `overdotted:` variant blocks from `data/figuration/rhythm_templates.yaml`
+- All `overdotting:` fields from `data/rhythm/affect_profiles.yaml`
+- `overdotted=False` from test files in `revision/`
+- Loader now skips overdotted YAML variants with comment referencing S001
+
+## Inequality (notes inegales) Removal (S001)
+
+Removed all inequality infrastructure from the score pipeline:
+- `INEQUALITY_RATIOS`, `VALID_INEQUALITY_LEVELS` from `shared/constants.py`
+- `inequality: str` from `RhythmicProfile` in `builder/types.py`
+- `inequality_ratio: Fraction` from `GapRhythm` in `builder/types.py`
+- `apply_inequality()` function, `_MAX_INEQUALITY_VALUE`, `INEQUALITY_RATIOS` import from `planner/rhythmic_gap.py`
+- `is_stepwise` parameter from `derive_gap_rhythm()` (was only used for inequality)
+- `_is_stepwise_gap()` helper from `planner/rhythmic.py` (now dead code)
+- Inequality validation/loading from `planner/rhythmic_profile.py`
+- All `inequality:` fields from `data/rhythm/affect_profiles.yaml`
+- Left `data/humanisation/` untouched (humanisation is performance output, separate from score)

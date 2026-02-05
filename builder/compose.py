@@ -1,60 +1,70 @@
 """Entry point: execute a CompositionPlan to produce a Composition.
 
-Section-aware composition order: lead voice composes first per section,
-giving it rhythmic freedom while the following voice adapts.
+Gap-by-gap interleaved composition: both voices see each other's notes
+at every offset, enabling invertible counterpoint and avoiding parallel
+motion conflicts in contrapuntal textures.
 """
 from dataclasses import dataclass
+from fractions import Fraction
 from builder.types import Composition, Note
 from builder.voice_writer import VoiceWriter
-from shared.plan_types import CompositionPlan, SectionPlan, VoicePlan
+from shared.plan_types import CompositionPlan, SectionPlan, VoicePlan, WritingMode
 from shared.voice_types import Role
 
 
 @dataclass
-class CompositionTask:
-    """One section to compose, with scheduling priority."""
+class GapTask:
+    """One gap to compose, with scheduling priority."""
     voice_idx: int
     section_idx: int
-    start_gap: int
-    end_gap: int
+    gap_idx: int
+    anchor_idx: int
     is_lead: bool
 
 
 def compose_voices(plan: CompositionPlan) -> Composition:
     """Execute a CompositionPlan to produce a Composition.
-    
-    Schedules sections so lead voice composes first within each time span,
-    allowing the following voice to adapt to the leader's rhythm.
+
+    Uses gap-by-gap interleaved composition: after each gap, the other
+    voice's prior_voices index is updated so it sees the new notes.
+    This enables invertible counterpoint and avoids voice-leading
+    conflicts when both voices have active figuration.
     """
     assert len(plan.voice_plans) > 0, "CompositionPlan must have at least one voice"
-    schedule: list[CompositionTask] = _build_schedule(plan=plan)
     voice_notes: dict[str, list[Note]] = {
         vp.voice_id: [] for vp in plan.voice_plans
     }
-    writers: dict[str, VoiceWriter] = {}
+    writers: dict[int, VoiceWriter] = {}
+    for voice_idx, voice_plan in enumerate(plan.voice_plans):
+        prior: dict[str, tuple[Note, ...]] = {
+            vp.voice_id: ()
+            for vp in plan.voice_plans
+            if vp.voice_id != voice_plan.voice_id
+        }
+        writers[voice_idx] = VoiceWriter(
+            plan=voice_plan,
+            home_key=plan.home_key,
+            anchors=plan.anchors,
+            prior_voices=prior,
+            upbeat=plan.upbeat,
+            fugue=plan.fugue,
+        )
+    schedule: list[GapTask] = _build_gap_schedule(plan=plan)
     for task in schedule:
         voice_plan: VoicePlan = plan.voice_plans[task.voice_idx]
         voice_id: str = voice_plan.voice_id
+        writer: VoiceWriter = writers[task.voice_idx]
         prior: dict[str, tuple[Note, ...]] = {
-            vid: tuple(notes)
-            for vid, notes in voice_notes.items()
-            if vid != voice_id
+            vp.voice_id: tuple(voice_notes[vp.voice_id])
+            for vp in plan.voice_plans
+            if vp.voice_id != voice_id
         }
-        if voice_id not in writers:
-            writers[voice_id] = VoiceWriter(
-                plan=voice_plan,
-                home_key=plan.home_key,
-                anchors=plan.anchors,
-                prior_voices=prior,
-                upbeat=plan.upbeat,
-                fugue=plan.fugue,
-            )
-        else:
-            writers[voice_id].update_prior_voices(prior_voices=prior)
-        section_notes: list[Note] = writers[voice_id].compose_section(
+        writer.update_prior_voices(prior_voices=prior)
+        gap_notes: list[Note] = writer.compose_single_gap(
             section_idx=task.section_idx,
+            gap_idx=task.gap_idx,
         )
-        voice_notes[voice_id].extend(section_notes)
+        voice_notes[voice_id].extend(gap_notes)
     final_voices: dict[str, tuple[Note, ...]] = {}
     for voice_plan in plan.voice_plans:
         vid: str = voice_plan.voice_id
@@ -69,23 +79,26 @@ def compose_voices(plan: CompositionPlan) -> Composition:
     )
 
 
-def _build_schedule(plan: CompositionPlan) -> list[CompositionTask]:
-    """Build composition task schedule ordered by (start_gap, not is_lead).
-    
-    Lead voice sections come first within overlapping time spans.
+def _build_gap_schedule(plan: CompositionPlan) -> list[GapTask]:
+    """Build gap-level schedule ordered by (anchor_idx, not is_lead, voice_idx).
+
+    Lead voice gaps come first at each anchor position, so accompany voice
+    sees lead's notes when choosing its figuration.
     """
-    tasks: list[CompositionTask] = []
+    tasks: list[GapTask] = []
     for voice_idx, voice_plan in enumerate(plan.voice_plans):
         for section_idx, section in enumerate(voice_plan.sections):
             is_lead: bool = _section_is_lead(section=section)
-            tasks.append(CompositionTask(
-                voice_idx=voice_idx,
-                section_idx=section_idx,
-                start_gap=section.start_gap_index,
-                end_gap=section.end_gap_index,
-                is_lead=is_lead,
-            ))
-    tasks.sort(key=lambda t: (t.start_gap, not t.is_lead))
+            for gap_idx, gap in enumerate(section.gaps):
+                anchor_idx: int = section.start_gap_index + gap_idx
+                tasks.append(GapTask(
+                    voice_idx=voice_idx,
+                    section_idx=section_idx,
+                    gap_idx=gap_idx,
+                    anchor_idx=anchor_idx,
+                    is_lead=is_lead,
+                ))
+    tasks.sort(key=lambda t: (t.anchor_idx, not t.is_lead, t.voice_idx))
     return tasks
 
 

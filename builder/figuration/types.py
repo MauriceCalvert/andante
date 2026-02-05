@@ -117,7 +117,6 @@ class RhythmTemplate:
     note_count: int
     metre: str  # "3/4", "4/4"
     durations: tuple[Fraction, ...]  # In beats
-    overdotted: bool = False
 
     def __post_init__(self) -> None:
         assert self.note_count >= 2, f"note_count must be >= 2, got {self.note_count}"

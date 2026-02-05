@@ -1,214 +1,300 @@
-"""Layer 6: Rhythmic.
+"""Layer 6: Hierarchical Rhythmic Planning.
 
-Category A: Pure functions, no I/O, no validation.
-Input: Anchors + treatments + density + metre
-Output: Active slots and durations per voice
+Produces a RhythmPlan with three levels:
+  1. Section profiles (affect + section function -> rhythmic character)
+  2. Phrase motifs (selected and developed per phrase)
+  3. Gap rhythms (derived from phrase motifs)
 
-Determines which slots are active for each voice based on passage
-assignments. Lead voice gets dense filling, accompaniment gets sparse.
+Input:  Anchors, AffectConfig, PassageAssignments, GenreConfig, TonalPlan
+Output: RhythmPlan
+
+Per A005: RNG lives here; downstream executor is deterministic.
 """
+import logging
 from fractions import Fraction
+from typing import Sequence
+from builder.types import (
+    AffectConfig,
+    Anchor,
+    GapRhythm,
+    GenreConfig,
+    PassageAssignment,
+    RhythmicMotif,
+    RhythmicProfile,
+    RhythmPlan,
+    TonalPlan,
+)
+from planner.rhythmic_gap import derive_gap_rhythm
+from planner.rhythmic_motif import (
+    develop_motif,
+    load_motif_vocabulary,
+    select_motif,
+)
+from planner.rhythmic_profile import compute_section_profile
 
-from builder.types import Anchor, RhythmPlan
-
-
-# Density rates for subject voice (proportion of slots to fill)
-DENSITY_RATES: dict[str, float] = {
-    "high": 0.75,
-    "medium": 0.50,
-    "sparse": 0.25,
-}
-
-# Accompaniment voice fills fewer slots than subject
-ACCOMPANIMENT_RATES: dict[str, float] = {
-    "high": 0.50,
-    "medium": 0.35,
-    "sparse": 0.20,
-}
-
-# Duration assignments by density
-ANCHOR_DURATION: Fraction = Fraction(1, 8)
-SUBJECT_DURATION: Fraction = Fraction(1, 16)
-ACCOMPANIMENT_DURATIONS: dict[str, Fraction] = {
-    "high": Fraction(1, 8),
-    "medium": Fraction(1, 4),
-    "sparse": Fraction(1, 2),
-}
+logger = logging.getLogger(__name__)
 
 
-def _bar_beat_to_slot(bar_beat: str, slots_per_bar: int) -> int:
-    """Convert bar.beat string to absolute slot index.
+def _get_section_function(
+    passage_assignments: Sequence[PassageAssignment] | None,
+    bar_num: int,
+) -> str:
+    """Get section function for a bar from passage assignments."""
+    if passage_assignments is None:
+        return "subject"
+    for pa in passage_assignments:
+        if pa.start_bar <= bar_num < pa.end_bar:
+            return pa.function
+    return "subject"
 
-    Args:
-        bar_beat: String like "1.0", "3.5" (1-indexed bar, beat as fraction of bar)
-        slots_per_bar: Number of slots per bar (16 for 4/4 at 1/16 resolution)
 
-    Returns:
-        0-indexed absolute slot number
+def _has_cadence_near(
+    anchors: Sequence[Anchor],
+    start_idx: int,
+    end_idx: int,
+) -> bool:
+    """Check if any anchor in range is near a cadence schema."""
+    for i in range(start_idx, min(end_idx + 1, len(anchors))):
+        if "cadenz" in anchors[i].schema.lower():
+            return True
+    return False
+
+
+def _bar_from_anchor(anchor: Anchor) -> int:
+    """Extract bar number from anchor bar_beat string."""
+    return int(anchor.bar_beat.split(".")[0])
+
+
+def _compute_gap_duration(
+    source_bar_beat: str,
+    target_bar_beat: str,
+    metre: str,
+) -> Fraction:
+    """Compute duration between two bar.beat positions."""
+    num_str, den_str = metre.split("/")
+    den: int = int(den_str)
+    num: int = int(num_str)
+    bar_length: Fraction = Fraction(num, den)
+    beat_unit: Fraction = Fraction(1, den)
+    s_parts: list[str] = source_bar_beat.split(".")
+    s_bar: int = int(s_parts[0])
+    s_beat: int = int(s_parts[1])
+    t_parts: list[str] = target_bar_beat.split(".")
+    t_bar: int = int(t_parts[0])
+    t_beat: int = int(t_parts[1])
+    source_offset: Fraction = (s_bar - 1) * bar_length + (s_beat - 1) * beat_unit
+    target_offset: Fraction = (t_bar - 1) * bar_length + (t_beat - 1) * beat_unit
+    return target_offset - source_offset
+
+
+def _detect_phrase_boundaries(
+    passage_assignments: Sequence[PassageAssignment] | None,
+    total_gaps: int,
+    anchors: Sequence[Anchor],
+) -> list[int]:
+    """Detect gap indices that start new phrases.
+
+    Each passage assignment boundary defines a phrase boundary.
+    Returns sorted list of gap indices where new phrases begin.
     """
-    parts = bar_beat.split(".")
-    bar = int(parts[0])
-    beat_frac = Fraction(parts[1]) if len(parts) > 1 else Fraction(0)
-    # Convert 1-indexed bar to 0-indexed
-    bar_offset = (bar - 1) * slots_per_bar
-    # beat_frac is in whole notes, convert to slots
-    beat_slots = int(beat_frac * slots_per_bar)
-    return bar_offset + beat_slots
-
-
-def _get_phrase_boundaries(
-    treatments: list[dict],
-    slots_per_bar: int,
-) -> set[int]:
-    """Get slot indices at phrase boundaries.
-
-    Phrase boundaries are first and last slot of each treatment span.
-    """
-    boundaries: set[int] = set()
-    for t in treatments:
-        bars = t["bars"]
-        start_bar, end_bar = bars[0], bars[1]
-        # First slot of phrase
-        boundaries.add((start_bar - 1) * slots_per_bar)
-        # Last slot of phrase (end_bar is inclusive, last slot)
-        boundaries.add(end_bar * slots_per_bar - 1)
+    boundaries: list[int] = [0]
+    if passage_assignments is None:
+        return boundaries
+    for pa in passage_assignments:
+        for i in range(total_gaps):
+            bar_num: int = _bar_from_anchor(anchor=anchors[i])
+            if bar_num == pa.start_bar and i not in boundaries:
+                boundaries.append(i)
+    boundaries.sort()
     return boundaries
 
 
-def _select_slots_for_voice(
-    bar_start: int,
-    bar_end: int,
-    is_lead_voice: bool,
-    density: str,
-    slots_per_bar: int,
-    anchor_slots: frozenset[int],
-    phrase_boundary_slots: set[int],
-) -> tuple[set[int], dict[int, Fraction]]:
-    """Select active slots for a voice within a bar range.
-
-    Args:
-        bar_start: 1-indexed start bar (inclusive)
-        bar_end: 1-indexed end bar (inclusive)
-        is_lead_voice: True if this voice leads (carries subject material)
-        density: "high", "medium", or "sparse"
-        slots_per_bar: Slots per bar
-        anchor_slots: Set of anchor slot indices (always active)
-        phrase_boundary_slots: Set of phrase boundary slots (always active)
-
-    Returns:
-        Tuple of (active_slots set, slot_durations dict)
-    """
-    active: set[int] = set()
-    durations: dict[int, Fraction] = {}
-
-    rate = DENSITY_RATES[density] if is_lead_voice else ACCOMPANIMENT_RATES[density]
-    dur = SUBJECT_DURATION if is_lead_voice else ACCOMPANIMENT_DURATIONS[density]
-
-    total_slots = (bar_end - bar_start + 1) * slots_per_bar
-    start_slot = (bar_start - 1) * slots_per_bar
-    end_slot = bar_end * slots_per_bar
-
-    # Distribute slots evenly across the span
-    slots_to_fill = int(total_slots * rate)
-    assert slots_to_fill > 0, f"No slots to fill: rate={rate}, total={total_slots}"
-
-    # Spacing between active slots
-    spacing = max(1, total_slots // slots_to_fill)
-
-    for i in range(start_slot, end_slot, spacing):
-        if len(active) >= slots_to_fill:
-            break
-        active.add(i)
-        durations[i] = dur
-
-    # Always include anchor slots within range
-    for slot in anchor_slots:
-        if start_slot <= slot < end_slot:
-            active.add(slot)
-            durations[slot] = ANCHOR_DURATION
-
-    # Always include phrase boundary slots within range
-    for slot in phrase_boundary_slots:
-        if start_slot <= slot < end_slot:
-            active.add(slot)
-            if slot not in durations:
-                durations[slot] = dur
-
-    return active, durations
+def _determine_phrase_position(
+    phrase_idx_in_section: int,
+    total_phrases_in_section: int,
+    has_cadence: bool,
+) -> str:
+    """Determine phrase position: opening, interior, or cadential."""
+    if phrase_idx_in_section == 0:
+        return "opening"
+    if has_cadence and phrase_idx_in_section == total_phrases_in_section - 1:
+        return "cadential"
+    return "interior"
 
 
 def layer_6_rhythmic(
-    anchors: list[Anchor],
-    treatments: list[dict],
-    density: str,
-    total_bars: int,
-    metre: str = "4/4",
+    anchors: Sequence[Anchor],
+    affect_config: AffectConfig,
+    passage_assignments: Sequence[PassageAssignment] | None,
+    genre_config: GenreConfig,
+    tonal_plan: TonalPlan,
+    seed: int = 42,
 ) -> RhythmPlan:
-    """Execute Layer 6: Generate rhythm plan.
-
-    Args:
-        anchors: Schema anchors from L4 (arrival constraints)
-        treatments: Passage sequence with {bars: [start, end], lead_voice: 0|1|None}
-        density: "high", "medium", or "sparse"
-        total_bars: Total bars in piece
-        metre: Time signature (default "4/4")
-
-    Returns:
-        RhythmPlan with active slots and durations per voice
-    """
-    assert density in DENSITY_RATES, f"Invalid density: {density}"
-    assert treatments, "Empty treatment sequence"
-    assert total_bars > 0, f"Invalid total_bars: {total_bars}"
-
-    # Parse metre to get slots per bar (1/16 resolution)
-    num, denom = map(int, metre.split("/"))
-    slots_per_bar = num * 4  # 4 sixteenths per quarter note
-
-    # Convert anchors to slot indices
-    anchor_slots: frozenset[int] = frozenset(
-        _bar_beat_to_slot(bar_beat=a.bar_beat, slots_per_bar=slots_per_bar) for a in anchors
+    """Execute Layer 6: Generate hierarchical rhythm plan."""
+    total_gaps: int = len(anchors) - 1
+    if total_gaps <= 0:
+        return RhythmPlan(
+            section_profiles=(),
+            phrase_motifs=(),
+            gap_rhythms=(),
+        )
+    metre: str = genre_config.metre
+    affect_name: str = affect_config.name
+    tonal_density: str = tonal_plan.density
+    vocabulary: list[RhythmicMotif] = load_motif_vocabulary(metre=metre)
+    # Detect phrase boundaries from passage assignments
+    phrase_boundaries: list[int] = _detect_phrase_boundaries(
+        passage_assignments=passage_assignments,
+        total_gaps=total_gaps,
+        anchors=anchors,
     )
-
-    # Get phrase boundary slots
-    phrase_boundaries = _get_phrase_boundaries(treatments=treatments, slots_per_bar=slots_per_bar)
-
-    soprano_active: set[int] = set()
-    bass_active: set[int] = set()
-    soprano_durations: dict[int, Fraction] = {}
-    bass_durations: dict[int, Fraction] = {}
-
-    for t in treatments:
-        bars = t["bars"]
-        start_bar, end_bar = bars[0], bars[1]
-        lead_voice = t.get("lead_voice")  # 0=upper, 1=lower, None=equal
-        # When lead_voice is None (episode/cadential), NEITHER voice leads
-        # Both get accompaniment (sparse) treatment for voice independence
-        is_soprano_lead = lead_voice == 0
-        is_bass_lead = lead_voice == 1
-        s_slots, s_durs = _select_slots_for_voice(
-            bar_start=start_bar, bar_end=end_bar,
-            is_lead_voice=is_soprano_lead,
-            density=density,
-            slots_per_bar=slots_per_bar,
-            anchor_slots=anchor_slots,
-            phrase_boundary_slots=phrase_boundaries,
+    # Build section profiles for each passage segment
+    section_profiles: list[tuple[str, RhythmicProfile]] = []
+    profile_by_gap: dict[int, RhythmicProfile] = {}
+    if passage_assignments is not None:
+        for pa in passage_assignments:
+            has_cadence: bool = _has_cadence_near(
+                anchors=anchors,
+                start_idx=0,
+                end_idx=len(anchors) - 1,
+            )
+            profile: RhythmicProfile = compute_section_profile(
+                affect_name=affect_name,
+                section_function=pa.function,
+                section_start_bar=pa.start_bar,
+                section_end_bar=pa.end_bar,
+                metre=metre,
+                tonal_density=tonal_density,
+                has_cadence=has_cadence,
+            )
+            section_profiles.append((pa.function, profile))
+            for gap_idx in range(total_gaps):
+                bar_num: int = _bar_from_anchor(anchor=anchors[gap_idx])
+                if pa.start_bar <= bar_num < pa.end_bar:
+                    profile_by_gap[gap_idx] = profile
+    else:
+        # Single default profile for entire piece
+        first_bar: int = _bar_from_anchor(anchor=anchors[0])
+        last_bar: int = _bar_from_anchor(anchor=anchors[-1])
+        profile = compute_section_profile(
+            affect_name=affect_name,
+            section_function="subject",
+            section_start_bar=first_bar,
+            section_end_bar=last_bar,
+            metre=metre,
+            tonal_density=tonal_density,
+            has_cadence=True,
         )
-        soprano_active.update(s_slots)
-        soprano_durations.update(s_durs)
-        b_slots, b_durs = _select_slots_for_voice(
-            bar_start=start_bar, bar_end=end_bar,
-            is_lead_voice=is_bass_lead,
-            density=density,
-            slots_per_bar=slots_per_bar,
-            anchor_slots=anchor_slots,
-            phrase_boundary_slots=phrase_boundaries,
+        section_profiles.append(("subject", profile))
+        for gap_idx in range(total_gaps):
+            profile_by_gap[gap_idx] = profile
+    # Default profile for any gaps not covered
+    default_profile: RhythmicProfile = section_profiles[0][1] if section_profiles else compute_section_profile(
+        affect_name=affect_name,
+        section_function="subject",
+        section_start_bar=1,
+        section_end_bar=2,
+        metre=metre,
+        tonal_density=tonal_density,
+        has_cadence=False,
+    )
+    # Select and develop motifs per phrase
+    phrase_motifs: list[tuple[int, RhythmicMotif]] = []
+    motif_by_gap: dict[int, RhythmicMotif] = {}
+    previous_motif_name: str | None = None
+    base_motif: RhythmicMotif | None = None
+    for phrase_local_idx, phrase_start_gap in enumerate(phrase_boundaries):
+        phrase_end_gap: int = (
+            phrase_boundaries[phrase_local_idx + 1]
+            if phrase_local_idx + 1 < len(phrase_boundaries)
+            else total_gaps
         )
-        bass_active.update(b_slots)
-        bass_durations.update(b_durs)
-
+        gap_profile: RhythmicProfile = profile_by_gap.get(phrase_start_gap, default_profile)
+        # Determine phrase position
+        total_phrases: int = len(phrase_boundaries)
+        has_cadence_in_section: bool = any(
+            "cadenz" in anchors[g].schema.lower()
+            for g in range(phrase_start_gap, min(phrase_end_gap + 1, len(anchors)))
+        )
+        phrase_position: str = _determine_phrase_position(
+            phrase_idx_in_section=phrase_local_idx,
+            total_phrases_in_section=total_phrases,
+            has_cadence=has_cadence_in_section,
+        )
+        selected: RhythmicMotif = select_motif(
+            vocabulary=vocabulary,
+            phrase_position=phrase_position,
+            profile=gap_profile,
+            previous_motif_name=previous_motif_name,
+            seed=seed + phrase_local_idx,
+        )
+        if phrase_local_idx == 0:
+            base_motif = selected
+        # Apply development for subsequent phrases
+        if base_motif is not None and phrase_local_idx > 0:
+            developed: RhythmicMotif = develop_motif(
+                base=base_motif,
+                phrase_idx=phrase_local_idx,
+                development_plan=gap_profile.development_plan,
+            )
+        else:
+            developed = selected
+        phrase_motifs.append((phrase_local_idx, developed))
+        previous_motif_name = developed.name
+        # Assign motif to all gaps in this phrase
+        for g in range(phrase_start_gap, phrase_end_gap):
+            motif_by_gap[g] = developed
+    # Derive gap rhythms
+    gap_rhythms: list[GapRhythm] = []
+    for gap_idx in range(total_gaps):
+        gap_profile = profile_by_gap.get(gap_idx, default_profile)
+        gap_motif: RhythmicMotif = motif_by_gap.get(gap_idx, vocabulary[0])
+        gap_duration: Fraction = _compute_gap_duration(
+            source_bar_beat=anchors[gap_idx].bar_beat,
+            target_bar_beat=anchors[gap_idx + 1].bar_beat,
+            metre=metre,
+        )
+        assert gap_duration > 0, (
+            f"Non-positive gap duration at gap {gap_idx}: "
+            f"{anchors[gap_idx].bar_beat} -> {anchors[gap_idx + 1].bar_beat}"
+        )
+        # Compute position within phrase
+        phrase_start: int = 0
+        phrase_end: int = total_gaps
+        for bi, boundary in enumerate(phrase_boundaries):
+            if boundary <= gap_idx:
+                phrase_start = boundary
+                phrase_end = (
+                    phrase_boundaries[bi + 1]
+                    if bi + 1 < len(phrase_boundaries)
+                    else total_gaps
+                )
+        phrase_length: int = max(1, phrase_end - phrase_start)
+        gap_position: float = (gap_idx - phrase_start) / phrase_length
+        gap_fraction: float = 1.0 / phrase_length
+        near_cadence: bool = (
+            "cadenz" in anchors[gap_idx].schema.lower()
+            or "cadenz" in anchors[gap_idx + 1].schema.lower()
+        )
+        is_downbeat: bool = anchors[gap_idx].bar_beat.endswith(".1")
+        gap_rhythm: GapRhythm = derive_gap_rhythm(
+            phrase_motif=gap_motif,
+            profile=gap_profile,
+            gap_position=gap_position,
+            gap_fraction=gap_fraction,
+            gap_duration=gap_duration,
+            is_downbeat=is_downbeat,
+            near_cadence=near_cadence,
+        )
+        gap_rhythms.append(gap_rhythm)
+    logger.info(
+        "Rhythmic plan: %d section profiles, %d phrase motifs, %d gap rhythms",
+        len(section_profiles),
+        len(phrase_motifs),
+        len(gap_rhythms),
+    )
     return RhythmPlan(
-        soprano_active=frozenset(soprano_active),
-        bass_active=frozenset(bass_active),
-        soprano_durations=soprano_durations,
-        bass_durations=bass_durations,
+        section_profiles=tuple(section_profiles),
+        phrase_motifs=tuple(phrase_motifs),
+        gap_rhythms=tuple(gap_rhythms),
     )

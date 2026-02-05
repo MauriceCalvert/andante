@@ -122,6 +122,24 @@ figuration_profile: galant_dance
 
 **Effort:** Medium
 
+## FEAT-003: Suspensions (4-3, 7-6)
+
+**Date:** 2026-02-05
+**Status:** Deferred — not needed for current dance/chorale genres
+
+**Problem:** No suspension mechanism. Output sounds correct but lacks the tension-release cycles characteristic of expressive Baroque writing.
+
+**What's needed:**
+- New `WritingMode.SUSPENDED` (or equivalent)
+- Planning-layer decisions on suspension placement (typically cadential/pre-cadential points)
+- `candidate_filter` must recognise prepared dissonance as intentional
+- `faults.py` must exempt prepared suspensions from dissonance flags
+- Suspension requires: preparation (consonant on weak beat), suspension (held over strong beat), resolution (step down)
+
+**When:** After pipeline produces clean output across existing genres. First reach for this when results sound "correct but bland," especially in trio sonata slow movements or fugue episodes.
+
+**Effort:** Medium-large — cuts across planner, builder, and guard systems
+
 ---
 
 # Part 3: Architectural TODOs

@@ -109,6 +109,10 @@ class PipelineTracer:
         """L1: Layer 6 output summary."""
         self._write(1, f"L6 {layer}", "output", **kwargs)
 
+    def L7(self, layer: str, **kwargs: Any) -> None:
+        """L1: Layer 7 output summary."""
+        self._write(1, f"L7 {layer}", "output", **kwargs)
+
     # Level 2: Mid-level details
     def schema_chain(self, schemas: tuple[str, ...]) -> None:
         """L2: Schema chain listing."""

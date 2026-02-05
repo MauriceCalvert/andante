@@ -1,7 +1,7 @@
 # Andante Project Guide
 
 You **MUST** read 
-`docs/Tier1_Normative/laws.md`
+`docs/Tier1_Normative/laws.md` and `docs/knowledge.md`
 now and keep them in the foreground for the whole chat.
 
 ---
@@ -54,3 +54,6 @@ Don't show changes, make them.
 
 When code has been added and tested or when a problem has been solved,
 append a description of what you did to completed.md.
+
+IMPORTANT: frequent chat crashes. when i ask you to implement something, write a todo and tick off items one by one
+so that you can resume in a new chat seamlessly.

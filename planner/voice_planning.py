@@ -15,6 +15,7 @@ from builder.types import (
     GenreConfig,
     KeyConfig,
     PassageAssignment,
+    RhythmPlan,
     SchemaConfig,
 )
 from shared.constants import (
@@ -88,6 +89,7 @@ def build_composition_plan(
     seed: int = 42,
     tempo_override: int | None = None,
     fugue: 'LoadedFugue | None' = None,
+    rhythm_plan: RhythmPlan | None = None,
 ) -> CompositionPlan:
     """Build a CompositionPlan from planner layer outputs.
 
@@ -120,6 +122,7 @@ def build_composition_plan(
         voice_id="upper",
         form_sections=form_sections,
         form_section_map=form_section_map,
+        rhythm_plan=rhythm_plan,
     )
     lower_sections: tuple[SectionPlan, ...] = _build_sections(
         plan_anchors=plan_anchors,
@@ -135,6 +138,7 @@ def build_composition_plan(
         voice_id="lower",
         form_sections=form_sections,
         form_section_map=form_section_map,
+        rhythm_plan=rhythm_plan,
     )
     tessitura_upper: int = (upper_range[0] + upper_range[1]) // 2
     tessitura_lower: int = (lower_range[0] + lower_range[1]) // 2
@@ -309,6 +313,7 @@ def _build_sections(
     voice_id: str = "upper",
     form_sections: tuple[dict, ...] = (),
     form_section_map: dict[str, int] | None = None,
+    rhythm_plan: RhythmPlan | None = None,
 ) -> tuple[SectionPlan, ...]:
     """Build SectionPlan tuple for a voice.
 
@@ -345,6 +350,7 @@ def _build_sections(
             is_upper=is_upper,
             affect_config=affect_config,
             bass_treatment=bass_treatment,
+            rhythm_plan=rhythm_plan,
         )
         section: SectionPlan = SectionPlan(
             start_gap_index=0,
@@ -367,7 +373,7 @@ def _build_sections(
         if start_idx >= end_idx:
             continue
         sequencing: str = _get_sequencing(schema_name=schema_name, schemas=schemas)
-        is_final: bool = idx == num_sections - 1
+        is_final: bool = end_idx == len(plan_anchors) - 1
         imit = _get_imitation_config(
             passage_assignments=passage_assignments, plan_anchors=plan_anchors, start_idx=start_idx, end_idx=end_idx,
             voice_id=voice_id, metre=metre,
@@ -395,6 +401,7 @@ def _build_sections(
             affect_config=affect_config,
             is_final_section=is_final,
             bass_treatment=bass_treatment,
+            rhythm_plan=rhythm_plan,
         )
         lead_material: str | None = None
         accompany_material: str | None = None
@@ -480,6 +487,7 @@ def _build_gaps_for_range(
     affect_config: AffectConfig,
     is_final_section: bool = False,
     bass_treatment: str = "contrapuntal",
+    rhythm_plan: RhythmPlan | None = None,
 ) -> tuple[GapPlan, ...]:
     """Build GapPlan tuple for gaps in [start_idx, end_idx)."""
     result: list[GapPlan] = []
@@ -499,7 +507,10 @@ def _build_gaps_for_range(
         )
         function: str = _get_function(passage_assignments=passage_assignments, bar_num=bar_num)
         is_lead: bool = _is_lead_voice(passage_assignments=passage_assignments, bar_num=bar_num, is_upper=is_upper)
-        density: str = _get_density(base_density=base_density, function=function, is_lead=is_lead)
+        density: str = _get_density(
+            base_density=base_density, function=function, is_lead=is_lead,
+            is_upper=is_upper, bass_treatment=bass_treatment,
+        )
         character: str = _get_character(base_character=base_character, function=function)
         use_hemiola: bool = _should_use_hemiola(
             affect_config=affect_config, near_cadence=near_cadence, metre=metre,
@@ -509,6 +520,10 @@ def _build_gaps_for_range(
             if writing_mode == WritingMode.FIGURATION
             else None
         )
+        # Attach gap rhythm from rhythm plan if available
+        gap_rhythm_value = None
+        if rhythm_plan is not None and i < len(rhythm_plan.gap_rhythms):
+            gap_rhythm_value = rhythm_plan.gap_rhythms[i]
         gap: GapPlan = GapPlan(
             bar_num=bar_num,
             writing_mode=writing_mode,
@@ -521,11 +536,11 @@ def _build_gaps_for_range(
             bar_function=_get_bar_function(source=source, near_cadence=near_cadence),
             near_cadence=near_cadence,
             use_hemiola=use_hemiola,
-            overdotted=affect_config.density == "high",
             start_beat=1 if is_upper else 2,
             next_anchor_strength="strong" if near_cadence else "weak",
             required_note_count=note_count,
             compound_allowed=False,
+            gap_rhythm=gap_rhythm_value,
         )
         result.append(gap)
     if is_final_section and end_idx < len(plan_anchors):
@@ -543,7 +558,6 @@ def _build_gaps_for_range(
             bar_function="final",
             near_cadence=True,
             use_hemiola=False,
-            overdotted=False,
             start_beat=1,
             next_anchor_strength="strong",
             required_note_count=1,
@@ -661,14 +675,18 @@ def _get_writing_mode(
 
     Near cadence: both voices use CADENTIAL if interval has cadential figures.
     Lead voice gets FIGURATION; accompany voice gets the accompany_texture.
-    Patterned bass: lower voice uses ARPEGGIATED instead of PILLAR.
+    Contrapuntal bass: lower voice uses FIGURATION (same as upper).
+    Patterned bass: lower voice uses ARPEGGIATED.
     Default: upper leads with FIGURATION, lower accompanies with PILLAR.
     """
     if near_cadence and interval in CADENTIAL_INTERVALS:
         return WritingMode.CADENTIAL
     bass_patterned: bool = bass_treatment == "patterned" and not is_upper
+    bass_contrapuntal: bool = bass_treatment == "contrapuntal" and not is_upper
     if passage_assignments is None:
         if is_upper:
+            return WritingMode.FIGURATION
+        if bass_contrapuntal:
             return WritingMode.FIGURATION
         return WritingMode.ARPEGGIATED if bass_patterned else WritingMode.PILLAR
     for pa in passage_assignments:
@@ -681,6 +699,8 @@ def _get_writing_mode(
                 return WritingMode.FIGURATION
             texture: str | None = pa.accompany_texture
             if texture == "pillar":
+                if bass_contrapuntal:
+                    return WritingMode.FIGURATION
                 return WritingMode.ARPEGGIATED if bass_patterned else WritingMode.PILLAR
             if texture == "staggered":
                 return WritingMode.STAGGERED
@@ -688,8 +708,12 @@ def _get_writing_mode(
                 return WritingMode.FIGURATION
             if texture == "complementary":
                 return WritingMode.FIGURATION
+            if bass_contrapuntal:
+                return WritingMode.FIGURATION
             return WritingMode.ARPEGGIATED if bass_patterned else WritingMode.PILLAR
     if is_upper:
+        return WritingMode.FIGURATION
+    if bass_contrapuntal:
         return WritingMode.FIGURATION
     return WritingMode.ARPEGGIATED if bass_patterned else WritingMode.PILLAR
 
@@ -766,9 +790,18 @@ def _compute_note_count(
     return max(MIN_FIGURATION_NOTES, base - reduction)
 
 
-def _get_density(base_density: str, function: str, is_lead: bool) -> str:
-    """Get density based on function and whether voice is leading."""
+def _get_density(
+    base_density: str,
+    function: str,
+    is_lead: bool,
+    is_upper: bool = True,
+    bass_treatment: str = "contrapuntal",
+) -> str:
+    """Get density based on function, voice role and bass treatment."""
     if not is_lead:
+        # Contrapuntal bass gets function-based density like lead voices
+        if not is_upper and bass_treatment == "contrapuntal":
+            return _FUNCTION_TO_DENSITY.get(function, base_density)
         return "low"
     return _FUNCTION_TO_DENSITY.get(function, base_density)
 

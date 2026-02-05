@@ -6,6 +6,11 @@ v1.7.0 | 100% Deterministic Specification (2-voice Invention, C Major, Confident
 
 ---
 
+## Project Scope
+Andante is a system to produce Baroque music scores. Anything related to performance is out-of-scope.
+
+---
+
 ## Related Documents
 
 - **voices.md**: Voice and instrument entity model (canonical)

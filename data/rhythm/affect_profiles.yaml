@@ -1,0 +1,131 @@
+# Affect-to-Rhythmic Profile Mappings
+# Based on Mattheson's Affektenlehre (Der vollkommene Capellmeister, 1739).
+# Per A003: rules are data, not code.
+
+# =============================================================================
+# Affect Profiles
+# Maps affect name to base rhythmic character.
+# =============================================================================
+
+affect_profiles:
+  Freudigkeit:
+    base_density: high
+    character: energetic
+
+  Klage:
+    base_density: low
+    character: plain
+
+  Zorn:
+    base_density: high
+    character: bold
+
+  Zaertlichkeit:
+    base_density: medium
+    character: expressive
+
+  Majestaet:
+    base_density: medium
+    character: ornate
+
+  Sehnsucht:
+    base_density: low
+    character: expressive
+
+  Zierlich:
+    base_density: medium
+    character: expressive
+
+  Verwunderung:
+    base_density: medium
+    character: ornate
+
+  Entschlossenheit:
+    base_density: high
+    character: energetic
+
+  Dolore:
+    base_density: low
+    character: plain
+
+  default:
+    base_density: medium
+    character: expressive
+
+# =============================================================================
+# Section Function Modifiers
+# Adjusts base profile based on rhetorical section function.
+# =============================================================================
+
+section_modifiers:
+  exordium:
+    density_modifier: 0
+    character_override: plain
+    development_plan: intensifying
+
+  narratio:
+    density_modifier: 1
+    character_override: energetic
+    development_plan: intensifying
+
+  confirmatio:
+    density_modifier: 0
+    character_override: expressive
+    development_plan: relaxing
+
+  peroratio:
+    density_modifier: -1
+    character_override: plain
+    development_plan: relaxing
+
+  episode:
+    density_modifier: 1
+    character_override: energetic
+    development_plan: contrasting
+
+  cadential:
+    density_modifier: -1
+    character_override: expressive
+    development_plan: relaxing
+
+  subject:
+    density_modifier: 0
+    character_override: plain
+    development_plan: intensifying
+
+  answer:
+    density_modifier: 0
+    character_override: plain
+    development_plan: intensifying
+
+  development:
+    density_modifier: 1
+    character_override: energetic
+    development_plan: contrasting
+
+  recapitulation:
+    density_modifier: 0
+    character_override: expressive
+    development_plan: relaxing
+
+  coda:
+    density_modifier: -1
+    character_override: plain
+    development_plan: relaxing
+
+  sequence:
+    density_modifier: 1
+    character_override: energetic
+    development_plan: contrasting
+
+  default:
+    density_modifier: 0
+    character_override: null
+    development_plan: intensifying
+
+# =============================================================================
+# Density Coordination
+# Maps tonal density + section modifier to rhythmic density.
+# =============================================================================
+
+density_levels: [low, medium, high]

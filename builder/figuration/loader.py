@@ -170,12 +170,8 @@ def load_cadential(path: Path | None = None) -> dict[str, dict[str, list[Cadenti
     return result
 
 
-def load_rhythm_templates(path: Path | None = None) -> dict[tuple[int, str, bool], RhythmTemplate]:
-    """Load rhythm templates indexed by (note_count, metre, overdotted).
-
-    Returns:
-        Dict mapping (note_count, metre, overdotted) to RhythmTemplate.
-    """
+def load_rhythm_templates(path: Path | None = None) -> dict[tuple[int, str], RhythmTemplate]:
+    """Load rhythm templates indexed by (note_count, metre)."""
     if path is None:
         path = DATA_DIR / "rhythm_templates.yaml"
 
@@ -186,7 +182,7 @@ def load_rhythm_templates(path: Path | None = None) -> dict[tuple[int, str, bool
 
     assert isinstance(raw, dict), f"rhythm_templates.yaml must be a dict, got {type(raw).__name__}"
 
-    result: dict[tuple[int, str, bool], RhythmTemplate] = {}
+    result: dict[tuple[int, str], RhythmTemplate] = {}
 
     for metre, note_counts in raw.items():
         # Skip hemiola section for now (handled separately)
@@ -207,7 +203,9 @@ def load_rhythm_templates(path: Path | None = None) -> dict[tuple[int, str, bool
                 assert "durations" in variant_data, \
                     f"Variant {metre}/{note_count}/{variant_name} missing 'durations'"
 
-                overdotted = variant_name == "overdotted"
+                # Skip overdotted variants (S001: performance practice out of scope)
+                if variant_name == "overdotted":
+                    continue
                 durations_raw = variant_data["durations"]
                 assert isinstance(durations_raw, list), \
                     f"Durations must be a list, got {type(durations_raw).__name__}"
@@ -220,9 +218,8 @@ def load_rhythm_templates(path: Path | None = None) -> dict[tuple[int, str, bool
                     note_count=note_count,
                     metre=metre,
                     durations=durations,
-                    overdotted=overdotted,
                 )
-                result[(note_count, metre, overdotted)] = template
+                result[(note_count, metre)] = template
 
     return result
 
@@ -273,7 +270,6 @@ def load_hemiola_templates(path: Path | None = None) -> dict[tuple[int, str], Rh
                     note_count=note_count,
                     metre=metre,
                     durations=durations,
-                    overdotted=False,
                 )
                 result[(note_count, metre)] = template
 

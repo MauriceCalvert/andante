@@ -35,6 +35,7 @@ affects:
     contour: ascending
     rhythm_density: sparse
     chromaticism: light
+    density: low
 
   Klage:
     description: "Grief, lament, heavy sorrow"
@@ -46,6 +47,7 @@ affects:
     contour: descending
     rhythm_density: sparse
     chromaticism: heavy
+    density: low
 
   Freudigkeit:
     description: "Joy, brightness, energetic happiness"
@@ -57,6 +59,7 @@ affects:
     contour: arch
     rhythm_density: dense
     chromaticism: none
+    density: high
 
   Majestaet:
     description: "Majesty, grandeur, ceremonial nobility"
@@ -68,6 +71,7 @@ affects:
     contour: ascending
     rhythm_density: moderate
     chromaticism: none
+    density: medium
 
   Zaertlichkeit:
     description: "Tenderness, gentleness, intimate affection"
@@ -79,6 +83,7 @@ affects:
     contour: wave
     rhythm_density: moderate
     chromaticism: light
+    density: medium
 
   Zierlich:
     description: "Graceful, elegant, refined charm"
@@ -90,6 +95,7 @@ affects:
     contour: arch
     rhythm_density: moderate
     chromaticism: none
+    density: medium
     ornamentation: trills, grace_notes
     articulation: legato
 
@@ -103,6 +109,7 @@ affects:
     contour: wave
     rhythm_density: dense
     chromaticism: light
+    density: high
 
   Verwunderung:
     description: "Wonder, amazement, questioning surprise"
@@ -114,6 +121,7 @@ affects:
     contour: arch
     rhythm_density: moderate
     chromaticism: light
+    density: medium
 
   Entschlossenheit:
     description: "Resolution, determination, firm decisiveness"
@@ -125,6 +133,7 @@ affects:
     contour: ascending
     rhythm_density: moderate
     chromaticism: none
+    density: medium
 
   Dolore:
     description: "Pain, suffering, acute sorrow"
@@ -136,6 +145,7 @@ affects:
     contour: descending
     rhythm_density: sparse
     chromaticism: heavy
+    density: low
 
   default:
     description: "Resolution, determination, firm decisiveness"
@@ -147,7 +157,7 @@ affects:
     contour: ascending
     rhythm_density: moderate
     chromaticism: none
-    density: high
+    density: medium
     articulation: detached
     tempo_modifier: 5
     tonal_path:

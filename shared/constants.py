@@ -37,6 +37,15 @@ VALID_TEXTURES: frozenset[str] = frozenset({
 # Cadences
 # =============================================================================
 
+# Cadence target degrees (soprano, bass) by cadence type
+CADENCE_DEGREES: dict[str, tuple[int, int]] = {
+    "authentic": (1, 1),
+    "half": (2, 5),
+    "deceptive": (1, 6),
+    "phrygian": (5, 6),
+    "open": (3, 1),
+}
+
 # Cadence types for schema-first planning
 CADENCE_TYPES: tuple[str, ...] = (
     "authentic",
@@ -45,6 +54,17 @@ CADENCE_TYPES: tuple[str, ...] = (
     "phrygian",
     "plagal",
 )
+
+# Valid cadence types for tonal planning
+TONAL_CADENCE_TYPES: frozenset[str] = frozenset({
+    "authentic", "half", "deceptive", "open",
+})
+
+# Valid key areas for tonal planning
+VALID_KEY_AREAS: frozenset[str] = frozenset({
+    "I", "II", "III", "IV", "V", "VI",
+    "ii", "iii", "iv", "v", "vi",
+})
 
 # Interval names that trigger cadential writing mode
 CADENTIAL_INTERVALS: frozenset[str] = frozenset({
@@ -184,6 +204,32 @@ VALID_DURATIONS: tuple[Fraction, ...] = (
 VALID_DURATIONS_SORTED: tuple[Fraction, ...] = tuple(sorted(VALID_DURATIONS, reverse=True))
 
 
+# Valid density trajectory types
+VALID_DENSITY_TRAJECTORIES: frozenset[str] = frozenset({
+    "constant", "rising", "falling", "arc",
+})
+
+# Valid development plan types
+VALID_DEVELOPMENT_PLANS: frozenset[str] = frozenset({
+    "intensifying", "relaxing", "contrasting",
+})
+
+
+# Valid motif character types
+VALID_MOTIF_CHARACTERS: frozenset[str] = frozenset({
+    "plain", "expressive", "energetic", "ornate", "bold",
+})
+
+
+# Valid phrase positions for motif selection
+VALID_PHRASE_POSITIONS: frozenset[str] = frozenset({
+    "opening", "interior", "cadential",
+})
+
+# Climax position within section (fraction of section length)
+SECTION_CLIMAX_POSITION: float = 0.67
+
+
 # =============================================================================
 # Figuration
 # =============================================================================
@@ -241,12 +287,10 @@ INTERVAL_EXIT_DEGREES: dict[str, int] = {
 MIN_FIGURATION_NOTES: int = 2
 
 # Note count reduction from base, keyed by diatonic interval size.
-# Small intervals need fewer fill notes (less pitch space to traverse).
-SMALL_INTERVAL_NOTE_REDUCTION: dict[int, int] = {
-    0: 4,  # unison
-    1: 3,  # step
-    2: 2,  # third
-}
+# Removed: small intervals in baroque music are filled with running passages
+# and neighbour-tone figurations that need MORE notes, not fewer.
+# Kept as empty dict for backward compatibility.
+SMALL_INTERVAL_NOTE_REDUCTION: dict[int, int] = {}
 
 
 # =============================================================================
@@ -450,6 +494,10 @@ VALID_DIRECTIONS: frozenset[str] = frozenset({"down", "same", "up"})
 # =============================================================================
 # Tessitura
 # =============================================================================
+
+# Headroom (semitones) to leave for figuration departure direction
+# Ascending figuration needs room above; descending needs room below
+ANCHOR_DEPARTURE_HEADROOM: int = 12
 
 # Default tessitura medians by voice index (MIDI pitch)
 # Voice 0 = soprano, 1 = alto, 2 = tenor, 3 = bass

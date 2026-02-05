@@ -12,6 +12,7 @@ from shared.voice_types import Range, Role
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from builder.types import GapRhythm
     from motifs.fugue_loader import LoadedFugue
 
 
@@ -58,11 +59,11 @@ class GapPlan:
     bar_function: str
     near_cadence: bool
     use_hemiola: bool
-    overdotted: bool
     start_beat: int
     next_anchor_strength: str
     required_note_count: int | None
     compound_allowed: bool
+    gap_rhythm: 'GapRhythm | None' = None
 
 
 @dataclass(frozen=True)

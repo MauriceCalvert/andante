@@ -1,0 +1,237 @@
+# Rhythmic Motif Vocabulary
+# Duration patterns for phrase-level rhythm planning.
+# All durations are fractions of a whole note.
+# Patterns sum to one bar in the specified metre.
+# Per A003: rules are data, not code.
+
+# =============================================================================
+# 4/4 METRE - Foundational Cells (bar = 1 whole note)
+# =============================================================================
+
+"4/4":
+  foundational:
+    even_quarters:
+      pattern: ["1/4", "1/4", "1/4", "1/4"]
+      accent_pattern: [4, 2, 3, 1]
+      character: plain
+      phrase_positions: [opening, interior]
+      weight: 1.0
+
+    dotted_drive:
+      pattern: ["3/8", "1/8", "3/8", "1/8"]
+      accent_pattern: [4, 1, 3, 1]
+      character: energetic
+      phrase_positions: [opening, interior]
+      weight: 1.2
+
+    lombardic_snap:
+      pattern: ["1/8", "3/8", "1/8", "3/8"]
+      accent_pattern: [3, 2, 3, 2]
+      character: bold
+      phrase_positions: [interior, cadential]
+      weight: 0.8
+
+    syncopated:
+      pattern: ["1/8", "1/4", "1/4", "1/4", "1/8"]
+      accent_pattern: [2, 3, 2, 3, 1]
+      character: expressive
+      phrase_positions: [interior]
+      weight: 0.7
+
+    long_short_short:
+      pattern: ["1/2", "1/4", "1/4"]
+      accent_pattern: [4, 2, 1]
+      character: ornate
+      phrase_positions: [opening]
+      weight: 0.9
+
+    running_eighths:
+      pattern: ["1/8", "1/8", "1/8", "1/8", "1/8", "1/8", "1/8", "1/8"]
+      accent_pattern: [4, 1, 3, 1, 3, 1, 2, 1]
+      character: energetic
+      phrase_positions: [interior]
+      weight: 1.0
+
+    march:
+      pattern: ["1/4", "1/8", "1/8", "1/4", "1/4"]
+      accent_pattern: [4, 2, 1, 3, 2]
+      character: plain
+      phrase_positions: [opening, interior]
+      weight: 0.9
+
+    gavotte:
+      pattern: ["1/4", "1/4", "1/8", "1/8", "1/8", "1/8"]
+      accent_pattern: [4, 3, 2, 1, 2, 1]
+      character: expressive
+      phrase_positions: [opening, interior]
+      weight: 0.8
+
+  cadential:
+    cadential_dotted:
+      pattern: ["1/4", "3/8", "1/8", "1/4"]
+      accent_pattern: [3, 4, 1, 2]
+      character: expressive
+      phrase_positions: [cadential]
+      weight: 1.5
+
+    final_long:
+      pattern: ["3/4", "1/4"]
+      accent_pattern: [4, 2]
+      character: plain
+      phrase_positions: [cadential]
+      weight: 1.2
+
+    cadential_quarters:
+      pattern: ["1/4", "1/4", "1/2"]
+      accent_pattern: [3, 2, 4]
+      character: plain
+      phrase_positions: [cadential]
+      weight: 1.0
+
+# =============================================================================
+# 3/4 METRE - (bar = 3/4 whole note)
+# =============================================================================
+
+"3/4":
+  foundational:
+    minuet_basic:
+      pattern: ["1/4", "1/4", "1/4"]
+      accent_pattern: [4, 2, 2]
+      character: plain
+      phrase_positions: [opening, interior]
+      weight: 1.0
+
+    sarabande:
+      pattern: ["1/4", "1/2", "1/4"]
+      accent_pattern: [3, 4, 1]
+      character: expressive
+      phrase_positions: [opening, interior]
+      weight: 0.9
+
+    waltz_dotted:
+      pattern: ["3/8", "1/8", "1/4"]
+      accent_pattern: [4, 1, 2]
+      character: energetic
+      phrase_positions: [opening, interior]
+      weight: 1.0
+
+    running_triple:
+      pattern: ["1/8", "1/8", "1/8", "1/8", "1/8", "1/8"]
+      accent_pattern: [4, 1, 2, 1, 2, 1]
+      character: energetic
+      phrase_positions: [interior]
+      weight: 1.0
+
+    bourree_triple:
+      pattern: ["1/4", "1/8", "1/8", "1/4"]
+      accent_pattern: [4, 2, 1, 3]
+      character: plain
+      phrase_positions: [opening, interior]
+      weight: 0.9
+
+  cadential:
+    triple_final:
+      pattern: ["1/2", "1/4"]
+      accent_pattern: [4, 2]
+      character: plain
+      phrase_positions: [cadential]
+      weight: 1.2
+
+    hemiola_preparation:
+      # Spans 2 bars (total 3/2), for use near cadences
+      pattern: ["1/4", "1/4", "1/4", "1/4", "1/4", "1/4"]
+      accent_pattern: [4, 2, 3, 4, 2, 3]
+      character: ornate
+      phrase_positions: [cadential]
+      weight: 1.0
+
+    cadential_dotted_triple:
+      pattern: ["3/8", "1/8", "1/4"]
+      accent_pattern: [4, 1, 3]
+      character: expressive
+      phrase_positions: [cadential]
+      weight: 1.3
+
+# =============================================================================
+# 2/4 METRE - (bar = 1/2 whole note)
+# =============================================================================
+
+"2/4":
+  foundational:
+    even_halves:
+      pattern: ["1/4", "1/4"]
+      accent_pattern: [4, 2]
+      character: plain
+      phrase_positions: [opening, interior]
+      weight: 1.0
+
+    dotted_pair:
+      pattern: ["3/8", "1/8"]
+      accent_pattern: [4, 1]
+      character: energetic
+      phrase_positions: [opening, interior]
+      weight: 1.1
+
+    four_eighths:
+      pattern: ["1/8", "1/8", "1/8", "1/8"]
+      accent_pattern: [4, 1, 3, 1]
+      character: energetic
+      phrase_positions: [interior]
+      weight: 1.0
+
+    snap_pair:
+      pattern: ["1/8", "3/8"]
+      accent_pattern: [2, 4]
+      character: bold
+      phrase_positions: [interior]
+      weight: 0.8
+
+  cadential:
+    final_duple:
+      pattern: ["1/4", "1/4"]
+      accent_pattern: [3, 4]
+      character: plain
+      phrase_positions: [cadential]
+      weight: 1.2
+
+# =============================================================================
+# 6/8 METRE - Compound duple (bar = 3/4 whole note)
+# =============================================================================
+
+"6/8":
+  foundational:
+    compound_basic:
+      pattern: ["3/8", "3/8"]
+      accent_pattern: [4, 3]
+      character: plain
+      phrase_positions: [opening, interior]
+      weight: 1.0
+
+    siciliano:
+      pattern: ["3/16", "1/16", "1/8", "3/16", "1/16", "1/8"]
+      accent_pattern: [4, 1, 2, 3, 1, 2]
+      character: expressive
+      phrase_positions: [opening, interior]
+      weight: 0.9
+
+    running_compound:
+      pattern: ["1/8", "1/8", "1/8", "1/8", "1/8", "1/8"]
+      accent_pattern: [4, 1, 1, 3, 1, 1]
+      character: energetic
+      phrase_positions: [interior]
+      weight: 1.0
+
+    gigue:
+      pattern: ["1/4", "1/8", "1/4", "1/8"]
+      accent_pattern: [4, 1, 3, 1]
+      character: energetic
+      phrase_positions: [opening, interior]
+      weight: 1.1
+
+  cadential:
+    compound_final:
+      pattern: ["3/8", "3/8"]
+      accent_pattern: [3, 4]
+      character: plain
+      phrase_positions: [cadential]
+      weight: 1.2

@@ -270,11 +270,30 @@ class FormConfig:
 
 
 @dataclass(frozen=True)
+class SectionTonalPlan:
+    """Tonal plan for a single section."""
+    name: str
+    key_area: str
+    cadence_type: str
+
+
+@dataclass(frozen=True)
+class TonalPlan:
+    """Output of Layer 2: tonal regions and cadence allocation."""
+    sections: tuple[SectionTonalPlan, ...]
+    home_key: str
+    modality: str
+    density: str
+
+
+@dataclass(frozen=True)
 class SchemaChain:
     """Output of Layer 3: Ordered schema sequence with key areas."""
     schemas: tuple[str, ...]
     key_areas: tuple[str, ...]
     free_passages: frozenset[tuple[int, int]]
+    cadences: tuple[str | None, ...] = ()
+    section_boundaries: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -301,9 +320,40 @@ class PassageAssignment:
 
 
 @dataclass(frozen=True)
+class RhythmicProfile:
+    """Section-level rhythmic character."""
+    affect: str
+    base_density: str
+    hemiola_zones: tuple[tuple[int, int], ...]
+    climax_bar: int
+    density_trajectory: str
+    development_plan: str
+
+
+@dataclass(frozen=True)
+class RhythmicMotif:
+    """Phrase-level rhythmic cell."""
+    name: str
+    pattern: tuple[Fraction, ...]
+    accent_pattern: tuple[int, ...]
+    character: str
+    compatible_metres: tuple[str, ...]
+    phrase_positions: tuple[str, ...]
+    weight: float
+
+
+@dataclass(frozen=True)
+class GapRhythm:
+    """Gap-level duration specification."""
+    durations: tuple[Fraction, ...]
+    downbeat_emphasis: bool
+    pickup_to_next: bool
+    motif_slice: tuple[int, int]
+
+
+@dataclass(frozen=True)
 class RhythmPlan:
-    """Output of Layer 6: which slots are active per voice."""
-    soprano_active: frozenset[int]  # slot indices (0 to total_slots-1)
-    bass_active: frozenset[int]
-    soprano_durations: dict[int, Fraction]  # slot index -> duration
-    bass_durations: dict[int, Fraction]
+    """Complete rhythmic plan for composition."""
+    section_profiles: tuple[tuple[str, RhythmicProfile], ...]
+    phrase_motifs: tuple[tuple[int, RhythmicMotif], ...]
+    gap_rhythms: tuple[GapRhythm, ...]

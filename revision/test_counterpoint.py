@@ -32,7 +32,6 @@ def _make_pillar_gap(bar_num: int, gap_duration: Fraction) -> GapPlan:
         bar_function="passing",
         near_cadence=False,
         use_hemiola=False,
-        overdotted=False,
         start_beat=1,
         next_anchor_strength="strong",
         required_note_count=None,

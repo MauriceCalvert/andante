@@ -167,11 +167,7 @@ class FigurationStrategy(WritingStrategy):
             template = self._hemiola_templates.get((note_count, metre))
         if template is None:
             template = self._rhythm_templates.get(
-                (note_count, metre, gap.overdotted),
-            )
-        if template is None and gap.overdotted:
-            template = self._rhythm_templates.get(
-                (note_count, metre, False),
+                (note_count, metre),
             )
         if template is None:
             dur_each: Fraction = Fraction(gap.gap_duration, note_count)
@@ -212,6 +208,16 @@ def _count_compatible(fig: Figure, target: int) -> bool:
     return False
 
 
+_NOTE_NAMES: tuple[str, ...] = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
+
+
+def _midi_to_note_name(midi: int) -> str:
+    """Convert MIDI number to readable note name like 'C4' or 'F#3'."""
+    octave: int = (midi // 12) - 1
+    pc: int = midi % 12
+    return f"{_NOTE_NAMES[pc]}{octave}"
+
+
 def _expand_and_check(
     figure: Figure,
     note_count: int,
@@ -243,13 +249,14 @@ def _expand_and_check(
     for i, deg in enumerate(degrees):
         dp: DiatonicPitch = source_pitch.transpose(deg)
         midi: int = home_key.diatonic_to_midi(dp)
+        note_name: str = _midi_to_note_name(midi=midi)
         is_first: bool = i == 0
         reason: str | None = candidate_filter(dp, elapsed, is_first)
         if reason is not None:
             return None, FigureRejection(
                 figure_name=figure.name,
                 note_index=i,
-                pitch=str(dp),
+                pitch=note_name,
                 offset=str(elapsed),
                 reason=reason,
             )
@@ -258,7 +265,7 @@ def _expand_and_check(
             return None, FigureRejection(
                 figure_name=figure.name,
                 note_index=i,
-                pitch=str(dp),
+                pitch=note_name,
                 offset=str(elapsed),
                 reason=f"internal_melodic({interval})",
             )

@@ -92,11 +92,7 @@ class CadentialStrategy(WritingStrategy):
             template = self._hemiola_templates.get((note_count, metre))
         if template is None:
             template = self._rhythm_templates.get(
-                (note_count, metre, gap.overdotted),
-            )
-        if template is None and gap.overdotted:
-            template = self._rhythm_templates.get(
-                (note_count, metre, False),
+                (note_count, metre),
             )
         if template is None:
             dur_each: Fraction = Fraction(gap.gap_duration, note_count)
