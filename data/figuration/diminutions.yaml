@@ -701,6 +701,24 @@ fifth_up:
     requires_leading_tone: false
     weight: 0.55
 
+  - name: partial_fill_fifth_up
+    degrees: [0, 1, 3, 4]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.75
+
 fifth_down:
   - name: simple_fifth_down
     degrees: [0, -4]
@@ -791,6 +809,24 @@ fifth_down:
     minor_safe: true
     requires_leading_tone: false
     weight: 0.55
+
+  - name: partial_fill_fifth_down
+    degrees: [0, -1, -3, -4]
+    contour: scalar
+    polarity: balanced
+    arrival: stepwise
+    placement: span
+    character: energetic
+    harmonic_tension: low
+    max_density: high
+    cadential_safe: true
+    repeatable: true
+    requires_compensation: false
+    compensation_direction: null
+    is_compound: false
+    minor_safe: true
+    requires_leading_tone: false
+    weight: 0.75
 
 sixth_up:
   - name: simple_sixth_up

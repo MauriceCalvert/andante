@@ -42,7 +42,7 @@ from shared.plan_types import (
     VoicePlan,
     WritingMode,
 )
-from shared.constants import STRONG_BEAT_DISSONANT
+from shared.constants import ANCHOR_DEPARTURE_HEADROOM, STRONG_BEAT_DISSONANT
 from shared.voice_types import Range, Role
 
 _log: logging.Logger = logging.getLogger(__name__)
@@ -143,6 +143,9 @@ class VoiceWriter:
         self._prev_candidate_offset: Fraction | None = None
         self._anacrusis_composed: bool = False
         self._sections_composed: set[int] = set()
+        self._gaps_composed: set[tuple[int, int]] = set()
+        self._section_initialized: set[int] = set()
+        self._prev_anchor_midi: dict[int, int | None] = {}
 
     def compose(self) -> tuple[Note, ...]:
         """Compose all sections and return sorted notes."""
@@ -184,9 +187,118 @@ class VoiceWriter:
         self,
         prior_voices: dict[str, tuple[Note, ...]],
     ) -> None:
-        """Update prior voices after other voice composed a section."""
+        """Update prior voices after other voice composed a gap."""
         self._prior_voices = prior_voices
         self._prior_at_offset = _build_offset_index(prior_voices=prior_voices)
+
+    def compose_single_gap(
+        self,
+        section_idx: int,
+        gap_idx: int,
+    ) -> list[Note]:
+        """Compose a single gap within a section.
+
+        Called by compose_voices() for gap-by-gap interleaved composition.
+        Handles anacrusis before first gap of first section.
+        Handles section initialization on first gap of each section.
+        For IMITATIVE or fugue-thematic sections, composes entire section.
+        """
+        result: list[Note] = []
+        gap_key: tuple[int, int] = (section_idx, gap_idx)
+        if gap_key in self._gaps_composed:
+            return result
+        if section_idx == 0 and gap_idx == 0:
+            if self._plan.anacrusis is not None and not self._anacrusis_composed:
+                result.extend(self._compose_anacrusis())
+                self._anacrusis_composed = True
+        section: SectionPlan = self._plan.sections[section_idx]
+        if section.role == Role.IMITATIVE:
+            if section_idx not in self._sections_composed:
+                result.extend(self._compose_imitative_section(section=section))
+                self._sections_composed.add(section_idx)
+                for i in range(len(section.gaps)):
+                    self._gaps_composed.add((section_idx, i))
+            return result
+        fugue_material = self._get_fugue_material_for_section(section=section)
+        if fugue_material is not None:
+            if section_idx not in self._sections_composed:
+                result.extend(self._compose_fugue_thematic(
+                    section=section,
+                    pitches=fugue_material[0],
+                    durations=fugue_material[1],
+                    material_name=fugue_material[2],
+                ))
+                self._sections_composed.add(section_idx)
+                for i in range(len(section.gaps)):
+                    self._gaps_composed.add((section_idx, i))
+            return result
+        if section_idx not in self._section_initialized:
+            self._prev_figure_name = ""
+            self._prev_leap_direction = 0
+            self._prev_exit_pitch = None
+            self._prev_anchor_midi[section_idx] = self._prev_candidate_midi
+            self._section_initialized.add(section_idx)
+        gap: GapPlan = section.gaps[gap_idx]
+        anchor_idx: int = section.start_gap_index + gap_idx
+        prev_anchor_midi: int | None = self._prev_anchor_midi.get(section_idx)
+        if gap.bar_function == "final":
+            final_anchor: PlanAnchor = self._anchors[-1]
+            source_pitch: DiatonicPitch = self._resolve_anchor_pitch(
+                anchor=final_anchor,
+                role=section.role,
+                prev_midi=prev_anchor_midi,
+            )
+            target_pitch: DiatonicPitch = source_pitch
+            source_anchor: PlanAnchor = final_anchor
+        else:
+            source_anchor = self._anchors[anchor_idx]
+            target_anchor: PlanAnchor = self._anchors[anchor_idx + 1]
+            source_pitch = self._resolve_anchor_pitch(
+                anchor=source_anchor,
+                role=section.role,
+                prev_midi=prev_anchor_midi,
+                departure_ascending=gap.ascending,
+            )
+            source_midi: int = self._home_key.diatonic_to_midi(dp=source_pitch)
+            if anchor_idx == 0 and self._anacrusis_composed:
+                self._prev_anchor_midi[section_idx] = source_midi
+                self._prev_exit_pitch = source_pitch
+                self._gaps_composed.add(gap_key)
+                return result
+            ascending_hint: bool | None = _ascending_hint_for_resolve(
+                source_anchor=source_anchor,
+                target_anchor=target_anchor,
+                role=section.role,
+                gap_ascending=gap.ascending,
+            )
+            target_pitch = self._resolve_anchor_pitch(
+                anchor=target_anchor,
+                role=section.role,
+                prev_midi=source_midi,
+                ascending_hint=ascending_hint,
+            )
+        gap_offset: Fraction = _bar_beat_to_offset(
+            bar_beat=source_anchor.bar_beat,
+            metre=self._plan.metre,
+            upbeat=self._upbeat,
+        )
+        notes: list[Note] = self._compose_gap(
+            gap=gap,
+            source_pitch=source_pitch,
+            target_pitch=target_pitch,
+            gap_offset=gap_offset,
+        )
+        result.extend(notes)
+        self._current_voice_notes.extend(notes)
+        if notes:
+            last_note: Note = notes[-1]
+            self._prev_anchor_midi[section_idx] = last_note.pitch
+            self._prev_exit_pitch = self._home_key.midi_to_diatonic(
+                midi=last_note.pitch,
+            )
+            self._update_leap_direction(notes=notes)
+        self._gaps_composed.add(gap_key)
+        return result
 
     # ── Section-level ─────────────────────────────────────
 
@@ -305,7 +417,7 @@ class VoiceWriter:
         )
         result: list[Note] = []
         offset: Fraction = section_start
-        for midi, dur in zip(transposed, durations):
+        for i, (midi, dur) in enumerate(zip(transposed, durations)):
             adjusted: int = self._adjust_fugue_pitch_for_consonance(
                 midi=midi,
                 offset=offset,
@@ -316,7 +428,7 @@ class VoiceWriter:
                 pitch=adjusted,
                 duration=frac_dur,
                 voice=self._plan.midi_track,
-                lyric=lyric,
+                lyric=lyric if i == 0 else "",
             )
             result.append(note)
             self._prev_candidate_midi = adjusted
@@ -460,6 +572,7 @@ class VoiceWriter:
                     anchor=source_anchor,
                     role=section.role,
                     prev_midi=prev_anchor_midi,
+                    departure_ascending=gap.ascending,
                 )
                 source_midi: int = self._home_key.diatonic_to_midi(dp=source_pitch)
                 ascending_hint: bool | None = _ascending_hint_for_resolve(
@@ -509,6 +622,7 @@ class VoiceWriter:
                 target_anchor: PlanAnchor = self._anchors[anchor_idx + 1]
                 source_pitch = self._resolve_anchor_pitch(
                     anchor=source_anchor, role=section.role, prev_midi=prev_anchor_midi,
+                    departure_ascending=gap.ascending,
                 )
                 source_midi: int = self._home_key.diatonic_to_midi(dp=source_pitch)
                 if anchor_idx == 0 and self._anacrusis_composed:
@@ -557,6 +671,7 @@ class VoiceWriter:
                 target_anchor: PlanAnchor = self._anchors[anchor_idx + 1]
                 source_pitch = self._resolve_anchor_pitch(
                     anchor=source_anchor, role=section.role, prev_midi=prev_anchor_midi,
+                    departure_ascending=gap.ascending,
                 )
                 source_midi: int = self._home_key.diatonic_to_midi(dp=source_pitch)
                 if anchor_idx == 0 and self._anacrusis_composed:
@@ -708,7 +823,7 @@ class VoiceWriter:
         note_count: int = ana.note_count
         assert note_count >= 1
         dur_each: Fraction = ana.duration / note_count
-        start_offset: Fraction = Fraction(0)
+        start_offset: Fraction = -ana.duration
         target_midi: int = self._place_degree_near_median(
             key=self._home_key, degree=ana.target_degree, rng=self._plan.actuator_range,
         )
@@ -737,12 +852,16 @@ class VoiceWriter:
         role: Role,
         prev_midi: int | None,
         ascending_hint: bool | None = None,
+        departure_ascending: bool | None = None,
     ) -> DiatonicPitch:
         """Resolve anchor degree to DiatonicPitch using previous pitch context.
 
         First anchor: place degree near tessitura median.
         Subsequent: use direction hint relative to previous pitch.
         If anchor's direction is None, use ascending_hint from gap plan.
+
+        departure_ascending: if True, the figuration leaving this anchor goes
+        UP, so leave headroom above. If False, leave headroom below.
 
         After initial placement, checks consonance with prior voices at
         the anchor's offset.  If dissonant, tries alternative octaves.
@@ -760,11 +879,24 @@ class VoiceWriter:
         key: Key = anchor.local_key
         rng: Range = self._plan.actuator_range
         if prev_midi is None:
-            midi: int = self._place_degree_near_median(key=key, degree=degree, rng=rng)
+            midi: int = self._place_degree_near_median(
+                key=key,
+                degree=degree,
+                rng=rng,
+                departure_ascending=departure_ascending,
+            )
         else:
-            midi = self._place_degree_with_direction(key=key, degree=degree, prev_midi=prev_midi, direction=direction, rng=rng)
+            midi = self._place_degree_with_direction(
+                key=key,
+                degree=degree,
+                prev_midi=prev_midi,
+                direction=direction,
+                rng=rng,
+                departure_ascending=departure_ascending,
+            )
         midi = self._adjust_for_consonance(key=key, degree=degree, preferred_midi=midi, bar_beat=anchor.bar_beat, rng=rng)
         return self._home_key.midi_to_diatonic(midi=midi)
+
 
     def _adjust_for_consonance(
         self,
@@ -800,17 +932,20 @@ class VoiceWriter:
             return min(consonant, key=lambda m: abs(m - preferred_midi))
         return preferred_midi
 
-    def _place_degree_near_median(self, key: Key, degree: int, rng: Range) -> int:
-        """Place degree as MIDI near tessitura median.
+    def _place_degree_near_median(
+        self,
+        key: Key,
+        degree: int,
+        rng: Range,
+        departure_ascending: bool | None = None,
+    ) -> int:
+        """Place degree as MIDI near tessitura median with departure headroom.
 
         Generates all valid octave placements of the degree within the
-        actuator range, then picks the one closest to the median.
-        Prefers placements within a safe margin to leave room for figuration.
+        actuator range. Filters for departure headroom first (if specified),
+        then picks the one closest to the median.
         Never clamps to arbitrary MIDI values — that would corrupt the degree.
         """
-        margin: int = 10
-        safe_low: int = rng.low + margin
-        safe_high: int = rng.high - margin
         median: int = self._plan.tessitura_median
         base_pc: int = key.degree_to_midi(degree=degree, octave=0)
         candidates: list[int] = []
@@ -821,10 +956,13 @@ class VoiceWriter:
         assert candidates, (
             f"No valid octave for degree {degree} in range {rng.low}-{rng.high}"
         )
-        safe: list[int] = [m for m in candidates if safe_low <= m <= safe_high]
-        if safe:
-            return min(safe, key=lambda m: abs(m - median))
-        return min(candidates, key=lambda m: abs(m - median))
+        with_headroom: list[int] = self._filter_for_departure_headroom(
+            candidates=candidates,
+            rng=rng,
+            departure_ascending=departure_ascending,
+        )
+        pool: list[int] = with_headroom if with_headroom else candidates
+        return min(pool, key=lambda m: abs(m - median))
 
     def _place_degree_with_direction(
         self,
@@ -833,14 +971,14 @@ class VoiceWriter:
         prev_midi: int,
         direction: str | None,
         rng: Range,
+        departure_ascending: bool | None = None,
     ) -> int:
-        """Place degree relative to previous pitch using direction hint.
-        
-        Leaves margin (10 semitones) from range edges to allow figuration.
+        """Place degree relative to previous pitch with approach and departure constraints.
+
+        Approach direction (direction): whether to place above/below prev_midi.
+        Departure direction (departure_ascending): which edge needs headroom.
+        Both constraints are applied during initial candidate selection.
         """
-        margin: int = 10
-        safe_low: int = rng.low + margin
-        safe_high: int = rng.high - margin
         base_pc: int = key.degree_to_midi(degree=degree, octave=0)
         candidates: list[int] = []
         for octave in range(0, 10):
@@ -850,26 +988,43 @@ class VoiceWriter:
         assert candidates, (
             f"No valid octave for degree {degree} in range {rng.low}-{rng.high}"
         )
-        safe: list[int] = [m for m in candidates if safe_low <= m <= safe_high]
+        with_headroom: list[int] = self._filter_for_departure_headroom(
+            candidates=candidates,
+            rng=rng,
+            departure_ascending=departure_ascending,
+        )
+        pool: list[int] = with_headroom if with_headroom else candidates
         if direction == "up":
-            above: list[int] = [m for m in candidates if m > prev_midi]
-            safe_above: list[int] = [m for m in above if m <= safe_high]
-            if safe_above:
-                return min(safe_above)
-            if safe:
-                return min(safe, key=lambda m: abs(m - prev_midi))
-            return min(candidates, key=lambda m: abs(m - prev_midi))
+            above: list[int] = [m for m in pool if m > prev_midi]
+            if above:
+                return min(above)
+            return min(pool, key=lambda m: abs(m - prev_midi))
         if direction == "down":
-            below: list[int] = [m for m in candidates if m < prev_midi]
-            safe_below: list[int] = [m for m in below if m >= safe_low]
-            if safe_below:
-                return max(safe_below)
-            if safe:
-                return min(safe, key=lambda m: abs(m - prev_midi))
-            return min(candidates, key=lambda m: abs(m - prev_midi))
-        if safe:
-            return min(safe, key=lambda m: abs(m - prev_midi))
-        return min(candidates, key=lambda m: abs(m - prev_midi))
+            below: list[int] = [m for m in pool if m < prev_midi]
+            if below:
+                return max(below)
+            return min(pool, key=lambda m: abs(m - prev_midi))
+        return min(pool, key=lambda m: abs(m - prev_midi))
+
+    def _filter_for_departure_headroom(
+        self,
+        candidates: list[int],
+        rng: Range,
+        departure_ascending: bool | None,
+    ) -> list[int]:
+        """Filter candidates to ensure headroom for figuration departure direction.
+
+        Ascending departure needs room above (midi <= high - margin).
+        Descending departure needs room below (midi >= low + margin).
+        Returns filtered list, or empty if no candidates satisfy constraint.
+        """
+        if departure_ascending is None:
+            return candidates
+        if departure_ascending:
+            ceiling: int = rng.high - ANCHOR_DEPARTURE_HEADROOM
+            return [m for m in candidates if m <= ceiling]
+        floor: int = rng.low + ANCHOR_DEPARTURE_HEADROOM
+        return [m for m in candidates if m >= floor]
 
     # ── Checking ──────────────────────────────────────────
 
@@ -880,7 +1035,12 @@ class VoiceWriter:
         check_melodic: bool = True,
         check_consonance: bool = True,
     ) -> str | None:
-        """Return None if candidate passes, else rejection reason."""
+        """Return None if candidate passes, else rejection reason.
+
+        Parallels and direct motion to perfect consonances are only checked
+        on strong beats (beat 1 in any metre). Off-beat figuration has more
+        freedom per baroque practice, enabling invertible counterpoint.
+        """
         midi: int = self._home_key.diatonic_to_midi(dp=pitch)
         rng: Range = self._plan.actuator_range
         if not check_range(midi=midi, actuator_range=rng):
@@ -901,7 +1061,8 @@ class VoiceWriter:
             candidate_midi=midi, candidate_offset=offset, prior_notes_by_offset=self._prior_at_offset, prev_offset=self._prev_candidate_offset,
         ):
             return "voice_overlap"
-        if self._prev_candidate_midi is not None and prior_pitches:
+        is_strong_beat: bool = _is_strong_beat(offset=offset, metre=self._plan.metre)
+        if is_strong_beat and self._prev_candidate_midi is not None and prior_pitches:
             prev_prior: list[int] = self._find_prev_prior_pitches(current_offset=offset)
             for i, prior_midi in enumerate(prior_pitches):
                 if i < len(prev_prior):
@@ -1062,6 +1223,20 @@ def _build_offset_index(
         for note in voice_notes:
             result.setdefault(note.offset, []).append(note.pitch)
     return result
+
+
+def _is_strong_beat(offset: Fraction, metre: str) -> bool:
+    """Check if offset falls on beat 1 of a bar.
+
+    Strong beats are where parallels/direct motion rules apply strictly.
+    Off-beat notes have more freedom in baroque figuration.
+    """
+    num_str, den_str = metre.split("/")
+    den: int = int(den_str)
+    num: int = int(num_str)
+    bar_length: Fraction = Fraction(num, den)
+    position_in_bar: Fraction = offset % bar_length
+    return position_in_bar == Fraction(0)
 
 
 def _bar_beat_to_offset(
