@@ -15,6 +15,7 @@ from typing import Any
 import yaml
 
 from shared.constants import (
+    BEAT_SENTINEL_HALF,
     DURATION_SENTINEL_BAR,
     DURATION_SENTINEL_HALF,
     MAX_BASS_LEAP,
@@ -90,6 +91,8 @@ def _parse_beat_position(
 ) -> Fraction:
     """Parse beat position, handling 'half' token."""
     if beat == "half":
+        if metre == "any":
+            return BEAT_SENTINEL_HALF
         beats_per_bar = _get_beats_per_bar(metre=metre)
         return Fraction(beats_per_bar // 2 + 1)
     return Fraction(beat)
@@ -327,7 +330,8 @@ def realise_bass_pattern(
     current_prev: int | None = prev_pitch
     for beat_idx, pattern_beat in enumerate(pattern.beats):
         bar_index = pattern_beat.bar - 1
-        beat_offset = (pattern_beat.beat - 1) * beat_duration
+        resolved_beat = _resolve_beat_position(beat=pattern_beat.beat, beats_per_bar=beats_per_bar)
+        beat_offset = (resolved_beat - 1) * beat_duration
         note_offset = bar_offset + (bar_index * bar_duration) + beat_offset
         target_degree = _wrap_degree(degree=bass_degree + pattern_beat.degree_offset)
         midi_pitch = _select_bass_pitch(
@@ -358,6 +362,16 @@ def _get_beats_per_bar(metre: str) -> int:
     )
     parts = metre.split("/")
     return int(parts[0])
+
+
+def _resolve_beat_position(
+    beat: Fraction,
+    beats_per_bar: int,
+) -> Fraction:
+    """Resolve deferred beat sentinels to actual positions."""
+    if beat == BEAT_SENTINEL_HALF:
+        return Fraction(beats_per_bar // 2 + 1)
+    return beat
 
 
 def _wrap_degree(degree: int) -> int:
@@ -401,7 +415,8 @@ def realise_bass_schema(
     beat_duration = bar_duration / beats_per_bar
     current_prev: int | None = prev_pitch
     for rhythm_beat in pattern.beats:
-        beat_offset = (rhythm_beat.beat - 1) * beat_duration
+        resolved_beat = _resolve_beat_position(beat=rhythm_beat.beat, beats_per_bar=beats_per_bar)
+        beat_offset = (resolved_beat - 1) * beat_duration
         note_offset = bar_offset + beat_offset
         if rhythm_beat.use_next and next_degree is not None:
             degree = next_degree

@@ -356,3 +356,13 @@ All issues from review.md resolved across 9 tasks:
 - Defensive fallback in phrase_planner.py:42 → assert
 - seq_positions NameError risk → initialized to None + assert
 - Hardcoded *4 in io.py → already fixed to *beat_value in §5a
+
+### §11: Test conformance audit (TODO_test_conformance.md Issues 1–3)
+- Issue 1: bass.py metre='any' bug — added BEAT_SENTINEL_HALF constant, deferred beat position
+  resolution in _parse_beat_position for metre="any" patterns with beat="half", resolved at
+  realisation time via _resolve_beat_position helper. Unblocked test_L6_phrase_writer collection.
+- Issue 2: Restructured tests/ to mirror source: shared/, planner/, builder/, data/, integration/.
+  Empty __init__.py per L018. All 3546 tests still collected.
+- Issue 3: Replaced weak structural assertions in test_L1_rhetorical.py with specification-derived
+  expected values: exact tempo match against genre YAML, rhythmic_unit validated against both
+  VALID_DURATIONS_SET and genre spec, trajectory matched against section names. 40/40 passed.

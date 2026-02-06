@@ -236,6 +236,9 @@ LEAP_THRESHOLD: int = 4
 DURATION_SENTINEL_BAR: Fraction = Fraction(-1)
 DURATION_SENTINEL_HALF: Fraction = Fraction(-2)
 
+# Sentinel beat position for "half" token when metre is unknown at parse time
+BEAT_SENTINEL_HALF: Fraction = Fraction(-3)
+
 
 # Valid density trajectory types
 VALID_DENSITY_TRAJECTORIES: frozenset[str] = frozenset({
