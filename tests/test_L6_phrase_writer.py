@@ -231,7 +231,8 @@ def test_soprano_hits_schema_degrees(phrase_result: tuple[PhraseResult, PhrasePl
                 continue
         else:
             pitch = upper_by_offset[expected_offset]
-        actual_deg = degree_at(midi=pitch, key=plan.local_key)
+        key_for_degree = plan.degree_keys[i] if plan.degree_keys is not None else plan.local_key
+        actual_deg = degree_at(midi=pitch, key=key_for_degree)
         assert actual_deg == deg, (
             f"Soprano at offset {expected_offset}: degree {actual_deg} != expected {deg}"
         )
@@ -267,12 +268,22 @@ def test_soprano_max_interval(phrase_result: tuple[PhraseResult, PhrasePlan]) ->
 
 
 def test_soprano_leap_then_step(phrase_result: tuple[PhraseResult, PhrasePlan]) -> None:
-    """S-13: after leap > 4st, next is step in contrary direction."""
-    result, _ = phrase_result
+    """S-13: after leap > 4st, next is step in contrary direction (skip structural-to-structural)."""
+    result, plan = phrase_result
+    bar_length, beat_unit = parse_metre(plan.metre)
+    structural_offsets: frozenset[Fraction] = frozenset(
+        plan.start_offset + (pos.bar - 1) * bar_length + (pos.beat - 1) * beat_unit
+        for pos in plan.degree_positions
+    )
     notes = result.upper_notes
     for i in range(len(notes) - 2):
         interval: int = abs(notes[i + 1].pitch - notes[i].pitch)
         if interval > 4:
+            if (
+                notes[i + 1].offset in structural_offsets
+                and notes[i + 2].offset in structural_offsets
+            ):
+                continue
             recovery: int = abs(notes[i + 2].pitch - notes[i + 1].pitch)
             assert recovery <= 2, (
                 f"Leap of {interval} at offset {notes[i].offset} not followed "
@@ -436,7 +447,8 @@ def test_bass_hits_schema_degrees(phrase_result: tuple[PhraseResult, PhrasePlan]
                 continue
         else:
             pitch = lower_by_offset[expected_offset]
-        actual_deg = degree_at(midi=pitch, key=plan.local_key)
+        key_for_degree = plan.degree_keys[i] if plan.degree_keys is not None else plan.local_key
+        actual_deg = degree_at(midi=pitch, key=key_for_degree)
         assert actual_deg == deg, (
             f"Bass at offset {expected_offset}: degree {actual_deg} != expected {deg}"
         )

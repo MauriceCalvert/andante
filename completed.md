@@ -258,3 +258,43 @@ from the now-removed `voice_writer.py` entry point:
 - Fixed stale docstring in Anchor (voice_writer -> phrase_writer)
 
 Total dead code removed: ~3200 lines.
+
+## 2026-02-06: Phase E2 — Sequential schema degree expansion
+
+**Goal**: fonte and monte schemas are sequential — their soprano/bass degree patterns
+repeat per segment, transposed to different keys. Previously the phrase writer resolved
+all degrees against `plan.local_key`, producing wrong pitches for non-first segments.
+
+**Changes**:
+
+1. `builder/phrase_types.py`: Added `degree_keys: tuple[Key, ...] | None` field to PhrasePlan.
+   Non-sequential schemas leave this None; sequential schemas get one Key per expanded degree.
+
+2. `builder/phrase_planner.py`: Added `_expand_sequential_degrees()` which replicates the
+   base soprano/bass degrees across segments, assigns per-segment keys (derived from
+   schema_chain key_areas), and generates beat positions for the expanded degrees.
+   Called in `_build_single_plan` when `schema_def.sequential` is True.
+
+3. `builder/phrase_writer.py`:
+   - Both `generate_soprano_phrase` and `generate_bass_phrase` now use `plan.degree_keys[i]`
+     instead of `plan.local_key` when resolving structural tone pitches.
+   - Fill logic tracks `current_key` from the nearest structural tone for diatonic stepping.
+   - Soprano fill gained leap recovery: after a forced leap into a structural tone, the
+     next fill note steps in the contrary direction before resuming toward the target.
+   - `_check_leap_step` accepts optional `structural_offsets` and skips the leap-step
+     rule when both the leaping note and the recovery note are structural (forced by plan).
+   - Pillar bass now emits sub-bar notes when multiple structural tones fall within a bar,
+     splitting the bar duration at structural onset positions.
+
+4. `builder/rhythm_cells.py`: `select_cell` gained `required_onsets` parameter —
+   a frozenset of bar-relative offsets where the cell must have note onsets. Both
+   generators compute per-bar structural offsets and pass them, ensuring cells always
+   have enough onsets to hit structural tones. Canonical fix (not downstream cell splitting).
+
+5. `tests/test_L5_phrase_planner.py`: Tests P-04/P-05 updated for expanded degree counts
+   in sequential schemas. New test P-27 verifies degree_keys presence/absence.
+
+6. `tests/test_L6_phrase_writer.py`: S-10/B-10 degree-hit tests use `plan.degree_keys[i]`
+   for key resolution. S-13 leap-step test skips structural-to-structural leaps.
+
+**Results**: 3492 passed, 209 skipped, 30 xfailed, 39 xpassed, 0 failures (64s)

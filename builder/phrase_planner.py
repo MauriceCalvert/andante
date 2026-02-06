@@ -91,6 +91,7 @@ def _build_single_plan(
     cadence_template: CadenceTemplate | None = None
     degrees_upper: tuple[int, ...]
     degrees_lower: tuple[int, ...]
+    degree_keys: tuple[Key, ...] | None = None
     if is_cadential:
         cadence_template = _get_cadential_template(
             schema_name=schema_name,
@@ -99,6 +100,13 @@ def _build_single_plan(
     if cadence_template is not None:
         degrees_upper = cadence_template.soprano_degrees
         degrees_lower = cadence_template.bass_degrees
+    elif schema_def.sequential:
+        degrees_upper, degrees_lower, seq_positions, degree_keys = _expand_sequential_degrees(
+            schema_def=schema_def,
+            bar_span=bar_span,
+            home_key=home_key,
+            metre=genre_config.metre,
+        )
     else:
         degrees_upper = schema_def.soprano_degrees
         degrees_lower = schema_def.bass_degrees
@@ -114,6 +122,8 @@ def _build_single_plan(
             template=cadence_template,
             beat_unit=beat_unit,
         )
+    elif schema_def.sequential:
+        degree_positions = seq_positions
     else:
         degree_positions = tuple(
             BeatPosition(bar=stage + 1, beat=1)
@@ -151,6 +161,7 @@ def _build_single_plan(
         lower_range=lower_range,
         upper_median=upper_median,
         lower_median=lower_median,
+        degree_keys=degree_keys,
     )
 
 

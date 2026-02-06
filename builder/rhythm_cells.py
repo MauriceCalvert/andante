@@ -147,18 +147,38 @@ def load_rhythm_cells() -> dict[str, list[RhythmCell]]:
     return result
 
 
+def _cell_onsets(cell: RhythmCell) -> frozenset[Fraction]:
+    """Return bar-relative onset offsets for a cell."""
+    offsets: list[Fraction] = []
+    pos: Fraction = Fraction(0)
+    for dur in cell.durations:
+        offsets.append(pos)
+        pos += dur
+    return frozenset(offsets)
+
+
 def select_cell(
     genre: str,
     metre: str,
     bar_index: int,
     prefer_character: str = "plain",
     avoid_name: str | None = None,
+    required_onsets: frozenset[Fraction] | None = None,
 ) -> RhythmCell:
     """Select a rhythm cell for one bar. Deterministic (A005)."""
     candidates: list[RhythmCell] = get_cells_for_genre(genre=genre, metre=metre)
     assert len(candidates) > 0, (
         f"No rhythm cells for genre '{genre}' in metre '{metre}'"
     )
+    if required_onsets is not None:
+        candidates = [
+            c for c in candidates
+            if required_onsets.issubset(_cell_onsets(cell=c))
+        ]
+        assert len(candidates) > 0, (
+            f"No rhythm cells for genre '{genre}' in metre '{metre}' "
+            f"with onsets at {sorted(required_onsets)}"
+        )
     preferred: list[RhythmCell] = [
         c for c in candidates if c.character == prefer_character
     ]

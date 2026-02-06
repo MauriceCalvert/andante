@@ -32,11 +32,21 @@ _BASS_TEXTURE: dict[str, str] = {
 
 
 
-def _check_leap_step(notes: list[Note]) -> None:
-    """Assert leap-then-step rule (except final note)."""
+def _check_leap_step(
+    notes: list[Note],
+    structural_offsets: frozenset[Fraction] | None = None,
+) -> None:
+    """Assert leap-then-step rule (except final note and structural-to-structural)."""
     for i in range(len(notes) - 2):
         interval: int = abs(notes[i + 1].pitch - notes[i].pitch)
         if interval > LEAP_THRESHOLD:
+            if structural_offsets is not None:
+                recovery_forced: bool = (
+                    notes[i + 1].offset in structural_offsets
+                    and notes[i + 2].offset in structural_offsets
+                )
+                if recovery_forced:
+                    continue
             recovery: int = abs(notes[i + 2].pitch - notes[i + 1].pitch)
             assert recovery <= STEP_THRESHOLD, (
                 f"Leap of {interval} at offset {notes[i].offset} not followed "
@@ -199,6 +209,7 @@ def _find_consonant_alternative(
 def _validate_soprano_notes(
     notes: list[Note],
     plan: PhrasePlan,
+    structural_offsets: frozenset[Fraction] | None = None,
 ) -> None:
     """Validate all postconditions on soprano notes."""
     assert len(notes) >= 1, "No soprano notes generated"
@@ -225,7 +236,7 @@ def _validate_soprano_notes(
         f"Soprano first note at {notes[0].offset}, expected {plan.start_offset}"
     )
     _check_max_interval(notes=notes)
-    _check_leap_step(notes=notes)
+    _check_leap_step(notes=notes, structural_offsets=structural_offsets)
 
 
 def _validate_bass_notes(
@@ -281,6 +292,7 @@ def generate_soprano_phrase(
     )
     bar_length, beat_unit = _parse_metre(metre=plan.metre)
     structural_tones: list[tuple[Fraction, int]] = []
+    structural_keys: list[tuple[Fraction, Key]] = []
     prev_midi: int = (
         prev_exit_midi if prev_exit_midi is not None
         else plan.upper_median
@@ -292,23 +304,34 @@ def generate_soprano_phrase(
             + (pos.bar - 1) * bar_length
             + (pos.beat - 1) * beat_unit
         )
+        key_for_degree: Key = plan.degree_keys[i] if plan.degree_keys is not None else plan.local_key
         midi: int = _degree_to_nearest_midi(
             degree=degree,
-            key=plan.local_key,
+            key=key_for_degree,
             target_midi=prev_midi,
             midi_range=(plan.upper_range.low, plan.upper_range.high),
         )
         structural_tones.append((offset, midi))
+        structural_keys.append((offset, key_for_degree))
         prev_midi = midi
     structural_map: dict[Fraction, int] = dict(structural_tones)
+    structural_key_map: dict[Fraction, Key] = dict(structural_keys)
+    bar_structural_offsets: dict[int, frozenset[Fraction]] = {}
+    for st_offset, _ in structural_tones:
+        bar_num_for_st: int = int((st_offset - plan.start_offset) // bar_length) + 1
+        bar_rel: Fraction = st_offset - plan.start_offset - (bar_num_for_st - 1) * bar_length
+        bar_structural_offsets.setdefault(bar_num_for_st, set()).add(bar_rel)
+    bar_structural_offsets = {k: frozenset(v) for k, v in bar_structural_offsets.items()}
     notes: list[Note] = []
     current_offset: Fraction = plan.start_offset
     current_midi: int = (
         prev_exit_midi if prev_exit_midi is not None
         else structural_tones[0][1] if structural_tones else plan.upper_median
     )
+    current_key: Key = structural_keys[0][1] if structural_keys else plan.local_key
     prev_cell_name: str | None = None
     struct_idx: int = 0
+    recovery_direction: int = 0
     for bar_num in range(1, plan.bar_span + 1):
         bar_start: Fraction = plan.start_offset + (bar_num - 1) * bar_length
         is_final_bar: bool = bar_num == plan.bar_span
@@ -319,32 +342,44 @@ def generate_soprano_phrase(
             bar_index=bar_num - 1,
             prefer_character=prefer,
             avoid_name=prev_cell_name,
+            required_onsets=bar_structural_offsets.get(bar_num),
         )
         prev_cell_name = cell.name
         note_offset: Fraction = bar_start
         for dur in cell.durations:
             if note_offset in structural_map:
                 pitch: int = structural_map[note_offset]
+                if note_offset in structural_key_map:
+                    current_key = structural_key_map[note_offset]
                 while struct_idx < len(structural_tones) - 1:
                     if structural_tones[struct_idx][0] <= note_offset:
                         struct_idx += 1
                     else:
                         break
+                leap: int = abs(pitch - current_midi) if current_midi != plan.upper_median else 0
+                if leap > LEAP_THRESHOLD:
+                    recovery_direction = +1 if pitch < current_midi else -1
+                else:
+                    recovery_direction = 0
             else:
-                next_struct_offset: Fraction
-                next_struct_midi: int
-                if struct_idx < len(structural_tones):
-                    next_struct_offset, next_struct_midi = structural_tones[struct_idx]
+                if recovery_direction != 0:
+                    pitch = current_key.diatonic_step(midi=current_midi, steps=recovery_direction)
+                    recovery_direction = 0
                 else:
-                    next_struct_offset = plan.start_offset + plan.phrase_duration
-                    next_struct_midi = current_midi
-                if next_struct_midi > current_midi:
-                    pitch = plan.local_key.diatonic_step(midi=current_midi, steps=+1)
-                elif next_struct_midi < current_midi:
-                    pitch = plan.local_key.diatonic_step(midi=current_midi, steps=-1)
-                else:
-                    direction: int = +1 if (bar_num % 2 == 0) else -1
-                    pitch = plan.local_key.diatonic_step(midi=current_midi, steps=direction)
+                    next_struct_offset: Fraction
+                    next_struct_midi: int
+                    if struct_idx < len(structural_tones):
+                        next_struct_offset, next_struct_midi = structural_tones[struct_idx]
+                    else:
+                        next_struct_offset = plan.start_offset + plan.phrase_duration
+                        next_struct_midi = current_midi
+                    if next_struct_midi > current_midi:
+                        pitch = current_key.diatonic_step(midi=current_midi, steps=+1)
+                    elif next_struct_midi < current_midi:
+                        pitch = current_key.diatonic_step(midi=current_midi, steps=-1)
+                    else:
+                        direction: int = +1 if (bar_num % 2 == 0) else -1
+                        pitch = current_key.diatonic_step(midi=current_midi, steps=direction)
             pitch = max(plan.upper_range.low, min(pitch, plan.upper_range.high))
             notes.append(Note(
                 offset=note_offset,
@@ -355,7 +390,11 @@ def generate_soprano_phrase(
             current_midi = pitch
             note_offset += dur
         current_offset = note_offset
-    _validate_soprano_notes(notes=notes, plan=plan)
+    _validate_soprano_notes(
+        notes=notes,
+        plan=plan,
+        structural_offsets=frozenset(structural_map.keys()),
+    )
     return tuple(notes)
 
 
@@ -371,6 +410,7 @@ def generate_bass_phrase(
     )
     bar_length, beat_unit = _parse_metre(metre=plan.metre)
     structural_tones: list[tuple[Fraction, int]] = []
+    structural_keys: list[tuple[Fraction, Key]] = []
     prev_midi: int = (
         prev_exit_midi if prev_exit_midi is not None
         else plan.lower_median
@@ -382,11 +422,12 @@ def generate_bass_phrase(
             + (pos.bar - 1) * bar_length
             + (pos.beat - 1) * beat_unit
         )
+        key_for_degree: Key = plan.degree_keys[i] if plan.degree_keys is not None else plan.local_key
         soprano_at_offset: int | None = _soprano_pitch_at_offset(soprano_notes=soprano_notes, offset=offset)
         if soprano_at_offset is not None:
             midi: int = _find_consonant_alternative(
                 target_degree=degree,
-                key=plan.local_key,
+                key=key_for_degree,
                 soprano_pitch=soprano_at_offset,
                 bass_range=(plan.lower_range.low, plan.lower_range.high),
                 prev_bass_midi=prev_midi,
@@ -394,44 +435,68 @@ def generate_bass_phrase(
         else:
             midi = _degree_to_nearest_midi(
                 degree=degree,
-                key=plan.local_key,
+                key=key_for_degree,
                 target_midi=prev_midi,
                 midi_range=(plan.lower_range.low, plan.lower_range.high),
             )
         structural_tones.append((offset, midi))
+        structural_keys.append((offset, key_for_degree))
         prev_midi = midi
     structural_map: dict[Fraction, int] = dict(structural_tones)
+    structural_key_map: dict[Fraction, Key] = dict(structural_keys)
+    bar_structural_offsets: dict[int, frozenset[Fraction]] = {}
+    for st_offset, _ in structural_tones:
+        bar_num_for_st: int = int((st_offset - plan.start_offset) // bar_length) + 1
+        bar_rel: Fraction = st_offset - plan.start_offset - (bar_num_for_st - 1) * bar_length
+        bar_structural_offsets.setdefault(bar_num_for_st, set()).add(bar_rel)
+    bar_structural_offsets = {k: frozenset(v) for k, v in bar_structural_offsets.items()}
     texture: str = _BASS_TEXTURE.get(plan.rhythm_profile, "pillar")
     notes: list[Note] = []
     if texture == "pillar":
         for bar_num in range(1, plan.bar_span + 1):
             bar_start: Fraction = plan.start_offset + (bar_num - 1) * bar_length
-            if bar_start in structural_map:
-                pitch: int = structural_map[bar_start]
-            elif notes:
-                pitch = notes[-1].pitch
-            else:
-                pitch = structural_tones[0][1] if structural_tones else plan.lower_median
-            pitch = max(plan.lower_range.low, min(pitch, plan.lower_range.high))
-            # L004: soprano/bass crossing forbidden
-            sop_here: int | None = _soprano_pitch_at_offset(
-                soprano_notes=soprano_notes,
-                offset=bar_start,
+            bar_end: Fraction = bar_start + bar_length
+            bar_onsets: list[Fraction] = sorted(
+                off for off, _ in structural_tones
+                if bar_start <= off < bar_end
             )
-            assert sop_here is None or pitch <= sop_here, (
-                f"Pillar bass {pitch} > soprano {sop_here} at offset {bar_start}"
-            )
-            notes.append(Note(
-                offset=bar_start,
-                pitch=pitch,
-                duration=bar_length,
-                voice=PHRASE_VOICE_BASS,
-            ))
+            if not bar_onsets:
+                bar_onsets = [bar_start]
+            for onset_idx, onset in enumerate(bar_onsets):
+                next_onset: Fraction = (
+                    bar_onsets[onset_idx + 1] if onset_idx + 1 < len(bar_onsets)
+                    else bar_end
+                )
+                dur: Fraction = next_onset - onset
+                assert dur in VALID_DURATIONS_SET, (
+                    f"Pillar bass split at {onset}: duration {dur} not valid"
+                )
+                if onset in structural_map:
+                    pitch: int = structural_map[onset]
+                elif notes:
+                    pitch = notes[-1].pitch
+                else:
+                    pitch = structural_tones[0][1] if structural_tones else plan.lower_median
+                pitch = max(plan.lower_range.low, min(pitch, plan.lower_range.high))
+                sop_here: int | None = _soprano_pitch_at_offset(
+                    soprano_notes=soprano_notes,
+                    offset=onset,
+                )
+                assert sop_here is None or pitch <= sop_here, (
+                    f"Pillar bass {pitch} > soprano {sop_here} at offset {onset}"
+                )
+                notes.append(Note(
+                    offset=onset,
+                    pitch=pitch,
+                    duration=dur,
+                    voice=PHRASE_VOICE_BASS,
+                ))
     else:
         current_midi = (
             prev_exit_midi if prev_exit_midi is not None
             else structural_tones[0][1] if structural_tones else plan.lower_median
         )
+        current_key: Key = structural_keys[0][1] if structural_keys else plan.local_key
         struct_idx: int = 0
         prev_bass: int | None = None
         prev_soprano: int | None = None
@@ -445,12 +510,15 @@ def generate_bass_phrase(
                 bar_index=bar_num - 1,
                 prefer_character=prefer,
                 avoid_name=None,
+                required_onsets=bar_structural_offsets.get(bar_num),
             )
             note_offset: Fraction = bar_start
             for note_idx, dur in enumerate(cell.durations):
                 from_structural: bool = note_offset in structural_map
                 if from_structural:
                     pitch = structural_map[note_offset]
+                    if note_offset in structural_key_map:
+                        current_key = structural_key_map[note_offset]
                     while struct_idx < len(structural_tones) - 1:
                         if structural_tones[struct_idx][0] <= note_offset:
                             struct_idx += 1
@@ -463,9 +531,9 @@ def generate_bass_phrase(
                     else:
                         next_struct_midi = current_midi
                     if next_struct_midi > current_midi:
-                        pitch = plan.local_key.diatonic_step(midi=current_midi, steps=+1)
+                        pitch = current_key.diatonic_step(midi=current_midi, steps=+1)
                     elif next_struct_midi < current_midi:
-                        pitch = plan.local_key.diatonic_step(midi=current_midi, steps=-1)
+                        pitch = current_key.diatonic_step(midi=current_midi, steps=-1)
                     else:
                         pitch = current_midi
                 pitch = max(plan.lower_range.low, min(pitch, plan.lower_range.high))
@@ -476,7 +544,7 @@ def generate_bass_phrase(
                 )
                 if sop_here is not None and pitch > sop_here:
                     # Step down from soprano instead of stepping toward target
-                    pitch = plan.local_key.diatonic_step(midi=sop_here, steps=-1)
+                    pitch = current_key.diatonic_step(midi=sop_here, steps=-1)
                     pitch = max(plan.lower_range.low, pitch)
                     assert pitch <= sop_here, (
                         f"Bass {pitch} still above soprano {sop_here} "
@@ -488,7 +556,7 @@ def generate_bass_phrase(
                     pitch = _select_strong_beat_bass(
                         candidate=pitch,
                         soprano_pitch=sop_here,
-                        key=plan.local_key,
+                        key=current_key,
                         bass_range=(plan.lower_range.low, plan.lower_range.high),
                         prev_bass=prev_bass,
                         prev_soprano=prev_soprano,
@@ -501,9 +569,9 @@ def generate_bass_phrase(
                     prev_soprano_pitch=prev_soprano,
                 ):
                     # Try one step in opposite direction to break the parallel
-                    alt: int = plan.local_key.diatonic_step(midi=pitch, steps=-1)
+                    alt: int = current_key.diatonic_step(midi=pitch, steps=-1)
                     if alt < plan.lower_range.low:
-                        alt = plan.local_key.diatonic_step(midi=pitch, steps=+1)
+                        alt = current_key.diatonic_step(midi=pitch, steps=+1)
                     if (
                         plan.lower_range.low <= alt <= plan.lower_range.high
                         and (sop_here is None or alt <= sop_here)

@@ -86,6 +86,12 @@ def test_upper_degrees_match_schema(phrase_plans_result):
     for plan in plans:
         schema_def = schemas[plan.schema_name]
         if schema_def.sequential:
+            per_seg: tuple[int, ...] = schema_def.soprano_degrees
+            expected = per_seg * plan.bar_span
+            assert plan.degrees_upper == expected, (
+                f"Sequential plan degrees_upper {plan.degrees_upper} != "
+                f"expected {expected} ({plan.bar_span} segments, {len(per_seg)} per segment)"
+            )
             continue
         if schema_def.position == CADENTIAL_POSITION:
             key = (plan.schema_name, genre_config.metre)
@@ -110,6 +116,12 @@ def test_lower_degrees_match_schema(phrase_plans_result):
     for plan in plans:
         schema_def = schemas[plan.schema_name]
         if schema_def.sequential:
+            per_seg: tuple[int, ...] = schema_def.bass_degrees
+            expected = per_seg * plan.bar_span
+            assert plan.degrees_lower == expected, (
+                f"Sequential plan degrees_lower {plan.degrees_lower} != "
+                f"expected {expected} ({plan.bar_span} segments, {len(per_seg)} per segment)"
+            )
             continue
         if schema_def.position == CADENTIAL_POSITION:
             key = (plan.schema_name, genre_config.metre)
@@ -126,12 +138,9 @@ def test_lower_degrees_match_schema(phrase_plans_result):
 
 
 def test_positions_count(phrase_plans_result):
-    """P-06: degree_positions count matches degrees_upper count (non-sequential)."""
+    """P-06: degree_positions count matches degrees_upper count."""
     plans, _, schemas, _, _ = phrase_plans_result
     for plan in plans:
-        schema_def = schemas[plan.schema_name]
-        if schema_def.sequential:
-            continue
         assert len(plan.degree_positions) == len(plan.degrees_upper), (
             f"degree_positions count {len(plan.degree_positions)} != "
             f"degrees_upper count {len(plan.degrees_upper)}"
@@ -338,3 +347,22 @@ def test_start_bar_in_range(phrase_plans_result):
         assert 0 <= plan.start_bar <= total_bars, (
             f"start_bar {plan.start_bar} not in [0, {total_bars}]"
         )
+
+
+def test_degree_keys_for_sequential(phrase_plans_result):
+    """P-27: sequential schemas have degree_keys; non-sequential have None."""
+    plans, _, schemas, _, _ = phrase_plans_result
+    for plan in plans:
+        schema_def = schemas[plan.schema_name]
+        if schema_def.sequential:
+            assert plan.degree_keys is not None, (
+                f"Sequential schema '{plan.schema_name}' has degree_keys=None"
+            )
+            assert len(plan.degree_keys) == len(plan.degrees_upper), (
+                f"degree_keys length {len(plan.degree_keys)} != "
+                f"degrees_upper length {len(plan.degrees_upper)}"
+            )
+        else:
+            assert plan.degree_keys is None, (
+                f"Non-sequential schema '{plan.schema_name}' has degree_keys set"
+            )
