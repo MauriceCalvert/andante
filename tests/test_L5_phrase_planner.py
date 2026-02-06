@@ -9,7 +9,10 @@ from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
 from shared.constants import CADENTIAL_POSITION
 from shared.key import Key
-from tests.conftest import GENRES
+from tests.conftest import AFFECTS, GENRES, KEYS
+
+# L5 uses 2 affects: Zierlich (light) and Dolore (dark) per remediation plan 4.2
+_L5_AFFECTS: tuple[str, ...] = ("Zierlich", "Dolore")
 
 
 def _bar_length(metre: str) -> Fraction:
@@ -24,11 +27,16 @@ def _max_beat(metre: str) -> int:
     return int(num)
 
 
-@pytest.fixture(params=GENRES)
+_L5_PARAMS: list[tuple[str, str, str]] = [
+    (g, k, a) for g in GENRES for k in KEYS for a in _L5_AFFECTS
+]
+
+
+@pytest.fixture(params=_L5_PARAMS, ids=[f"{g}_{k}_{a}" for g, k, a in _L5_PARAMS])
 def phrase_plans_result(request):
-    """Run pipeline through L5 for each genre."""
-    genre = request.param
-    config = load_configs(genre=genre, key="c_major", affect="Zierlich")
+    """Run pipeline through L5 for each genre+key+affect combination."""
+    genre, key, affect = request.param
+    config = load_configs(genre=genre, key=key, affect=affect)
     gc = config["genre"]
     tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42)
     chain = layer_3_schematic(

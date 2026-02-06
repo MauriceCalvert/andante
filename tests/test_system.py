@@ -20,20 +20,20 @@ from planner.textural import layer_5_textural
 from planner.rhythmic import layer_6_rhythmic
 from planner.voice_planning import build_composition_plan
 from shared.key import Key
-from tests.helpers import degree_at, parse_metre
+from tests.conftest import KEYS
+from tests.helpers import degree_at, get_phrase_genres, parse_metre
 
 
-# Genres with complete rhythm cell coverage for phrase-based composition
-# invention excluded due to passo_indietro schema having mismatched degree counts
-PHRASE_GENRES: tuple[str, ...] = ("gavotte", "minuet", "sarabande")
+# Genres with rhythm cells for their metre — computed dynamically
+PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()
 
 
 FAULT_THRESHOLD: int = 30  # Maximum acceptable faults (lenient due to phrase boundary issues)
 
 
-def _run_full_pipeline(genre: str) -> tuple[Composition, list[Fault], Any, Key]:
+def _run_full_pipeline(genre: str, key: str = "c_major") -> tuple[Composition, list[Fault], Any, Key]:
     """Run full pipeline and return Composition, faults, GenreConfig, home_key."""
-    config = load_configs(genre=genre, key="c_major", affect="Zierlich")
+    config = load_configs(genre=genre, key=key, affect="Zierlich")
     gc = config["genre"]
     kc = config["key"]
     tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42)
@@ -85,11 +85,16 @@ def _run_full_pipeline(genre: str) -> tuple[Composition, list[Fault], Any, Key]:
     return comp, faults, gc, plan.home_key
 
 
-@pytest.fixture(scope="module", params=PHRASE_GENRES)
+_SYS_PARAMS: list[tuple[str, str]] = [
+    (g, k) for g in PHRASE_GENRES for k in KEYS
+]
+
+
+@pytest.fixture(scope="module", params=_SYS_PARAMS, ids=[f"{g}_{k}" for g, k in _SYS_PARAMS])
 def system_output(request: pytest.FixtureRequest) -> tuple[Composition, list[Fault], Any, Key]:
     """Run full pipeline and return output with faults."""
-    genre = request.param
-    return _run_full_pipeline(genre)
+    genre, key = request.param
+    return _run_full_pipeline(genre=genre, key=key)
 
 
 def _get_soprano_bass(comp: Composition) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
@@ -118,7 +123,7 @@ def test_generates_output(system_output: tuple[Composition, list[Fault], Any, Ke
 
 def test_correct_final_degree(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
     """Final notes are tonic in home key."""
-    comp, _, _, home_key = system_output
+    comp, _, gc, home_key = system_output
     soprano, bass = _get_soprano_bass(comp)
     soprano_final = degree_at(midi=soprano[-1].pitch, key=home_key)
     bass_final = degree_at(midi=bass[-1].pitch, key=home_key)
@@ -128,7 +133,7 @@ def test_correct_final_degree(system_output: tuple[Composition, list[Fault], Any
 
 def test_zero_parallel_perfects(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
     """Fault scan: 0 parallel fifths/octaves."""
-    _, faults, _, _ = system_output
+    _, faults, gc, _ = system_output
     parallel_faults = [
         f for f in faults
         if f.category in ("parallel_fifth", "parallel_octave", "parallel_unison")

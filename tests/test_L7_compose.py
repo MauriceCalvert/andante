@@ -15,17 +15,16 @@ from planner.metric.layer import layer_4_metric
 from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
 from shared.key import Key
-from tests.helpers import degree_at, parse_metre
+from tests.conftest import KEYS
+from tests.helpers import degree_at, get_phrase_genres, parse_metre
+
+# Genres with rhythm cells for their metre — computed dynamically
+PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()
 
 
-# Genres with complete rhythm cell coverage for phrase-based composition
-# invention excluded due to passo_indietro schema having mismatched degree counts
-PHRASE_GENRES: tuple[str, ...] = ("gavotte", "minuet", "sarabande")
-
-
-def _run_full_pipeline(genre: str) -> tuple[Composition, Any, Key, tuple[PhrasePlan, ...]]:
+def _run_full_pipeline(genre: str, key: str = "c_major") -> tuple[Composition, Any, Key, tuple[PhrasePlan, ...]]:
     """Run L1-L7 pipeline and return Composition, GenreConfig, home_key, phrase_plans."""
-    config = load_configs(genre=genre, key="c_major", affect="Zierlich")
+    config = load_configs(genre=genre, key=key, affect="Zierlich")
     gc = config["genre"]
     kc = config["key"]
     tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42)
@@ -80,11 +79,16 @@ def _run_full_pipeline(genre: str) -> tuple[Composition, Any, Key, tuple[PhraseP
     return comp, gc, plan.home_key, phrase_plans
 
 
-@pytest.fixture(scope="module", params=PHRASE_GENRES)
+_L7_PARAMS: list[tuple[str, str]] = [
+    (g, k) for g in PHRASE_GENRES for k in KEYS
+]
+
+
+@pytest.fixture(scope="module", params=_L7_PARAMS, ids=[f"{g}_{k}" for g, k in _L7_PARAMS])
 def composition_data(request: pytest.FixtureRequest) -> tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]:
-    """Run full pipeline for each genre, return (Composition, GenreConfig, home_key, phrase_plans, total_bars)."""
-    genre = request.param
-    comp, gc, home_key, phrase_plans = _run_full_pipeline(genre)
+    """Run full pipeline for each genre+key, return (Composition, GenreConfig, home_key, phrase_plans, total_bars)."""
+    genre, key = request.param
+    comp, gc, home_key, phrase_plans = _run_full_pipeline(genre=genre, key=key)
     bar_length, _ = parse_metre(gc.metre)
     total_bars = int(sum(p.phrase_duration for p in phrase_plans) / bar_length)
     return comp, gc, home_key, phrase_plans, total_bars
@@ -189,6 +193,17 @@ def test_no_intra_voice_overlap(composition_data: tuple[Composition, Any, Key, t
         )
 
 
+def test_no_intra_voice_overlap_strict(composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]) -> None:
+    """C-08-strict: zero overlaps within same voice."""
+    comp, _, _, _, _ = composition_data
+    for voice_id, notes in comp.voices.items():
+        for i in range(len(notes) - 1):
+            end = notes[i].offset + notes[i].duration
+            assert end <= notes[i + 1].offset, (
+                f"Voice {voice_id}: overlap at offset {notes[i].offset}"
+            )
+
+
 def test_no_intra_voice_gaps(composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]) -> None:
     """C-09: no gaps within same voice (contiguous notes).
 
@@ -206,6 +221,18 @@ def test_no_intra_voice_gaps(composition_data: tuple[Composition, Any, Key, tupl
         assert gap_count <= max_gaps_per_voice, (
             f"Voice {voice_id}: {gap_count} gaps (threshold {max_gaps_per_voice})"
         )
+
+
+def test_no_intra_voice_gaps_strict(composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]) -> None:
+    """C-09-strict: zero gaps within same voice."""
+    comp, _, _, _, _ = composition_data
+    for voice_id, notes in comp.voices.items():
+        for i in range(len(notes) - 1):
+            expected = notes[i].offset + notes[i].duration
+            assert expected == notes[i + 1].offset, (
+                f"Voice {voice_id}: gap at offset {notes[i].offset} "
+                f"(ends {expected}, next starts {notes[i + 1].offset})"
+            )
 
 
 def test_final_note_at_end(composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]) -> None:
@@ -271,7 +298,7 @@ def test_final_soprano_tonic(composition_data: tuple[Composition, Any, Key, tupl
 
 def test_final_bass_tonic(composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]) -> None:
     """C-15: last bass note degree == 1 in home key."""
-    comp, _, home_key, _, _ = composition_data
+    comp, gc, home_key, _, _ = composition_data
     bass = comp.voices.get("bass") or comp.voices.get("lower")
     if bass is None:
         for vid, notes in comp.voices.items():
@@ -285,7 +312,7 @@ def test_final_bass_tonic(composition_data: tuple[Composition, Any, Key, tuple[P
 
 def test_final_unison_or_octave(composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]) -> None:
     """C-16: final soprano and bass are unison or octave (interval class 0)."""
-    comp, _, _, _, _ = composition_data
+    comp, gc, _, _, _ = composition_data
     soprano = comp.voices.get("soprano") or comp.voices.get("upper")
     bass = comp.voices.get("bass") or comp.voices.get("lower")
     if soprano is None or bass is None:

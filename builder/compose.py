@@ -11,7 +11,7 @@ Dual-path dispatch:
 """
 from dataclasses import dataclass
 from fractions import Fraction
-from builder.phrase_types import PhrasePlan, PhraseContext, PhraseResult
+from builder.phrase_types import PhrasePlan, PhraseResult
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
 from builder.voice_writer import VoiceWriter
@@ -42,16 +42,20 @@ def compose_phrases(
     assert len(phrase_plans) > 0, "Must have at least one PhrasePlan"
     upper_notes: list[Note] = []
     lower_notes: list[Note] = []
-    context: PhraseContext | None = None
+    prev_upper_pitch: int | None = None
+    prev_lower_pitch: int | None = None
     for plan in phrase_plans:
-        result: PhraseResult = write_phrase(plan=plan, context=context)
+        result: PhraseResult = write_phrase(
+            plan=plan,
+            prev_upper_midi=prev_upper_pitch,
+            prev_lower_midi=prev_lower_pitch,
+        )
         upper_notes.extend(result.upper_notes)
         lower_notes.extend(result.lower_notes)
-        context = PhraseContext(
-            home_key=home_key,
-            completed_upper=tuple(upper_notes),
-            completed_lower=tuple(lower_notes),
-        )
+        if result.upper_notes:
+            prev_upper_pitch = result.upper_notes[-1].pitch
+        if result.lower_notes:
+            prev_lower_pitch = result.lower_notes[-1].pitch
     return Composition(
         voices={
             "soprano": tuple(upper_notes),

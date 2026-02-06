@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 
 from builder.types import Note
-from shared.constants import VALID_DURATIONS
+from shared.constants import PHRASE_VOICE_BASS, TRACK_SOPRANO, VALID_DURATIONS
 from shared.key import Key
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
@@ -42,14 +42,19 @@ def _degree_to_nearest_midi(
     key: Key,
     target_midi: int,
     midi_range: tuple[int, int],
+    ceiling: int | None = None,
 ) -> int:
-    """Place degree in octave nearest to target_midi, within range."""
+    """Place degree in octave nearest to target_midi, within range and below ceiling."""
     candidates: list[int] = [
         key.degree_to_midi(degree=degree, octave=octave) for octave in range(2, 7)
     ]
     valid: list[int] = [
         m for m in candidates if midi_range[0] <= m <= midi_range[1]
     ]
+    if ceiling is not None:
+        below: list[int] = [m for m in valid if m < ceiling]
+        if below:
+            valid = below
     assert len(valid) > 0, (
         f"No valid octave for degree {degree} in range {midi_range}"
     )
@@ -210,19 +215,31 @@ def write_cadence(
             offset=soprano_offset,
             pitch=midi,
             duration=dur,
-            voice=0,
+            voice=TRACK_SOPRANO,
         ))
         soprano_offset += dur
         upper_target = midi
     bass_offset: Fraction = start_offset
     lower_target: int = prev_lower_midi if prev_lower_midi is not None else lower_median
     for deg, dur in zip(template.bass_degrees, template.bass_durations):
-        midi = _degree_to_nearest_midi(degree=deg, key=local_key, target_midi=lower_target, midi_range=lower_range)
+        # Find soprano pitch sounding at this bass offset
+        soprano_ceiling: int | None = None
+        for sn in soprano_notes:
+            if sn.offset <= bass_offset < sn.offset + sn.duration:
+                soprano_ceiling = sn.pitch
+                break
+        midi = _degree_to_nearest_midi(
+            degree=deg,
+            key=local_key,
+            target_midi=lower_target,
+            midi_range=lower_range,
+            ceiling=soprano_ceiling,
+        )
         bass_notes.append(Note(
             offset=bass_offset,
             pitch=midi,
             duration=dur,
-            voice=1,
+            voice=PHRASE_VOICE_BASS,
         ))
         bass_offset += dur
         lower_target = midi

@@ -18,14 +18,6 @@ class BeatPosition:
 
 
 @dataclass(frozen=True)
-class PhraseContext:
-    """Running context for phrase-over-phrase counterpoint checking."""
-    home_key: Key
-    completed_upper: tuple[Any, ...]
-    completed_lower: tuple[Any, ...]
-
-
-@dataclass(frozen=True)
 class PhrasePlan:
     """Complete specification for writing one phrase (one schema)."""
     schema_name: str

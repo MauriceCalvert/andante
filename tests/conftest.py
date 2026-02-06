@@ -4,13 +4,23 @@ All contract tests for L1-L5 and L7 are parametrised over GENRES.
 L2 tests additionally parametrised over AFFECTS.
 """
 import pytest
+from pathlib import Path
 from typing import Any
 from builder.config_loader import load_configs
 
 
-GENRES: tuple[str, ...] = ("bourree", "gavotte", "invention", "minuet", "sarabande")
+DATA_DIR: Path = Path(__file__).parent.parent / "data"
+
+GENRES: tuple[str, ...] = tuple(
+    sorted(
+        p.stem for p in (DATA_DIR / "genres").glob("*.yaml")
+        if p.stem != "_default"
+    )
+)
 
 AFFECTS: tuple[str, ...] = ("Zierlich", "Zaertlichkeit", "Freudigkeit", "Dolore")
+
+KEYS: tuple[str, ...] = ("c_major", "a_minor")
 
 
 @pytest.fixture(params=GENRES)
@@ -22,6 +32,12 @@ def genre_name(request: pytest.FixtureRequest) -> str:
 @pytest.fixture(params=AFFECTS)
 def affect_name(request: pytest.FixtureRequest) -> str:
     """Parametrised affect name."""
+    return request.param
+
+
+@pytest.fixture(params=KEYS)
+def key_name(request: pytest.FixtureRequest) -> str:
+    """Parametrised key name."""
     return request.param
 
 

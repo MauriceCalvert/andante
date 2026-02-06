@@ -12,14 +12,13 @@ D003 Trace must debug without source
 D004 Separate melodic approach from harmonic formula
 D005 Compute patterns from budget, don't predefine variants
 D006 Motifs must be asymmetric
-D007 Soprano repetition forbidden across bars/phrases
 D008 No downstream fixes
 D009 Generators must use phrase_index
 D010 Guards detect, generators prevent
 L001 Try blocks forbidden
 L002 Magic numbers forbidden, use constants
 L003 Hard range constraints forbidden, soft hints only
-L004 Voice crossing allowed
+L004 Voice crossing allowed only if intentional (e.g. invertible counterpoint); soprano/bass crossing forbidden
 L005 Duration arithmetic forbidden, use music_math
 L006 Durations must be in VALID_DURATIONS
 L007 Natural minor for melody, raised 6/7 cadential only

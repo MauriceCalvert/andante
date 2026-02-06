@@ -413,6 +413,9 @@ TONIC_TO_MIDI: dict[str, int] = {
 TRACK_BASS: int = 3
 TRACK_SOPRANO: int = 0
 
+# Phrase-path voice indices (2-voice texture: soprano=0, bass=1)
+PHRASE_VOICE_BASS: int = 1
+
 
 # =============================================================================
 # Modulation

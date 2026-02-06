@@ -23,6 +23,8 @@ def build_phrase_plans(
     """Build PhrasePlan objects from schema chain and anchors."""
     bar_length, beat_unit = _parse_metre(metre=genre_config.metre)
     upbeat: Fraction = genre_config.upbeat if hasattr(genre_config, "upbeat") else Fraction(0)
+    assert len(anchors) > 0, "Cannot build phrase plans with no anchors"
+    home_key: Key = anchors[0].local_key
     anchor_groups: list[list[Anchor]] = _group_anchors_by_schema(
         anchors=anchors,
         schema_chain=schema_chain,
@@ -57,6 +59,7 @@ def build_phrase_plans(
             upper_median=upper_median,
             lower_median=lower_median,
             cumulative_bar=cumulative_bar,
+            home_key=home_key,
         )
         plans.append(plan)
         cumulative_bar += plan.bar_span
@@ -80,6 +83,7 @@ def _build_single_plan(
     upper_median: int,
     lower_median: int,
     cumulative_bar: int,
+    home_key: Key,
 ) -> PhrasePlan:
     """Build a single PhrasePlan for one schema."""
     bar_span: int = _compute_bar_span(schema_def=schema_def, schema_name=schema_name, metre=genre_config.metre)
@@ -103,7 +107,7 @@ def _build_single_plan(
     if anchor_group:
         local_key = anchor_group[0].local_key
     else:
-        local_key = Key(tonic="C", mode="major")
+        local_key = home_key
     degree_positions: tuple[BeatPosition, ...]
     if cadence_template is not None:
         degree_positions = _cadential_degree_positions(

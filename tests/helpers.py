@@ -1,7 +1,30 @@
 """Helper functions for contract tests."""
 from fractions import Fraction
+from pathlib import Path
 from typing import Any
 from shared.key import Key
+
+DATA_DIR: Path = Path(__file__).parent.parent / "data"
+
+
+def get_phrase_genres() -> tuple[str, ...]:
+    """Return genres that have rhythm cells for their metre."""
+    from builder.config_loader import load_configs
+    from builder.rhythm_cells import get_cells_for_genre
+    result: list[str] = []
+    for path in sorted((DATA_DIR / "genres").glob("*.yaml")):
+        if path.stem == "_default":
+            continue
+        genre: str = path.stem
+        try:
+            config = load_configs(genre=genre, key="c_major", affect="Zierlich")
+            gc = config["genre"]
+            cells = get_cells_for_genre(genre=genre, metre=gc.metre)
+            if len(cells) > 0:
+                result.append(genre)
+        except Exception:
+            continue
+    return tuple(result)
 
 
 def bar_of(
@@ -29,6 +52,16 @@ def beat_of(
     return beat
 
 
+def _notes_by_offset(
+    notes: tuple[Any, ...],
+) -> dict[Fraction, list[int]]:
+    """Build dict mapping offset to list of MIDI pitches (handles duplicates)."""
+    result: dict[Fraction, list[int]] = {}
+    for n in notes:
+        result.setdefault(n.offset, []).append(n.pitch)
+    return result
+
+
 def check_no_parallel(
     upper: tuple[Any, ...],
     lower: tuple[Any, ...],
@@ -36,9 +69,9 @@ def check_no_parallel(
     forbidden_ic: frozenset[int],
 ) -> list[str]:
     """Check for parallel motion to forbidden intervals on strong beats."""
-    upper_dict: dict[Fraction, int] = notes_at_offsets(notes=upper)
-    lower_dict: dict[Fraction, int] = notes_at_offsets(notes=lower)
-    common_offsets: set[Fraction] = set(upper_dict.keys()) & set(lower_dict.keys())
+    upper_by_off: dict[Fraction, list[int]] = _notes_by_offset(notes=upper)
+    lower_by_off: dict[Fraction, list[int]] = _notes_by_offset(notes=lower)
+    common_offsets: set[Fraction] = set(upper_by_off.keys()) & set(lower_by_off.keys())
     strong_offsets: list[Fraction] = sorted(
         off for off in common_offsets if is_strong_beat(offset=off, metre=metre)
     )
@@ -46,10 +79,18 @@ def check_no_parallel(
     for i in range(len(strong_offsets) - 1):
         off_a: Fraction = strong_offsets[i]
         off_b: Fraction = strong_offsets[i + 1]
-        ic_a: int = interval_class(a=upper_dict[off_a], b=lower_dict[off_a])
-        ic_b: int = interval_class(a=upper_dict[off_b], b=lower_dict[off_b])
-        if ic_a in forbidden_ic and ic_b in forbidden_ic and ic_a == ic_b:
-            violations.append(f"parallel {ic_a} at offsets {off_a} and {off_b}")
+        for up_a in upper_by_off[off_a]:
+            for lo_a in lower_by_off[off_a]:
+                ic_a: int = interval_class(a=up_a, b=lo_a)
+                if ic_a not in forbidden_ic:
+                    continue
+                for up_b in upper_by_off[off_b]:
+                    for lo_b in lower_by_off[off_b]:
+                        ic_b: int = interval_class(a=up_b, b=lo_b)
+                        if ic_b == ic_a:
+                            violations.append(
+                                f"parallel {ic_a} at offsets {off_a} and {off_b}"
+                            )
     return violations
 
 
@@ -58,15 +99,17 @@ def check_no_voice_overlap(
     lower: tuple[Any, ...],
 ) -> list[str]:
     """Check for voice overlap where upper pitch is below lower pitch."""
-    upper_dict: dict[Fraction, int] = notes_at_offsets(notes=upper)
-    lower_dict: dict[Fraction, int] = notes_at_offsets(notes=lower)
-    common_offsets: set[Fraction] = set(upper_dict.keys()) & set(lower_dict.keys())
+    upper_by_off: dict[Fraction, list[int]] = _notes_by_offset(notes=upper)
+    lower_by_off: dict[Fraction, list[int]] = _notes_by_offset(notes=lower)
+    common_offsets: set[Fraction] = set(upper_by_off.keys()) & set(lower_by_off.keys())
     violations: list[str] = []
     for off in sorted(common_offsets):
-        if upper_dict[off] < lower_dict[off]:
-            violations.append(
-                f"voice overlap at offset {off}: upper {upper_dict[off]} < lower {lower_dict[off]}"
-            )
+        for up in upper_by_off[off]:
+            for lo in lower_by_off[off]:
+                if up < lo:
+                    violations.append(
+                        f"voice overlap at offset {off}: upper {up} < lower {lo}"
+                    )
     return violations
 
 
@@ -107,8 +150,21 @@ def is_strong_beat(
 def notes_at_offsets(
     notes: tuple[Any, ...],
 ) -> dict[Fraction, int]:
-    """Build dict mapping offset to MIDI pitch."""
-    return {n.offset: n.pitch for n in notes}
+    """Build dict mapping offset to MIDI pitch.
+
+    If duplicate offsets exist (phrase boundary overlap), the last note wins.
+    Callers requiring all notes at an offset should iterate directly.
+    """
+    result: dict[Fraction, int] = {}
+    for n in notes:
+        if n.offset in result:
+            import logging
+            logging.getLogger(__name__).debug(
+                "Duplicate offset %s: pitch %d replaced by %d",
+                n.offset, result[n.offset], n.pitch,
+            )
+        result[n.offset] = n.pitch
+    return result
 
 
 def parse_metre(

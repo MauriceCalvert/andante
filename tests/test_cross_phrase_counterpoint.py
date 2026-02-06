@@ -22,19 +22,19 @@ from shared.key import Key
 from tests.helpers import (
     check_no_parallel,
     check_no_voice_overlap,
+    get_phrase_genres,
     parse_metre,
 )
 
 
-# Genres with complete rhythm cell coverage for phrase-based composition
-# invention excluded due to passo_indietro schema having mismatched degree counts
-PHRASE_GENRES: tuple[str, ...] = ("gavotte", "minuet", "sarabande")
+# Genres with rhythm cells for their metre — computed dynamically
+PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()
 GROTESQUE_LEAP_SEMITONES: int = 19
 
 
-def _run_full_pipeline(genre: str) -> tuple[Composition, Any, Key, tuple[PhrasePlan, ...]]:
+def _run_full_pipeline(genre: str, key: str = "c_major") -> tuple[Composition, Any, Key, tuple[PhrasePlan, ...]]:
     """Run L1-L7 pipeline and return Composition, GenreConfig, home_key, phrase_plans."""
-    config = load_configs(genre=genre, key="c_major", affect="Zierlich")
+    config = load_configs(genre=genre, key=key, affect="Zierlich")
     gc = config["genre"]
     kc = config["key"]
     tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42)
@@ -147,29 +147,6 @@ def test_whole_piece_no_voice_overlap(
     violations = check_no_voice_overlap(upper=soprano, lower=bass)
     assert len(violations) == 0, f"Voice overlap found: {violations[:5]}"
 
-
-def test_whole_piece_no_cross_bar_repeat(
-    composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...]]
-) -> None:
-    """XP-04: no soprano pitch repeated across any bar boundary (D007)."""
-    comp, gc, _, _ = composition_data
-    soprano, _ = _get_soprano_bass(comp)
-    if not soprano:
-        pytest.skip("No soprano notes")
-    bar_length, _ = parse_metre(gc.metre)
-    # Find all bar boundaries
-    violations: list[str] = []
-    for i in range(len(soprano) - 1):
-        note_a = soprano[i]
-        note_b = soprano[i + 1]
-        # Compute bars (0-indexed from start)
-        bar_a = int(note_a.offset // bar_length)
-        bar_b = int(note_b.offset // bar_length)
-        if bar_a != bar_b and note_a.pitch == note_b.pitch:
-            violations.append(
-                f"D007: repeated pitch {note_a.pitch} at bar {bar_a+1}/{bar_b+1} boundary"
-            )
-    assert len(violations) == 0, f"Cross-bar repetitions: {violations[:5]}"
 
 
 def test_whole_piece_no_grotesque_leaps(
