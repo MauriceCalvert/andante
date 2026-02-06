@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from shared.constants import VALID_DURATIONS
+from shared.constants import STRONG_BEAT_OFFSETS, VALID_DURATIONS
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
 VALID_DURATIONS_SET: frozenset[Fraction] = frozenset(VALID_DURATIONS)
@@ -28,6 +28,7 @@ class RhythmCell:
     durations: tuple[Fraction, ...]
     character: str
     genre_tags: frozenset[str]
+    accent_pattern: tuple[bool, ...]
 
 
 _cache: dict[str, list[RhythmCell]] | None = None
@@ -41,11 +42,42 @@ def _parse_fraction(s: str) -> Fraction:
     return Fraction(int(s))
 
 
+def _compute_accent_pattern(
+    durations: tuple[Fraction, ...],
+    metre: str,
+) -> tuple[bool, ...]:
+    """Derive accent pattern from note onsets and metre strong beats."""
+    strong_offsets: tuple[Fraction, ...] = STRONG_BEAT_OFFSETS.get(metre, (Fraction(0),))
+    accents: list[bool] = []
+    offset: Fraction = Fraction(0)
+    for dur in durations:
+        accents.append(offset in strong_offsets)
+        offset += dur
+    return tuple(accents)
+
+
+def _parse_accent_pattern(
+    raw: list[bool] | None,
+    durations: tuple[Fraction, ...],
+    metre: str,
+    name: str,
+) -> tuple[bool, ...]:
+    """Parse explicit accent_pattern from YAML or compute default."""
+    if raw is not None:
+        assert len(raw) == len(durations), (
+            f"Cell '{name}': accent_pattern length {len(raw)} "
+            f"!= durations length {len(durations)}"
+        )
+        return tuple(raw)
+    return _compute_accent_pattern(durations=durations, metre=metre)
+
+
 def _validate_cell(
     name: str,
     metre: str,
     durations: tuple[Fraction, ...],
     genre_tags: frozenset[str],
+    accent_pattern: tuple[bool, ...],
 ) -> None:
     """Validate cell invariants."""
     assert metre in METRE_BAR_LENGTH, f"Cell '{name}': unknown metre '{metre}'"
@@ -59,6 +91,10 @@ def _validate_cell(
             f"Cell '{name}': duration {dur} not in VALID_DURATIONS"
         )
     assert len(genre_tags) > 0, f"Cell '{name}': must have at least one genre_tag"
+    assert len(accent_pattern) == len(durations), (
+        f"Cell '{name}': accent_pattern length {len(accent_pattern)} "
+        f"!= durations length {len(durations)}"
+    )
 
 
 def get_cells_for_genre(
@@ -91,13 +127,20 @@ def load_rhythm_cells() -> dict[str, list[RhythmCell]]:
         )
         character: str = data["character"]
         genre_tags: frozenset[str] = frozenset(data["genre_tags"])
-        _validate_cell(name=name, metre=metre, durations=durations, genre_tags=genre_tags)
+        accent_pattern: tuple[bool, ...] = _parse_accent_pattern(
+            raw=data.get("accent_pattern"),
+            durations=durations,
+            metre=metre,
+            name=name,
+        )
+        _validate_cell(name=name, metre=metre, durations=durations, genre_tags=genre_tags, accent_pattern=accent_pattern)
         cell: RhythmCell = RhythmCell(
             name=name,
             metre=metre,
             durations=durations,
             character=character,
             genre_tags=genre_tags,
+            accent_pattern=accent_pattern,
         )
         result.setdefault(metre, []).append(cell)
     _cache = result

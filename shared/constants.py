@@ -198,6 +198,13 @@ MAX_SEQUENCE_REPETITIONS: int = 2
 # Rhythmic contrast threshold: if soprano has <= this many notes, bass maintains density
 RHYTHMIC_CONTRAST_THRESHOLD: int = 4
 
+# Strong beat offsets within a bar, keyed by metre string
+# Beat 1 is always strong; 4/4 also has beat 3 (offset 1/2)
+STRONG_BEAT_OFFSETS: dict[str, tuple[Fraction, ...]] = {
+    "3/4": (Fraction(0),),
+    "4/4": (Fraction(0), Fraction(1, 2)),
+}
+
 # Duration threshold for articulation tagging (eighth note)
 STACCATO_DURATION_THRESHOLD: Fraction = Fraction(1, 8)
 

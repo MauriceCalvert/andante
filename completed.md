@@ -1,5 +1,24 @@
 # Completed Work Log
 
+## 2026-02-06: Phase E1 — RhythmCell accent_pattern
+
+**Problem**: `_is_strong_beat()` in phrase_writer.py only recognised beat 1 of each bar.
+In 4/4, beat 3 is a secondary strong beat but the bass generator never applied consonance
+checking or parallel avoidance there.
+
+**Changes**:
+1. `shared/constants.py`: Added `STRONG_BEAT_OFFSETS` dict — strong beat positions per metre.
+2. `builder/rhythm_cells.py`: Added `accent_pattern: tuple[bool, ...]` field to `RhythmCell`.
+   Auto-computed from durations + metre strong beats; YAML override via `accent_pattern` key
+   for future syncopated cells. Validated `len(accent_pattern) == len(durations)`.
+3. `builder/phrase_writer.py`: Walking-bass loop now indexes `cell.accent_pattern[note_idx]`
+   instead of calling `_is_strong_beat(offset)`. Removed dead `_is_strong_beat` function.
+
+**Behavioural change**: 4/4 cells now get `_select_strong_beat_bass` on beat 3 as well as
+beat 1 — consonance and parallel-avoidance checking on secondary strong beats.
+
+**Results**: 2697 passed, 209 skipped, 38 xfailed, 31 xpassed — identical to before.
+
 ## 2026-02-05: Cadenza template duration fix
 
 **Problem**: Claude Code had "fixed" cadenza_composta 4/4 by making all soprano notes equal quarter notes (1/4 each) and reducing to 1 bar. This flattened the cadence — the resolution note lost its weight.

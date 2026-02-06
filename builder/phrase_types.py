@@ -40,6 +40,7 @@ class PhrasePlan:
     lower_range: Range
     upper_median: int
     lower_median: int
+    degree_keys: tuple[Key, ...] | None = None
 
 
 @dataclass(frozen=True)

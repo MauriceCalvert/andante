@@ -261,6 +261,61 @@ def _section_for_schema_index(
     return genre_config.sections[-1]["name"] if genre_config.sections else ""
 
 
+def _expand_sequential_degrees(
+    schema_def: SchemaConfig,
+    bar_span: int,
+    home_key: Key,
+    metre: str,
+) -> tuple[tuple[int, ...], tuple[int, ...], tuple[BeatPosition, ...], tuple[Key, ...]]:
+    """Expand per-segment degrees into full-phrase degrees for sequential schemas."""
+    segment_count: int = bar_span  # 1 bar per segment for sequential schemas
+    per_seg_upper: tuple[int, ...] = schema_def.soprano_degrees
+    per_seg_lower: tuple[int, ...] = schema_def.bass_degrees
+    assert len(per_seg_upper) == len(per_seg_lower), (
+        f"Sequential schema '{schema_def.name}': soprano degree count "
+        f"{len(per_seg_upper)} != bass degree count {len(per_seg_lower)}"
+    )
+    degrees_per_seg: int = len(per_seg_upper)
+    assert degrees_per_seg >= 1, (
+        f"Sequential schema '{schema_def.name}': no per-segment degrees"
+    )
+    typical_keys: tuple[str, ...] | None = schema_def.typical_keys
+    beats_per_bar: int = int(metre.split("/")[0])
+    all_upper: list[int] = []
+    all_lower: list[int] = []
+    all_positions: list[BeatPosition] = []
+    all_keys: list[Key] = []
+    for seg_idx in range(segment_count):
+        seg_key: Key = _get_sequential_segment_key(
+            home_key=home_key,
+            segment_index=seg_idx,
+            typical_keys=typical_keys,
+        )
+        bar_num: int = seg_idx + 1
+        for deg_idx in range(degrees_per_seg):
+            all_upper.append(per_seg_upper[deg_idx])
+            all_lower.append(per_seg_lower[deg_idx])
+            beat: int = (deg_idx * beats_per_bar) // degrees_per_seg + 1
+            all_positions.append(BeatPosition(bar=bar_num, beat=beat))
+            all_keys.append(seg_key)
+    return tuple(all_upper), tuple(all_lower), tuple(all_positions), tuple(all_keys)
+
+
+def _get_sequential_segment_key(
+    home_key: Key,
+    segment_index: int,
+    typical_keys: tuple[str, ...] | None,
+) -> Key:
+    """Get local key for a sequential schema segment."""
+    if typical_keys is None or len(typical_keys) == 0:
+        return home_key
+    key_idx: int = min(segment_index, len(typical_keys) - 1)
+    key_area: str = typical_keys[key_idx]
+    if key_area == "I" or key_area == "i":
+        return home_key
+    return home_key.modulate_to(target=key_area)
+
+
 def _validate_plans(
     plans: list[PhrasePlan],
     schema_chain: SchemaChain,

@@ -98,16 +98,6 @@ def _soprano_pitch_at_offset(
     return None
 
 
-def _is_strong_beat(
-    offset: Fraction,
-    bar_length: Fraction,
-    start_offset: Fraction,
-) -> bool:
-    """True if offset falls on beat 1 of any bar."""
-    relative: Fraction = offset - start_offset
-    return (relative % bar_length) == Fraction(0)
-
-
 def _check_parallel_perfects(
     bass_pitch: int,
     soprano_pitch: int,
@@ -457,7 +447,7 @@ def generate_bass_phrase(
                 avoid_name=None,
             )
             note_offset: Fraction = bar_start
-            for dur in cell.durations:
+            for note_idx, dur in enumerate(cell.durations):
                 from_structural: bool = note_offset in structural_map
                 if from_structural:
                     pitch = structural_map[note_offset]
@@ -492,9 +482,9 @@ def generate_bass_phrase(
                         f"Bass {pitch} still above soprano {sop_here} "
                         f"at offset {note_offset} after correction"
                     )
-                # Structural tones are authoritative; only override fill notes
-                is_strong: bool = _is_strong_beat(offset=note_offset, bar_length=bar_length, start_offset=plan.start_offset)
-                if is_strong and sop_here is not None and not from_structural:
+                # Use cell accent_pattern instead of offset-based strong beat check
+                is_accented: bool = cell.accent_pattern[note_idx]
+                if is_accented and sop_here is not None and not from_structural:
                     pitch = _select_strong_beat_bass(
                         candidate=pitch,
                         soprano_pitch=sop_here,
