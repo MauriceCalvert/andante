@@ -9,6 +9,7 @@ Phase 10 (baroque_plan.md item 10.1):
 - Expression and affect parameter selection
 - Map affect → (tempo, mode, key suggestions)
 """
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -18,6 +19,8 @@ import yaml
 from planner.plannertypes import (
     RhetoricalSection, RhetoricalStructure, TensionPoint, TensionCurve
 )
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
@@ -75,8 +78,18 @@ def select_archetype(affect: str) -> str:
     for arch_name, arch_data in archetypes.items():
         compatible = arch_data.get("compatible_affects", [])
         if affect in compatible:
+            logger.info(
+                "Affect %r has no explicit archetype; matched via "
+                "compatible_affects in archetype %r",
+                affect, arch_name,
+            )
             return arch_name
-
+    logger.warning(
+        "Affect %r has no archetype mapping and no compatible_affects match; "
+        "using DEFAULT_ARCHETYPE %r. Add mapping in affects.yaml or "
+        "compatible_affects in archetypes.yaml.",
+        affect, DEFAULT_ARCHETYPE,
+    )
     return DEFAULT_ARCHETYPE
 
 

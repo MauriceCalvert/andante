@@ -7,9 +7,11 @@ what ranges/keys apply.
 from fractions import Fraction
 from builder.cadence_writer import get_schema_bars, load_cadence_templates, CadenceTemplate
 from builder.phrase_types import BeatPosition, PhrasePlan
-from builder.types import Anchor, GenreConfig, SchemaChain, SchemaConfig
+from builder.types import Anchor, GenreConfig, SchemaChain
+from shared.schema_types import Schema
 from shared.constants import CADENTIAL_POSITION, VOICE_RANGES
 from shared.key import Key
+from shared.music_math import parse_metre
 from shared.voice_types import Range
 
 
@@ -17,12 +19,12 @@ def build_phrase_plans(
     schema_chain: SchemaChain,
     anchors: list[Anchor],
     genre_config: GenreConfig,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
     total_bars: int,
 ) -> tuple[PhrasePlan, ...]:
     """Build PhrasePlan objects from schema chain and anchors."""
-    bar_length, beat_unit = _parse_metre(metre=genre_config.metre)
-    upbeat: Fraction = genre_config.upbeat if hasattr(genre_config, "upbeat") else Fraction(0)
+    bar_length, beat_unit = parse_metre(metre=genre_config.metre)
+    upbeat: Fraction = genre_config.upbeat
     assert len(anchors) > 0, "Cannot build phrase plans with no anchors"
     home_key: Key = anchors[0].local_key
     anchor_groups: list[list[Anchor]] = _group_anchors_by_schema(
@@ -36,8 +38,12 @@ def build_phrase_plans(
     cumulative_bar: int = 1
     plans: list[PhrasePlan] = []
     for i, schema_name in enumerate(schema_chain.schemas):
-        schema_def: SchemaConfig = schemas[schema_name]
-        anchor_group: list[Anchor] = anchor_groups[i] if i < len(anchor_groups) else []
+        schema_def: Schema = schemas[schema_name]
+        assert i < len(anchor_groups), (
+            f"Schema index {i} ({schema_name}) has no anchor group; "
+            f"anchor_groups has {len(anchor_groups)} entries"
+        )
+        anchor_group: list[Anchor] = anchor_groups[i]
         section_name: str = _section_for_schema_index(
             index=i,
             boundaries=schema_chain.section_boundaries,
@@ -69,7 +75,7 @@ def build_phrase_plans(
 
 def _build_single_plan(
     schema_name: str,
-    schema_def: SchemaConfig,
+    schema_def: Schema,
     anchor_group: list[Anchor],
     schema_index: int,
     schema_chain: SchemaChain,
@@ -92,6 +98,7 @@ def _build_single_plan(
     degrees_upper: tuple[int, ...]
     degrees_lower: tuple[int, ...]
     degree_keys: tuple[Key, ...] | None = None
+    seq_positions: tuple[BeatPosition, ...] | None = None
     if is_cadential:
         cadence_template = _get_cadential_template(
             schema_name=schema_name,
@@ -123,6 +130,10 @@ def _build_single_plan(
             beat_unit=beat_unit,
         )
     elif schema_def.sequential:
+        assert seq_positions is not None, (
+            f"Sequential schema '{schema_name}' has no seq_positions; "
+            f"_expand_sequential_degrees was not called"
+        )
         degree_positions = seq_positions
     else:
         degree_positions = tuple(
@@ -140,6 +151,10 @@ def _build_single_plan(
     cadence_type: str | None = None
     if is_cadential and schema_index < len(schema_chain.cadences):
         cadence_type = schema_chain.cadences[schema_index]
+    bass_texture: str = _get_section_bass_texture(
+        section_name=section_name,
+        genre_config=genre_config,
+    )
     return PhrasePlan(
         schema_name=schema_name,
         degrees_upper=degrees_upper,
@@ -161,6 +176,7 @@ def _build_single_plan(
         lower_range=lower_range,
         upper_median=upper_median,
         lower_median=lower_median,
+        bass_texture=bass_texture,
         degree_keys=degree_keys,
     )
 
@@ -192,7 +208,7 @@ def _cadential_degree_positions(
 
 
 def _compute_bar_span(
-    schema_def: SchemaConfig,
+    schema_def: Schema,
     schema_name: str,
     metre: str,
 ) -> int:
@@ -250,14 +266,15 @@ def _group_anchors_by_schema(
     return groups
 
 
-def _parse_metre(metre: str) -> tuple[Fraction, Fraction]:
-    """Parse '3/4' to (bar_length, beat_unit)."""
-    parts: list[str] = metre.split("/")
-    numerator: int = int(parts[0])
-    denominator: int = int(parts[1])
-    bar_length: Fraction = Fraction(numerator, denominator)
-    beat_unit: Fraction = Fraction(1, denominator)
-    return bar_length, beat_unit
+def _get_section_bass_texture(
+    section_name: str,
+    genre_config: GenreConfig,
+) -> str:
+    """Look up accompany_texture from genre section data (A003)."""
+    for section in genre_config.sections:
+        if section.get("name") == section_name:
+            return section.get("accompany_texture", "pillar")
+    return "pillar"
 
 
 def _section_for_schema_index(
@@ -273,7 +290,7 @@ def _section_for_schema_index(
 
 
 def _expand_sequential_degrees(
-    schema_def: SchemaConfig,
+    schema_def: Schema,
     bar_span: int,
     home_key: Key,
     metre: str,

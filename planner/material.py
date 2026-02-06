@@ -4,12 +4,14 @@ L005: Arithmetic on durations forbidden - use music_math functions
 L006: All durations must be in VALID_DURATIONS - no division
 L012: No quantization - patterns must use valid durations from the start
 """
+import logging
 from fractions import Fraction
+from pathlib import Path
 from typing import Tuple
 
-from pathlib import Path
-
 import yaml
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 from shared.pitch import wrap_degree
 from shared.music_math import VALID_DURATIONS
@@ -176,19 +178,15 @@ def acquire_material(
     motif: Motif
 
     if user_motif is not None:
-        # User provided motif takes priority
         motif = user_motif
     elif affect is not None and affect in AFFECT_DRIVEN_AFFECTS:
-        # Use affect-driven generation
-        try:
-            motif = generate_affect_driven_motif(affect=affect, frame=frame, seed=seed)
-        except Exception as e:
-            # Fallback to template if generation fails
-            import warnings
-            warnings.warn(f"Affect-driven generation failed for {affect}: {e}. Using fallback.")
-            motif = generate_motif(frame=frame)
+        motif = generate_affect_driven_motif(affect=affect, frame=frame, seed=seed)
     else:
-        # Use fallback template
+        logger.info(
+            "No user motif and affect %r not in AFFECT_DRIVEN_AFFECTS; "
+            "using template motif for metre %s",
+            affect, frame.metre,
+        )
         motif = generate_motif(frame=frame)
 
     # Use provided counter-subject or generate one (only if genre needs it)

@@ -7,6 +7,16 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import TYPE_CHECKING, Any
 from shared.constants import INTERVAL_DISPLAY_NAMES
+from shared.voice_types import (
+    Actuator,
+    Instrument,
+    InstrumentDef,
+    Range,
+    Role,
+    ScoringAssignment,
+    TrackAssignment,
+    Voice,
+)
 if TYPE_CHECKING:
     from shared.key import Key
 @dataclass
@@ -105,17 +115,6 @@ class FigureRejectionError(Exception):
         return "\n".join(lines)
 
 
-from shared.voice_types import (  # noqa: E402 — canonical source (voices.md)
-    Actuator,
-    Instrument,
-    InstrumentDef,
-    Range,
-    Role,
-    ScoringAssignment,
-    TrackAssignment,
-    Voice,
-)
-
 
 # =============================================================================
 # Core Builder Types
@@ -198,29 +197,6 @@ class RhythmState:
     """Rhythmic state machine state."""
     state: str  # RUN, HOLD, CADENCE, TRANSITION
     density: float  # 0.0 to 1.0
-
-
-@dataclass(frozen=True)
-class SchemaConfig:
-    """Schema definition from YAML."""
-    name: str
-    soprano_degrees: tuple[int, ...]
-    soprano_directions: tuple[str | None, ...]  # up/down/same/None per degree
-    bass_degrees: tuple[int, ...]
-    bass_directions: tuple[str | None, ...]  # up/down/same/None per degree
-    entry_soprano: int  # derived from soprano_degrees[0]
-    entry_bass: int  # derived from bass_degrees[0]
-    exit_soprano: int  # derived from soprano_degrees[-1]
-    exit_bass: int  # derived from bass_degrees[-1]
-    bars_min: int
-    bars_max: int
-    position: str
-    cadential_state: str
-    sequential: bool = False
-    segments: tuple[int, ...] = (1,)
-    direction: str | None = None
-    segment_direction: str | None = None  # up/down between segments for sequential
-    typical_keys: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)

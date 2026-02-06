@@ -4,6 +4,7 @@ The schema chain is the "harmonic DNA" of the piece. Schemas are selected
 from the transition graph to land on cadence points, with texture and
 treatment assigned per genre conventions.
 """
+import logging
 import random
 from fractions import Fraction
 from functools import lru_cache
@@ -11,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 from planner.genre_loader import load_genre_template
 from planner.plannertypes import CadencePoint, SchemaSlot, TonalSection
@@ -105,8 +108,13 @@ def select_schema_for_position(
     if preferred:
         candidates = preferred
 
-    # Fallback: if no candidates, try any schema that fits
+    # Broadened search: if no candidates from genre prefs, try any schema
     if not candidates:
+        logger.warning(
+            "No genre-preferred schema for position=%s, prev=%s, "
+            "available_bars=%d; broadening to all schemas",
+            position, prev_schema, available_bars,
+        )
         all_schemas = get_opening_schemas() + get_sequential_schemas() + get_cadential_schemas()
         if prev_schema:
             allowed = set(get_allowed_next(schema_name=prev_schema))

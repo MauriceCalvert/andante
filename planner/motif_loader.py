@@ -4,8 +4,12 @@ from pathlib import Path
 import csv
 import re
 
+import logging
+
 from planner.plannertypes import Motif
 from shared.constants import MAJOR_SCALE, MINOR_SCALE, NOTE_NAME_MAP, VALID_DENOMINATORS
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 MOTIFS_DIR: Path = Path(__file__).parent.parent / "motifs"
 BASE_DIR: Path = Path(__file__).parent.parent
@@ -38,8 +42,18 @@ def midi_to_degree(midi: int, tonic_pc: int = 7, mode: str = "major") -> int:
     # Chromatic note - find nearest diatonic
     for i, semitones in enumerate(scale):
         if abs(relative_pc - semitones) <= 1:
+            logger.warning(
+                "MIDI %d (pc=%d) is chromatic relative to tonic pc=%d (%s); "
+                "snapped to degree %d",
+                midi, pc, tonic_pc, mode, i + 1,
+            )
             return i + 1
-    return 1  # fallback
+    logger.warning(
+        "MIDI %d (pc=%d) has no near diatonic match for tonic pc=%d (%s); "
+        "defaulting to degree 1",
+        midi, pc, tonic_pc, mode,
+    )
+    return 1
 
 
 def infer_tonic(pitches: list[int]) -> int:

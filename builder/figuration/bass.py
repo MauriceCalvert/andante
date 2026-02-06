@@ -15,6 +15,8 @@ from typing import Any
 import yaml
 
 from shared.constants import (
+    DURATION_SENTINEL_BAR,
+    DURATION_SENTINEL_HALF,
     MAX_BASS_LEAP,
     MIN_BASS_MIDI,
     SKIP_SEMITONES,
@@ -25,7 +27,7 @@ from shared.constants import (
     VALID_TEXTURES,
 )
 from shared.key import Key
-from shared.pitch import select_octave
+from shared.pitch import place_degree, select_octave
 
 DATA_PATH: Path = Path(__file__).parent.parent.parent / "data" / "figuration" / "bass_patterns.yaml"
 
@@ -76,9 +78,9 @@ def _parse_duration(
 ) -> Fraction:
     """Parse duration token to Fraction."""
     if dur == "bar":
-        return Fraction(-1)
+        return DURATION_SENTINEL_BAR
     if dur == "half":
-        return Fraction(-2)
+        return DURATION_SENTINEL_HALF
     return Fraction(dur)
 
 
@@ -236,6 +238,58 @@ def validate_bass_treatment(
         )
 
 
+_TRITONE_PENALTY: float = 100.0
+_LARGE_LEAP_PENALTY: float = 50.0
+_CONSECUTIVE_LEAP_PENALTY: float = 30.0
+_INTERVAL_WEIGHT: float = 0.5
+_MEDIAN_WEIGHT: float = 0.1
+
+
+def _select_bass_pitch(
+    key: Key,
+    degree: int,
+    bass_median: int,
+    prev_pitch: int | None,
+    prev_prev_pitch: int | None,
+    alter: int = 0,
+    is_bar_start: bool = False,
+) -> int:
+    """Select best bass pitch via candidate scoring.
+
+    Evaluates the default placement and its octave neighbours,
+    picking the candidate with the lowest penalty. Penalties cover:
+    - Tritone intervals from prev_pitch
+    - Leaps exceeding MAX_BASS_LEAP
+    - Consecutive same-direction leaps (bar boundaries only)
+    - Distance from median (mild gravity)
+    """
+    base: int = place_degree(key=key, degree=degree, median=bass_median, prev_pitch=prev_pitch, alter=alter)
+    candidates: list[int] = [c for c in (base - 12, base, base + 12) if c >= MIN_BASS_MIDI and c <= bass_median + 12]
+    if not candidates:
+        return max(base, MIN_BASS_MIDI)
+    best: int = candidates[0]
+    best_penalty: float = float("inf")
+    for cand in candidates:
+        penalty: float = abs(cand - bass_median) * _MEDIAN_WEIGHT
+        if prev_pitch is not None:
+            interval: int = abs(cand - prev_pitch)
+            if interval == TRITONE_SEMITONES:
+                penalty += _TRITONE_PENALTY
+            if interval > MAX_BASS_LEAP:
+                penalty += _LARGE_LEAP_PENALTY
+            penalty += interval * _INTERVAL_WEIGHT
+            if is_bar_start and prev_prev_pitch is not None:
+                int1: int = prev_pitch - prev_prev_pitch
+                int2: int = cand - prev_pitch
+                if abs(int1) > SKIP_SEMITONES and abs(int2) > SKIP_SEMITONES:
+                    if (int1 > 0) == (int2 > 0):
+                        penalty += _CONSECUTIVE_LEAP_PENALTY
+        if penalty < best_penalty:
+            best_penalty = penalty
+            best = cand
+    return best
+
+
 def realise_bass_pattern(
     pattern: BassPattern,
     bass_degree: int,
@@ -243,6 +297,7 @@ def realise_bass_pattern(
     bar_offset: Fraction,
     bar_duration: Fraction,
     bass_median: int,
+    metre: str,
     prev_pitch: int | None = None,
     prev_prev_pitch: int | None = None,
 ) -> list[tuple[Fraction, int, Fraction]]:
@@ -258,6 +313,7 @@ def realise_bass_pattern(
         bar_offset: Start offset of the bar (whole notes)
         bar_duration: Duration of the bar (whole notes)
         bass_median: Median pitch for bass voice
+        metre: Actual metre of the piece (used when pattern.metre is 'any')
         prev_pitch: Previous bass pitch for voice-leading (None for first bar)
         prev_prev_pitch: Pitch before prev_pitch for consecutive leap detection
 
@@ -265,71 +321,28 @@ def realise_bass_pattern(
         List of (offset, midi_pitch, duration) tuples.
     """
     result: list[tuple[Fraction, int, Fraction]] = []
-    beats_per_bar = _get_beats_per_bar(metre=pattern.metre) if pattern.metre != "any" else 4
+    effective_metre: str = metre if pattern.metre == "any" else pattern.metre
+    beats_per_bar = _get_beats_per_bar(metre=effective_metre)
     beat_duration = bar_duration / beats_per_bar
     current_prev: int | None = prev_pitch
-    first_note_midi: int | None = None
     for beat_idx, pattern_beat in enumerate(pattern.beats):
         bar_index = pattern_beat.bar - 1
         beat_offset = (pattern_beat.beat - 1) * beat_duration
         note_offset = bar_offset + (bar_index * bar_duration) + beat_offset
         target_degree = _wrap_degree(degree=bass_degree + pattern_beat.degree_offset)
-        midi_pitch = select_octave(
-            key=key, degree=target_degree, median=bass_median, prev_pitch=current_prev, alter=pattern_beat.semitone_offset,
+        midi_pitch = _select_bass_pitch(
+            key=key,
+            degree=target_degree,
+            bass_median=bass_median,
+            prev_pitch=current_prev,
+            prev_prev_pitch=prev_prev_pitch if beat_idx == 0 else None,
+            alter=pattern_beat.semitone_offset,
+            is_bar_start=beat_idx == 0,
         )
-        if midi_pitch < MIN_BASS_MIDI:
-            midi_pitch += 12
-        # Check for consecutive same-direction leaps (on first note of bar only)
-        if beat_idx == 0 and prev_pitch is not None and prev_prev_pitch is not None:
-            int1 = prev_pitch - prev_prev_pitch
-            int2 = midi_pitch - prev_pitch
-            # Both must be leaps (> SKIP_SEMITONES) in same direction
-            if abs(int1) > SKIP_SEMITONES and abs(int2) > SKIP_SEMITONES:
-                if (int1 > 0) == (int2 > 0):
-                    # Try octave shift to create contrary motion
-                    if int2 > 0:
-                        alt_pitch = midi_pitch - 12
-                    else:
-                        alt_pitch = midi_pitch + 12
-                    if MIN_BASS_MIDI <= alt_pitch <= bass_median + 12:
-                        new_int2 = alt_pitch - prev_pitch
-                        # Verify contrary motion and no grotesque leap
-                        if (int1 > 0) != (new_int2 > 0) and abs(new_int2) <= MAX_BASS_LEAP:
-                            midi_pitch = alt_pitch
-        # Check for tritone - octave shifts don't help since tritone is pitch-class based
-        if current_prev is not None:
-            interval = abs(midi_pitch - current_prev)
-            # Tritone detected - try octave shifts first
-            if interval == TRITONE_SEMITONES:
-                alt_up = midi_pitch + 12
-                alt_down = midi_pitch - 12 if midi_pitch - 12 >= MIN_BASS_MIDI else midi_pitch
-                int_up = abs(alt_up - current_prev)
-                int_down = abs(alt_down - current_prev)
-                # Tritone persists across octaves, so pick the smaller interval
-                # (perfect fourth = 5 semitones vs tritone = 6)
-                if int_up < interval and int_up <= MAX_BASS_LEAP:
-                    midi_pitch = alt_up
-                elif int_down < interval and alt_down >= MIN_BASS_MIDI:
-                    midi_pitch = alt_down
-                else:
-                    # Still tritone - hold previous note instead
-                    if first_note_midi is not None and beat_idx > 0:
-                        midi_pitch = first_note_midi
-            elif interval > MAX_BASS_LEAP:
-                alt_up = midi_pitch + 12
-                alt_down = midi_pitch - 12
-                int_up = abs(alt_up - current_prev)
-                int_down = abs(alt_down - current_prev)
-                if int_up <= MAX_BASS_LEAP:
-                    midi_pitch = alt_up
-                elif alt_down >= MIN_BASS_MIDI and int_down <= MAX_BASS_LEAP:
-                    midi_pitch = alt_down
-        if beat_idx == 0:
-            first_note_midi = midi_pitch
         current_prev = midi_pitch
-        if pattern_beat.duration == Fraction(-1):
+        if pattern_beat.duration == DURATION_SENTINEL_BAR:
             note_duration = bar_duration
-        elif pattern_beat.duration == Fraction(-2):
+        elif pattern_beat.duration == DURATION_SENTINEL_HALF:
             note_duration = bar_duration / 2
         else:
             note_duration = pattern_beat.duration * beat_duration
@@ -339,8 +352,10 @@ def realise_bass_pattern(
 
 def _get_beats_per_bar(metre: str) -> int:
     """Extract beats per bar from metre string."""
-    if metre == "any":
-        return 4
+    assert metre != "any", (
+        "Cannot derive beats_per_bar from metre='any'; "
+        "caller must resolve the actual metre before calling"
+    )
     parts = metre.split("/")
     return int(parts[0])
 
@@ -358,6 +373,7 @@ def realise_bass_schema(
     bar_offset: Fraction,
     bar_duration: Fraction,
     bass_median: int,
+    metre: str,
     prev_pitch: int | None = None,
 ) -> list[tuple[Fraction, int, Fraction]]:
     """Realise bass from schema degrees with rhythm pattern.
@@ -373,13 +389,15 @@ def realise_bass_schema(
         bar_offset: Start offset of the bar (whole notes)
         bar_duration: Duration of the bar (whole notes)
         bass_median: Median pitch for bass voice
+        metre: Actual metre of the piece (used when pattern.metre is 'any')
         prev_pitch: Previous bass pitch for voice-leading
 
     Returns:
         List of (offset, midi_pitch, duration) tuples.
     """
     result: list[tuple[Fraction, int, Fraction]] = []
-    beats_per_bar = _get_beats_per_bar(metre=pattern.metre) if pattern.metre != "any" else 4
+    effective_metre: str = metre if pattern.metre == "any" else pattern.metre
+    beats_per_bar = _get_beats_per_bar(metre=effective_metre)
     beat_duration = bar_duration / beats_per_bar
     current_prev: int | None = prev_pitch
     for rhythm_beat in pattern.beats:
@@ -393,9 +411,9 @@ def realise_bass_schema(
         if midi_pitch < MIN_BASS_MIDI:
             midi_pitch += 12
         current_prev = midi_pitch
-        if rhythm_beat.duration == Fraction(-1):
+        if rhythm_beat.duration == DURATION_SENTINEL_BAR:
             note_duration = bar_duration
-        elif rhythm_beat.duration == Fraction(-2):
+        elif rhythm_beat.duration == DURATION_SENTINEL_HALF:
             note_duration = bar_duration / 2
         else:
             note_duration = rhythm_beat.duration * beat_duration

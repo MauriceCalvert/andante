@@ -108,16 +108,15 @@ RHYTHM_CELLS_BY_METRE: dict[tuple[int, int], tuple[tuple[tuple[float, ...], str]
     ),
 }
 
-# Default to 4/4 for backwards compatibility
-RHYTHM_CELLS: tuple[tuple[tuple[float, ...], str], ...] = RHYTHM_CELLS_BY_METRE[(4, 4)]
-
 
 def get_rhythm_cells(metre: tuple[int, int] = (4, 4)) -> tuple[tuple[tuple[float, ...], str], ...]:
     """Get rhythm cells for a specific metre."""
-    if metre in RHYTHM_CELLS_BY_METRE:
-        return RHYTHM_CELLS_BY_METRE[metre]
-    # Fallback to 4/4 if metre not found
-    return RHYTHM_CELLS_BY_METRE[(4, 4)]
+    assert metre in RHYTHM_CELLS_BY_METRE, (
+        f"No rhythm cells for metre {metre[0]}/{metre[1]}. "
+        f"Add an entry to RHYTHM_CELLS_BY_METRE in head_generator.py. "
+        f"Available metres: {sorted(RHYTHM_CELLS_BY_METRE.keys())}"
+    )
+    return RHYTHM_CELLS_BY_METRE[metre]
 
 
 @dataclass(frozen=True)

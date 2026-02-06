@@ -14,9 +14,9 @@ from builder.types import (
     GenreConfig,
     KeyConfig,
     SchemaChain,
-    SchemaConfig,
     TonalPlan,
 )
+from shared.schema_types import Schema
 from planner.metric.distribution import bar_beat_to_float
 from planner.metric.schema_anchors import compute_upbeat_bar_beat, generate_schema_anchors
 from shared.constants import CADENCE_DEGREES
@@ -26,7 +26,7 @@ from shared.tracer import get_tracer
 
 def get_schema_stages(
     schema_name: str,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
     metre: str | None = None,
 ) -> int:
     """Get number of bars a schema occupies (1 stage = 1 bar)."""
@@ -45,7 +45,7 @@ def layer_4_metric(
     genre_config: GenreConfig,
     form_config: FormConfig,
     key_config: KeyConfig | None = None,
-    schemas: dict[str, SchemaConfig] | None = None,
+    schemas: dict[str, Schema] | None = None,
     tonal_plan: TonalPlan | dict | None = None,
     answer_interval: int = 7,
     modality: str = "diatonic",
@@ -105,7 +105,7 @@ def _tonal_plan_to_dict(
 def _build_bar_assignments(
     schema_chain: SchemaChain,
     genre_config: GenreConfig,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
 ) -> dict[str, tuple[int, int]]:
     """Build bar assignments from SchemaChain and section boundaries."""
     if not schema_chain.section_boundaries:
@@ -140,7 +140,7 @@ def _build_bar_assignments(
 
 def _build_bar_assignments_legacy(
     genre_config: GenreConfig,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
 ) -> dict[str, tuple[int, int]]:
     """Legacy bar assignment from genre_config sections (backward compat)."""
     assignments: dict[str, tuple[int, int]] = {}
@@ -167,7 +167,7 @@ def _build_bar_assignments_legacy(
 def _generate_all_anchors(
     schema_chain: SchemaChain,
     genre_config: GenreConfig,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
     home_key: Key,
     tonal_plan_dict: dict[str, tuple[str, ...]],
     tonal_plan_obj: TonalPlan | None,
@@ -280,7 +280,7 @@ def _generate_section_anchors_from_plan(
 def _generate_phrase_anchors(
     schema_chain: SchemaChain,
     genre_config: GenreConfig,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
     home_key: Key,
     tonal_plan_dict: dict[str, tuple[str, ...]],
     answer_interval: int,
@@ -313,7 +313,7 @@ def _generate_phrase_anchors(
 def _phrase_anchors_from_chain(
     schema_chain: SchemaChain,
     genre_config: GenreConfig,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
     home_key: Key,
     tonal_plan_dict: dict[str, tuple[str, ...]],
     answer_interval: int,
@@ -339,7 +339,7 @@ def _phrase_anchors_from_chain(
         for i, schema_name in enumerate(section_schemas):
             if schema_name not in schemas:
                 continue
-            schema_def: SchemaConfig = schemas[schema_name]
+            schema_def: Schema = schemas[schema_name]
             stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas, metre=genre_config.metre)
             schema_end: int = current_bar + stages - 1
             local_key: Key = _get_local_key(
@@ -378,7 +378,7 @@ def _phrase_anchors_from_chain(
 
 def _phrase_anchors_legacy(
     genre_config: GenreConfig,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
     home_key: Key,
     tonal_plan_dict: dict[str, tuple[str, ...]],
     answer_interval: int,
@@ -403,7 +403,7 @@ def _phrase_anchors_legacy(
         for i, schema_name in enumerate(real_schemas):
             if schema_name not in schemas:
                 continue
-            schema_def: SchemaConfig = schemas[schema_name]
+            schema_def: Schema = schemas[schema_name]
             stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas, metre=genre_config.metre)
             schema_end: int = current_bar + stages - 1
             local_key: Key = _get_local_key(

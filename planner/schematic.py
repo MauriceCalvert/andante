@@ -6,7 +6,6 @@ Output: SchemaChain with schemas, key areas, cadences, free passages
 
 RNG lives here per A005; downstream is deterministic.
 """
-import logging
 from random import Random
 from typing import Any
 
@@ -14,10 +13,10 @@ from builder.types import (
     FormConfig,
     GenreConfig,
     SchemaChain,
-    SchemaConfig,
     SectionTonalPlan,
     TonalPlan,
 )
+from shared.schema_types import Schema
 from planner.schema_loader import (
     can_connect_direct,
     get_allowed_next,
@@ -33,7 +32,6 @@ from planner.variety import (
 )
 
 
-logger = logging.getLogger(__name__)
 
 # Position required for section function
 _SECTION_POSITIONS: dict[str, tuple[str, ...]] = {
@@ -60,7 +58,7 @@ def layer_3_schematic(
     tonal_plan: TonalPlan,
     genre_config: GenreConfig,
     form_config: FormConfig,
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
     seed: int = 42,
 ) -> SchemaChain:
     """Execute Layer 3: generate schema chain via graph walk."""
@@ -123,7 +121,7 @@ def _find_genre_section(
 
 def _compute_section_bar_budget(
     genre_section: dict[str, Any],
-    schemas: dict[str, SchemaConfig],
+    schemas: dict[str, Schema],
 ) -> int:
     """Compute bar budget from original schema sequence."""
     schema_sequence: list[str] = genre_section.get("schema_sequence", [])
@@ -131,10 +129,9 @@ def _compute_section_bar_budget(
     for name in schema_sequence:
         if name == "episode" or name not in schemas:
             continue
-        schema_def: SchemaConfig = schemas[name]
+        schema_def: Schema = schemas[name]
         if schema_def.sequential:
-            segments: tuple[int, ...] = schema_def.segments or (2,)
-            total += max(segments) if isinstance(segments, (list, tuple)) else segments
+            total += max(schema_def.segments)
         else:
             total += len(schema_def.soprano_degrees)
     assert total > 0, (
@@ -258,7 +255,7 @@ def _schema_bars(schema_name: str, schema_defs: dict) -> int:
     """Get minimum bar count for a schema."""
     schema = schema_defs[schema_name]
     if schema.sequential:
-        return schema.segments
+        return max(schema.segments)
     return len(schema.soprano_degrees)
 
 

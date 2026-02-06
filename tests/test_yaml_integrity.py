@@ -42,7 +42,7 @@ def test_genre_has_rhythm_cells(genre: str) -> None:
     metre: str = _genre_metre(genre=genre)
     cells = get_cells_for_genre(genre=genre, metre=metre)
     if len(cells) == 0:
-        pytest.xfail(f"Genre '{genre}' (metre {metre}) has no rhythm cells")
+        pytest.skip(f"Bug: genre '{genre}' (metre {metre}) has no rhythm cells defined")
 
 
 # =========================================================================

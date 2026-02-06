@@ -5,9 +5,12 @@ Pure data containers for phrase planning and generation.
 from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Any
+from typing import TYPE_CHECKING
 from shared.key import Key
 from shared.voice_types import Range
+
+if TYPE_CHECKING:
+    from builder.types import Note
 
 
 @dataclass(frozen=True)
@@ -40,14 +43,15 @@ class PhrasePlan:
     lower_range: Range
     upper_median: int
     lower_median: int
+    bass_texture: str = "pillar"
     degree_keys: tuple[Key, ...] | None = None
 
 
 @dataclass(frozen=True)
 class PhraseResult:
     """Output of phrase writer for one phrase."""
-    upper_notes: tuple[Any, ...]
-    lower_notes: tuple[Any, ...]
+    upper_notes: tuple[Note, ...]
+    lower_notes: tuple[Note, ...]
     exit_upper: int
     exit_lower: int
     schema_name: str

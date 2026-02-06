@@ -37,7 +37,7 @@ def layer_2_tonal(
     assert len(sections) > 0, "Genre has no sections"
     rng: Random = Random(seed)
     density: str = affect_config.density
-    modality: str = _choose_modality(affect_config=affect_config)
+    modality: str = "diatonic"
     key_areas: list[str] = _assign_key_areas(
         sections=sections,
         density=density,
@@ -64,19 +64,16 @@ def layer_2_tonal(
     )
 
 
-def _choose_modality(affect_config: AffectConfig) -> str:
-    """Determine modality from affect."""
-    if hasattr(affect_config, "rhythm_states") and affect_config.rhythm_states:
-        return "diatonic"
-    return "diatonic"
-
 
 def _assign_key_areas(
     sections: tuple[dict, ...],
     density: str,
     rng: Random,
 ) -> list[str]:
-    """Assign key areas to sections based on position."""
+    """Assign key areas to sections based on position.
+
+    V-T004: no consecutive identical non-tonic keys (enforced inline).
+    """
     count: int = len(sections)
     key_areas: list[str] = []
     for i in range(count):
@@ -86,75 +83,58 @@ def _assign_key_areas(
             key_areas.append(_FINAL_KEY)
         elif i == count - 2 and count > 2:
             key_areas.append(_PENULTIMATE_KEY)
-        elif i % 2 == 1:
-            candidates: tuple[str, ...] = _ODD_KEY_CANDIDATES
-            if density == "low":
-                key_areas.append(candidates[0])
-            else:
-                key_areas.append(rng.choice(candidates))
         else:
-            candidates = _EVEN_KEY_CANDIDATES
+            pool: tuple[str, ...] = _ODD_KEY_CANDIDATES if i % 2 == 1 else _EVEN_KEY_CANDIDATES
+            prev_key: str = key_areas[i - 1]
+            # V-T004: exclude previous key if non-tonic to prevent consecutive identical non-tonic
+            if prev_key != "I":
+                candidates: list[str] = [k for k in pool if k != prev_key]
+            else:
+                candidates = list(pool)
             if density == "low":
                 key_areas.append(candidates[0])
             else:
                 key_areas.append(rng.choice(candidates))
-    _fix_consecutive_non_tonic(key_areas=key_areas, rng=rng)
     return key_areas
-
-
-def _fix_consecutive_non_tonic(
-    key_areas: list[str],
-    rng: Random,
-) -> None:
-    """Ensure V-T004: no consecutive identical non-tonic keys (in-place)."""
-    for i in range(len(key_areas) - 1):
-        if key_areas[i] != "I" and key_areas[i] == key_areas[i + 1]:
-            alternatives: list[str] = [
-                k for k in ("IV", "ii", "vi", "V")
-                if k != key_areas[i]
-            ]
-            key_areas[i + 1] = rng.choice(alternatives)
 
 
 def _assign_cadences(
     sections: tuple[dict, ...],
     rng: Random,
 ) -> list[str]:
-    """Assign cadence types to sections based on position."""
+    """Assign cadence types to sections based on position.
+
+    V-T003 constraints enforced inline:
+    - No consecutive half cadences
+    - At most one interior authentic cadence
+    """
     count: int = len(sections)
     cadences: list[str] = []
+    has_interior_authentic: bool = False
     for i in range(count):
         if i == count - 1:
             cadences.append(_FINAL_CADENCE)
-        elif i == 0:
-            cadences.append(rng.choice(_FIRST_CADENCES))
+            continue
+        if i == 0:
+            pool: tuple[str, ...] = _FIRST_CADENCES
         elif i == count - 2 and count > 2:
-            cadences.append(rng.choice(_PENULTIMATE_CADENCES))
+            pool = _PENULTIMATE_CADENCES
         else:
-            cadences.append(rng.choice(_INTERIOR_CADENCES))
-    _fix_consecutive_half_cadences(cadences=cadences, rng=rng)
-    _fix_interior_authentic_overuse(cadences=cadences, rng=rng)
+            pool = _INTERIOR_CADENCES
+        candidates: list[str] = list(pool)
+        # V-T003: no consecutive half cadences
+        if cadences and cadences[-1] == "half":
+            candidates = [c for c in candidates if c != "half"]
+        # V-T003: at most one interior authentic (interior = not final)
+        if has_interior_authentic:
+            candidates = [c for c in candidates if c != "authentic"]
+        assert len(candidates) > 0, (
+            f"No valid cadence candidates for section {i}; "
+            f"previous={cadences[-1] if cadences else None}, "
+            f"has_interior_authentic={has_interior_authentic}"
+        )
+        choice: str = rng.choice(candidates)
+        if choice == "authentic":
+            has_interior_authentic = True
+        cadences.append(choice)
     return cadences
-
-
-def _fix_consecutive_half_cadences(
-    cadences: list[str],
-    rng: Random,
-) -> None:
-    """Ensure V-T003: no consecutive half cadences (in-place)."""
-    for i in range(len(cadences) - 1):
-        if cadences[i] == "half" and cadences[i + 1] == "half":
-            alternatives: list[str] = [c for c in ("open", "deceptive") if c != cadences[i]]
-            cadences[i + 1] = rng.choice(alternatives)
-
-
-def _fix_interior_authentic_overuse(
-    cadences: list[str],
-    rng: Random,
-) -> None:
-    """Ensure V-T003: at most one interior authentic cadence (in-place)."""
-    interior: list[int] = [i for i in range(len(cadences) - 1) if cadences[i] == "authentic"]
-    while len(interior) > 1:
-        idx: int = interior.pop()
-        cadences[idx] = rng.choice(["half", "open"])
-        interior = [i for i in range(len(cadences) - 1) if cadences[i] == "authentic"]

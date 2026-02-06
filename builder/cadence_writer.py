@@ -11,15 +11,12 @@ from typing import Any
 import yaml
 
 from builder.types import Note
-from shared.constants import PHRASE_VOICE_BASS, TRACK_SOPRANO, VALID_DURATIONS
+from shared.constants import METRE_BAR_LENGTH, PHRASE_VOICE_BASS, TRACK_SOPRANO, VALID_DURATIONS_SET
 from shared.key import Key
+from shared.music_math import parse_fraction
+from shared.pitch import degree_to_nearest_midi
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
-VALID_DURATIONS_SET: frozenset[Fraction] = frozenset(VALID_DURATIONS)
-METRE_BAR_LENGTH: dict[str, Fraction] = {
-    "3/4": Fraction(3, 4),
-    "4/4": Fraction(1),
-}
 
 
 @dataclass(frozen=True)
@@ -35,38 +32,6 @@ class CadenceTemplate:
 
 
 _cache: dict[tuple[str, str], CadenceTemplate] | None = None
-
-
-def _degree_to_nearest_midi(
-    degree: int,
-    key: Key,
-    target_midi: int,
-    midi_range: tuple[int, int],
-    ceiling: int | None = None,
-) -> int:
-    """Place degree in octave nearest to target_midi, within range and below ceiling."""
-    candidates: list[int] = [
-        key.degree_to_midi(degree=degree, octave=octave) for octave in range(2, 7)
-    ]
-    valid: list[int] = [
-        m for m in candidates if midi_range[0] <= m <= midi_range[1]
-    ]
-    if ceiling is not None:
-        below: list[int] = [m for m in valid if m < ceiling]
-        if below:
-            valid = below
-    assert len(valid) > 0, (
-        f"No valid octave for degree {degree} in range {midi_range}"
-    )
-    return min(valid, key=lambda m: abs(m - target_midi))
-
-
-def _parse_fraction(s: str) -> Fraction:
-    """Parse fraction string like '1/4' or '1' to Fraction."""
-    if "/" in s:
-        num, denom = s.split("/")
-        return Fraction(int(num), int(denom))
-    return Fraction(int(s))
 
 
 def _validate_template(
@@ -138,11 +103,11 @@ def load_cadence_templates() -> dict[tuple[str, str], CadenceTemplate]:
             bars: int = data["bars"]
             soprano_degrees: tuple[int, ...] = tuple(data["soprano"]["degrees"])
             soprano_durations: tuple[Fraction, ...] = tuple(
-                _parse_fraction(s=d) for d in data["soprano"]["durations"]
+                parse_fraction(s=d) for d in data["soprano"]["durations"]
             )
             bass_degrees: tuple[int, ...] = tuple(data["bass"]["degrees"])
             bass_durations: tuple[Fraction, ...] = tuple(
-                _parse_fraction(s=d) for d in data["bass"]["durations"]
+                parse_fraction(s=d) for d in data["bass"]["durations"]
             )
             _validate_template(
                 schema_name=schema_name,
@@ -181,8 +146,7 @@ def get_schema_bars(
         )
         return templates[key].bars
     if schema_def.sequential:
-        segments = schema_def.segments or (2,)
-        return max(segments) if isinstance(segments, (list, tuple)) else segments
+        return max(schema_def.segments)
     return len(schema_def.soprano_degrees)
 
 
@@ -210,7 +174,7 @@ def write_cadence(
     soprano_offset: Fraction = start_offset
     upper_target: int = prev_upper_midi if prev_upper_midi is not None else upper_median
     for deg, dur in zip(template.soprano_degrees, template.soprano_durations):
-        midi: int = _degree_to_nearest_midi(degree=deg, key=local_key, target_midi=upper_target, midi_range=upper_range)
+        midi: int = degree_to_nearest_midi(degree=deg, key=local_key, target_midi=upper_target, midi_range=upper_range)
         soprano_notes.append(Note(
             offset=soprano_offset,
             pitch=midi,
@@ -228,7 +192,7 @@ def write_cadence(
             if sn.offset <= bass_offset < sn.offset + sn.duration:
                 soprano_ceiling = sn.pitch
                 break
-        midi = _degree_to_nearest_midi(
+        midi = degree_to_nearest_midi(
             degree=deg,
             key=local_key,
             target_midi=lower_target,

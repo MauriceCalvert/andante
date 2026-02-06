@@ -27,6 +27,7 @@ from planner.metric.layer import layer_4_metric
 from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
+from shared.key import Key
 from shared.tracer import get_tracer
 
 
@@ -126,7 +127,8 @@ def generate(
         total_bars=total_bars,
     )
     # Compose from phrase plans
-    home_key = anchors[0].local_key if anchors else key_config
+    assert len(anchors) > 0, "Layer 4 produced no anchors; cannot determine home key"
+    home_key: Key = anchors[0].local_key
     return compose_phrases(
         phrase_plans=phrase_plans,
         home_key=home_key,

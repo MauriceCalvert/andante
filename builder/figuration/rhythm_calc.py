@@ -62,19 +62,3 @@ def is_valid_duration(d: Fraction) -> bool:
     return denom > 0 and (denom & (denom - 1)) == 0
 
 
-def quantize_duration(d: Fraction) -> Fraction:
-    """Quantize a duration to nearest valid baroque value.
-
-    Used as fallback when other methods produce invalid durations.
-    """
-    if is_valid_duration(d=d):
-        return d
-    # Find nearest valid unit
-    best = VALID_UNITS[0]
-    best_diff = abs(d - best)
-    for unit in VALID_UNITS[1:]:
-        diff = abs(d - unit)
-        if diff < best_diff:
-            best = unit
-            best_diff = diff
-    return best

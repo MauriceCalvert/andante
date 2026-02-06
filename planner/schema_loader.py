@@ -3,55 +3,17 @@
 Schemas are galante harmonic blueprints encoding soprano/bass degrees at each
 stage. Format conforms to architecture.md and schemas.yaml.
 """
-import re
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from shared.schema_types import Arrival, Schema
+from shared.yaml_parsing import parse_signed_degrees, parse_typical_keys
+
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
-
-
-@dataclass(frozen=True)
-class Arrival:
-    """Entry or exit point: soprano and bass degree."""
-    soprano: int
-    bass: int
-
-
-@dataclass(frozen=True)
-class Schema:
-    """Schema definition from schemas.yaml."""
-    name: str
-    soprano_degrees: tuple[int, ...]
-    soprano_directions: tuple[str | None, ...]  # up/down/same/None per degree
-    bass_degrees: tuple[int, ...]
-    bass_directions: tuple[str | None, ...]  # up/down/same/None per degree
-    entry: Arrival  # derived from first degrees
-    exit: Arrival  # derived from last degrees
-    min_bars: int
-    max_bars: int
-    position: str  # opening, riposte, continuation, pre_cadential, cadential, post_cadential
-    sequential: bool
-    direction: str | None  # ascending, descending for sequential schemas
-    segment_direction: str | None  # up/down between segments for sequential schemas
-    segments: int  # number of segments for sequential schemas
-    pedal: str | None  # dominant, tonic, subdominant
-    chromatic: bool  # has chromatic alterations
-    figuration_profile: str  # figuration profile name from figuration_profiles.yaml
-    cadence_approach: bool  # whether final connection uses cadential patterns
-    typical_keys: tuple[str, ...] | None  # key journey for sequential schemas
-
-    @property
-    def stage_count(self) -> int:
-        """Number of stages. For sequential, multiply by segments."""
-        base = len(self.soprano_degrees)
-        if self.sequential:
-            return base * self.segments
-        return base
 
 
 def _load_yaml(name: str) -> dict[str, Any]:
@@ -68,44 +30,6 @@ def _load_transitions() -> dict[str, Any]:
     return _load_yaml(name="schemas/schema_transitions.yaml")
 
 
-def _parse_signed_degree(raw: str | int | float, is_first: bool) -> tuple[int, str | None]:
-    """Parse a signed degree string into (degree, direction).
-    
-    Format:
-        First degree: unsigned (starting point), direction=None
-        Subsequent: -N = down to N, N = same, +N = up to N
-    """
-    if isinstance(raw, (int, float)):
-        degree = int(abs(raw))
-        direction = None if is_first else "same"
-        return degree, direction
-    raw_str = str(raw).strip()
-    if not raw_str:
-        return 1, None
-    if raw_str.startswith("+"):
-        degree_str = raw_str[1:]
-        direction = None if is_first else "up"
-    elif raw_str.startswith("-"):
-        degree_str = raw_str[1:]
-        direction = None if is_first else "down"
-    else:
-        degree_str = raw_str
-        direction = None if is_first else "same"
-    degree = int(float(degree_str))
-    return degree, direction
-
-
-def _parse_signed_degrees(raw_list: list) -> tuple[tuple[int, ...], tuple[str | None, ...]]:
-    """Parse a list of signed degrees into degrees and directions."""
-    degrees: list[int] = []
-    directions: list[str | None] = []
-    for i, raw in enumerate(raw_list):
-        degree, direction = _parse_signed_degree(raw=raw, is_first=(i == 0))
-        degrees.append(degree)
-        directions.append(direction)
-    return tuple(degrees), tuple(directions)
-
-
 def _parse_bars(data: Any) -> tuple[int, int]:
     """Parse bars field which may be [min, max] or single int."""
     if isinstance(data, list):
@@ -113,30 +37,13 @@ def _parse_bars(data: Any) -> tuple[int, int]:
     return (data, data)
 
 
-def _parse_segments(data: Any) -> int:
+def _parse_segments(data: Any) -> tuple[int, ...]:
     """Parse segments field which may be int or list."""
     if isinstance(data, list):
-        return data[0]  # Use minimum
+        return tuple(data)
     if isinstance(data, int):
-        return data
-    return 1
-
-
-def _parse_typical_keys(raw: str | None) -> tuple[str, ...] | None:
-    """Parse typical_keys string into tuple of key areas.
-    
-    Examples:
-        "IV -> V (-> vi)" -> ("IV", "V", "vi")
-        "ii -> I" -> ("ii", "I")
-        None -> None
-    """
-    if raw is None:
-        return None
-    pattern = r'[iIvV]+|[iI]{1,3}|[vV]{1,3}'
-    matches: list[str] = re.findall(pattern, raw)
-    if not matches:
-        return None
-    return tuple(matches)
+        return (data,)
+    return (1,)
 
 
 def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
@@ -149,8 +56,8 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
     else:
         raw_soprano = data.get("soprano_degrees", [])
         raw_bass = data.get("bass_degrees", [])
-    soprano_degrees, soprano_directions = _parse_signed_degrees(raw_list=raw_soprano)
-    bass_degrees, bass_directions = _parse_signed_degrees(raw_list=raw_bass)
+    soprano_degrees, soprano_directions = parse_signed_degrees(raw_list=raw_soprano)
+    bass_degrees, bass_directions = parse_signed_degrees(raw_list=raw_bass)
     min_bars, max_bars = _parse_bars(data=data["bars"])
     # Derive entry/exit from first/last degrees
     entry = Arrival(soprano=soprano_degrees[0], bass=bass_degrees[0])
@@ -166,15 +73,16 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
         min_bars=min_bars,
         max_bars=max_bars,
         position=data.get("position", "continuation"),
+        cadential_state=data.get("cadential_state", "open"),
         sequential=data.get("sequential", False),
+        segments=_parse_segments(data=data.get("segments", 1)),
         direction=data.get("direction"),
         segment_direction=data.get("segment_direction"),
-        segments=_parse_segments(data=data.get("segments", 1)),
         pedal=data.get("pedal"),
         chromatic=data.get("chromatic", False),
         figuration_profile=data.get("figuration_profile", "galant_general"),
         cadence_approach=data.get("cadence_approach", False),
-        typical_keys=_parse_typical_keys(raw=data.get("typical_keys")),
+        typical_keys=parse_typical_keys(raw=data.get("typical_keys")),
     )
 
 

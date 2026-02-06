@@ -166,8 +166,12 @@ def write_midi_notes(
             on_tick = int(note.offset * ticks_per_whole)
             gate_dur = note.duration * GATE_TIME
             off_tick = int((note.offset + gate_dur) * ticks_per_whole)
-            # Clamp pitch to valid MIDI range; faults.py will report tessitura errors
-            pitch = max(0, min(127, note.pitch))
+            pitch = note.pitch
+            assert 0 <= pitch <= 127, (
+                f"MIDI pitch {pitch} outside valid range [0, 127] "
+                f"at offset {note.offset}, track {note.track}; "
+                f"fix the generator that produced this pitch"
+            )
             events.append((on_tick, 'on', pitch, note.velocity))
             events.append((off_tick, 'off', pitch, 0))
 

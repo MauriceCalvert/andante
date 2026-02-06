@@ -41,12 +41,16 @@ Fault Categories
 
     parallel_rhythm     Too many consecutive simultaneous attacks (lockstep motion).
 """
+import logging
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Sequence
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 from builder.types import Note
 from shared.constants import (
+    CONSONANT_INTERVALS_ABOVE_BASS,
     CROSS_RELATION_PAIRS,
     DIRECT_MOTION_LEAP_SEMITONES,
     GROTESQUE_LEAP_SEMITONES,
@@ -54,6 +58,7 @@ from shared.constants import (
     NOTE_NAMES_SHARP,
     SKIP_SEMITONES,
     STEP_SEMITONES,
+    UGLY_INTERVALS,
     VOICE_RANGES,
 )
 
@@ -259,7 +264,7 @@ def _check_dissonance(
     faults: list[Fault] = []
     if len(voices) < 2:
         return faults
-    consonant: frozenset[int] = frozenset({0, 3, 4, 7, 8, 9})
+    consonant: frozenset[int] = CONSONANT_INTERVALS_ABOVE_BASS
     soprano: Sequence[Note] = voices[0]
     bass: Sequence[Note] = voices[-1]
     s_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in soprano}
@@ -417,7 +422,7 @@ def _check_ugly_leaps(
 ) -> list[Fault]:
     """Check for augmented or diminished intervals."""
     faults: list[Fault] = []
-    ugly: frozenset[int] = frozenset({1, 6, 10, 11})
+    ugly: frozenset[int] = UGLY_INTERVALS
     for i in range(len(voice_notes) - 1):
         interval: int = abs(voice_notes[i + 1].pitch - voice_notes[i].pitch)
         simple: int = interval % 12
@@ -491,9 +496,7 @@ def _check_parallel_perfect(
                 a1, a2 = a_by_off[off1], a_by_off[off2]
                 b1, b2 = b_by_off[off1], b_by_off[off2]
                 motion: str = _motion_type(pitch_a_from=a1, pitch_a_to=a2, pitch_b_from=b1, pitch_b_to=b2)
-                if motion not in {"similar", "parallel"}:
-                    continue
-                if motion == "parallel" and a1 == a2 and b1 == b2:
+                if motion != "similar":
                     continue
                 int1: int = _simple_interval(pitch_a=a1, pitch_b=b1)
                 int2: int = _simple_interval(pitch_a=a2, pitch_b=b2)
@@ -627,12 +630,11 @@ def find_faults_from_composition(
 
 
 def print_faults(faults: list[Fault]) -> None:
-    """Print faults in readable format."""
+    """Log faults in readable format."""
     if not faults:
-        print("No faults found.")
+        logger.info("No faults found.")
         return
-    print(f"Found {len(faults)} faults")
-    print()
+    logger.info("Found %d faults", len(faults))
     for fault in faults:
         voices_str: str = ",".join(str(v) for v in fault.voices)
-        print(f"[{fault.bar_beat}] v{voices_str} {fault.category}: {fault.message}")
+        logger.info("[%s] v%s %s: %s", fault.bar_beat, voices_str, fault.category, fault.message)

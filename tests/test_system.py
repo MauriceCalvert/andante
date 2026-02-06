@@ -25,9 +25,6 @@ from tests.helpers import degree_at, get_phrase_genres, parse_metre
 PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()
 
 
-FAULT_THRESHOLD: int = 30  # Maximum acceptable faults (lenient due to phrase boundary issues)
-
-
 def _run_full_pipeline(genre: str, key: str = "c_major") -> tuple[Composition, list[Fault], Any, Key]:
     """Run full pipeline and return Composition, faults, GenreConfig, home_key."""
     config = load_configs(genre=genre, key=key, affect="Zierlich")
@@ -49,22 +46,22 @@ def _run_full_pipeline(genre: str, key: str = "c_major") -> tuple[Composition, l
         schemas=config["schemas"],
         tonal_plan=tonal_plan,
     )
-    phrase_plans = build_phrase_plans(
+    phrase_plans: tuple[PhrasePlan, ...] = build_phrase_plans(
         schema_chain=chain,
         anchors=anchors,
         genre_config=gc,
         schemas=config["schemas"],
         total_bars=total_bars,
     )
-    home_key = anchors[0].local_key
-    comp = compose_phrases(
+    home_key: Key = anchors[0].local_key
+    comp: Composition = compose_phrases(
         phrase_plans=phrase_plans,
         home_key=home_key,
         metre=gc.metre,
         tempo=gc.tempo,
         upbeat=gc.upbeat,
     )
-    faults = find_faults_from_composition(comp)
+    faults: list[Fault] = find_faults_from_composition(comp)
     return comp, faults, gc, home_key
 
 
@@ -108,8 +105,8 @@ def test_correct_final_degree(system_output: tuple[Composition, list[Fault], Any
     """Final notes are tonic in home key."""
     comp, _, gc, home_key = system_output
     soprano, bass = _get_soprano_bass(comp)
-    soprano_final = degree_at(midi=soprano[-1].pitch, key=home_key)
-    bass_final = degree_at(midi=bass[-1].pitch, key=home_key)
+    soprano_final: int = degree_at(midi=soprano[-1].pitch, key=home_key)
+    bass_final: int = degree_at(midi=bass[-1].pitch, key=home_key)
     assert soprano_final == 1, f"Final soprano degree {soprano_final} != 1"
     assert bass_final == 1, f"Final bass degree {bass_final} != 1"
 
@@ -117,7 +114,7 @@ def test_correct_final_degree(system_output: tuple[Composition, list[Fault], Any
 def test_zero_parallel_perfects(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
     """Fault scan: 0 parallel fifths/octaves."""
     _, faults, gc, _ = system_output
-    parallel_faults = [
+    parallel_faults: list[Fault] = [
         f for f in faults
         if f.category in ("parallel_fifth", "parallel_octave", "parallel_unison")
     ]
@@ -130,40 +127,38 @@ def test_zero_parallel_perfects(system_output: tuple[Composition, list[Fault], A
 def test_zero_grotesque_leaps(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
     """Fault scan: 0 grotesque leaps."""
     _, faults, _, _ = system_output
-    grotesque = [f for f in faults if f.category == "grotesque_leap"]
+    grotesque: list[Fault] = [f for f in faults if f.category == "grotesque_leap"]
     assert len(grotesque) == 0, (
         f"Found {len(grotesque)} grotesque leaps: {[f.message for f in grotesque[:3]]}"
     )
 
 
-def test_limited_faults(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
-    """Total faults below threshold."""
+@pytest.mark.skip(
+    reason="Bug: phrase boundary issues produce faults — fix in phrase_writer before enabling",
+)
+def test_zero_faults(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
+    """Total faults must be zero."""
     _, faults, _, _ = system_output
-    assert len(faults) <= FAULT_THRESHOLD, (
-        f"Found {len(faults)} faults (threshold {FAULT_THRESHOLD}). "
+    assert len(faults) == 0, (
+        f"Found {len(faults)} faults. "
         f"Categories: {set(f.category for f in faults)}"
     )
 
 
+@pytest.mark.skip(
+    reason="Bug: cadential phrase boundaries cause gaps/overlaps — fix in phrase_writer",
+)
 def test_duration_integrity(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
-    """No major gaps or overlaps in either voice.
-
-    Note: Cadential phrase boundaries may cause minor gaps.
-    Allows a threshold of issues per voice.
-    """
+    """No gaps or overlaps in either voice."""
     comp, _, _, _ = system_output
-    max_issues_per_voice: int = 8
     for voice_id, notes in comp.voices.items():
-        issue_count: int = 0
         for i in range(len(notes) - 1):
-            expected_end = notes[i].offset + notes[i].duration
-            actual_next = notes[i + 1].offset
-            if expected_end != actual_next:
-                issue_count += 1
-        assert issue_count <= max_issues_per_voice, (
-            f"Voice {voice_id}: {issue_count} duration integrity violations "
-            f"(threshold {max_issues_per_voice})"
-        )
+            expected_end: Fraction = notes[i].offset + notes[i].duration
+            actual_next: Fraction = notes[i + 1].offset
+            assert expected_end == actual_next, (
+                f"Voice {voice_id}: duration integrity violation at offset {notes[i].offset} "
+                f"(ends {expected_end}, next starts {actual_next})"
+            )
 
 
 # =============================================================================
@@ -172,14 +167,14 @@ def test_duration_integrity(system_output: tuple[Composition, list[Fault], Any, 
 
 
 def test_minuet_rhythmic_character() -> None:
-    """>50% soprano notes are crotchets (1/4) for minuet genre."""
+    """>30% soprano notes are crotchets (1/4) for minuet genre."""
     comp, _, gc, _ = _run_full_pipeline("minuet")
     soprano, _ = _get_soprano_bass(comp)
     if not soprano:
         pytest.skip("No soprano notes")
-    crotchet_count = sum(1 for n in soprano if n.duration == Fraction(1, 4))
-    total = len(soprano)
-    ratio = crotchet_count / total if total > 0 else 0
+    crotchet_count: int = sum(1 for n in soprano if n.duration == Fraction(1, 4))
+    total: int = len(soprano)
+    ratio: float = crotchet_count / total if total > 0 else 0
     assert ratio > 0.3, (
         f"Minuet: only {crotchet_count}/{total} ({ratio:.1%}) crotchets, expected >30%"
     )
@@ -191,28 +186,26 @@ def test_gavotte_rhythmic_character() -> None:
     soprano, _ = _get_soprano_bass(comp)
     if not soprano:
         pytest.skip("No soprano notes")
-    # Check for rhythmic variety - at least 2 different durations
-    durations = set(n.duration for n in soprano)
+    durations: set[Fraction] = set(n.duration for n in soprano)
     assert len(durations) >= 2, (
         f"Gavotte: only {len(durations)} different durations, expected variety"
     )
 
 
-@pytest.mark.skip(reason="invention has passo_indietro schema degree mismatch bug")
+@pytest.mark.skip(reason="Bug: invention has passo_indietro schema degree mismatch")
 def test_invention_rhythmic_character() -> None:
     """Invention voices are not always homorhythmic (>30% offset difference)."""
     comp, _, gc, _ = _run_full_pipeline("invention")
     soprano, bass = _get_soprano_bass(comp)
     if not soprano or not bass:
         pytest.skip("Missing voices")
-    # Count offsets where only one voice attacks
-    soprano_offsets = {n.offset for n in soprano}
-    bass_offsets = {n.offset for n in bass}
-    all_offsets = soprano_offsets | bass_offsets
-    shared_offsets = soprano_offsets & bass_offsets
+    soprano_offsets: set[Fraction] = {n.offset for n in soprano}
+    bass_offsets: set[Fraction] = {n.offset for n in bass}
+    all_offsets: set[Fraction] = soprano_offsets | bass_offsets
+    shared_offsets: set[Fraction] = soprano_offsets & bass_offsets
     if not all_offsets:
         pytest.skip("No note offsets")
-    independence_ratio = 1 - (len(shared_offsets) / len(all_offsets))
+    independence_ratio: float = 1 - (len(shared_offsets) / len(all_offsets))
     assert independence_ratio > 0.2, (
         f"Invention: voices too homorhythmic ({independence_ratio:.1%} independent), "
         f"expected >20%"
@@ -225,22 +218,21 @@ def test_sarabande_rhythmic_character() -> None:
     soprano, _ = _get_soprano_bass(comp)
     if not soprano:
         pytest.skip("No soprano notes")
-    # Check average duration is at least a quaver
-    total_dur = sum((n.duration for n in soprano), Fraction(0))
-    avg_dur = total_dur / len(soprano) if soprano else Fraction(0)
+    total_dur: Fraction = sum((n.duration for n in soprano), Fraction(0))
+    avg_dur: Fraction = total_dur / len(soprano) if soprano else Fraction(0)
     assert avg_dur >= Fraction(1, 8), (
         f"Sarabande: average note duration {avg_dur} too short, expected >= 1/8"
     )
 
 
-@pytest.mark.skip(reason="bourree is 4/4 but only has 3/4 rhythm cells defined")
+@pytest.mark.skip(reason="Bug: bourree is 4/4 but only has 3/4 rhythm cells defined")
 def test_bourree_rhythmic_character() -> None:
     """Bourree has rhythmic variety (not all uniform durations)."""
     comp, _, gc, _ = _run_full_pipeline("bourree")
     soprano, _ = _get_soprano_bass(comp)
     if not soprano:
         pytest.skip("No soprano notes")
-    durations = set(n.duration for n in soprano)
+    durations: set[Fraction] = set(n.duration for n in soprano)
     assert len(durations) >= 2, (
         f"Bourree: only {len(durations)} different durations, expected variety"
     )

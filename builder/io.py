@@ -10,7 +10,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from builder.types import Composition, Note
-from shared.constants import NOTE_NAMES
+from shared.constants import METRE_BAR_LENGTH, NOTE_NAMES
 
 
 def note_name(midi: int) -> str:
@@ -26,13 +26,14 @@ def bar_beat(offset: Fraction, metre: str, upbeat: Fraction = Fraction(0)) -> tu
     Subtracts upbeat before computing so bar/beat labels match the
     musical score (bar 0 = anacrusis, bar 1 = first full bar).
     """
-    if metre == "4/4":
-        beats_per_bar: int = 4
-    elif metre == "3/4":
-        beats_per_bar = 3
-    else:
-        beats_per_bar = 4
-    total_beats: Fraction = (offset - upbeat) * 4
+    assert metre in METRE_BAR_LENGTH, (
+        f"Unknown metre '{metre}' in bar_beat(); "
+        f"known metres: {sorted(METRE_BAR_LENGTH.keys())}"
+    )
+    num_str, den_str = metre.split("/")
+    beats_per_bar: int = int(num_str)
+    beat_value: int = int(den_str)
+    total_beats: Fraction = (offset - upbeat) * beat_value
     bar: int = int(total_beats // beats_per_bar) + 1
     beat_in_bar: Fraction = (total_beats % beats_per_bar) + 1
     return bar, beat_in_bar

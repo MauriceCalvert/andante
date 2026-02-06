@@ -10,14 +10,10 @@ from typing import Any
 
 import yaml
 
-from shared.constants import STRONG_BEAT_OFFSETS, VALID_DURATIONS
+from shared.constants import METRE_BAR_LENGTH, STRONG_BEAT_OFFSETS, VALID_DURATIONS_SET
+from shared.music_math import parse_fraction
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
-VALID_DURATIONS_SET: frozenset[Fraction] = frozenset(VALID_DURATIONS)
-METRE_BAR_LENGTH: dict[str, Fraction] = {
-    "3/4": Fraction(3, 4),
-    "4/4": Fraction(1),
-}
 
 
 @dataclass(frozen=True)
@@ -32,14 +28,6 @@ class RhythmCell:
 
 
 _cache: dict[str, list[RhythmCell]] | None = None
-
-
-def _parse_fraction(s: str) -> Fraction:
-    """Parse fraction string like '1/4' or '1' to Fraction."""
-    if "/" in s:
-        num, denom = s.split("/")
-        return Fraction(int(num), int(denom))
-    return Fraction(int(s))
 
 
 def _compute_accent_pattern(
@@ -123,7 +111,7 @@ def load_rhythm_cells() -> dict[str, list[RhythmCell]]:
     for name, data in raw.items():
         metre: str = data["metre"]
         durations: tuple[Fraction, ...] = tuple(
-            _parse_fraction(s=d) for d in data["durations"]
+            parse_fraction(s=d) for d in data["durations"]
         )
         character: str = data["character"]
         genre_tags: frozenset[str] = frozenset(data["genre_tags"])

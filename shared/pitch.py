@@ -56,6 +56,30 @@ class MidiPitch:
 Pitch = Union[FloatingNote, MidiPitch, Rest]
 
 
+def degree_to_nearest_midi(
+    degree: int,
+    key: "Key",
+    target_midi: int,
+    midi_range: tuple[int, int],
+    ceiling: int | None = None,
+) -> int:
+    """Place degree in octave nearest to target_midi, within range and below ceiling."""
+    candidates: list[int] = [
+        key.degree_to_midi(degree=degree, octave=octave) for octave in range(2, 7)
+    ]
+    valid: list[int] = [
+        m for m in candidates if midi_range[0] <= m <= midi_range[1]
+    ]
+    if ceiling is not None:
+        below: list[int] = [m for m in valid if m < ceiling]
+        if below:
+            valid = below
+    assert len(valid) > 0, (
+        f"No valid octave for degree {degree} in range {midi_range}"
+    )
+    return min(valid, key=lambda m: abs(m - target_midi))
+
+
 def wrap_degree(deg: int) -> int:
     """Wrap degree to 1-7 range."""
     assert isinstance(deg, int), f"wrap_degree requires int, got {type(deg).__name__}"

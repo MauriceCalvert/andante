@@ -12,6 +12,24 @@ class MusicMathError(Exception):
     """Invalid duration or unfillable slot."""
 
 
+def parse_fraction(s: str) -> Fraction:
+    """Parse fraction string like '1/4' or '1' to Fraction."""
+    if "/" in s:
+        num, denom = s.split("/")
+        return Fraction(int(num), int(denom))
+    return Fraction(int(s))
+
+
+def parse_metre(metre: str) -> tuple[Fraction, Fraction]:
+    """Parse '3/4' to (bar_length, beat_unit)."""
+    num, denom = metre.split("/")
+    beats_per_bar: int = int(num)
+    beat_value: int = int(denom)
+    beat_unit: Fraction = Fraction(1, beat_value)
+    bar_length: Fraction = beat_unit * beats_per_bar
+    return bar_length, beat_unit
+
+
 # Valid note durations as fractions of a semibreve (whole note)
 VALID_DURATIONS: frozenset[Fraction] = frozenset({
     Fraction(2, 1),     # breve

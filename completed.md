@@ -298,3 +298,61 @@ all degrees against `plan.local_key`, producing wrong pitches for non-first segm
    for key resolution. S-13 leap-step test skips structural-to-structural leaps.
 
 **Results**: 3492 passed, 209 skipped, 30 xfailed, 39 xpassed, 0 failures (64s)
+
+## 2026-02-06: Review.md — Fix all 37 issues across 10 categories
+
+All issues from review.md resolved across 9 tasks:
+
+### §1: Dead modules (5 files + plannertypes.py bulk)
+- Deleted: constraints.py, coherence.py, harmony.py, structure.py, plan_validator.py
+- Trimmed plannertypes.py: removed 17 dead types, updated Brief and Plan
+
+### §2: L017 duplications (9 instances)
+- Created shared/yaml_parsing.py (parse_signed_degree, parse_signed_degrees, parse_typical_keys)
+- Added parse_fraction, parse_metre to shared/music_math.py
+- Added degree_to_nearest_midi to shared/pitch.py
+- Created shared/schema_types.py — unified Schema type replacing both planner Schema and builder SchemaConfig
+- Updated 10+ files to use shared parsers and unified types
+
+### §3: D008 downstream fixes (6 functions)
+- phrase_writer.py: Bass voice-crossing now prevented at source — soprano looked up before stepping,
+  candidate capped at soprano ceiling instead of post-hoc patch
+- bass.py: Replaced 3 post-hoc corrections (consecutive leaps, tritone, large leap) with
+  `_select_bass_pitch()` candidate scoring function that evaluates all octave placements upfront
+- tonal.py: Eliminated 3 `_fix_*` functions. `_assign_key_areas` and `_assign_cadences` now
+  enforce V-T003/V-T004 constraints inline during generation (constrained candidate pools)
+
+### §4: L002 magic numbers (4 groups)
+- Moved MAX_MELODIC_INTERVAL, LEAP_THRESHOLD, STEP_SEMITONES to shared/constants.py
+- bass_texture from genre YAML via PhrasePlan.bass_texture (not hardcoded dict)
+- DURATION_SENTINEL_BAR/HALF replace Fraction(-1)/Fraction(-2) sentinels
+- CONSONANT_INTERVALS_ABOVE_BASS, UGLY_INTERVALS from constants replace local frozensets
+
+### §5: Silent defaults (3)
+- io.py:bar_beat() — assert known metres, parse dynamically from metre string
+- bass.py:_get_beats_per_bar — assert on "any"; callers pass actual metre via new `metre` param
+- tonal.py:_choose_modality — removed dead function, inlined "diatonic" constant
+
+### §6: Type hygiene (3)
+- PhraseResult: `tuple[Any, ...]` → `tuple[Note, ...]` with TYPE_CHECKING import
+- Dead modules already deleted (§1)
+- phrase_planner.py: removed hasattr cargo code, direct field access
+
+### §7: Architectural smells (4)
+- Removed dead tempo computation from load_configs (nobody read config["tempo"])
+- planner.py: assert anchors non-empty instead of wrong-type fallback to KeyConfig
+- types.py: moved voice_types import to top (no circular dependency, was cargo)
+- schematic.py + cadence_writer.py: segments now always tuple[int, ...]; removed isinstance/or fallbacks
+
+### §8: L016 print → logging
+- faults.py:print_faults now uses logger.info()
+
+### §9: L011 while loop guard
+- Eliminated entirely — while loop replaced by inline constraint in §3c fix
+
+### §10: Minor issues (5)
+- Dead "parallel" branch in faults.py:_check_parallel_perfect → removed
+- Unused logger in schematic.py → removed
+- Defensive fallback in phrase_planner.py:42 → assert
+- seq_positions NameError risk → initialized to None + assert
+- Hardcoded *4 in io.py → already fixed to *beat_value in §5a

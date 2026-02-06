@@ -219,7 +219,22 @@ VALID_DURATIONS: tuple[Fraction, ...] = (
     Fraction(1, 4), Fraction(3, 16), Fraction(1, 8), Fraction(3, 32),
     Fraction(1, 16), Fraction(1, 32),
 )
+VALID_DURATIONS_SET: frozenset[Fraction] = frozenset(VALID_DURATIONS)
 VALID_DURATIONS_SORTED: tuple[Fraction, ...] = tuple(sorted(VALID_DURATIONS, reverse=True))
+
+# Bar length by metre string (whole-note fractions)
+METRE_BAR_LENGTH: dict[str, Fraction] = {
+    "3/4": Fraction(3, 4),
+    "4/4": Fraction(1),
+}
+
+# Melodic interval thresholds (semitones)
+MAX_MELODIC_INTERVAL: int = 12
+LEAP_THRESHOLD: int = 4
+
+# Sentinel durations for bass patterns: "bar" and "half" tokens in YAML
+DURATION_SENTINEL_BAR: Fraction = Fraction(-1)
+DURATION_SENTINEL_HALF: Fraction = Fraction(-2)
 
 
 # Valid density trajectory types

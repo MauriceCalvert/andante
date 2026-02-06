@@ -7,6 +7,7 @@ import pytest
 from pathlib import Path
 from typing import Any
 from builder.config_loader import load_configs
+from builder.types import AffectConfig, FormConfig, GenreConfig, KeyConfig
 
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
@@ -48,30 +49,30 @@ def configs(genre_name: str) -> dict[str, Any]:
 
 
 @pytest.fixture
-def genre_config(configs: dict[str, Any]) -> Any:
+def genre_config(configs: dict[str, Any]) -> GenreConfig:
     """GenreConfig for current genre."""
     return configs["genre"]
 
 
 @pytest.fixture
-def affect_config(configs: dict[str, Any]) -> Any:
+def affect_config(configs: dict[str, Any]) -> AffectConfig:
     """AffectConfig for current genre."""
     return configs["affect"]
 
 
 @pytest.fixture
-def form_config(configs: dict[str, Any]) -> Any:
+def form_config(configs: dict[str, Any]) -> FormConfig:
     """FormConfig for current genre."""
     return configs["form"]
 
 
 @pytest.fixture
-def key_config(configs: dict[str, Any]) -> Any:
+def key_config(configs: dict[str, Any]) -> KeyConfig:
     """KeyConfig for current genre."""
     return configs["key"]
 
 
 @pytest.fixture
-def schemas(configs: dict[str, Any]) -> Any:
+def schemas(configs: dict[str, Any]) -> dict[str, Any]:
     """Schema catalogue for current genre."""
     return configs["schemas"]

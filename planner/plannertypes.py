@@ -17,51 +17,15 @@ class TonalSection:
 
 
 @dataclass(frozen=True)
-class VoiceSpec:
-    """Voice specification per voices.md."""
-    id: str
-    role: str  # schema_upper, schema_lower, imitative, harmony_fill
-    follows: str | None = None      # For imitative: voice id to follow
-    delay_bars: int | None = None   # For imitative: delay in bars
-    interval: int | None = None     # For imitative: transposition interval
-
-
-@dataclass(frozen=True)
-class InstrumentSpec:
-    """Instrument instance in a piece."""
-    id: str
-    type: str  # Reference to instrument definition in data/instruments/
-
-
-@dataclass(frozen=True)
-class TrackSpec:
-    """MIDI track assignment."""
-    voice_id: str
-    channel: int
-    program: int
-
-
-@dataclass(frozen=True)
 class Brief:
     """User input specifying compositional intent.
 
     Required fields define the commission. Optional fields override genre defaults.
-    
-    Per voices.md, the Brief now includes:
-    - voices: voice definitions with roles
-    - instruments: physical instruments used
-    - scoring: voice-to-actuator assignments
-    - tracks: MIDI channel assignments
     """
     affect: str
     genre: str
     forces: str
     bars: int
-    # Voice/instrument architecture (voices.md)
-    voices: tuple['VoiceSpec', ...] | None = None
-    instruments: tuple['InstrumentSpec', ...] | None = None
-    scoring: dict[str, str] | None = None  # voice_id -> "instrument.actuator"
-    tracks: tuple['TrackSpec', ...] | None = None
     # Optional: override genre defaults
     key: str | None = None
     mode: str | None = None
@@ -179,25 +143,6 @@ class MacroForm:
 
 
 @dataclass(frozen=True)
-class EpisodeSpec:
-    """Episode specification from generator (before phrases added)."""
-    type: str
-    bars: int
-    is_transition: bool = False
-
-
-@dataclass(frozen=True)
-class SectionPlan:
-    """Breakdown of a macro-section into episodes."""
-    label: str
-    character: str
-    texture: str
-    key_area: str
-    episodes: tuple[EpisodeSpec, ...]
-    total_bars: int
-
-
-@dataclass(frozen=True)
 class TensionPoint:
     """Single point on tension curve."""
     position: float  # 0.0 to 1.0 (ratio through piece)
@@ -229,70 +174,6 @@ class RhetoricalStructure:
     sections: tuple[RhetoricalSection, ...]     # The five classical sections
     climax_position: float                      # Position of climax (0.0 to 1.0)
     climax_bar: int                             # 1-indexed bar of climax
-
-
-@dataclass(frozen=True)
-class HarmonicTarget:
-    """Harmonic target for a section or phrase."""
-    key_area: str       # Roman numeral (I, iv, V, etc.)
-    cadence_type: str   # perfect, half, deceptive, etc.
-    bar: int            # Target bar (1-indexed)
-
-
-@dataclass(frozen=True)
-class HarmonicPlan:
-    """Harmonic architecture across the piece."""
-    targets: tuple[HarmonicTarget, ...]
-    modulations: tuple[tuple[int, str, str], ...]  # (bar, from_key, to_key)
-
-
-@dataclass(frozen=True)
-class Callback:
-    """Motivic callback - reference to earlier material."""
-    target_bar: int     # Bar where callback occurs (1-indexed)
-    source_bar: int     # Bar being referenced
-    transform: str      # exact, invert, retrograde, augment, diminish
-    voice: int          # Voice number (0-indexed)
-    material: str       # subject, counter_subject, derived_X
-
-
-@dataclass(frozen=True)
-class Surprise:
-    """Rhetorical surprise device."""
-    bar: int            # Bar where surprise occurs (1-indexed)
-    beat: float         # Beat within bar
-    type: str           # pause, deceptive_cadence, sudden_piano, etc.
-    duration: float     # Duration of surprise effect in beats
-
-
-@dataclass(frozen=True)
-class CoherencePlan:
-    """Long-range coherence plan."""
-    callbacks: tuple[Callback, ...]
-    climax_bar: int
-    surprises: tuple[Surprise, ...]
-    golden_ratio_bar: int   # Bar at golden ratio point
-    proportion_score: float  # How well proportions match ideal
-
-
-@dataclass(frozen=True)
-class Plan:
-    """Complete plan output."""
-    brief: Brief
-    frame: Frame
-    material: Material
-    structure: Structure
-    actual_bars: int
-    macro_form: MacroForm | None = None
-    tension_curve: TensionCurve | None = None
-    rhetoric: RhetoricalStructure | None = None
-    harmonic_plan: HarmonicPlan | None = None
-    coherence: CoherencePlan | None = None
-
-
-# =============================================================================
-# Schema-First Planning Types (planner_design.md)
-# =============================================================================
 
 
 @dataclass(frozen=True)
@@ -329,19 +210,6 @@ class SchemaSlot:
 
 
 @dataclass(frozen=True)
-class SectionSchema:
-    """Section defined by cadence points and schema chain.
-
-    Replaces Section (which used Episode > Phrase hierarchy). A SectionSchema
-    contains a flat sequence of SchemaSlots that land on the cadence points.
-    """
-    label: str                                # A, B, etc.
-    key_area: str                             # I, V, vi, etc.
-    cadence_plan: tuple[CadencePoint, ...]    # Cadences in this section
-    schemas: tuple[SchemaSlot, ...]           # Schema chain filling the section
-
-
-@dataclass(frozen=True)
 class SubjectValidation:
     """Result of validating subject against opening schema.
 
@@ -357,88 +225,13 @@ class SubjectValidation:
 
 
 @dataclass(frozen=True)
-class SchemaStructure:
-    """Schema-first structure replacing episode/phrase hierarchy.
-
-    Used by the new schema-first planner. Contains SectionSchema objects
-    instead of Section objects.
-    """
-    sections: tuple[SectionSchema, ...]
-
-
-# =============================================================================
-# Genre Template Types (brief_upgrade.md)
-# =============================================================================
-
-
-@dataclass(frozen=True)
-class CadenceTemplate:
-    """Cadence planning rules for a genre.
-
-    Specifies how frequently cadences occur and what types are used at
-    different structural positions.
-    """
-    density: str              # high (2-4 bars), medium (4-8), low (8+)
-    first_cadence_bar: int    # Typical first cadence location
-    first_cadence_type: str   # half, authentic
-    section_end_type: str     # Cadence type at section boundaries
-    final_type: str           # Final cadence type (always authentic for baroque)
-
-
-@dataclass(frozen=True)
-class GenreSection:
-    """Section template in genre definition.
-
-    Defines proportions and cadence types for formal sections.
-    """
-    label: str                # A, B, etc.
-    key_area: str             # I, V, vi, etc.
-    proportion: float         # Proportion of total piece (0.0 to 1.0)
-    end_cadence: str          # half, authentic
-
-
-@dataclass(frozen=True)
-class SubjectConstraints:
-    """Rules for subject validation and derivation.
-
-    Used to validate user-provided subjects or constrain generated ones.
-    """
-    min_notes: int
-    max_notes: int
-    max_bars: int
-    require_invertible: bool   # Must work in melodic inversion
-    require_answerable: bool   # Must work transposed at fifth
-    first_degree: tuple[int, ...]  # Allowed starting degrees
-    last_degree: tuple[int, ...]   # Allowed ending degrees (avoid strong closure)
-
-
-@dataclass(frozen=True)
-class TreatmentSpec:
-    """Treatment vocabulary for a genre.
-
-    Defines which contrapuntal treatments are required, optional, and
-    where they appear in the structure.
-    """
-    required: tuple[str, ...]   # Must appear: statement, imitation, etc.
-    optional: tuple[str, ...]   # May appear: sequence, inversion, stretto
-    opening: str                # First slot treatment (usually statement)
-    answer: str                 # Second slot treatment (usually imitation)
-
-
-@dataclass(frozen=True)
-class GenreTemplate:
-    """Complete schema-first genre specification.
-
-    Loaded from data/genres/*.yaml. Encodes all style-specific knowledge:
-    schema preferences, cadence rules, section structure, subject constraints,
-    and treatment vocabulary.
-    """
-    name: str                                     # Human-readable name
-    voices: int                                   # Voice count (2, 3, or 4)
-    metre: str                                    # Default metre (e.g., "4/4")
-    texture: str                                  # imitative, melody_bass, homophonic
-    schema_preferences: dict[str, list[str]]      # Position → schema names
-    cadence_template: CadenceTemplate
-    sections: tuple[GenreSection, ...]
-    subject_constraints: SubjectConstraints
-    treatments: TreatmentSpec
+class Plan:
+    """Complete plan output."""
+    brief: Brief
+    frame: Frame
+    material: Material
+    structure: Structure
+    actual_bars: int
+    macro_form: MacroForm | None = None
+    tension_curve: TensionCurve | None = None
+    rhetoric: RhetoricalStructure | None = None

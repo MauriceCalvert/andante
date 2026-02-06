@@ -1,7 +1,8 @@
 """Schema anchor generation."""
 from fractions import Fraction
 
-from builder.types import Anchor, SchemaConfig
+from builder.types import Anchor
+from shared.schema_types import Schema
 from planner.metric.constants import CLAUSULA_ARRIVAL_BASS, CLAUSULA_ARRIVAL_SOPRANO
 from shared.key import Key
 
@@ -23,7 +24,7 @@ def compute_upbeat_bar_beat(start_bar: int, upbeat: Fraction, metre: str) -> tup
 
 def generate_schema_anchors(
     schema_name: str,
-    schema_def: SchemaConfig,
+    schema_def: Schema,
     start_bar: int,
     end_bar: int,
     home_key: Key,
@@ -57,7 +58,7 @@ def generate_schema_anchors(
 
 def _generate_regular_anchors(
     schema_name: str,
-    schema_def: SchemaConfig,
+    schema_def: Schema,
     start_bar: int,
     local_key: Key,
     upbeat: Fraction = Fraction(0),
@@ -104,7 +105,7 @@ def _generate_regular_anchors(
     return anchors
 
 
-def _get_segment_count(schema_def: SchemaConfig) -> int:
+def _get_segment_count(schema_def: Schema) -> int:
     """Get number of segments for a sequential schema."""
     segments: tuple[int, ...] = schema_def.segments or (2,)
     if isinstance(segments, (list, tuple)):
@@ -114,7 +115,7 @@ def _get_segment_count(schema_def: SchemaConfig) -> int:
 
 def _generate_sequential_anchors(
     schema_name: str,
-    schema_def: SchemaConfig,
+    schema_def: Schema,
     start_bar: int,
     home_key: Key,
     upbeat: Fraction = Fraction(0),

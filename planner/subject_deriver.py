@@ -3,6 +3,7 @@
 When no user subject is provided, derive one from the opening schema's
 soprano degrees combined with a rhythmic pattern from the genre template.
 """
+import logging
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,8 @@ from planner.plannertypes import Frame, Motif
 from planner.schema_loader import get_schema
 from planner.subject_validator import check_answerability, check_invertibility
 from shared.constants import VALID_DURATIONS
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
@@ -91,7 +94,12 @@ def get_subject_rhythm(genre: str) -> tuple[tuple[Fraction, ...], str]:
 
     if genre in DEFAULT_SUBJECT_RHYTHMS:
         return DEFAULT_SUBJECT_RHYTHMS[genre]
-
+    logger.warning(
+        "Genre %r has no subject_rhythm in YAML and no entry in "
+        "DEFAULT_SUBJECT_RHYTHMS; using FALLBACK_RHYTHM (4 x 1/4, motoric). "
+        "Add a rhythm to data/genres/%s.yaml or DEFAULT_SUBJECT_RHYTHMS.",
+        genre, genre,
+    )
     return FALLBACK_RHYTHM
 
 
@@ -179,28 +187,15 @@ def adjust_for_tritone(
 def ensure_valid_durations(
     durations: tuple[Fraction, ...],
 ) -> tuple[Fraction, ...]:
-    """Ensure all durations are in VALID_DURATIONS.
-
-    Snaps each duration to the nearest valid duration.
-
-    Args:
-        durations: Input durations
-
-    Returns:
-        Validated durations
-    """
-    valid_set = set(VALID_DURATIONS)
-    result = []
-
-    for d in durations:
-        if d in valid_set:
-            result.append(d)
-        else:
-            # Find nearest valid duration
-            nearest = min(VALID_DURATIONS, key=lambda v: abs(v - d))
-            result.append(nearest)
-
-    return tuple(result)
+    """Assert all durations are in VALID_DURATIONS (L012: no quantization)."""
+    valid_set: set[Fraction] = set(VALID_DURATIONS)
+    for i, d in enumerate(durations):
+        assert d in valid_set, (
+            f"Duration[{i}]={d} not in VALID_DURATIONS. "
+            f"Fix the source that produced this duration. "
+            f"Valid: {sorted(valid_set, reverse=True)}"
+        )
+    return durations
 
 
 def derive_subject(
