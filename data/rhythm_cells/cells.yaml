@@ -1,0 +1,135 @@
+# Rhythm cells - one bar each
+# Durations are fractions of a whole note
+# genre_tags: which genres use this cell (empty = universal)
+# character: plain, dotted, flowing, energetic, cadential
+
+# === 3/4 cells (bar = 3/4 whole note) ===
+
+three_crotchets:
+  metre: "3/4"
+  durations: ["1/4", "1/4", "1/4"]
+  character: plain
+  genre_tags: [minuet, sarabande]
+
+minim_crotchet:
+  metre: "3/4"
+  durations: ["1/2", "1/4"]
+  character: cadential
+  genre_tags: [minuet, sarabande]
+
+crotchet_minim:
+  metre: "3/4"
+  durations: ["1/4", "1/2"]
+  character: plain
+  genre_tags: [minuet, sarabande]
+
+dotted_minim:
+  metre: "3/4"
+  durations: ["3/4"]
+  character: cadential
+  genre_tags: [minuet, sarabande]
+
+crotchet_two_quavers_crotchet:
+  metre: "3/4"
+  durations: ["1/4", "1/8", "1/8", "1/4"]
+  character: flowing
+  genre_tags: [minuet]
+
+two_quavers_two_crotchets:
+  metre: "3/4"
+  durations: ["1/8", "1/8", "1/4", "1/4"]
+  character: flowing
+  genre_tags: [minuet]
+
+dotted_crotchet_quaver_crotchet:
+  metre: "3/4"
+  durations: ["3/8", "1/8", "1/4"]
+  character: dotted
+  genre_tags: [minuet, sarabande]
+
+four_quavers_crotchet:
+  metre: "3/4"
+  durations: ["1/8", "1/8", "1/8", "1/8", "1/4"]
+  character: energetic
+  genre_tags: [minuet]
+
+six_quavers:
+  metre: "3/4"
+  durations: ["1/8", "1/8", "1/8", "1/8", "1/8", "1/8"]
+  character: energetic
+  genre_tags: [minuet]
+
+# === 4/4 cells (bar = 1 whole note) ===
+
+four_crotchets:
+  metre: "4/4"
+  durations: ["1/4", "1/4", "1/4", "1/4"]
+  character: plain
+  genre_tags: [gavotte, invention, bourree]
+
+minim_two_crotchets:
+  metre: "4/4"
+  durations: ["1/2", "1/4", "1/4"]
+  character: plain
+  genre_tags: [gavotte, bourree]
+
+two_crotchets_minim:
+  metre: "4/4"
+  durations: ["1/4", "1/4", "1/2"]
+  character: cadential
+  genre_tags: [gavotte, bourree]
+
+semibreve:
+  metre: "4/4"
+  durations: ["1"]
+  character: cadential
+  genre_tags: [gavotte, invention, bourree]
+
+dotted_crotchet_quaver_minim:
+  metre: "4/4"
+  durations: ["3/8", "1/8", "1/2"]
+  character: dotted
+  genre_tags: [gavotte]
+
+minim_minim:
+  metre: "4/4"
+  durations: ["1/2", "1/2"]
+  character: cadential
+  genre_tags: [gavotte, invention]
+
+crotchet_two_quavers_two_crotchets:
+  metre: "4/4"
+  durations: ["1/4", "1/8", "1/8", "1/4", "1/4"]
+  character: flowing
+  genre_tags: [gavotte, bourree]
+
+eight_quavers:
+  metre: "4/4"
+  durations: ["1/8", "1/8", "1/8", "1/8", "1/8", "1/8", "1/8", "1/8"]
+  character: energetic
+  genre_tags: [invention]
+
+four_quavers_minim:
+  metre: "4/4"
+  durations: ["1/8", "1/8", "1/8", "1/8", "1/2"]
+  character: flowing
+  genre_tags: [invention]
+
+two_crotchets_four_quavers:
+  metre: "4/4"
+  durations: ["1/4", "1/4", "1/8", "1/8", "1/8", "1/8"]
+  character: flowing
+  genre_tags: [gavotte, invention, bourree]
+
+dotted_crotchet_quaver_two_crotchets:
+  metre: "4/4"
+  durations: ["3/8", "1/8", "1/4", "1/4"]
+  character: dotted
+  genre_tags: [gavotte]
+
+sixteen_semiquavers:
+  metre: "4/4"
+  durations: ["1/16", "1/16", "1/16", "1/16", "1/16", "1/16", "1/16", "1/16",
+              "1/16", "1/16", "1/16", "1/16", "1/16", "1/16", "1/16", "1/16"]
+  character: energetic
+  genre_tags: [invention]

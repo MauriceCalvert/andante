@@ -15,9 +15,11 @@ Category B: Orchestrator that validates and delegates.
 from pathlib import Path
 from typing import Any
 
-from builder.compose import compose_voices
+from builder.compose import compose
 from builder.config_loader import load_configs
 from builder.io import write_midi_file, write_musicxml_file, write_note_file
+from builder.phrase_planner import build_phrase_plans
+from builder.phrase_types import PhrasePlan
 from builder.types import Composition, PassageAssignment, RhythmPlan, SchemaChain, TonalPlan
 from motifs.fugue_loader import LoadedFugue
 from planner.dramaturgy import get_suggested_key
@@ -119,6 +121,14 @@ def generate(
     tracer.L4("Metric", total_bars=total_bars, anchor_count=len(anchors))
     tracer.bar_assignments(assignments=bar_assignments)
     tracer.anchors_summary(anchors=anchors)
+    # Build phrase plans from Layer 4 output
+    phrase_plans: tuple[PhrasePlan, ...] = build_phrase_plans(
+        schema_chain=schema_chain,
+        anchors=anchors,
+        genre_config=genre_config,
+        schemas=schemas,
+        total_bars=total_bars,
+    )
     passage_assignments: list[PassageAssignment] = layer_5_textural(
         genre_config=genre_config,
         bar_assignments=bar_assignments,
@@ -149,7 +159,7 @@ def generate(
         rhythm_plan=rhythm_plan,
     )
     tracer.L7("VoicePlanning", voice_count=len(plan.voice_plans))
-    return compose_voices(plan=plan)
+    return compose(plan=plan, phrase_plans=phrase_plans)
 
 
 def generate_to_files(

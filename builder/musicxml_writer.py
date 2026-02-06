@@ -82,7 +82,7 @@ def _build_part(
     part.id = part_id
     ts: meter.TimeSignature = meter.TimeSignature(f"{timenum}/{timeden}")
     part.insert(0, ts)
-    ky: key.Key = key.Key(tonic, mode)
+    ky: key.Key = key.Key(tonic=tonic, mode=mode)
     part.insert(0, ky)
     if include_tempo:
         mm: tempo.MetronomeMark = tempo.MetronomeMark(number=bpm)

@@ -113,10 +113,15 @@ class RhythmTemplate:
 
     Maps note count and metre to specific duration patterns.
     Durations are in beats (not whole notes).
+    characters/positions empty tuple = matches all contexts.
     """
     note_count: int
     metre: str  # "3/4", "4/4"
     durations: tuple[Fraction, ...]  # In beats
+    name: str = "standard"
+    characters: tuple[str, ...] = ()  # empty = matches all
+    positions: tuple[str, ...] = ()   # empty = matches all
+    weight: float = 1.0
 
     def __post_init__(self) -> None:
         assert self.note_count >= 2, f"note_count must be >= 2, got {self.note_count}"
@@ -124,6 +129,20 @@ class RhythmTemplate:
         assert len(self.durations) == self.note_count, \
             f"durations length {len(self.durations)} != note_count {self.note_count}"
         assert all(d > 0 for d in self.durations), "All durations must be positive"
+        assert self.name, "RhythmTemplate name cannot be empty"
+        assert self.weight > 0, f"weight must be positive, got {self.weight}"
+        valid_characters: set[str] = {"plain", "expressive", "energetic", "ornate", "bold"}
+        for ch in self.characters:
+            assert ch in valid_characters, (
+                f"Invalid character '{ch}' in template '{self.name}'. "
+                f"Valid: {sorted(valid_characters)}"
+            )
+        valid_positions: set[str] = {"passing", "cadential", "schema_arrival"}
+        for pos in self.positions:
+            assert pos in valid_positions, (
+                f"Invalid position '{pos}' in template '{self.name}'. "
+                f"Valid: {sorted(valid_positions)}"
+            )
 
 
 @dataclass(frozen=True)

@@ -87,31 +87,31 @@ class PipelineTracer:
 
     def L1(self, layer: str, **kwargs: Any) -> None:
         """L1: Layer output summary."""
-        self._write(1, f"L1 {layer}", "output", **kwargs)
+        self._write(min_level=1, prefix=f"L1 {layer}", message="output", **kwargs)
 
     def L2(self, layer: str, **kwargs: Any) -> None:
         """L1: Layer 2 output summary."""
-        self._write(1, f"L2 {layer}", "output", **kwargs)
+        self._write(min_level=1, prefix=f"L2 {layer}", message="output", **kwargs)
 
     def L3(self, layer: str, **kwargs: Any) -> None:
         """L1: Layer 3 output summary."""
-        self._write(1, f"L3 {layer}", "output", **kwargs)
+        self._write(min_level=1, prefix=f"L3 {layer}", message="output", **kwargs)
 
     def L4(self, layer: str, **kwargs: Any) -> None:
         """L1: Layer 4 output summary."""
-        self._write(1, f"L4 {layer}", "output", **kwargs)
+        self._write(min_level=1, prefix=f"L4 {layer}", message="output", **kwargs)
 
     def L5(self, layer: str, **kwargs: Any) -> None:
         """L1: Layer 5 output summary."""
-        self._write(1, f"L5 {layer}", "output", **kwargs)
+        self._write(min_level=1, prefix=f"L5 {layer}", message="output", **kwargs)
 
     def L6(self, layer: str, **kwargs: Any) -> None:
         """L1: Layer 6 output summary."""
-        self._write(1, f"L6 {layer}", "output", **kwargs)
+        self._write(min_level=1, prefix=f"L6 {layer}", message="output", **kwargs)
 
     def L7(self, layer: str, **kwargs: Any) -> None:
         """L1: Layer 7 output summary."""
-        self._write(1, f"L7 {layer}", "output", **kwargs)
+        self._write(min_level=1, prefix=f"L7 {layer}", message="output", **kwargs)
 
     # Level 2: Mid-level details
     def schema_chain(self, schemas: tuple[str, ...]) -> None:
@@ -149,31 +149,31 @@ class PipelineTracer:
     # Level 3: Fine-grained details
     def anchor(self, bar_beat: str, upper: int, lower: int, key: str, schema: str, stage: int, section: str = "") -> None:
         """L3: Individual anchor detail."""
-        self._write(3, "Anchor", f"{bar_beat}", upper=upper, lower=lower, key=key, schema=schema, stage=stage, section=section)
+        self._write(min_level=3, prefix="Anchor", message=f"{bar_beat}", upper=upper, lower=lower, key=key, schema=schema, stage=stage, section=section)
 
     def figure_selection(self, bar: int, figure: str, density: str) -> None:
         """L3: Figure selection for bar."""
-        self._write(3, "Figure", f"bar {bar}", figure=figure, density=density)
+        self._write(min_level=3, prefix="Figure", message=f"bar {bar}", figure=figure, density=density)
 
     def bass_pattern(self, bar: int, pattern: str, degree: int) -> None:
         """L3: Bass pattern for bar."""
-        self._write(3, "Bass", f"bar {bar}", pattern=pattern, degree=degree)
+        self._write(min_level=3, prefix="Bass", message=f"bar {bar}", pattern=pattern, degree=degree)
 
     def note_output(self, voice: str, offset: Fraction, pitch: int, duration: Fraction) -> None:
         """L3: Individual note output."""
-        self._write(3, "Note", voice, offset=offset, pitch=pitch, duration=duration)
+        self._write(min_level=3, prefix="Note", message=voice, offset=offset, pitch=pitch, duration=duration)
 
     def expansion(self, bar: int, function: str, expansion: str) -> None:
         """L3: Voice expansion for bar."""
-        self._write(3, "Expansion", f"bar {bar}", function=function, expansion=expansion)
+        self._write(min_level=3, prefix="Expansion", message=f"bar {bar}", function=function, expansion=expansion)
 
     def warning(self, location: str, message: str, **kwargs: Any) -> None:
         """Any level: Warning message."""
-        self._write(1, "WARN", f"{location}: {message}", **kwargs)
+        self._write(min_level=1, prefix="WARN", message=f"{location}: {message}", **kwargs)
 
     def error(self, location: str, message: str, **kwargs: Any) -> None:
         """Any level: Error message."""
-        self._write(1, "ERROR", f"{location}: {message}", **kwargs)
+        self._write(min_level=1, prefix="ERROR", message=f"{location}: {message}", **kwargs)
 
     # Context managers for nested sections
     def section(self, name: str, min_level: int = 2) -> "TracerSection":

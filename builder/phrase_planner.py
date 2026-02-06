@@ -1,0 +1,274 @@
+"""Phrase planner: converts Layer 4 output into PhrasePlan objects.
+
+One PhrasePlan per schema in the chain. Makes zero compositional choices
+about notes - only determines where schema degrees fall in time and
+what ranges/keys apply.
+"""
+from fractions import Fraction
+from builder.cadence_writer import get_schema_bars, load_cadence_templates, CadenceTemplate
+from builder.phrase_types import BeatPosition, PhrasePlan
+from builder.types import Anchor, GenreConfig, SchemaChain, SchemaConfig
+from shared.constants import CADENTIAL_POSITION, VOICE_RANGES
+from shared.key import Key
+from shared.voice_types import Range
+
+
+def build_phrase_plans(
+    schema_chain: SchemaChain,
+    anchors: list[Anchor],
+    genre_config: GenreConfig,
+    schemas: dict[str, SchemaConfig],
+    total_bars: int,
+) -> tuple[PhrasePlan, ...]:
+    """Build PhrasePlan objects from schema chain and anchors."""
+    bar_length, beat_unit = _parse_metre(metre=genre_config.metre)
+    upbeat: Fraction = genre_config.upbeat if hasattr(genre_config, "upbeat") else Fraction(0)
+    anchor_groups: list[list[Anchor]] = _group_anchors_by_schema(
+        anchors=anchors,
+        schema_chain=schema_chain,
+    )
+    upper_range: Range = Range(low=VOICE_RANGES[0][0], high=VOICE_RANGES[0][1])
+    lower_range: Range = Range(low=VOICE_RANGES[3][0], high=VOICE_RANGES[3][1])
+    upper_median: int = (upper_range.low + upper_range.high) // 2
+    lower_median: int = (lower_range.low + lower_range.high) // 2
+    cumulative_bar: int = 1
+    plans: list[PhrasePlan] = []
+    for i, schema_name in enumerate(schema_chain.schemas):
+        schema_def: SchemaConfig = schemas[schema_name]
+        anchor_group: list[Anchor] = anchor_groups[i] if i < len(anchor_groups) else []
+        section_name: str = _section_for_schema_index(
+            index=i,
+            boundaries=schema_chain.section_boundaries,
+            genre_config=genre_config,
+        )
+        plan: PhrasePlan = _build_single_plan(
+            schema_name=schema_name,
+            schema_def=schema_def,
+            anchor_group=anchor_group,
+            schema_index=i,
+            schema_chain=schema_chain,
+            genre_config=genre_config,
+            bar_length=bar_length,
+            beat_unit=beat_unit,
+            upbeat=upbeat,
+            section_name=section_name,
+            upper_range=upper_range,
+            lower_range=lower_range,
+            upper_median=upper_median,
+            lower_median=lower_median,
+            cumulative_bar=cumulative_bar,
+        )
+        plans.append(plan)
+        cumulative_bar += plan.bar_span
+    _validate_plans(plans=plans, schema_chain=schema_chain)
+    return tuple(plans)
+
+
+def _build_single_plan(
+    schema_name: str,
+    schema_def: SchemaConfig,
+    anchor_group: list[Anchor],
+    schema_index: int,
+    schema_chain: SchemaChain,
+    genre_config: GenreConfig,
+    bar_length: Fraction,
+    beat_unit: Fraction,
+    upbeat: Fraction,
+    section_name: str,
+    upper_range: Range,
+    lower_range: Range,
+    upper_median: int,
+    lower_median: int,
+    cumulative_bar: int,
+) -> PhrasePlan:
+    """Build a single PhrasePlan for one schema."""
+    bar_span: int = _compute_bar_span(schema_def=schema_def, schema_name=schema_name, metre=genre_config.metre)
+    is_cadential: bool = schema_def.position == CADENTIAL_POSITION
+    cadence_template: CadenceTemplate | None = None
+    degrees_upper: tuple[int, ...]
+    degrees_lower: tuple[int, ...]
+    if is_cadential:
+        cadence_template = _get_cadential_template(
+            schema_name=schema_name,
+            metre=genre_config.metre,
+        )
+    if cadence_template is not None:
+        degrees_upper = cadence_template.soprano_degrees
+        degrees_lower = cadence_template.bass_degrees
+    else:
+        degrees_upper = schema_def.soprano_degrees
+        degrees_lower = schema_def.bass_degrees
+    first_bar: int = cumulative_bar
+    first_beat: int = 1
+    if anchor_group:
+        local_key = anchor_group[0].local_key
+    else:
+        local_key = Key(tonic="C", mode="major")
+    degree_positions: tuple[BeatPosition, ...]
+    if cadence_template is not None:
+        degree_positions = _cadential_degree_positions(
+            template=cadence_template,
+            beat_unit=beat_unit,
+        )
+    else:
+        degree_positions = tuple(
+            BeatPosition(bar=stage + 1, beat=1)
+            for stage in range(len(degrees_upper))
+        )
+    start_offset: Fraction = _compute_start_offset(
+        bar=first_bar,
+        beat=first_beat,
+        bar_length=bar_length,
+        beat_unit=beat_unit,
+        upbeat=upbeat,
+    )
+    phrase_duration: Fraction = bar_span * bar_length
+    cadence_type: str | None = None
+    if is_cadential and schema_index < len(schema_chain.cadences):
+        cadence_type = schema_chain.cadences[schema_index]
+    return PhrasePlan(
+        schema_name=schema_name,
+        degrees_upper=degrees_upper,
+        degrees_lower=degrees_lower,
+        degree_positions=degree_positions,
+        local_key=local_key,
+        bar_span=bar_span,
+        start_bar=first_bar,
+        start_offset=start_offset,
+        phrase_duration=phrase_duration,
+        metre=genre_config.metre,
+        rhythm_profile=genre_config.name,
+        is_cadential=is_cadential,
+        cadence_type=cadence_type,
+        prev_exit_upper=None,
+        prev_exit_lower=None,
+        section_name=section_name,
+        upper_range=upper_range,
+        lower_range=lower_range,
+        upper_median=upper_median,
+        lower_median=lower_median,
+    )
+
+
+def _get_cadential_template(
+    schema_name: str,
+    metre: str,
+) -> CadenceTemplate | None:
+    """Look up cadence template, returning None if not found."""
+    templates: dict[tuple[str, str], CadenceTemplate] = load_cadence_templates()
+    return templates.get((schema_name, metre))
+
+
+def _cadential_degree_positions(
+    template: CadenceTemplate,
+    beat_unit: Fraction,
+) -> tuple[BeatPosition, ...]:
+    """Compute degree positions from template durations."""
+    positions: list[BeatPosition] = []
+    bar_length: Fraction = Fraction(*[int(x) for x in template.metre.split("/")])
+    offset: Fraction = Fraction(0)
+    for dur in template.soprano_durations:
+        bar: int = int(offset // bar_length) + 1
+        beat_offset: Fraction = offset - (bar - 1) * bar_length
+        beat: int = int(beat_offset // beat_unit) + 1
+        positions.append(BeatPosition(bar=bar, beat=beat))
+        offset += dur
+    return tuple(positions)
+
+
+def _compute_bar_span(
+    schema_def: SchemaConfig,
+    schema_name: str,
+    metre: str,
+) -> int:
+    """Compute how many bars a schema occupies."""
+    return get_schema_bars(
+        schema_name=schema_name,
+        schema_def=schema_def,
+        metre=metre,
+    )
+
+
+def _compute_start_offset(
+    bar: int,
+    beat: int,
+    bar_length: Fraction,
+    beat_unit: Fraction,
+    upbeat: Fraction,
+) -> Fraction:
+    """Convert bar.beat to absolute offset in whole notes."""
+    offset: Fraction = (bar - 1) * bar_length + (beat - 1) * beat_unit
+    if upbeat > 0 and bar == 0:
+        offset = -upbeat + (beat - 1) * beat_unit
+    return offset
+
+
+def _group_anchors_by_schema(
+    anchors: list[Anchor],
+    schema_chain: SchemaChain,
+) -> list[list[Anchor]]:
+    """Group anchors into sublists, one per schema in the chain."""
+    schema_count: int = len(schema_chain.schemas)
+    groups: list[list[Anchor]] = [[] for _ in range(schema_count)]
+    filtered: list[Anchor] = [
+        a for a in anchors
+        if not a.schema.startswith("piece_") and not a.schema.startswith("section_cadence")
+    ]
+    instance_lists: dict[str, list[list[Anchor]]] = {}
+    for anchor in filtered:
+        if anchor.schema not in instance_lists:
+            instance_lists[anchor.schema] = []
+        instances: list[list[Anchor]] = instance_lists[anchor.schema]
+        if anchor.stage == 1:
+            instances.append([anchor])
+        elif instances:
+            instances[-1].append(anchor)
+    schema_instance_count: dict[str, int] = {}
+    for i, schema_name in enumerate(schema_chain.schemas):
+        instance_idx: int = schema_instance_count.get(schema_name, 0)
+        schema_instance_count[schema_name] = instance_idx + 1
+        if schema_name not in instance_lists:
+            continue
+        instances = instance_lists[schema_name]
+        if instance_idx < len(instances):
+            groups[i] = instances[instance_idx]
+    return groups
+
+
+def _parse_metre(metre: str) -> tuple[Fraction, Fraction]:
+    """Parse '3/4' to (bar_length, beat_unit)."""
+    parts: list[str] = metre.split("/")
+    numerator: int = int(parts[0])
+    denominator: int = int(parts[1])
+    bar_length: Fraction = Fraction(numerator, denominator)
+    beat_unit: Fraction = Fraction(1, denominator)
+    return bar_length, beat_unit
+
+
+def _section_for_schema_index(
+    index: int,
+    boundaries: tuple[int, ...],
+    genre_config: GenreConfig,
+) -> str:
+    """Return section name for schema at given chain index."""
+    for section_idx, boundary in enumerate(boundaries):
+        if index < boundary:
+            return genre_config.sections[section_idx]["name"]
+    return genre_config.sections[-1]["name"] if genre_config.sections else ""
+
+
+def _validate_plans(
+    plans: list[PhrasePlan],
+    schema_chain: SchemaChain,
+) -> None:
+    """Validate postconditions on phrase plans."""
+    assert len(plans) == len(schema_chain.schemas), (
+        f"Plan count {len(plans)} != schema count {len(schema_chain.schemas)}"
+    )
+    for i, plan in enumerate(plans):
+        for j in range(len(plan.degree_positions) - 1):
+            pos_a: BeatPosition = plan.degree_positions[j]
+            pos_b: BeatPosition = plan.degree_positions[j + 1]
+            assert (pos_a.bar, pos_a.beat) <= (pos_b.bar, pos_b.beat), (
+                f"Plan {i} degree_positions not chronological: {pos_a} > {pos_b}"
+            )

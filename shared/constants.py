@@ -71,6 +71,17 @@ CADENTIAL_INTERVALS: frozenset[str] = frozenset({
     "step_down", "step_up", "third_down", "third_up", "unison",
 })
 
+# Cadential schema names - schemas that resolve a section
+CADENTIAL_SCHEMA_NAMES: frozenset[str] = frozenset({
+    "cadenza_composta",
+    "cadenza_semplice",
+    "comma",
+    "half_cadence",
+})
+
+# Cadential states that indicate a phrase is cadential
+CADENTIAL_POSITION: str = "cadential"
+
 # Cadential target degree by approach interval
 CADENTIAL_TARGET_DEGREE: dict[str, str] = {
     "step_down": "target_1",

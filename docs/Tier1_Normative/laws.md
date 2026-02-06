@@ -35,6 +35,7 @@ L016 Logging only, no print
 L017 Single source of truth, inherit not repeat
 L018 __init__.py must be empty, no re-exports
 L019 ASCII only, no UTF8 symbols
+L020 All arguments passed by keyword, no positional calls
 S001 Performance practice out of scope; score notation only
 V001 Generators vary via phrase_index, bar_idx, segment offsets
 V002 Tremolo max 6 notes

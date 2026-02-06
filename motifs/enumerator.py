@@ -48,10 +48,10 @@ def enumerate_rhythm_patterns() -> Tuple[Tuple[float, ...], ...]:
         for dur in VALID_DURATIONS:
             if dur <= remaining + 0.001:
                 current.append(dur)
-                recurse(current, remaining - dur)
+                recurse(current=current, remaining=remaining - dur)
                 current.pop()
 
-    recurse([], BAR_DURATION)
+    recurse(current=[], remaining=BAR_DURATION)
     return tuple(patterns)
 
 
@@ -71,12 +71,12 @@ def enumerate_pitch_sequences(length: int) -> Tuple[Tuple[int, ...], ...]:
             new_pitch = last + interval
             if 0 <= new_pitch < SCALE_DEGREES:
                 current.append(new_pitch)
-                recurse(current)
+                recurse(current=current)
                 current.pop()
 
     # Start on tonic triad
     for start in TONIC_TRIAD_DEGREES:
-        recurse([start])
+        recurse(current=[start])
 
     return tuple(sequences)
 

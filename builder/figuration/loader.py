@@ -170,57 +170,70 @@ def load_cadential(path: Path | None = None) -> dict[str, dict[str, list[Cadenti
     return result
 
 
-def load_rhythm_templates(path: Path | None = None) -> dict[tuple[int, str], RhythmTemplate]:
-    """Load rhythm templates indexed by (note_count, metre)."""
+def load_rhythm_templates(path: Path | None = None) -> dict[tuple[int, str], list[RhythmTemplate]]:
+    """Load rhythm template vocabulary indexed by (note_count, metre)."""
     if path is None:
         path = DATA_DIR / "rhythm_templates.yaml"
-
     assert path.exists(), f"Rhythm templates file not found: {path}"
-
     with open(path, "r", encoding="utf-8") as f:
         raw: dict[str, Any] = yaml.safe_load(f)
-
     assert isinstance(raw, dict), f"rhythm_templates.yaml must be a dict, got {type(raw).__name__}"
-
-    result: dict[tuple[int, str], RhythmTemplate] = {}
-
+    result: dict[tuple[int, str], list[RhythmTemplate]] = {}
     for metre, note_counts in raw.items():
-        # Skip hemiola section for now (handled separately)
         if metre == "hemiola":
             continue
-
-        assert isinstance(note_counts, dict), \
-            f"Note counts for metre '{metre}' must be a dict, got {type(note_counts).__name__}"
-
-        for note_count_str, variants in note_counts.items():
-            note_count = int(note_count_str)
-            assert isinstance(variants, dict), \
-                f"Variants for {metre}/{note_count} must be a dict, got {type(variants).__name__}"
-
-            for variant_name, variant_data in variants.items():
-                assert isinstance(variant_data, dict), \
-                    f"Variant data for {metre}/{note_count}/{variant_name} must be a dict"
-                assert "durations" in variant_data, \
-                    f"Variant {metre}/{note_count}/{variant_name} missing 'durations'"
-
-                # Skip overdotted variants (S001: performance practice out of scope)
-                if variant_name == "overdotted":
-                    continue
-                durations_raw = variant_data["durations"]
-                assert isinstance(durations_raw, list), \
-                    f"Durations must be a list, got {type(durations_raw).__name__}"
-
-                durations = tuple(_parse_fraction(value=d) for d in durations_raw)
-                assert len(durations) == note_count, \
-                    f"Duration count {len(durations)} != note_count {note_count} for {metre}/{note_count}/{variant_name}"
-
-                template = RhythmTemplate(
+        assert isinstance(note_counts, dict), (
+            f"Note counts for metre '{metre}' must be a dict, "
+            f"got {type(note_counts).__name__}"
+        )
+        for note_count_str, templates_raw in note_counts.items():
+            note_count: int = int(note_count_str)
+            assert isinstance(templates_raw, list), (
+                f"Templates for {metre}/{note_count} must be a list, "
+                f"got {type(templates_raw).__name__}"
+            )
+            templates: list[RhythmTemplate] = []
+            for entry in templates_raw:
+                assert isinstance(entry, dict), (
+                    f"Each template in {metre}/{note_count} must be a dict, "
+                    f"got {type(entry).__name__}"
+                )
+                assert "name" in entry, (
+                    f"Template in {metre}/{note_count} missing 'name'"
+                )
+                assert "durations" in entry, (
+                    f"Template '{entry.get('name', '?')}' in {metre}/{note_count} "
+                    f"missing 'durations'"
+                )
+                durations_raw: list[Any] = entry["durations"]
+                assert isinstance(durations_raw, list), (
+                    f"Durations in {metre}/{note_count}/{entry['name']} "
+                    f"must be a list, got {type(durations_raw).__name__}"
+                )
+                durations: tuple[Fraction, ...] = tuple(
+                    _parse_fraction(value=d) for d in durations_raw
+                )
+                assert len(durations) == note_count, (
+                    f"Duration count {len(durations)} != note_count {note_count} "
+                    f"for {metre}/{note_count}/{entry['name']}"
+                )
+                characters_raw: list[str] = entry.get("characters", [])
+                positions_raw: list[str] = entry.get("positions", [])
+                weight: float = float(entry.get("weight", 1.0))
+                template: RhythmTemplate = RhythmTemplate(
                     note_count=note_count,
                     metre=metre,
                     durations=durations,
+                    name=entry["name"],
+                    characters=tuple(characters_raw),
+                    positions=tuple(positions_raw),
+                    weight=weight,
                 )
-                result[(note_count, metre)] = template
-
+                templates.append(template)
+            assert len(templates) > 0, (
+                f"No templates for {metre}/{note_count}"
+            )
+            result[(note_count, metre)] = templates
     return result
 
 
@@ -305,10 +318,29 @@ def load_figuration_profiles(path: Path | None = None) -> dict[str, dict[str, li
     return result
 
 
+def select_rhythm_template(
+    templates: list[RhythmTemplate],
+    character: str,
+    position: str,
+    bar_num: int,
+) -> RhythmTemplate:
+    """Deterministic template selection by character, position, and bar_num (V001)."""
+    assert len(templates) > 0, "Cannot select from empty template list"
+    filtered: list[RhythmTemplate] = [
+        t for t in templates
+        if (len(t.characters) == 0 or character in t.characters)
+        and (len(t.positions) == 0 or position in t.positions)
+    ]
+    if len(filtered) == 0:
+        filtered = templates
+    filtered.sort(key=lambda t: -t.weight)
+    return filtered[bar_num % len(filtered)]
+
+
 # Cache for loaded data
 _diminutions_cache: dict[str, list[Figure]] | None = None
 _cadential_cache: dict[str, dict[str, list[CadentialFigure]]] | None = None
-_rhythm_templates_cache: dict[tuple[int, str, bool], RhythmTemplate] | None = None
+_rhythm_templates_cache: dict[tuple[int, str], list[RhythmTemplate]] | None = None
 _hemiola_templates_cache: dict[tuple[int, str], RhythmTemplate] | None = None
 _figuration_profiles_cache: dict[str, dict[str, list[str]]] | None = None
 
@@ -329,8 +361,8 @@ def get_cadential() -> dict[str, dict[str, list[CadentialFigure]]]:
     return _cadential_cache
 
 
-def get_rhythm_templates() -> dict[tuple[int, str, bool], RhythmTemplate]:
-    """Get cached rhythm templates."""
+def get_rhythm_templates() -> dict[tuple[int, str], list[RhythmTemplate]]:
+    """Get cached rhythm template vocabulary."""
     global _rhythm_templates_cache
     if _rhythm_templates_cache is None:
         _rhythm_templates_cache = load_rhythm_templates()

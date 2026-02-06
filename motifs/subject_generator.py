@@ -462,7 +462,7 @@ def generate_fugue_triple(
 
 def write_fugue_file(triple: FugueTriple, path: Path) -> None:
     """Write fugue triple to YAML .fugue file."""
-    tonic_name = _midi_to_name(triple.tonic_midi).rstrip('0123456789')
+    tonic_name = _midi_to_name(midi=triple.tonic_midi).rstrip('0123456789')
     data = {
         'subject': {
             'degrees': list(triple.subject.scale_indices),
@@ -567,7 +567,7 @@ def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> N
         track=0,
         start=offset,
     )
-    tonic_name = _midi_to_name(triple.tonic_midi).rstrip('0123456789')
+    tonic_name = _midi_to_name(midi=triple.tonic_midi).rstrip('0123456789')
     write_midi_notes(
         path=str(path),
         notes=notes,
@@ -585,7 +585,7 @@ def write_note_file(subject: GeneratedSubject, path: Path, track: int = 0) -> No
     for midi, dur in zip(subject.midi_pitches, subject.durations):
         bar = int(offset) + 1
         beat = (offset % 1.0) * 4 + 1
-        name = _midi_to_name(midi)
+        name = _midi_to_name(midi=midi)
         lines.append(f"{offset},{midi},{dur},{track},,{bar},{beat},{name},")
         offset += dur
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -667,8 +667,8 @@ def main() -> None:
         )
         for i, subj in enumerate(subjects):
             base = args.output.parent / f"{args.output.stem}_{i:02d}"
-            write_note_file(subj, base.with_suffix(".note"))
-            write_midi_file(subj, base.with_suffix(".midi"), args.tempo, args.tonic)
+            write_note_file(subject=subj, path=base.with_suffix(".note"))
+            write_midi_file(subject=subj, path=base.with_suffix(".midi"), tempo=args.tempo, tonic=args.tonic)
             if args.verbose:
                 print(f"  Wrote {base}.note and {base}.midi")
         print(f"Generated {len(subjects)} subjects")
@@ -681,8 +681,8 @@ def main() -> None:
             verbose=args.verbose,
             affect=args.affect,
         )
-        write_note_file(subject, args.output.with_suffix(".note"))
-        write_midi_file(subject, args.output.with_suffix(".midi"), args.tempo, args.tonic)
+        write_note_file(subject=subject, path=args.output.with_suffix(".note"))
+        write_midi_file(subject=subject, path=args.output.with_suffix(".midi"), tempo=args.tempo, tonic=args.tonic)
         print(f"Wrote {args.output}.note and {args.output}.midi ({subject.bars} bars)")
 
 

@@ -121,10 +121,10 @@ def notes_to_midi_and_note(melody_notes: List[Dict], output_path: Path, tempo: i
         note_objects.append(note)
     note_objects.sort(key=lambda x: x.Offset)
     writer = MidiWriter(tempo=tempo)
-    writer.write_midi(str(output_path), note_objects)
+    writer.write_midi(file_name=str(output_path), notes=note_objects)
     # Also write .note file
     note_path = str(output_path).replace('.midi', '.note')
-    writer.write_notes(note_path, note_objects)
+    writer.write_notes(file_name=note_path, notes=note_objects)
 
 def analyze_melody(melody_notes: List[Dict], name: str) -> Dict:
     """Analyze a melody and return scoring-relevant features."""

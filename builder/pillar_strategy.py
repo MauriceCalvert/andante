@@ -41,7 +41,7 @@ class PillarStrategy(WritingStrategy):
         rejections: list[FigureRejection] = []
         for offset in CONSONANT_PITCH_OFFSETS:
             pitch: DiatonicPitch = source_pitch.transpose(steps=offset)
-            reason: str | None = candidate_filter(pitch, Fraction(0), True)
+            reason: str | None = candidate_filter(dp=pitch, offset=Fraction(0), is_first=True)
             if reason is None:
                 if offset != 0:
                     _log.debug(

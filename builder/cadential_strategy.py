@@ -11,6 +11,7 @@ from builder.figuration.loader import (
     get_cadential,
     get_hemiola_templates,
     get_rhythm_templates,
+    select_rhythm_template,
 )
 from builder.figuration.types import CadentialFigure, RhythmTemplate
 from builder.types import FigureRejection, FigureRejectionError
@@ -31,7 +32,7 @@ class CadentialStrategy(WritingStrategy):
         self._cadential: dict[str, dict[str, list[CadentialFigure]]] = (
             get_cadential()
         )
-        self._rhythm_templates: dict[tuple[int, str, bool], RhythmTemplate] = (
+        self._rhythm_templates: dict[tuple[int, str], list[RhythmTemplate]] = (
             get_rhythm_templates()
         )
         self._hemiola_templates: dict[tuple[int, str], RhythmTemplate] = (
@@ -91,9 +92,16 @@ class CadentialStrategy(WritingStrategy):
         if gap.use_hemiola:
             template = self._hemiola_templates.get((note_count, metre))
         if template is None:
-            template = self._rhythm_templates.get(
-                (note_count, metre),
+            candidates: list[RhythmTemplate] | None = (
+                self._rhythm_templates.get((note_count, metre))
             )
+            if candidates is not None:
+                template = select_rhythm_template(
+                    templates=candidates,
+                    character=gap.character,
+                    position=gap.bar_function,
+                    bar_num=gap.bar_num,
+                )
         if template is None:
             dur_each: Fraction = Fraction(gap.gap_duration, note_count)
             return tuple(dur_each for _ in range(note_count))
@@ -130,7 +138,7 @@ def _expand_cadential(
         dp: DiatonicPitch = source_pitch.transpose(steps=deg)
         midi: int = home_key.diatonic_to_midi(dp=dp)
         is_first: bool = i == 0
-        reason: str | None = candidate_filter(dp, elapsed, is_first)
+        reason: str | None = candidate_filter(dp=dp, offset=elapsed, is_first=is_first)
         if reason is not None:
             return None, FigureRejection(
                 figure_name=figure.name,

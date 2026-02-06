@@ -97,10 +97,10 @@ class ArpeggiatedStrategy(WritingStrategy):
                 continue
             pitch: DiatonicPitch = source_pitch.transpose(steps=beat.degree_offset)
             is_first: bool = len(result) == 0
-            reason: str | None = candidate_filter(pitch, local_offset, is_first)
+            reason: str | None = candidate_filter(dp=pitch, offset=local_offset, is_first=is_first)
             if reason is not None:
                 pitch = source_pitch
-                reason = candidate_filter(pitch, local_offset, is_first)
+                reason = candidate_filter(dp=pitch, offset=local_offset, is_first=is_first)
                 if reason is not None:
                     _log.debug(
                         "Arpeggiated bar %d: skipping beat at offset %s (%s)",
@@ -140,10 +140,10 @@ class ArpeggiatedStrategy(WritingStrategy):
                 continue
             pitch: DiatonicPitch = target_pitch if beat.use_next else source_pitch
             is_first: bool = len(result) == 0
-            reason: str | None = candidate_filter(pitch, local_offset, is_first)
+            reason: str | None = candidate_filter(dp=pitch, offset=local_offset, is_first=is_first)
             if reason is not None:
                 pitch = source_pitch
-                reason = candidate_filter(pitch, local_offset, is_first)
+                reason = candidate_filter(dp=pitch, offset=local_offset, is_first=is_first)
                 if reason is not None:
                     _log.debug(
                         "Rhythm bar %d: skipping beat at offset %s (%s)",

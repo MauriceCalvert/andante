@@ -162,7 +162,7 @@ ponte:
 passo_indietro:
   description: Pre-cadential approach; first two stages of Prinner
   soprano_degrees: ["6", "-5"]
-  bass_degrees: ["4", "+4.5", "+5"]
+  bass_degrees: ["4", "+5"]
   bars: [1, 2]
   cadential_state: open
   position: pre_cadential
@@ -170,7 +170,7 @@ passo_indietro:
   figuration_profile: stepwise_descent
   cadence_approach: true
   accompany_texture: pillar
-  notes: "The raised 4 creates strong pull to 5"
+  notes: "The raised 4 is ornamental (filled in by phrase writer), not a structural stage"
   source: "Gjerdingen Ch.15"
 
 indugio:

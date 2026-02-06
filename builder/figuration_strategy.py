@@ -12,6 +12,7 @@ from builder.figuration.loader import (
     get_diminutions,
     get_hemiola_templates,
     get_rhythm_templates,
+    select_rhythm_template,
 )
 from builder.figuration.types import Figure, RhythmTemplate
 from builder.types import FigureRejection, FigureRejectionError
@@ -37,7 +38,7 @@ class FigurationStrategy(WritingStrategy):
 
     def __init__(self) -> None:
         self._diminutions: dict[str, list[Figure]] = get_diminutions()
-        self._rhythm_templates: dict[tuple[int, str, bool], RhythmTemplate] = (
+        self._rhythm_templates: dict[tuple[int, str], list[RhythmTemplate]] = (
             get_rhythm_templates()
         )
         self._hemiola_templates: dict[tuple[int, str], RhythmTemplate] = (
@@ -57,12 +58,13 @@ class FigurationStrategy(WritingStrategy):
         """Expand a single figure; return None if any note fails filter."""
         note_count: int = self._target_note_count(gap)
         durations: tuple[Fraction, ...] = self._get_rhythm(
-            note_count, gap, metre,
+            note_count=note_count, gap=gap, metre=metre,
         )
         expected_exit: int = INTERVAL_EXIT_DEGREES.get(gap.interval, 0)
         pairs, _ = _expand_and_check(
-            figure, note_count, source_pitch, durations, candidate_filter,
-            expected_exit, home_key,
+            figure=figure, note_count=note_count, source_pitch=source_pitch,
+            durations=durations, candidate_filter=candidate_filter,
+            expected_exit=expected_exit, home_key=home_key,
         )
         return pairs
 
@@ -95,22 +97,25 @@ class FigurationStrategy(WritingStrategy):
         max_count: int = self._target_note_count(gap)
         for note_count in range(max_count, MIN_FIGURATION_NOTES - 1, -1):
             filtered: list[Figure] = self.filter_figures(
-                gap, all_figures, note_count, home_key, strict_density=True,
+                gap=gap, figures=all_figures, note_count=note_count,
+                home_key=home_key, strict_density=True,
             )
             if not filtered:
                 filtered = self.filter_figures(
-                    gap, all_figures, note_count, home_key, strict_density=False,
+                    gap=gap, figures=all_figures, note_count=note_count,
+                    home_key=home_key, strict_density=False,
                 )
             if filtered:
                 durations: tuple[Fraction, ...] = self._get_rhythm(
-                    note_count, gap, metre,
+                    note_count=note_count, gap=gap, metre=metre,
                 )
                 ranked: list[Figure] = sorted(filtered, key=lambda f: -f.weight)
                 expected_exit: int = INTERVAL_EXIT_DEGREES.get(gap.interval, 0)
                 for figure in ranked[:MAX_FIGURE_ATTEMPTS]:
                     pairs, rejection = _expand_and_check(
-                        figure, note_count, source_pitch,
-                        durations, candidate_filter, expected_exit, home_key,
+                        figure=figure, note_count=note_count, source_pitch=source_pitch,
+                        durations=durations, candidate_filter=candidate_filter,
+                        expected_exit=expected_exit, home_key=home_key,
                     )
                     if pairs is not None:
                         return pairs
@@ -138,7 +143,7 @@ class FigurationStrategy(WritingStrategy):
         gap_char: int = _CHARACTER_RANK.get(gap.character, 1)
         is_minor: bool = home_key.mode == "minor"
         for fig in figures:
-            if not _count_compatible(fig, note_count):
+            if not _count_compatible(fig=fig, target=note_count):
                 continue
             if strict_density and _DENSITY_RANK[fig.max_density] < gap_density:
                 continue
@@ -166,9 +171,16 @@ class FigurationStrategy(WritingStrategy):
         if gap.use_hemiola:
             template = self._hemiola_templates.get((note_count, metre))
         if template is None:
-            template = self._rhythm_templates.get(
-                (note_count, metre),
+            candidates: list[RhythmTemplate] | None = (
+                self._rhythm_templates.get((note_count, metre))
             )
+            if candidates is not None:
+                template = select_rhythm_template(
+                    templates=candidates,
+                    character=gap.character,
+                    position=gap.bar_function,
+                    bar_num=gap.bar_num,
+                )
         if template is None:
             dur_each: Fraction = Fraction(gap.gap_duration, note_count)
             return tuple(dur_each for _ in range(note_count))
@@ -190,7 +202,7 @@ class FigurationStrategy(WritingStrategy):
         from builder.figuration.rhythm_calc import compute_rhythmic_distribution
         count: int
         count, _ = compute_rhythmic_distribution(
-            gap.gap_duration, gap.density,
+            gap=gap.gap_duration, density=gap.density,
         )
         return count
 
@@ -231,7 +243,7 @@ def _expand_and_check(
     FigureRejection | None,
 ]:
     """Expand figure; return (pairs, None) on success or (None, rejection) on failure."""
-    degrees: tuple[int, ...] = _tile_degrees(figure, note_count)
+    degrees: tuple[int, ...] = _tile_degrees(figure=figure, target_count=note_count)
     assert len(degrees) == len(durations), (
         f"Degree count {len(degrees)} != duration count {len(durations)}"
     )
@@ -251,7 +263,7 @@ def _expand_and_check(
         midi: int = home_key.diatonic_to_midi(dp)
         note_name: str = _midi_to_note_name(midi=midi)
         is_first: bool = i == 0
-        reason: str | None = candidate_filter(dp, elapsed, is_first)
+        reason: str | None = candidate_filter(dp=dp, offset=elapsed, is_first=is_first)
         if reason is not None:
             return None, FigureRejection(
                 figure_name=figure.name,
@@ -260,7 +272,7 @@ def _expand_and_check(
                 offset=str(elapsed),
                 reason=reason,
             )
-        if prev_midi is not None and not check_melodic_interval(prev_midi, midi):
+        if prev_midi is not None and not check_melodic_interval(prev_midi=prev_midi, curr_midi=midi):
             interval: int = midi - prev_midi
             return None, FigureRejection(
                 figure_name=figure.name,

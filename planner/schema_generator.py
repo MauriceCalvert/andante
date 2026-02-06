@@ -46,7 +46,7 @@ def get_schema_preferences(genre: str) -> dict[str, list[str]]:
     Returns:
         Dict with keys: opening, riposte, continuation, pre_cadential, cadential
     """
-    genre_data = load_genre_template(genre)
+    genre_data = load_genre_template(genre=genre)
     return genre_data["schema_preferences"]
 
 
@@ -58,7 +58,7 @@ def get_genre_texture(genre: str) -> str:
     Returns:
         Texture string: imitative, melody_bass, or free
     """
-    genre_data = load_genre_template(genre)
+    genre_data = load_genre_template(genre=genre)
     return genre_data["texture"]
 
 

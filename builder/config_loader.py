@@ -184,26 +184,23 @@ def _compute_slots_per_bar(metre: str, rhythmic_unit: str) -> int:
     return int(slots)
 
 
-def _get_schema_stages(schema_name: str, schemas: dict[str, SchemaConfig]) -> int:
-    """Get number of bars a schema occupies."""
-    if schema_name not in schemas:
-        return 0
-    schema_def: SchemaConfig = schemas[schema_name]
-    if schema_def.sequential:
-        return max(schema_def.segments) if schema_def.segments else 2
-    return len(schema_def.soprano_degrees)
-
-
 def _compute_total_bars(
     genre_config: GenreConfig,
     schemas: dict[str, SchemaConfig],
 ) -> int:
     """Compute total bars from schema stages in all sections."""
+    from builder.cadence_writer import get_schema_bars
     total: int = 0
     for section in genre_config.sections:
         schema_sequence: list[str] = section.get("schema_sequence", [])
         for name in schema_sequence:
-            total += _get_schema_stages(schema_name=name, schemas=schemas)
+            if name not in schemas:
+                continue
+            total += get_schema_bars(
+                schema_name=name,
+                schema_def=schemas[name],
+                metre=genre_config.metre,
+            )
     return total
 
 

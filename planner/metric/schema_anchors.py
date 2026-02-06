@@ -6,7 +6,7 @@ from planner.metric.constants import CLAUSULA_ARRIVAL_BASS, CLAUSULA_ARRIVAL_SOP
 from shared.key import Key
 
 
-def _compute_upbeat_bar_beat(start_bar: int, upbeat: Fraction, metre: str) -> tuple[int, int]:
+def compute_upbeat_bar_beat(start_bar: int, upbeat: Fraction, metre: str) -> tuple[int, int]:
     """Compute bar and beat for first anchor with upbeat.
     
     For gavotte with upbeat=1/2 in 4/4:
@@ -30,6 +30,7 @@ def generate_schema_anchors(
     metre: str,
     upbeat: Fraction = Fraction(0),
     section: str = "",
+    expected_stages: int | None = None,
 ) -> list[Anchor]:
     """Generate anchors for a schema: one anchor per bar, one stage per bar."""
     if schema_def.sequential:
@@ -50,6 +51,7 @@ def generate_schema_anchors(
         upbeat=upbeat,
         metre=metre,
         section=section,
+        expected_stages=expected_stages,
     )
 
 
@@ -61,6 +63,7 @@ def _generate_regular_anchors(
     upbeat: Fraction = Fraction(0),
     metre: str = "4/4",
     section: str = "",
+    expected_stages: int | None = None,
 ) -> list[Anchor]:
     """Generate anchors for regular (non-sequential) schema.
     
@@ -77,10 +80,10 @@ def _generate_regular_anchors(
     bass_directions: tuple[str | None, ...] = schema_def.bass_directions
     if not soprano_degrees or not bass_degrees:
         return anchors
-    stages: int = len(soprano_degrees)
+    stages: int = expected_stages if expected_stages is not None else len(soprano_degrees)
     for stage in range(stages):
         if stage == 0 and upbeat > 0:
-            bar, beat = _compute_upbeat_bar_beat(start_bar=start_bar, upbeat=upbeat, metre=metre)
+            bar, beat = compute_upbeat_bar_beat(start_bar=start_bar, upbeat=upbeat, metre=metre)
         else:
             bar = start_bar + stage - (1 if upbeat > 0 else 0)
             beat = 1
@@ -140,7 +143,7 @@ def _generate_sequential_anchors(
     segment_direction: str | None = schema_def.segment_direction
     for seg_idx in range(segment_count):
         if seg_idx == 0 and upbeat > 0:
-            bar, beat = _compute_upbeat_bar_beat(start_bar=start_bar, upbeat=upbeat, metre=metre)
+            bar, beat = compute_upbeat_bar_beat(start_bar=start_bar, upbeat=upbeat, metre=metre)
         else:
             bar = start_bar + seg_idx - (1 if upbeat > 0 else 0)
             beat = 1

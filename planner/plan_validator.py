@@ -167,9 +167,11 @@ def validate_schema_plan(plan: "SchemaPlan") -> tuple[bool, list[str]]:
         final_schema = get_schema(name=final_slot.schema)
         if not final_schema.cadence_approach:
             warnings.warn(
-                f"Final schema '{final_slot.schema}' lacks cadence_approach: true. "
-                f"Piece may end abruptly without proper settling.",
-                UserWarning,
+                message=(
+                    f"Final schema '{final_slot.schema}' lacks cadence_approach: true. "
+                    f"Piece may end abruptly without proper settling."
+                ),
+                category=UserWarning,
                 stacklevel=2,
             )
 

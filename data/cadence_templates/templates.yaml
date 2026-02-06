@@ -1,0 +1,76 @@
+# Cadence templates
+# degrees: scale degrees 1-7 in local key
+# durations: fractions of whole note, must sum to phrase_duration
+# Each template keyed by (schema_name, metre)
+
+cadenza_semplice:
+  "3/4":
+    bars: 2
+    soprano:
+      degrees: [2, 1]
+      durations: ["3/4", "3/4"]
+    bass:
+      degrees: [5, 1]
+      durations: ["3/4", "3/4"]
+  "4/4":
+    bars: 1
+    soprano:
+      degrees: [2, 1]
+      durations: ["1/2", "1/2"]
+    bass:
+      degrees: [5, 1]
+      durations: ["1/2", "1/2"]
+
+cadenza_composta:
+  "3/4":
+    bars: 2
+    soprano:
+      degrees: [4, 3, 2, 1]
+      durations: ["1/4", "1/4", "1/4", "3/4"]
+    bass:
+      degrees: [5, 1]
+      durations: ["3/4", "3/4"]
+  "4/4":
+    bars: 1
+    soprano:
+      degrees: [4, 3, 2, 1]
+      durations: ["1/8", "1/8", "1/4", "1/2"]
+    bass:
+      degrees: [5, 1]
+      durations: ["1/2", "1/2"]
+
+half_cadence:
+  "3/4":
+    bars: 1
+    soprano:
+      degrees: [3, 2]
+      durations: ["1/4", "1/2"]
+    bass:
+      degrees: [1, 5]
+      durations: ["1/4", "1/2"]
+  "4/4":
+    bars: 1
+    soprano:
+      degrees: [3, 2]
+      durations: ["1/2", "1/2"]
+    bass:
+      degrees: [1, 5]
+      durations: ["1/2", "1/2"]
+
+comma:
+  "3/4":
+    bars: 1
+    soprano:
+      degrees: [7, 1]
+      durations: ["1/4", "1/2"]
+    bass:
+      degrees: [5, 1]
+      durations: ["1/4", "1/2"]
+  "4/4":
+    bars: 1
+    soprano:
+      degrees: [7, 1]
+      durations: ["1/2", "1/2"]
+    bass:
+      degrees: [5, 1]
+      durations: ["1/2", "1/2"]

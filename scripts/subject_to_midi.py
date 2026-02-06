@@ -53,20 +53,20 @@ def convert_subject_to_midi(
     with open(subject_path, encoding='utf-8') as f:
         data = yaml.safe_load(f)
     assert 'durations' in data, "Subject file must have 'durations' field"
-    durations: list[float] = [parse_duration(d) for d in data['durations']]
+    durations: list[float] = [parse_duration(d=d) for d in data['durations']]
     if 'pitches' in data:
         pitches: list[int] = data['pitches']
     elif 'degrees' in data:
         degrees: list[int] = data['degrees']
-        pitches = degrees_to_midi(degrees, tonic, mode, octave)
+        pitches = degrees_to_midi(degrees=degrees, tonic=tonic, mode=mode, start_octave=octave)
     else:
         raise ValueError("Subject file must have 'pitches' or 'degrees' field")
     assert len(pitches) == len(durations), "pitches/degrees and durations must match"
     output_path = subject_path.with_suffix('.midi')
     write_midi(
-        str(output_path),
-        pitches,
-        durations,
+        path=str(output_path),
+        pitches=pitches,
+        durations=durations,
         tempo=tempo,
         tonic=tonic,
         mode=mode,
@@ -94,7 +94,7 @@ def main() -> None:
     assert tonic is not None, "tonic must be specified in YAML or via --tonic"
     assert mode is not None, "mode must be specified in YAML or via --mode"
     assert tempo is not None, "tempo must be specified in YAML or via --tempo"
-    convert_subject_to_midi(args.subject_file, tonic, mode, tempo, args.octave)
+    convert_subject_to_midi(subject_path=args.subject_file, tonic=tonic, mode=mode, tempo=tempo, octave=args.octave)
 
 
 if __name__ == "__main__":

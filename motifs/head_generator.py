@@ -196,11 +196,11 @@ def enumerate_pitch_sequences(n_notes: int) -> Iterator[tuple[int, ...]]:
             new_degree = last + interval
             if MIN_DEGREE <= new_degree <= MAX_DEGREE:
                 current.append(new_degree)
-                yield from recurse(current)
+                yield from recurse(current=current)
                 current.pop()
 
     for start in TONIC_TRIAD_DEGREES:
-        yield from recurse([start])
+        yield from recurse(current=[start])
 
 
 def generate_heads(metre: tuple[int, int] = (4, 4)) -> list[Head]:

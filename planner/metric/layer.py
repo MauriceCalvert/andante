@@ -18,21 +18,26 @@ from builder.types import (
     TonalPlan,
 )
 from planner.metric.distribution import bar_beat_to_float
-from planner.metric.schema_anchors import generate_schema_anchors
+from planner.metric.schema_anchors import compute_upbeat_bar_beat, generate_schema_anchors
 from shared.constants import CADENCE_DEGREES
 from shared.key import Key
 from shared.tracer import get_tracer
 
 
-def get_schema_stages(schema_name: str, schemas: dict[str, SchemaConfig]) -> int:
+def get_schema_stages(
+    schema_name: str,
+    schemas: dict[str, SchemaConfig],
+    metre: str | None = None,
+) -> int:
     """Get number of bars a schema occupies (1 stage = 1 bar)."""
     if schema_name not in schemas or schema_name == "episode":
         return 0
-    schema_def: SchemaConfig = schemas[schema_name]
-    if schema_def.sequential:
-        segments: tuple[int, ...] = schema_def.segments or (2,)
-        return max(segments) if isinstance(segments, (list, tuple)) else segments
-    return len(schema_def.soprano_degrees)
+    from builder.cadence_writer import get_schema_bars
+    return get_schema_bars(
+        schema_name=schema_name,
+        schema_def=schemas[schema_name],
+        metre=metre,
+    )
 
 
 def layer_4_metric(
@@ -117,7 +122,7 @@ def _build_bar_assignments(
         boundary: int = schema_chain.section_boundaries[section_idx] if section_idx < len(schema_chain.section_boundaries) else len(schema_chain.schemas)
         section_schemas: tuple[str, ...] = schema_chain.schemas[prev_boundary:boundary]
         section_bars: int = sum(
-            get_schema_stages(schema_name=name, schemas=schemas)
+            get_schema_stages(schema_name=name, schemas=schemas, metre=genre_config.metre)
             for name in section_schemas
         )
         if section_bars == 0:
@@ -145,7 +150,7 @@ def _build_bar_assignments_legacy(
         section_name: str = section["name"]
         schema_sequence: list[str] = section.get("schema_sequence", [])
         section_bars: int = sum(
-            get_schema_stages(schema_name=name, schemas=schemas)
+            get_schema_stages(schema_name=name, schemas=schemas, metre=genre_config.metre)
             for name in schema_sequence
         )
         assert section_bars > 0, f"Section '{section_name}' has no stages"
@@ -177,6 +182,8 @@ def _generate_all_anchors(
     piece_anchors: list[Anchor] = _generate_piece_anchors(
         home_key=home_key,
         total_bars=total_bars,
+        metre=genre_config.metre,
+        upbeat=genre_config.upbeat,
     )
     anchors.extend(piece_anchors)
     # Level 2: Section-level anchors (cadence targets)
@@ -205,13 +212,20 @@ def _generate_all_anchors(
 def _generate_piece_anchors(
     home_key: Key,
     total_bars: int,
+    metre: str,
+    upbeat: Fraction,
 ) -> list[Anchor]:
     """Level 1: piece start and end anchors."""
     if total_bars < 1:
         return []
+    start_bar, start_beat = compute_upbeat_bar_beat(
+        start_bar=1,
+        upbeat=upbeat,
+        metre=metre,
+    )
     return [
         Anchor(
-            bar_beat="1.1",
+            bar_beat=f"{start_bar}.{start_beat}",
             upper_degree=1,
             lower_degree=1,
             local_key=home_key,
@@ -326,7 +340,7 @@ def _phrase_anchors_from_chain(
             if schema_name not in schemas:
                 continue
             schema_def: SchemaConfig = schemas[schema_name]
-            stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas)
+            stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas, metre=genre_config.metre)
             schema_end: int = current_bar + stages - 1
             local_key: Key = _get_local_key(
                 home_key=home_key,
@@ -348,6 +362,11 @@ def _phrase_anchors_from_chain(
                 metre=genre_config.metre,
                 upbeat=schema_upbeat,
                 section=section_name,
+                expected_stages=stages,
+            )
+            assert len(schema_anchors) == stages, (
+                f"Schema '{schema_name}' produced {len(schema_anchors)} anchors "
+                f"but was allocated {stages} bars (bars {current_bar}-{schema_end})"
             )
             anchors.extend(schema_anchors)
             current_bar = schema_end + 1
@@ -385,7 +404,7 @@ def _phrase_anchors_legacy(
             if schema_name not in schemas:
                 continue
             schema_def: SchemaConfig = schemas[schema_name]
-            stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas)
+            stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas, metre=genre_config.metre)
             schema_end: int = current_bar + stages - 1
             local_key: Key = _get_local_key(
                 home_key=home_key,
@@ -407,6 +426,11 @@ def _phrase_anchors_legacy(
                 metre=genre_config.metre,
                 upbeat=schema_upbeat,
                 section=section_name,
+                expected_stages=stages,
+            )
+            assert len(schema_anchors) == stages, (
+                f"Schema '{schema_name}' produced {len(schema_anchors)} anchors "
+                f"but was allocated {stages} bars (bars {current_bar}-{schema_end})"
             )
             anchors.extend(schema_anchors)
             current_bar = schema_end + 1
@@ -440,18 +464,18 @@ def _get_local_key(
 
 
 def _deduplicate_anchors(anchors: list[Anchor]) -> list[Anchor]:
-    """Remove anchors at duplicate bar_beat positions, keeping the most specific."""
+    """Remove anchors at duplicate bar_beat positions, keeping the most important."""
     seen: dict[str, Anchor] = {}
     for anchor in anchors:
         existing: Anchor | None = seen.get(anchor.bar_beat)
         if existing is None:
             seen[anchor.bar_beat] = anchor
         elif anchor.schema.startswith("piece_"):
-            pass  # phrase/section anchors are more specific
+            seen[anchor.bar_beat] = anchor  # piece boundaries enforce tonic, always win
         elif existing.schema.startswith("piece_"):
-            seen[anchor.bar_beat] = anchor
+            pass  # keep piece boundary anchor
         elif anchor.schema.startswith("section_cadence"):
-            seen[anchor.bar_beat] = anchor  # cadence targets take priority
+            seen[anchor.bar_beat] = anchor  # cadence targets take priority over schema
     result: list[Anchor] = list(seen.values())
     result.sort(key=lambda a: bar_beat_to_float(bar_beat=a.bar_beat))
     return result
