@@ -6,7 +6,7 @@ import pytest
 from fractions import Fraction
 from typing import Any
 
-from builder.compose import compose
+from builder.compose import compose_phrases
 from builder.config_loader import load_configs
 from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan
@@ -50,33 +50,15 @@ def _run_full_pipeline(genre: str, key: str = "c_major") -> tuple[Composition, A
         schemas=config["schemas"],
         total_bars=total_bars,
     )
-    # Build CompositionPlan for compose() dispatch
-    from planner.voice_planning import build_composition_plan
-    from planner.textural import layer_5_textural
-    from planner.rhythmic import layer_6_rhythmic
-    passage_assignments = layer_5_textural(genre_config=gc, bar_assignments=bar_assignments)
-    rhythm_plan = layer_6_rhythmic(
-        anchors=anchors,
-        affect_config=config["affect"],
-        passage_assignments=passage_assignments,
-        genre_config=gc,
-        tonal_plan=tonal_plan,
-        seed=44,
+    home_key = anchors[0].local_key
+    comp = compose_phrases(
+        phrase_plans=phrase_plans,
+        home_key=home_key,
+        metre=gc.metre,
+        tempo=gc.tempo,
+        upbeat=gc.upbeat,
     )
-    plan = build_composition_plan(
-        anchors=anchors,
-        passage_assignments=passage_assignments,
-        key_config=kc,
-        affect_config=config["affect"],
-        genre_config=gc,
-        schemas=config["schemas"],
-        seed=42,
-        tempo_override=gc.tempo,
-        fugue=None,
-        rhythm_plan=rhythm_plan,
-    )
-    comp = compose(plan=plan, phrase_plans=phrase_plans)
-    return comp, gc, plan.home_key, phrase_plans
+    return comp, gc, home_key, phrase_plans
 
 
 _L7_PARAMS: list[tuple[str, str]] = [

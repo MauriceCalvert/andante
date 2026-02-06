@@ -208,3 +208,34 @@ Results written during pipeline build to thread prev_exit_midi for realistic con
   start. Affects all genres for non-cadential schemas.
 
 **Full suite**: 3533 passed, 209 skipped, 38 xfailed, 31 xpassed, 0 failures (63s)
+
+## Dead code cleanup (continued from crashed chat)
+
+Deleted legacy voice-writing pipeline — all files that were only reachable
+from the now-removed `voice_writer.py` entry point:
+
+**Deleted production files:**
+- `builder/voice_writer.py`, `voice_checks.py`, `writing_strategy.py`
+- `builder/cadential_strategy.py`, `figuration_strategy.py`, `staggered_strategy.py`
+- `builder/arpeggiated_strategy.py`, `pillar_strategy.py`
+- `planner/voice_planning.py`, `planner/textural.py`
+- `shared/plan_types.py` (CompositionPlan, VoicePlan, SectionPlan, GapPlan, etc.)
+
+**Deleted test files:**
+- `tests/test_voice_checks.py`, `tests/test_compose_voices.py`
+
+**Updated:**
+- `builder/compose.py` — now only exposes `compose_phrases()`
+- `planner/planner.py` — calls L1-L4 + phrase planning + compose_phrases; no L5/L6
+- `scripts/full_tests.py` — removed deleted test files from list
+- Three test files updated to call `compose_phrases()` directly
+- `docs/knowledge.md` — rewritten to reflect current pipeline
+
+~2200 lines of dead production code removed.
+
+**Additional dead code found during audit:**
+- `planner/rhythmic.py`, `rhythmic_gap.py`, `rhythmic_motif.py`, `rhythmic_profile.py`, `rhythmic_variety.py` (1002 lines) — only called by deleted voice_planning.py
+- Stripped 6 dead types from `builder/types.py`: CounterpointViolation, PassageAssignment, RhythmicProfile, RhythmicMotif, GapRhythm, RhythmPlan
+- Fixed stale docstring in Anchor (voice_writer -> phrase_writer)
+
+Total dead code removed: ~3200 lines.

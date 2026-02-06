@@ -12,32 +12,21 @@ _Claude: read at chat start. Dense reference — no rationale. For "why", see hu
 | 2 Tonal | `planner/tonal.py` | AffectConfig | tonal_plan, density, modality |
 | 3 Schematic | `planner/schematic.py` | tonal_plan, GenreConfig, FormConfig, schemas | SchemaChain (schemas, key_areas, free_passages) |
 | 4 Metric | `planner/metric/layer.py` | SchemaChain, configs, tonal_plan | bar_assignments, anchors, total_bars |
-| 5 Textural | `planner/textural.py` | GenreConfig, bar_assignments | list[PassageAssignment] |
-| 6 Voice Planning | `planner/voice_planning.py` | anchors, passages, configs | CompositionPlan |
-| Execution | `builder/compose.py` | CompositionPlan | Composition (voices, notes) |
+| 5 Phrase Planning | `builder/phrase_planner.py` | SchemaChain, anchors, GenreConfig, schemas | tuple[PhrasePlan, ...] |
+| 6 Composition | `builder/compose.py` | PhrasePlans, home_key, metre, tempo, upbeat | Composition (voices, notes) |
 
-Orchestrator: `planner/planner.py` — calls layers 1-6, then `compose_voices()`.
+Orchestrator: `planner/planner.py` — calls layers 1-4, then phrase planning + `compose_phrases()`.
 
 ---
 
 ## Execution Model
 
-`compose_voices()` builds a gap schedule sorted by (anchor_idx, lead_first, voice_idx).
-Each gap dispatched to `VoiceWriter.compose_single_gap()`.
-Lead voices compose before followers at each anchor so followers see lead notes.
+`compose_phrases()` iterates over PhrasePlans in order.
+Each phrase dispatched to `write_phrase()` which produces upper and lower notes.
+Exit pitches thread between consecutive phrases for voice continuity.
 
-### Writing Strategies
-
-| WritingMode | Strategy class | Purpose |
-|-------------|---------------|---------|
-| FIGURATION | `FigurationStrategy` | Diminution patterns between anchors |
-| CADENTIAL | `CadentialStrategy` | Clausula cadence formulae |
-| PILLAR | `PillarStrategy` | Sustained/repeated anchor notes |
-| STAGGERED | `StaggeredStrategy` | Offset rhythmic entries |
-| ARPEGGIATED | `ArpeggiatedStrategy` | Broken chord patterns |
-
-All strategies implement `WritingStrategy.fill_gap()` returning `tuple[(DiatonicPitch, Fraction), ...]`.
-`candidate_filter` callback enforces counterpoint rules per note.
+The phrase writer (`builder/phrase_writer.py`) realises each phrase from its schema anchors,
+generating notes for soprano and bass voices with inline counterpoint checking.
 
 ---
 
@@ -76,29 +65,28 @@ All strategies implement `WritingStrategy.fill_gap()` returning `tuple[(Diatonic
 | Type | Module | Space | Use |
 |------|--------|-------|-----|
 | `FloatingNote` | `shared/pitch.py` | degree 1-7, no octave | Schema degrees, figuration patterns |
-| `DiatonicPitch` | `shared/diatonic_pitch.py` | linear step count, unbounded | Strategy fill_gap output, key-relative |
+| `DiatonicPitch` | `shared/diatonic_pitch.py` | linear step count, unbounded | Key-relative pitch |
 | `MidiPitch` | `shared/pitch.py` | MIDI 0-127 | Direct MIDI, external import |
 | `Key` | `shared/key.py` | tonic + mode | Conversion hub: degree <-> MIDI <-> diatonic |
 
 Resolution chain: FloatingNote -> DiatonicPitch -> MIDI (via Key).
-Octave decisions deferred to voice_writer fill time when prev_pitch known.
 
 ---
 
-## Plan Types (planner -> builder contract)
+## Plan Types
 
-All in `shared/plan_types.py`. Frozen dataclasses.
+### Planner -> Builder contract
+
+Phrase plans in `builder/phrase_types.py`. Frozen dataclasses.
 
 | Type | Contains |
 |------|----------|
-| `CompositionPlan` | home_key, tempo, upbeat, voice_plans, anchors, fugue |
-| `VoicePlan` | voice_id, range, median, order, sections, anacrusis, seed |
-| `SectionPlan` | gap range, schema, sequencing, role, follows/interval/delay, gaps |
-| `GapPlan` | bar_num, writing_mode, interval, ascending, duration, density, character |
-| `PlanAnchor` | bar_beat, upper/lower degree, local_key, schema, stage, directions |
-| `AnacrusisPlan` | target_degree, duration, note_count, ascending |
+| `PhrasePlan` | schema, anchors, key, metre, genre config references |
+| `PhraseResult` | upper_notes, lower_notes |
 
-Key invariant: builder makes zero compositional choices. All decisions in plan.
+### Planner-internal types
+
+In `planner/plannertypes.py`. Used within planning layers only.
 
 ---
 
@@ -139,17 +127,15 @@ Available genres: bourree, chorale, fantasia, gavotte, invention, minuet, saraba
 
 | Directory | Files | Drives |
 |-----------|-------|--------|
-| `data/cadences/` | cadence patterns | CadentialStrategy |
-| `data/figuration/` | diminutions, patterns, profiles, rhythms | FigurationStrategy, bass |
+| `data/figuration/` | diminutions, patterns, profiles, rhythms | phrase_writer, bass |
 | `data/forms/` | binary, strophic, through_composed | Layer 3 structure |
 | `data/genres/` | per-genre configs + _default | Layer 1, config_loader |
 | `data/humanisation/` | timing/velocity variation | MIDI output |
-| `data/instruments/` | instrument definitions | voice_planning |
+| `data/instruments/` | instrument definitions | genre config |
 | `data/rhetoric/` | affects, archetypes, figurae, tension | Layers 1-2 |
-| `data/rules/` | constraints, counterpoint_rules | faults, voice_checks |
+| `data/rules/` | constraints, counterpoint_rules | faults |
 | `data/schemas/` | schemas, transitions | Layer 3-4 |
 | `data/treatments/` | treatments.yaml | schema slot treatments |
-| `data/voicing/` | voicing rules | voice_planning |
 
 ---
 
@@ -158,9 +144,8 @@ Available genres: bourree, chorale, fantasia, gavotte, invention, minuet, saraba
 | Module | Scope |
 |--------|-------|
 | `builder/faults.py` | Post-composition fault scan (parallels, dissonance, leaps, cross-relations, tessitura, spacing, overlap) |
-| `builder/voice_checks.py` | Per-note candidate filter during composition (range, melodic interval, parallels, direct motion, overlap, strong-beat consonance) |
 | `builder/junction.py` | Gap boundary checks |
-| `shared/plan_types.py: validate_plan()` | Structural plan invariants (unique IDs, contiguous gaps, role consistency, follows graph) |
+| `builder/phrase_writer.py` | Inline counterpoint checks during phrase composition |
 
 Guards detect, generators prevent (D010). Faults report; never fix.
 
@@ -182,8 +167,6 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 | `metric/schema_anchors.py` | Schema -> anchor expansion |
 | `metric/distribution.py` | Bar distribution across schemas |
 | `metric/constants.py` | Metric layer constants |
-| `textural.py` | L5: genre + bars -> passage assignments |
-| `voice_planning.py` | L6: anchors + passages -> CompositionPlan |
 | `harmony.py` | Harmonic analysis helpers |
 | `phrase_harmony.py` | Phrase-level harmony |
 | `constraints.py` | Planning constraints |
@@ -199,7 +182,6 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 | `cs_generator.py` | Counter-subject generation |
 | `devices.py` | Compositional devices |
 | `koch_rules.py` | Koch's phrase rules |
-| `rhythmic.py` | Rhythm planning |
 | `serializer.py` | Plan serialization |
 | `plannertypes.py` | Planner-internal types |
 | `plan_validator.py` | Additional plan checks |
@@ -208,21 +190,18 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 ### builder/
 | File | Responsibility |
 |------|---------------|
-| `compose.py` | Gap scheduler, interleaved execution |
-| `voice_writer.py` | Per-voice executor, dispatches to strategies |
+| `compose.py` | Phrase-by-phrase composition entry point |
+| `phrase_planner.py` | Build PhrasePlans from L4 output |
+| `phrase_writer.py` | Per-phrase note generation with inline counterpoint |
+| `phrase_types.py` | PhrasePlan, PhraseResult types |
+| `cadence_writer.py` | Cadence note generation |
+| `rhythm_cells.py` | Rhythm cell patterns |
 | `config_loader.py` | Load all YAML configs |
-| `writing_strategy.py` | ABC for fill_gap strategies |
-| `figuration_strategy.py` | Diminution pattern realisation |
-| `cadential_strategy.py` | Clausula cadence patterns |
-| `pillar_strategy.py` | Sustained/repeated notes |
-| `staggered_strategy.py` | Offset rhythmic entries |
-| `arpeggiated_strategy.py` | Broken chord patterns |
 | `figuration/loader.py` | Load diminution tables |
 | `figuration/bass.py` | Bass figuration |
 | `figuration/rhythm_calc.py` | Rhythm calculation for figurations |
 | `figuration/types.py` | Figuration types |
 | `faults.py` | Post-composition fault detection |
-| `voice_checks.py` | Per-note counterpoint filter |
 | `junction.py` | Gap boundary validation |
 | `types.py` | Builder domain types (Note, Composition, SchemaConfig, GenreConfig, etc.) |
 | `io.py` | Write MIDI, MusicXML, .note files |
@@ -235,7 +214,6 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 | `key.py` | Key class: degree/MIDI/diatonic conversion |
 | `pitch.py` | FloatingNote, MidiPitch, Rest, place_degree, select_octave |
 | `diatonic_pitch.py` | DiatonicPitch (linear step, key-relative) |
-| `plan_types.py` | CompositionPlan and sub-types (planner->builder contract) |
 | `voice_types.py` | Voice, Actuator, Range, Role, Instrument, Scoring, Track |
 | `music_math.py` | Duration arithmetic, fill_slot, valid durations |
 | `midi_writer.py` | Low-level MIDI writing |
@@ -305,9 +283,4 @@ MIDI gate: 95% of notated duration (L013, GATE_FACTOR = 19/20).
 2. **Schema degrees are signed**: `+2` means "up to degree 2", `-7` means "down to degree 7". First degree unsigned.
 3. **Key.diatonic_step()** counts scale steps, not semitones. For chromatic movement, use MIDI arithmetic.
 4. **Fraction arithmetic**: always import from `fractions`. Never use float for durations.
-5. **fill_gap returns DiatonicPitch**: voice_writer converts to MIDI. Strategies must not use MIDI directly.
-6. **candidate_filter**: strategies must call it for every note and skip rejected pitches. Filter returns None (pass) or reason string.
-7. **Composition order**: voice_plans[i].composition_order determines global scheduling. Not same as voice index.
-8. **Section contiguity**: sections must tile gap indices exactly 0..N with no overlap or gap.
-9. **Shared actuator**: must be reciprocal (both voices declare each other).
-10. **Bass MIN_BASS_MIDI = 40 (E2)**: floor for bass voice, but not a hard range clamp (L003).
+5. **Bass MIN_BASS_MIDI = 40 (E2)**: floor for bass voice, but not a hard range clamp (L003).

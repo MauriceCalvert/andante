@@ -7,30 +7,26 @@ The layers:
 2. Tonal: Affect + Genre -> TonalPlan (key areas, cadences, density)
 3. Schematic: TonalPlan -> SchemaChain (graph-walk selected schemas)
 4. Metric: SchemaChain + TonalPlan -> Bar assignments + anchors
-5. Textural: Genre + bar assignments -> Passage assignments
-6. Voice Planning: Anchors + passages -> CompositionPlan
+5. Phrase Planning: Anchors + schemas -> PhrasePlans
+6. Composition: PhrasePlans -> Composition (notes)
 
 Category B: Orchestrator that validates and delegates.
 """
 from pathlib import Path
 from typing import Any
 
-from builder.compose import compose
+from builder.compose import compose_phrases
 from builder.config_loader import load_configs
 from builder.io import write_midi_file, write_musicxml_file, write_note_file
 from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan
-from builder.types import Composition, PassageAssignment, RhythmPlan, SchemaChain, TonalPlan
+from builder.types import Composition, SchemaChain, TonalPlan
 from motifs.fugue_loader import LoadedFugue
 from planner.dramaturgy import get_suggested_key
 from planner.metric.layer import layer_4_metric
 from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic
-from planner.textural import layer_5_textural
 from planner.tonal import layer_2_tonal
-from planner.rhythmic import layer_6_rhythmic
-from planner.voice_planning import build_composition_plan
-from shared.plan_types import CompositionPlan
 from shared.tracer import get_tracer
 
 
@@ -129,37 +125,15 @@ def generate(
         schemas=schemas,
         total_bars=total_bars,
     )
-    passage_assignments: list[PassageAssignment] = layer_5_textural(
-        genre_config=genre_config,
-        bar_assignments=bar_assignments,
+    # Compose from phrase plans
+    home_key = anchors[0].local_key if anchors else key_config
+    return compose_phrases(
+        phrase_plans=phrase_plans,
+        home_key=home_key,
+        metre=genre_config.metre,
+        tempo=tempo,
+        upbeat=genre_config.upbeat,
     )
-    tracer.L5("Textural", passage_count=len(passage_assignments))
-    tracer.passage_assignments(assignments=passage_assignments)
-    # Layer 6: Rhythmic Planning
-    rhythm_plan: RhythmPlan = layer_6_rhythmic(
-        anchors=anchors,
-        affect_config=affect_config,
-        passage_assignments=passage_assignments,
-        genre_config=genre_config,
-        tonal_plan=tonal_plan,
-        seed=seed + 2,
-    )
-    tracer.L6("Rhythmic", gap_rhythm_count=len(rhythm_plan.gap_rhythms))
-    # Layer 7: Voice Planning
-    plan: CompositionPlan = build_composition_plan(
-        anchors=anchors,
-        passage_assignments=passage_assignments,
-        key_config=key_config,
-        affect_config=affect_config,
-        genre_config=genre_config,
-        schemas=schemas,
-        seed=seed,
-        tempo_override=tempo,
-        fugue=fugue,
-        rhythm_plan=rhythm_plan,
-    )
-    tracer.L7("VoicePlanning", voice_count=len(plan.voice_plans))
-    return compose(plan=plan, phrase_plans=phrase_plans)
 
 
 def generate_to_files(

@@ -160,7 +160,7 @@ class Anchor:
     - same: unison (repeat)
     - None: first anchor, no previous context
     
-    MIDI resolution is deferred to fill time (voice_writer) when the
+    MIDI resolution is deferred to fill time (phrase_writer) when the
     previous pitch is known, avoiding premature octave decisions.
     """
     bar_beat: str
@@ -295,65 +295,3 @@ class SchemaChain:
     cadences: tuple[str | None, ...] = ()
     section_boundaries: tuple[int, ...] = ()
 
-
-@dataclass(frozen=True)
-class CounterpointViolation:
-    """Record of a counterpoint rule violation."""
-    rule: str
-    bar_beat: str
-    soprano_pitch: int
-    bass_pitch: int
-    message: str
-
-
-@dataclass(frozen=True)
-class PassageAssignment:
-    """Passage function assignment for a bar range (Layer 5 output)."""
-    start_bar: int
-    end_bar: int
-    function: str           # Section function from genre YAML
-    lead_voice: int | None  # 0=upper, 1=lower, None=equal
-    accompany_texture: str | None = None  # pillar, walking, staggered, complementary
-    follow_voice: int | None = None       # Voice index that imitates the lead
-    follow_delay: Fraction | None = None  # Delay before imitation starts
-    follow_interval: int | None = None    # Diatonic interval for transposition
-
-
-@dataclass(frozen=True)
-class RhythmicProfile:
-    """Section-level rhythmic character."""
-    affect: str
-    base_density: str
-    hemiola_zones: tuple[tuple[int, int], ...]
-    climax_bar: int
-    density_trajectory: str
-    development_plan: str
-
-
-@dataclass(frozen=True)
-class RhythmicMotif:
-    """Phrase-level rhythmic cell."""
-    name: str
-    pattern: tuple[Fraction, ...]
-    accent_pattern: tuple[int, ...]
-    character: str
-    compatible_metres: tuple[str, ...]
-    phrase_positions: tuple[str, ...]
-    weight: float
-
-
-@dataclass(frozen=True)
-class GapRhythm:
-    """Gap-level duration specification."""
-    durations: tuple[Fraction, ...]
-    downbeat_emphasis: bool
-    pickup_to_next: bool
-    motif_slice: tuple[int, int]
-
-
-@dataclass(frozen=True)
-class RhythmPlan:
-    """Complete rhythmic plan for composition."""
-    section_profiles: tuple[tuple[str, RhythmicProfile], ...]
-    phrase_motifs: tuple[tuple[int, RhythmicMotif], ...]
-    gap_rhythms: tuple[GapRhythm, ...]

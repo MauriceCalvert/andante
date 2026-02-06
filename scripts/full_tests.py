@@ -20,7 +20,6 @@ TEST_FILES: tuple[str, ...] = (
     # foundational utilities
     "test_key.py",
     "test_music_math.py",
-    "test_voice_checks.py",
     "test_yaml_integrity.py",
     # pipeline layers L1-L5
     "test_L1_rhetorical.py",
@@ -30,7 +29,6 @@ TEST_FILES: tuple[str, ...] = (
     "test_L5_phrase_planner.py",
     # generation
     "test_L6_phrase_writer.py",
-    "test_compose_voices.py",
     # integration
     "test_L7_compose.py",
     "test_cross_phrase_counterpoint.py",
