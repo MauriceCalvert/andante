@@ -2,6 +2,8 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Union
 
+from shared.constants import SKIP_SEMITONES, UGLY_INTERVALS
+
 if TYPE_CHECKING:
     from shared.key import Key
 
@@ -62,6 +64,8 @@ def degree_to_nearest_midi(
     target_midi: int,
     midi_range: tuple[int, int],
     ceiling: int | None = None,
+    prev_midi: int | None = None,
+    prev_prev_midi: int | None = None,
 ) -> int:
     """Place degree in octave nearest to target_midi, within range and below ceiling."""
     candidates: list[int] = [
@@ -77,7 +81,27 @@ def degree_to_nearest_midi(
     assert len(valid) > 0, (
         f"No valid octave for degree {degree} in range {midi_range}"
     )
-    return min(valid, key=lambda m: abs(m - target_midi))
+    pool: list[int] = valid
+    # Prefer candidates that don't form ugly intervals with previous pitch
+    if prev_midi is not None:
+        non_ugly: list[int] = [
+            m for m in pool
+            if abs(m - prev_midi) % 12 not in UGLY_INTERVALS
+        ]
+        if non_ugly:
+            pool = non_ugly
+    # Prefer candidates that don't create consecutive same-direction leaps
+    if prev_midi is not None and prev_prev_midi is not None:
+        prev_interval: int = prev_midi - prev_prev_midi
+        if abs(prev_interval) > SKIP_SEMITONES:
+            no_consec: list[int] = [
+                m for m in pool
+                if abs(m - prev_midi) <= SKIP_SEMITONES
+                or (m - prev_midi > 0) != (prev_interval > 0)
+            ]
+            if no_consec:
+                pool = no_consec
+    return min(pool, key=lambda m: abs(m - target_midi))
 
 
 def wrap_degree(deg: int) -> int:

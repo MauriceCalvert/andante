@@ -260,4 +260,6 @@ Stateful pitch constraints:
 
 ## Integration
 
-Playability validation runs after L7 Melodic produces concrete pitches. Failed validation triggers backtracking to L6 Figuration (choose different pattern) or L4 Seed (choose different schema).
+Playability validation runs after L8 Melodic produces concrete pitches. Failed validation triggers backtracking to L7 Figuration (choose different pattern) or L4 Seed (choose different schema).
+
+Note: L7 Figuration and L8 Melodic are historical layers, superseded by phrase-level generation in the current architecture (L6 Phrase Writing). See architecture.md v2.0.0.

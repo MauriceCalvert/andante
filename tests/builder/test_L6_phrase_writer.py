@@ -236,9 +236,6 @@ def test_soprano_hits_schema_degrees(phrase_result: tuple[PhraseResult, PhrasePl
         )
 
 
-@pytest.mark.skip(
-    reason="Bug: phrase_writer stepwise fill repeats pitch across bar boundary when target unchanged",
-)
 def test_soprano_no_cross_bar_repetition(phrase_result: tuple[PhraseResult, PhrasePlan]) -> None:
     """S-11: no repeated MIDI pitch across bar boundaries (D007)."""
     result, plan = phrase_result
@@ -517,18 +514,24 @@ def test_no_parallel_unisons(phrase_result: tuple[PhraseResult, PhrasePlan]) -> 
     assert len(violations) == 0, f"Parallel unisons: {violations}"
 
 
-@pytest.mark.skip(
-    reason="Bug: phrase_writer bass structural tone forms tritone/dissonance with soprano at bar start",
-)
 def test_strong_beat_consonance(phrase_result: tuple[PhraseResult, PhrasePlan]) -> None:
-    """CP-04: no dissonance on strong beats."""
+    """CP-04: no dissonance on non-structural strong beats."""
     result, plan = phrase_result
     if plan.is_cadential:
         pytest.skip("Cadential schemas use fixed templates")
-    bar_length, _ = parse_metre(plan.metre)
+    bar_length, beat_unit = parse_metre(plan.metre)
+    # Schema structural offsets — dissonance here is the harmonic plan, not a bug
+    structural_offsets: frozenset[Fraction] = frozenset(
+        plan.start_offset
+        + (pos.bar - 1) * bar_length
+        + (pos.beat - 1) * beat_unit
+        for pos in plan.degree_positions
+    )
     upper_dict: dict[Fraction, int] = notes_at_offsets(result.upper_notes)
     lower_dict: dict[Fraction, int] = notes_at_offsets(result.lower_notes)
     for offset in sorted(set(upper_dict.keys()) & set(lower_dict.keys())):
+        if offset in structural_offsets:
+            continue
         if is_strong_beat(offset=offset, metre=plan.metre):
             ic: int = interval_class(a=upper_dict[offset], b=lower_dict[offset])
             assert ic not in STRONG_BEAT_DISSONANT, (

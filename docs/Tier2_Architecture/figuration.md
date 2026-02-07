@@ -1,6 +1,14 @@
 # Figuration Design
 
-## Problem
+**Status: SUPERSEDED.** The gap-based figuration system described below has been replaced by phrase-level generation in `builder/phrase_writer.py`. The phrase writer generates complete soprano and bass phrases per schema using genre-specific rhythm cells, rather than filling individual gaps between anchors with diminution figures. See `architecture.md` (v2.0.0) for the current design.
+
+The diminution data (`data/figuration/`) is not discarded but restructured: figures are re-indexed by genre and schema position, selected per phrase rather than per gap.
+
+The content below is retained as historical reference for the diminution vocabulary and figure catalogue.
+
+---
+
+## Problem (historical)
 
 Anchors (one per bar, beat 1) converted directly to whole notes produce chorale-like block chords. Baroque music requires idiomatic melodic motion between structural points.
 

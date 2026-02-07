@@ -71,13 +71,13 @@ minim_two_crotchets:
   metre: "4/4"
   durations: ["1/2", "1/4", "1/4"]
   character: plain
-  genre_tags: [gavotte, bourree, chorale, trio_sonata]
+  genre_tags: [gavotte, invention, bourree, chorale, trio_sonata]
 
 two_crotchets_minim:
   metre: "4/4"
   durations: ["1/4", "1/4", "1/2"]
   character: cadential
-  genre_tags: [gavotte, bourree, chorale, trio_sonata]
+  genre_tags: [gavotte, invention, bourree, chorale, trio_sonata]
 
 semibreve:
   metre: "4/4"
@@ -101,7 +101,7 @@ crotchet_two_quavers_two_crotchets:
   metre: "4/4"
   durations: ["1/4", "1/8", "1/8", "1/4", "1/4"]
   character: flowing
-  genre_tags: [gavotte, bourree, trio_sonata]
+  genre_tags: [gavotte, invention, bourree, trio_sonata]
 
 eight_quavers:
   metre: "4/4"
@@ -126,6 +126,12 @@ dotted_crotchet_quaver_two_crotchets:
   durations: ["3/8", "1/8", "1/4", "1/4"]
   character: dotted
   genre_tags: [gavotte]
+
+minim_four_quavers:
+  metre: "4/4"
+  durations: ["1/2", "1/8", "1/8", "1/8", "1/8"]
+  character: flowing
+  genre_tags: [invention, fantasia, trio_sonata]
 
 sixteen_semiquavers:
   metre: "4/4"

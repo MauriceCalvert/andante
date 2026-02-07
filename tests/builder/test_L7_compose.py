@@ -150,9 +150,6 @@ def test_voices_sorted(composition_data: tuple[Composition, Any, Key, tuple[Phra
         assert offsets == sorted(offsets), f"Voice {voice_id} not sorted"
 
 
-@pytest.mark.skip(
-    reason="Bug: cadential phrase boundaries cause minor overlaps — fix in phrase_writer",
-)
 def test_no_intra_voice_overlap(composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]) -> None:
     """C-08: zero overlaps within same voice."""
     comp, _, _, _, _ = composition_data
@@ -164,9 +161,6 @@ def test_no_intra_voice_overlap(composition_data: tuple[Composition, Any, Key, t
             )
 
 
-@pytest.mark.skip(
-    reason="Bug: cadential phrase boundary duration mismatches cause gaps — fix in phrase_writer",
-)
 def test_no_intra_voice_gaps(composition_data: tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]) -> None:
     """C-09: zero gaps within same voice (contiguous notes)."""
     comp, _, _, _, _ = composition_data

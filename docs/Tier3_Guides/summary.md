@@ -17,7 +17,7 @@ Baroque music composition system with a 7-layer architecture:
 ```
 andante/
 ├── builder/                # Builder: Anchors → playable notes
-│   ├── figuration/         # Baroque melodic patterns (L6.5)
+│   ├── figuration/         # Baroque melodic patterns (L7, historical)
 │   │   ├── bass.py         # Bass pattern realisation
 │   │   ├── figurate.py     # Main figuration engine
 │   │   ├── loader.py       # Load figures from YAML
@@ -202,9 +202,9 @@ Brief (affect, genre, forces, bars)
 ║      │                                    ║
 ║  L6 Rhythmic → active slots, durations    ║
 ║      │                                    ║
-║  L6.5 Figuration → pitch sequences        ║
+║  L7 Figuration → pitch sequences           ║
 ║      │                                    ║
-║  L7 Melodic → (orphaned, kept for future) ║
+║  L8 Melodic → (orphaned, kept for future) ║
 ║                                           ║
 ╚═══════════════════════════════════════════╝
     │
@@ -243,8 +243,8 @@ Export → .midi / .musicxml / .note
 | 4. Metric | Schema chain | Bar assignments + anchors | Enumerate from rules |
 | 5. Textural | Genre + sections | Treatment assignments | Lookup by convention |
 | 6. Rhythmic | Anchors + treatments + density | Active slots + durations | Rule-based |
-| 6.5 Figuration | Anchors + texture roles | Pitch sequences | Selection + chaining |
-| 7. Melodic | *(orphaned)* | *(was: pitches via solver)* | *(kept for future)* |
+| 7. Figuration | Anchors + texture roles | Pitch sequences | Selection + chaining |
+| 8. Melodic | *(orphaned)* | *(was: pitches via solver)* | *(kept for future)* |
 
 ---
 
@@ -375,7 +375,7 @@ metric/distribution.py Bar/beat distribution
 metric/schema_anchors.py Schema anchor generation
 textural.py        L5: Treatment assignments
 rhythmic.py        L6: Active slots, durations
-melodic.py         L7: Greedy pitch solver (orphaned)
+melodic.py         L8: Greedy pitch solver (orphaned)
 ```
 
 ### Planner Structure
@@ -461,7 +461,7 @@ midi_writer.py     Standalone MIDI generation
 
 1. **MidiPitch bypasses octave selection.** If you see weird octaves, check if something is creating MidiPitch when it should be FloatingNote.
 
-2. **Layer 7 Melodic is orphaned.** Figuration (L6.5) now provides pitch sequences. L7 code exists but is not called.
+2. **Layer 8 Melodic is orphaned.** Figuration (L7) now provides pitch sequences. L8 code exists but is not called.
 
 3. **Backtracking is per-phrase.** If exhausted, it's a spec error, not a code bug.
 
@@ -509,7 +509,7 @@ python -m scripts.subject_to_midi input.subject
 2. **bugs.md** - Known issues and fixes
 3. **docs/Tier1_Normative/laws.md** - Coding rules and anti-patterns
 4. **docs/Tier2_Architecture/architecture.md** - 7-layer pipeline details
-5. **docs/Tier2_Architecture/figuration.md** - L6.5 figuration spec
+5. **docs/Tier2_Architecture/figuration.md** - L7 figuration spec (historical)
 6. **docs/Tier4_Reference/counterpoint_rules.md** - Treatise-based rule catalog
 7. **data/rules/counterpoint_rules.yaml** - Machine-readable rules
 

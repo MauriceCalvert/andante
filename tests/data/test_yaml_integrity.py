@@ -11,7 +11,7 @@ from builder.rhythm_cells import load_rhythm_cells, get_cells_for_genre
 from planner.schema_loader import load_schemas
 
 
-DATA_DIR: Path = Path(__file__).parent.parent / "data"
+DATA_DIR: Path = Path(__file__).parent.parent.parent / "data"
 GENRES_DIR: Path = DATA_DIR / "genres"
 ALL_GENRES: tuple[str, ...] = tuple(
     p.stem for p in sorted(GENRES_DIR.glob("*.yaml"))
@@ -41,8 +41,7 @@ def test_genre_has_rhythm_cells(genre: str) -> None:
     """Every genre's metre must have at least one matching rhythm cell."""
     metre: str = _genre_metre(genre=genre)
     cells = get_cells_for_genre(genre=genre, metre=metre)
-    if len(cells) == 0:
-        pytest.skip(f"Bug: genre '{genre}' (metre {metre}) has no rhythm cells defined")
+    assert len(cells) > 0, f"Genre '{genre}' (metre {metre}) has no rhythm cells defined"
 
 
 # =========================================================================

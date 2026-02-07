@@ -59,6 +59,7 @@ from shared.constants import (
     SKIP_SEMITONES,
     STEP_SEMITONES,
     UGLY_INTERVALS,
+    VOICE_NAME_TO_RANGE_IDX,
     VOICE_RANGES,
 )
 
@@ -147,11 +148,15 @@ def _check_consecutive_leaps(
     voice_notes: Sequence[Note],
     voice_idx: int,
     metre: str,
+    structural: frozenset[Fraction] = frozenset(),
 ) -> list[Fault]:
     """Check for two leaps in same direction."""
     faults: list[Fault] = []
     pitches: list[tuple[Fraction, int]] = [(n.offset, n.pitch) for n in voice_notes]
     for i in range(len(pitches) - 2):
+        # Exempt when leap targets are structural (schema-mandated pitches)
+        if pitches[i + 1][0] in structural and pitches[i + 2][0] in structural:
+            continue
         int1: int = pitches[i + 1][1] - pitches[i][1]
         int2: int = pitches[i + 2][1] - pitches[i + 1][1]
         if abs(int1) > SKIP_SEMITONES and abs(int2) > SKIP_SEMITONES:
@@ -213,19 +218,25 @@ def _check_cross_relation(
 def _check_direct_motion(
     voices: Sequence[Sequence[Note]],
     metre: str,
+    voice_structural: Sequence[frozenset[Fraction]] = (),
 ) -> list[Fault]:
     """Check for direct fifths/octaves with soprano leap."""
     faults: list[Fault] = []
     if len(voices) < 2:
         return faults
     soprano: Sequence[Note] = voices[0]
+    s_struct: frozenset[Fraction] = voice_structural[0] if voice_structural else frozenset()
     for other_idx in range(1, len(voices)):
         other: Sequence[Note] = voices[other_idx]
+        o_struct: frozenset[Fraction] = voice_structural[other_idx] if voice_structural else frozenset()
         s_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in soprano}
         o_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in other}
         common: list[Fraction] = sorted(set(s_by_off.keys()) & set(o_by_off.keys()))
         for i in range(len(common) - 1):
             off1, off2 = common[i], common[i + 1]
+            # Exempt when both voices at target offset are structural
+            if off2 in s_struct and off2 in o_struct:
+                continue
             s1, s2 = s_by_off[off1], s_by_off[off2]
             o1, o2 = o_by_off[off1], o_by_off[off2]
             motion: str = _motion_type(pitch_a_from=s1, pitch_a_to=s2, pitch_b_from=o1, pitch_b_to=o2)
@@ -259,6 +270,7 @@ def _check_direct_motion(
 def _check_dissonance(
     voices: Sequence[Sequence[Note]],
     metre: str,
+    voice_structural: Sequence[frozenset[Fraction]] = (),
 ) -> list[Fault]:
     """Check for unprepared/unresolved dissonances on strong beats."""
     faults: list[Fault] = []
@@ -267,11 +279,16 @@ def _check_dissonance(
     consonant: frozenset[int] = CONSONANT_INTERVALS_ABOVE_BASS
     soprano: Sequence[Note] = voices[0]
     bass: Sequence[Note] = voices[-1]
+    s_struct: frozenset[Fraction] = voice_structural[0] if voice_structural else frozenset()
+    b_struct: frozenset[Fraction] = voice_structural[-1] if voice_structural else frozenset()
     s_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in soprano}
     b_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in bass}
     common: list[Fraction] = sorted(set(s_by_off.keys()) & set(b_by_off.keys()))
     for i, off in enumerate(common):
         if not _is_strong_beat(offset=off, metre=metre):
+            continue
+        # Exempt when both voices are structural — planned dissonance
+        if off in s_struct and off in b_struct:
             continue
         s_pitch: int = s_by_off[off]
         b_pitch: int = b_by_off[off]
@@ -419,11 +436,15 @@ def _check_ugly_leaps(
     voice_notes: Sequence[Note],
     voice_idx: int,
     metre: str,
+    structural: frozenset[Fraction] = frozenset(),
 ) -> list[Fault]:
     """Check for augmented or diminished intervals."""
     faults: list[Fault] = []
     ugly: frozenset[int] = UGLY_INTERVALS
     for i in range(len(voice_notes) - 1):
+        # Exempt structural-to-structural leaps (schema-mandated)
+        if voice_notes[i].offset in structural and voice_notes[i + 1].offset in structural:
+            continue
         interval: int = abs(voice_notes[i + 1].pitch - voice_notes[i].pitch)
         simple: int = interval % 12
         if simple in ugly and interval > STEP_SEMITONES:
@@ -450,24 +471,40 @@ def _check_ugly_leaps(
 def _check_voice_overlap(
     voices: Sequence[Sequence[Note]],
     metre: str,
+    voice_structural: Sequence[frozenset[Fraction]] = (),
 ) -> list[Fault]:
     """Check for voice moving to pitch just vacated by other voice."""
     faults: list[Fault] = []
     if len(voices) < 2:
         return faults
     for v_a in range(len(voices)):
+        a_struct: frozenset[Fraction] = voice_structural[v_a] if voice_structural else frozenset()
         for v_b in range(len(voices)):
             if v_a == v_b:
                 continue
+            b_struct: frozenset[Fraction] = voice_structural[v_b] if voice_structural else frozenset()
             a_notes: list[Note] = sorted(voices[v_a], key=lambda n: n.offset)
             b_notes: list[Note] = sorted(voices[v_b], key=lambda n: n.offset)
             b_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in b_notes}
+            b_end_off: dict[Fraction, Fraction] = {n.offset: n.offset + n.duration for n in b_notes}
             for i in range(len(a_notes) - 1):
                 curr_a: Note = a_notes[i]
                 next_a: Note = a_notes[i + 1]
+                # Exempt when either voice at relevant offset is structural
+                # — overlap is unavoidable if schema mandates the pitch
+                if next_a.offset in a_struct or curr_a.offset in b_struct:
+                    continue
                 if curr_a.offset in b_by_off:
                     b_pitch: int = b_by_off[curr_a.offset]
+                    # Only flag if the other voice has actually released (vacated)
+                    b_note_end: Fraction = b_end_off[curr_a.offset]
+                    if b_note_end > next_a.offset:
+                        continue  # note still sounding — unison, not vacated overlap
                     if next_a.pitch == b_pitch:
+                        # If other voice re-attacks same pitch at next offset,
+                        # pitch was not truly vacated — it is a unison
+                        if next_a.offset in b_by_off and b_by_off[next_a.offset] == b_pitch:
+                            continue
                         faults.append(Fault(
                             category="voice_overlap",
                             bar_beat=_offset_to_bar_beat(offset=next_a.offset, metre=metre),
@@ -521,11 +558,13 @@ def _check_parallel_perfect(
 def _check_parallel_rhythm(
     voices: Sequence[Sequence[Note]],
     metre: str,
+    phrase_offsets: Sequence[Fraction] = (),
 ) -> list[Fault]:
     """Check for too many consecutive simultaneous attacks (lockstep rhythm)."""
     faults: list[Fault] = []
     if len(voices) < 2:
         return faults
+    phrase_breaks: frozenset[Fraction] = frozenset(phrase_offsets)
     offsets_per_voice: list[set[Fraction]] = [
         {n.offset for n in voice} for voice in voices
     ]
@@ -537,6 +576,19 @@ def _check_parallel_rhythm(
             run_start: Fraction | None = None
             run_length: int = 0
             for off in all_offsets:
+                # Reset run at phrase boundaries — cadential lockstep
+                # is idiomatic and must not bleed into adjacent phrases
+                if off in phrase_breaks and run_length > 0:
+                    if run_length > MAX_PARALLEL_RHYTHM_ATTACKS:
+                        faults.append(Fault(
+                            category="parallel_rhythm",
+                            bar_beat=_offset_to_bar_beat(offset=run_start, metre=metre),
+                            voices=(v_a, v_b),
+                            message=f"{run_length} consecutive simultaneous attacks "
+                                    f"(voices move in lockstep)",
+                        ))
+                    run_start = None
+                    run_length = 0
                 both_attack: bool = off in offsets_per_voice[v_a] and off in offsets_per_voice[v_b]
                 if both_attack:
                     if run_start is None:
@@ -570,6 +622,8 @@ def find_faults(
     voices: Sequence[Sequence[Note]],
     metre: str,
     actuator_ranges: dict[int, tuple[int, int]] | None = None,
+    phrase_offsets: Sequence[Fraction] = (),
+    voice_structural: Sequence[frozenset[Fraction]] = (),
 ) -> list[Fault]:
     """Find all faults in a multi-voice composition.
     
@@ -578,24 +632,27 @@ def find_faults(
         metre: Time signature string (e.g. "4/4").
         actuator_ranges: Optional dict mapping voice index to (low, high) MIDI range.
             If not provided, uses default VOICE_RANGES.
+        phrase_offsets: Phrase start offsets for resetting parallel rhythm runs.
+        voice_structural: Per-voice frozensets of structural (schema-mandated) offsets.
     """
     assert 1 <= len(voices) <= 4, f"Expected 1-4 voices, got {len(voices)}"
     assert "/" in metre, f"Invalid metre format: {metre}"
     voice_count: int = len(voices)
     faults: list[Fault] = []
     for v_idx, voice in enumerate(voices):
-        faults.extend(_check_consecutive_leaps(voice_notes=voice, voice_idx=v_idx, metre=metre))
+        v_struct: frozenset[Fraction] = voice_structural[v_idx] if v_idx < len(voice_structural) else frozenset()
+        faults.extend(_check_consecutive_leaps(voice_notes=voice, voice_idx=v_idx, metre=metre, structural=v_struct))
         faults.extend(_check_grotesque_leap(voice_notes=voice, voice_idx=v_idx, metre=metre))
         faults.extend(_check_tessitura(voice_notes=voice, voice_idx=v_idx, metre=metre, voice_count=voice_count, actuator_ranges=actuator_ranges))
         if v_idx == 0:
-            faults.extend(_check_ugly_leaps(voice_notes=voice, voice_idx=v_idx, metre=metre))
+            faults.extend(_check_ugly_leaps(voice_notes=voice, voice_idx=v_idx, metre=metre, structural=v_struct))
     faults.extend(_check_cross_relation(voices=voices, metre=metre))
-    faults.extend(_check_direct_motion(voices=voices, metre=metre))
-    faults.extend(_check_dissonance(voices=voices, metre=metre))
+    faults.extend(_check_direct_motion(voices=voices, metre=metre, voice_structural=voice_structural))
+    faults.extend(_check_dissonance(voices=voices, metre=metre, voice_structural=voice_structural))
     faults.extend(_check_parallel_perfect(voices=voices, metre=metre))
-    faults.extend(_check_parallel_rhythm(voices=voices, metre=metre))
+    faults.extend(_check_parallel_rhythm(voices=voices, metre=metre, phrase_offsets=phrase_offsets))
     faults.extend(_check_spacing(voices=voices, metre=metre))
-    faults.extend(_check_voice_overlap(voices=voices, metre=metre))
+    faults.extend(_check_voice_overlap(voices=voices, metre=metre, voice_structural=voice_structural))
     faults.sort(key=lambda f: (_parse_bar_beat(bar_beat=f.bar_beat), f.category))
     return faults
 
@@ -624,9 +681,22 @@ def find_faults_from_composition(
     for i, (track, name, _) in enumerate(voice_data):
         if actuator_ranges is not None and name in actuator_ranges:
             ranges[i] = actuator_ranges[name]
-        elif track in VOICE_RANGES:
-            ranges[i] = VOICE_RANGES[track]
-    return find_faults(voices=voices, metre=composition.metre, actuator_ranges=ranges if ranges else None)
+        elif name in VOICE_NAME_TO_RANGE_IDX:
+            range_idx: int = VOICE_NAME_TO_RANGE_IDX[name]
+            ranges[i] = VOICE_RANGES[range_idx]
+    # Build per-voice structural offsets in same order as voices list
+    v_structural: list[frozenset[Fraction]] = []
+    for _, name, _ in voice_data:
+        v_structural.append(
+            composition.structural_offsets.get(name, frozenset())
+        )
+    return find_faults(
+        voices=voices,
+        metre=composition.metre,
+        actuator_ranges=ranges if ranges else None,
+        phrase_offsets=composition.phrase_offsets,
+        voice_structural=tuple(v_structural),
+    )
 
 
 def print_faults(faults: list[Fault]) -> None:

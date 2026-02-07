@@ -147,6 +147,8 @@ class Composition:
     metre: str
     tempo: int
     upbeat: Fraction = Fraction(0)
+    phrase_offsets: tuple[Fraction, ...] = ()
+    structural_offsets: dict[str, frozenset[Fraction]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

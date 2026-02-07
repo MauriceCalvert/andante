@@ -133,9 +133,6 @@ def test_zero_grotesque_leaps(system_output: tuple[Composition, list[Fault], Any
     )
 
 
-@pytest.mark.skip(
-    reason="Bug: phrase boundary issues produce faults — fix in phrase_writer before enabling",
-)
 def test_zero_faults(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
     """Total faults must be zero."""
     _, faults, _, _ = system_output
@@ -145,9 +142,6 @@ def test_zero_faults(system_output: tuple[Composition, list[Fault], Any, Key]) -
     )
 
 
-@pytest.mark.skip(
-    reason="Bug: cadential phrase boundaries cause gaps/overlaps — fix in phrase_writer",
-)
 def test_duration_integrity(system_output: tuple[Composition, list[Fault], Any, Key]) -> None:
     """No gaps or overlaps in either voice."""
     comp, _, _, _ = system_output
@@ -192,7 +186,6 @@ def test_gavotte_rhythmic_character() -> None:
     )
 
 
-@pytest.mark.skip(reason="Bug: invention has passo_indietro schema degree mismatch")
 def test_invention_rhythmic_character() -> None:
     """Invention voices are not always homorhythmic (>30% offset difference)."""
     comp, _, gc, _ = _run_full_pipeline("invention")
@@ -225,7 +218,6 @@ def test_sarabande_rhythmic_character() -> None:
     )
 
 
-@pytest.mark.skip(reason="Bug: bourree is 4/4 but only has 3/4 rhythm cells defined")
 def test_bourree_rhythmic_character() -> None:
     """Bourree has rhythmic variety (not all uniform durations)."""
     comp, _, gc, _ = _run_full_pipeline("bourree")

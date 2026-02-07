@@ -5,8 +5,9 @@
 | L3 | Metric | L2 + genre | Bars, phrase lengths |
 | L4 | Seed | L3 | Schema per phrase (soprano/bass degrees) |
 | L5 | Textural | L4 | Voice roles, texture type |
-| L6 | Figuration | L5 + L4 | Pattern sequence, rhythm implicit |
-| L7 | Melodic | L6 | Concrete pitches |
+| L6 | Rhythmic | L5 + density | Active slots, durations |
+| L7 | Figuration | L6 + anchors | Pitch sequences from patterns |
+| L8 | Melodic | L7 | Concrete pitches (orphaned) |
 
 | Level | Contains | Determined by |
 |-------|----------|---------------|

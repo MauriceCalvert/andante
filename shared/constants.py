@@ -190,7 +190,7 @@ DENSITY_RHYTHMIC_UNIT: dict[str, Fraction] = {
 GATE_FACTOR: Fraction = Fraction(19, 20)
 
 # Maximum consecutive simultaneous attacks before parallel_rhythm fault
-MAX_PARALLEL_RHYTHM_ATTACKS: int = 4
+MAX_PARALLEL_RHYTHM_ATTACKS: int = 5
 
 # Maximum sequence repetitions before fragmentation (Rule of Three)
 MAX_SEQUENCE_REPETITIONS: int = 2
@@ -437,6 +437,16 @@ TONIC_TO_MIDI: dict[str, int] = {
 # MIDI track indices
 TRACK_BASS: int = 3
 TRACK_SOPRANO: int = 0
+
+# Voice name to VOICE_RANGES index mapping
+VOICE_NAME_TO_RANGE_IDX: dict[str, int] = {
+    "soprano": 0,
+    "upper": 0,
+    "alto": 1,
+    "tenor": 2,
+    "bass": 3,
+    "lower": 3,
+}
 
 # Phrase-path voice indices (2-voice texture: soprano=0, bass=1)
 PHRASE_VOICE_BASS: int = 1

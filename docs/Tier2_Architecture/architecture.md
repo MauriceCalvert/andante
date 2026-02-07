@@ -2,7 +2,7 @@
 
 ## Status
 
-v1.7.0 | 100% Deterministic Specification (2-voice Invention, C Major, Confident)
+v2.0.0 | Phrase-based composition architecture
 
 ---
 
@@ -14,8 +14,10 @@ Andante is a system to produce Baroque music scores. Anything related to perform
 ## Related Documents
 
 - **voices.md**: Voice and instrument entity model (canonical)
-- **figuration.md**: Layer 6.5 figuration system
+- **figuration.md**: Diminution data reference (historical gap-based system superseded by phrase writer)
+- **solver_specs.md**: Greedy solver reference (historical, replaced by phrase writer)
 - **laws.md**: Normative coding rules
+- **test_strategy.md**: Test strategy including layer contract tests
 
 ---
 
@@ -215,20 +217,20 @@ Composition proceeds through seven layers. Each layer:
 
 - Takes input from higher layers
 - Produces output for lower layers
-- Uses a specific mechanism (lookup, enumeration, or solver)
+- Uses a specific mechanism (lookup, enumeration, or phrase generation)
 
-| Layer | Input | Output | Mechanism |
-|-------|-------|--------|-----------|
-| 1. Rhetorical | Genre | Trajectory + rhythm vocab + tempo | Fixed per genre |
-| 2. Tonal | Affect | Tonal plan + density + modality | Lookup (expandable) |
-| 3. Schematic | Tonal plan | Schema chain | Enumerate from rules |
-| 4. Metric | Schema chain | Bar assignments + anchors | Enumerate from rules |
-| 5. Textural | Genre + sections | Treatment assignments (voice roles per bar) | Lookup by convention |
-| 6. Rhythmic | Anchors + treatments + density | Active slots + durations per voice | Rule-based activation |
-| 6.5 Figuration | Anchors + texture roles | Pitch sequences from patterns | Selection + chaining |
-| 7. Melodic | *(orphaned)* | *(was: pitches via solver)* | *(kept for future)* |
+| Layer | Module | Input | Output |
+|-------|--------|-------|--------|
+| 1. Rhetorical | `planner/rhetorical.py` | GenreConfig | trajectory, rhythm_vocab, tempo |
+| 2. Tonal | `planner/tonal.py` | AffectConfig | tonal_plan, density, modality |
+| 3. Schematic | `planner/schematic.py` | tonal_plan, GenreConfig, FormConfig, schemas | SchemaChain (schemas, key_areas, free_passages) |
+| 4. Metric | `planner/metric/layer.py` | SchemaChain, configs, tonal_plan | bar_assignments, anchors, total_bars |
+| 5. Phrase Planning | `builder/phrase_planner.py` | SchemaChain, anchors, GenreConfig, schemas | tuple[PhrasePlan, ...] |
+| 6. Phrase Writing | `builder/phrase_writer.py` | PhrasePlan, PhraseContext | PhraseResult (upper_notes, lower_notes) |
+| 7. Composition | `builder/compose.py` | PhrasePlans, home_key, metre, tempo, upbeat | Composition (voices, notes) |
 
-After L6.5: **counterpoint.py** validates pitch sequences. **Realisation** assembles final notes.
+Orchestrator: `planner/planner.py` calls layers 1-4, then phrase planning + `compose_phrases()`.
+After composition: `builder/faults.py` scans for counterpoint faults.
 
 ---
 
@@ -611,231 +613,83 @@ Stretching increases total duration without adding schema stages. The arrival pi
 | 2 | 1 | 4/4 | 1.1, 1.3 |
 | 3 | 1 | 3/4 | 1.1, 1.2, 1.3 |
 
-### Layer 5: Textural
+### Layer 5: Phrase Planning
 
-**Input:** Genre + form config (sections with bar ranges)
+**Input:** SchemaChain, anchors, GenreConfig, schemas
 
-**Output:** Treatment assignments (voice roles per bar range)
+**Output:** tuple[PhrasePlan, ...]
 
-**Mechanism:** Lookup by genre convention
+**Mechanism:** Deterministic conversion
 
-Textural planning determines which voice carries the thematic material (subject) at each point in the piece. This must happen before rhythm and pitch generation because:
+The phrase planner converts anchors and genre configuration into PhrasePlans. One PhrasePlan per schema in the chain. The phrase is the unit of composition — one complete schema, not individual gaps between degrees.
 
-1. The subject voice needs dense rhythmic activity (semiquaver runs)
-2. The accompaniment voice needs sparse rhythmic activity (longer values)
-3. Voice roles swap at structural boundaries (S → A handoff)
-
-**Output type:**
+**PhrasePlan type:**
 
 ```python
 @dataclass(frozen=True)
-class TreatmentAssignment:
-    start_bar: int
-    end_bar: int
-    treatment: str  # "subject", "answer", "episode", "cadential"
-    subject_voice: int | None  # 0=soprano, 1=bass, None=both
+class PhrasePlan:
+    schema_name: str
+    schema_degrees_upper: tuple[int, ...]
+    schema_degrees_lower: tuple[int, ...]
+    degree_placements: tuple[BeatPosition, ...]
+    local_key: Key
+    bar_span: int
+    start_offset: Fraction
+    rhythm_profile: str           # genre-specific rhythm vocabulary name
+    bass_texture: str             # pillar, walking, arpeggiated
+    is_cadential: bool
+    prev_exit_pitch_upper: int | None
+    prev_exit_pitch_lower: int | None
 ```
 
-**Treatment assignments for invention:**
+**Invariants:**
 
-| Treatment | Bars | Subject voice | Accompaniment |
-|-----------|------|---------------|---------------|
-| S (Subject) | 1–2 | 0 (soprano) | bass sparse |
-| A (Answer) | 3–4 | 1 (bass) | soprano countersubject |
-| episode₁ | 5–8 | None (both moderate) | — |
-| development | 9–12 | None | — |
-| S' (Return) | 13–16 | 0 (soprano) | bass sparse |
-| coda | 17–20 | None (cadential) | — |
+- One PhrasePlan per schema in the chain
+- PhrasePlan.schema_degrees_upper matches schema definition
+- PhrasePlan.schema_degrees_lower matches schema definition
+- degree_placements length == number of schema degrees
+- Every placement falls within the phrase's bar span
+- Placements are in chronological order
+- rhythm_profile exists in the genre's rhythm cell vocabulary
+- is_cadential == True iff schema is cadential type
+- start_offset of phrase N+1 == start_offset of phrase N + phrase N's total duration (phrases tile exactly, no gaps)
+- prev_exit_pitch is None only for the first phrase
 
-**Genre conventions:**
+### Layer 6: Phrase Writing
 
-| Genre | Treatment sequence |
-|-------|-------------------|
-| Invention | S → A → episode₁ → S'/A' → episode₂ → S'' → coda |
-| Fugue | exposition → episodes → entries → stretto |
-| Minuet | N/A (melody/bass, no imitation) |
-| Gavotte | N/A (same) |
+**Input:** PhrasePlan, PhraseContext (exit pitches from previous phrase)
 
-For imitative genres, treatment sequence is fixed by convention. For homophonic genres, soprano always carries melody (subject_voice=0 throughout).
+**Output:** PhraseResult (upper_notes, lower_notes)
 
-### Layer 6: Rhythmic
+**Mechanism:** Phrase-level generation with inline counterpoint checking
 
-**Input:** Anchors (from L4) + treatment assignments (from L5) + density (from L2) + metre
+The phrase writer (`builder/phrase_writer.py`) generates complete soprano and bass phrases for each PhrasePlan. The soprano is generated first as a coherent phrase, then the bass is fitted to it — matching baroque compositional practice (cantus first, bass fitted).
 
-**Output:** RhythmPlan (active slots and durations per voice)
+**Soprano generation** checks only self-consistency (range, melodic intervals, no repeated notes across bars). Full counterpoint checks (parallels, dissonance, overlap) happen during bass generation where each bass note is validated against the completed soprano.
 
-**Mechanism:** Rule-based slot activation
+**Cadential schemas** (cadenza_semplice, cadenza_composta, half_cadence, comma) use a dedicated cadence writer (`builder/cadence_writer.py`) with fixed voice-leading templates rather than the phrase generation algorithm. Templates guarantee correct resolution.
 
-Rhythmic planning determines which slots are active for each voice and what duration each note should have. This creates voice independence: when soprano runs in semiquavers, bass holds longer values.
+**Genre-specific rhythm cells** (`builder/rhythm_cells.py`) define the rhythmic vocabulary. Each genre provides a small set of idiomatic cells. The phrase generator selects and chains these cells per bar, not a universal diminution table.
 
-**Output type:**
+### Layer 7: Composition
 
-```python
-@dataclass(frozen=True)
-class RhythmPlan:
-    soprano_active: frozenset[int]  # slot indices (0 to total_slots-1)
-    bass_active: frozenset[int]
-    soprano_durations: dict[int, Fraction]  # slot index -> duration
-    bass_durations: dict[int, Fraction]
-```
+**Input:** PhrasePlans, home_key, metre, tempo, upbeat
 
-**Activation rules:**
+**Output:** Composition (voices, notes)
 
-| Slot type | Subject voice | Accompaniment voice |
-|-----------|---------------|---------------------|
-| Anchor | Active, 1/8 duration | Active, 1/8 duration |
-| Strong beat (1, 3) | Active, 1/16 | Active, 1/8 |
-| Weak beat | Active, 1/16 (high density) | Inactive |
-| Weak beat | Active, 1/16 (medium density) | Active, 1/8 (50% chance) |
+**Mechanism:** Phrase concatenation and assembly
 
-**Density mapping:**
-
-| Density | Subject voice slots | Accompaniment voice slots |
-|---------|--------------------|--------------------------|
-| high | 75% active (12/16 per bar) | 25% active (4/16 per bar) |
-| medium | 50% active (8/16 per bar) | 50% active (8/16 per bar) |
-| sparse | 25% active (4/16 per bar) | 25% active (4/16 per bar) |
-
-**Episode handling:**
-
-When subject_voice=None (episodes, cadential sections), both voices use medium density with complementary rhythms — when one voice is active, the other tends to hold.
-
-**Cadential lengthening:**
-
-In the final 2 bars, durations increase: anchors get 1/4, other active slots get 1/8.
-
-### Layer 6.5: Figuration
-
-**Input:** Anchors (from L4) + texture roles (from L5)
-
-**Output:** Pitch sequences for soprano and bass
-
-**Mechanism:** Pattern selection + chaining
-
-Figuration replaces the CP-SAT solver's arbitrary pitch selection with authentic baroque patterns from Quantz and CPE Bach treatises.
-
-**Pattern sources by voice role:**
-
-| Voice | Role | Pattern source |
-|-------|------|----------------|
-| Soprano | always | `figurations.yaml` via profile |
-| Bass | thematic/leader | `figurations.yaml` via profile |
-| Bass | accompaniment | `accompaniments.yaml` |
-
-**Gap filling model:**
-
-Anchor spacing is integer beats (2 in 4/4, 3 in 3/4). Patterns are shorter (1-1.5 beats). Gaps decompose into chained patterns:
+`compose_phrases()` iterates over PhrasePlans in order. Each phrase is dispatched to `write_phrase()` (Layer 6) which produces upper and lower notes. Exit pitches thread between consecutive phrases for voice continuity.
 
 ```
-[hold A (leftover)] → [ornament on A] → [diminution to B] → [anchor B]
+for each schema:
+    write_phrase() -> PhraseResult (soprano + bass)
+    concatenate notes with offset
+    thread exit pitches to next phrase
+-> Composition
 ```
 
-**Selection process:**
-
-1. Calculate gap duration (anchor_B - anchor_A)
-2. Select diminution arriving at B (filter: duration ≤ gap)
-3. Select ornament on A (filter: duration ≤ remaining)
-4. Leftover time: hold anchor A pitch
-
-**Filter order:**
-
-1. Direction (ascending/descending/static)
-2. Approach (step_above, step_below, etc.)
-3. Duration (pattern fits gap)
-4. Metric (strong/weak/across)
-5. Energy (low/medium/high)
-6. Function (ornament/diminution/cadential)
-
-**Cadential detection:**
-
-Use `cadential` pattern list when:
-- Schema has `cadence_approach: true`
-- AND connection is final (stage N-1 to stage N)
-
-**Validation:**
-
-After figuration produces pitch sequences, `counterpoint.validate_passage()` checks:
-- Parallel fifths/octaves/unisons
-- Strong-beat consonance
-- Pitch-class membership
-- Voice range
-
-If violations: reject pattern, try next candidate. If all fail: fall back to hold.
-
-See `figuration.md` for full specification.
-
-### Layer 7: Melodic (Orphaned)
-
-**Status:** This layer is orphaned — code remains but is not called. Figuration (L6.5) now provides pitch sequences.
-
-**Kept for:** Potential future use as fallback or for genres where figuration doesn't apply.
-
-**Original design (reference only):**
-
-**Input:** Anchors (from L4) + RhythmPlan (from L6)
-
-**Output:** Pitches for active slots per voice
-
-**Mechanism:** Greedy solver with look-ahead
-
-The Thematic layer generates pitches only for the slots marked active by the RhythmPlan. Each voice is filled independently, respecting its own active slot set.
-
-**Greedy solver algorithm:**
-
-For each active slot in order:
-1. Find domain (pitches in key within tessitura)
-2. Score each candidate by:
-   - Motion cost (step preferred over leap)
-   - Direction toward next anchor (look-ahead)
-   - Distance from tessitura median
-   - Oscillation penalty (A-B-A patterns)
-3. Select lowest-cost pitch
-4. Check for parallel 5ths/8ves with other voice
-
-**Anchors as constraints:**
-
-Anchors (from L4) are pre-placed pitches at schema arrival points. The solver does not choose pitches for anchor slots - it fills only the slots between anchors.
-
-**Per-voice iteration:**
-
-Unlike the old CP-SAT approach that processed all slots for all voices, the greedy solver processes each voice's active slots independently:
-
-```python
-for voice in [0, 1]:
-    active_slots = rhythm_plan.get_active(voice)
-    for slot in sorted(active_slots):
-        if slot in anchors:
-            pitches[slot, voice] = anchors[slot, voice]
-        else:
-            pitches[slot, voice] = find_best_pitch(slot, voice, ...)
-```
-
-**Look-ahead:**
-
-The solver looks ahead to the next anchor in the same voice to guide pitch selection. If the next anchor is 5 slots away at MIDI 72, and current pitch is 65, the solver prefers upward motion.
-
-**Tessitura:**
-
-| Voice | Median | Span |
-|-------|--------|------|
-| Soprano | 70 (Bb4) | +/-18 semitones |
-| Bass | 48 (C3) | +/-18 semitones |
-
-Pitches outside the span are excluded from the domain. Pitches far from the median are penalised but permitted.
-
-**Motion costs:**
-
-| Motion | Semitones | Cost |
-|--------|-----------|------|
-| Repetition | 0 | 1.0 |
-| Step | 1-2 | 0.1 |
-| Skip | 3-4 | 0.3 |
-| Leap | 5-7 | 0.6 |
-| Large leap | 8+ | 1.2 |
-
-**Boundary stitching:**
-
-At phrase boundaries, the solver ensures smooth connection by constraining the first pitch of the new phrase to be within a step of the last pitch of the previous phrase.
+After assembly, `builder/faults.py` scans the complete Composition for counterpoint faults.
 
 ---
 
@@ -982,18 +836,7 @@ Since Monte/Fonte arrivals are (3,1) — consonant — the free passage simply d
 
 ## Realisation
 
-Not a layer. The final step that turns abstract structure into notes.
-
-### Inputs
-
-- Schema arrivals (soprano/bass degree pairs at strong beats)
-- Bar assignments (when)
-- Solution pitches (from L7 Melodic)
-- Durations (from L6 Rhythmic)
-- Metre (strong/weak beat positions)
-- Local key per schema (including chromatic alterations for sequential schemas)
-- Affect (how much ornamentation)
-- Texture (melody vs accompaniment)
+Realisation is handled by the phrase writer (`builder/phrase_writer.py`) and cadence writer (`builder/cadence_writer.py`). These modules turn PhrasePlans into concrete notes with inline counterpoint checking.
 
 ### Hard Constraints (checked on every note)
 
@@ -1038,32 +881,14 @@ Example: Do-Re-Mi has arrivals at degrees (1,1), (2,7), (3,1). A strong beat wit
 
 ### Process
 
-1. Determine arrival beats from bar assignments and metre
-2. Place schema arrivals at designated strong beats
-3. Verify vertical consonance at each arrival
-4. Fill weak beats with decoration (passing tones, neighbours, arpeggios)
-5. If subject active: subject provides soprano decoration (still subject to all interval checks)
-6. Verify no parallel 5ths/8ves across all consecutive beat pairs
-7. Verify chromatic consistency throughout
+For each PhrasePlan:
 
-**Key distinction:** Schema arrivals are hard constraints. Figuration between arrivals is free (subject to counterpoint). All hard constraints apply to both arrivals and figuration.
+1. **Soprano generation:** Place structural tones at degree placements. Select rhythm cells from genre vocabulary. Fill melodic content between structural tones with stepwise motion. Validate self-consistency (range, intervals, D007).
+2. **Bass generation:** Place structural bass tones. Select bass texture (pillar, walking, arpeggiated). Check each bass note against completed soprano using candidate filter (range, consonance, no parallels, no overlap).
+3. **Cadential schemas:** Use cadence writer templates instead of generation algorithm. Fixed voice-leading guarantees correct resolution.
+4. **Concatenation:** Exit pitches thread to next phrase's entry. First note placed in nearest octave to previous exit pitch.
 
-### Surface Rhythm
-
-Decoration notes receive durations from the rhythmic vocabulary:
-
-1. **Arrivals** — hold for quaver or crotchet (longer = more weight)
-2. **Running passages** — use primary value (semiquaver for invention)
-3. **Approach to arrival** — may use shorter values (semiquavers accelerating into arrival)
-4. **Cadential points** — lengthen final arrivals (crotchet or minim)
-
-**Rhythmic counterpoint:**
-
-When one voice has running semiquavers, the other voice typically:
-- Moves in longer values (quavers, crotchets) for contrast
-- Or imitates the running figure in stretto
-
-Both voices in continuous semiquavers is rare and creates textural climax.
+**Key distinction:** Schema arrivals are hard constraints. Melodic content between arrivals is generated from genre-specific rhythm cells subject to counterpoint. All hard constraints apply to both arrivals and fill notes.
 
 ---
 
@@ -1126,6 +951,279 @@ If no guidance after all sources, choice is free (counterpoint still applies).
 
 ---
 
+## Design Principles
+
+1. **The phrase is the unit of composition.** One schema = one phrase. The soprano and bass are each generated as complete phrases, not assembled from independent gap fragments.
+
+2. **Genre defines rhythmic vocabulary.** Each genre provides a small set of idiomatic rhythmic cells. The phrase generator selects and chains these cells, not a universal diminution table.
+
+3. **Counterpoint is checked inline, not post-hoc.** Generate-and-test loops are forbidden (X002). The bass is generated with awareness of the soprano, note by note, using the existing candidate filter. The soprano is generated as a coherent phrase first.
+
+4. **Cadences are formulaic.** Cadential schemas use hardcoded clausula voice-leading templates, not strategy lookups. The template guarantees correct resolution.
+
+5. **Incremental migration, not big-bang rewrite.** The planner stays. The anchor system stays. The counterpoint checks stay. The builder's gap-dispatch loop is replaced by a phrase-dispatch loop.
+
+---
+
+## Phrase Composition Types
+
+```
+PhrasePlan:
+    schema_name: str
+    schema_degrees_upper: tuple[int, ...]
+    schema_degrees_lower: tuple[int, ...]
+    degree_placements: tuple[BeatPosition, ...]
+    local_key: Key
+    bar_span: int
+    start_offset: Fraction
+    rhythm_profile: str
+    bass_texture: str
+    is_cadential: bool
+    prev_exit_pitch_upper: int | None
+    prev_exit_pitch_lower: int | None
+
+BeatPosition:
+    bar: int          # relative to phrase start
+    beat: int         # beat within bar
+
+RhythmCell:
+    durations: tuple[Fraction, ...]
+    accent_pattern: tuple[bool, ...]   # which notes are metrically strong
+    character: str                      # "plain", "dotted", "syncopated"
+    genre_tags: frozenset[str]         # which genres use this cell
+```
+
+---
+
+## Soprano Phrase Generation Algorithm
+
+For one schema (e.g., do_re_mi: degrees 1->2->3, 2 bars, minuet 3/4):
+
+1. **Place structural tones.** Map each schema degree to its bar/beat from the degree placement map. These are the fixed points the melody must hit. For do_re_mi in 3/4: degree 1 on bar 1 beat 1, degree 2 on bar 2 beat 1, degree 3 on bar 3 beat 1 (or wherever the next schema begins).
+
+2. **Select rhythm cells.** For each bar, pick a rhythm cell from the genre vocabulary. The cell must start with a duration that covers the strong beat (where the structural tone sits). Cells are selected with variety constraints: no immediate repetition, cadence-approach bars prefer longer values.
+
+3. **Fill melodic content.** Between structural tones, fill with stepwise motion (seconds) or occasional thirds, preferring the direction that connects to the next structural tone. Constrained by:
+   - Range (actuator_range)
+   - No repeated pitch across bar boundaries (D007)
+   - Leaps followed by contrary step
+   - Melodic intervals <= octave
+
+4. **Validate.** Check the complete phrase for self-consistency. If invalid, retry with a different cell selection (max 3 attempts, then assert fail).
+
+### Example: do_re_mi in D major, minuet 3/4
+
+```
+Structural tones:  D4 (bar 1, beat 1)  E4 (bar 2, beat 1)
+Target exit:       F#4 (degree 3, first beat of next schema)
+
+Bar 1: Cell = [crotchet, crotchet, crotchet]
+  D4 (structural) - C#4 (lower neighbour) - D4 (return)
+
+Bar 2: Cell = [dotted crotchet, quaver, crotchet]
+  E4 (structural) - D4 (passing) - F#4 (approach target)
+```
+
+The exit pitch F#4 becomes prev_exit_pitch for the next schema.
+
+---
+
+## Bass Phrase Generation Algorithm
+
+For one schema, given the completed soprano phrase:
+
+1. **Place structural bass tones.** Schema bass degrees on the same bar/beat positions as soprano. Place in nearest octave to previous bass exit pitch, respecting bass range.
+
+2. **Select bass texture.** From genre config: pillar, walking, or arpeggiated.
+   - **Pillar**: hold each bass degree for the full bar. One note per bar.
+   - **Walking**: stepwise motion between bass degrees, one note per beat.
+   - **Arpeggiated**: broken chord pattern (root-third-fifth or similar).
+
+3. **Check each bass note against soprano.** Using the existing candidate filter: range, consonance on strong beats, no parallels, no voice overlap. If a note fails, try the nearest consonant alternative.
+
+---
+
+## Cadence Writer
+
+Cadential schemas are not generated — they use fixed templates.
+
+### cadenza_semplice (soprano 2->1, bass 5->1)
+
+```
+4/4:  soprano: [2 as minim, 1 as minim]
+      bass:    [5 as minim, 1 as minim]
+
+3/4:  soprano: [2 as dotted minim] -> [1 as dotted minim]
+      bass:    [5 as crotchet, 5 as crotchet, rest] -> [1 as dotted minim]
+```
+
+### cadenza_composta (soprano 4->3->2->1, bass 5->1)
+
+```
+4/4:  soprano: [4 as crotchet, 3 as crotchet, 2 as crotchet, 1 as crotchet]
+      bass:    [5 as minim, 1 as minim]
+
+3/4:  soprano: [4 as crotchet, 3 as crotchet, 2 as crotchet] -> [1 as dotted minim]
+      bass:    [5 as dotted minim] -> [1 as dotted minim]
+```
+
+### half_cadence (soprano varies, bass ->5)
+
+```
+4/4:  soprano: last 2 notes descend by step to degree above 5
+      bass:    [prev as minim, 5 as minim]
+```
+
+These templates are per-metre, stored in YAML. They guarantee correct resolution because there is nothing to select or filter — the voice-leading is predetermined.
+
+---
+
+## Module Architecture
+
+### Composition flow
+
+```
+planner -> anchors -> phrase_planner -> PhrasePlans -> phrase_writer
+                                                          |
+                                                for each schema:
+                                                  generate soprano phrase
+                                                  generate bass phrase
+                                                  (inline counterpoint check)
+                                                -> notes
+```
+
+### New modules
+
+| Module | Responsibility |
+|--------|----------------|
+| `builder/phrase_planner.py` | Convert anchors + genre config -> PhrasePlans |
+| `builder/phrase_writer.py` | Generate soprano + bass phrases from PhrasePlan |
+| `builder/cadence_writer.py` | Hardcoded cadential voice-leading templates |
+| `builder/rhythm_cells.py` | Genre-indexed rhythmic cell vocabulary |
+
+### Modules removed
+
+| Module | Reason |
+|--------|--------|
+| `builder/figuration_strategy.py` | Replaced by phrase_writer |
+| `builder/cadential_strategy.py` | Replaced by cadence_writer |
+| `builder/pillar_strategy.py` | Absorbed into phrase_writer bass generation |
+| `builder/staggered_strategy.py` | Absorbed into phrase_writer |
+| `builder/arpeggiated_strategy.py` | Absorbed into phrase_writer bass generation |
+| `builder/writing_strategy.py` | ABC no longer needed |
+| `builder/figuration/loader.py` | Figure data restructured |
+| `builder/figuration/rhythm_calc.py` | Replaced by rhythm_cells |
+| `builder/figuration/types.py` | Replaced by new types |
+| `planner/textural.py` | Texture encoded in genre rhythm profile |
+| `planner/voice_planning.py` | Replaced by phrase_planner |
+
+### Modules unchanged
+
+| Module | Why |
+|--------|-----|
+| `planner/planner.py` | Orchestrator adapts to new interface |
+| `planner/rhetorical.py` | Genre -> trajectory, rhythm, tempo |
+| `planner/tonal.py` | Affect -> tonal plan |
+| `planner/schematic.py` | Schema chain selection |
+| `planner/metric/layer.py` | Bar assignments + anchors |
+| `planner/metric/schema_anchors.py` | Schema -> anchor expansion |
+| `shared/*` | All shared infrastructure |
+| `builder/faults.py` | Post-composition fault scan |
+| `builder/io.py` | Output writers |
+| `builder/compose.py` | Simplified: phrase loop replaces gap loop |
+
+---
+
+## Risks and Mitigations
+
+### Phrase boundary discontinuity
+
+**Risk**: independently generated phrases may not join smoothly.
+
+**Mitigation**: the phrase generator receives the previous phrase's final pitch as input. The first note of the new phrase is the schema's entry degree, placed in the nearest octave to the previous exit pitch.
+
+### Rhythmic monotony from small cell vocabulary
+
+**Risk**: cycling through 3-5 rhythmic cells per genre could sound mechanical.
+
+**Mitigation**: cells are selected per bar with variation rules — odd/even alternation, cadence-approach bars use longer values, opening bars use simpler cells, recent-cell tracking avoids immediate repetition. Cell vocabulary expandable per genre without architectural change.
+
+### Schema degrees don't always fall on beat 1
+
+**Risk**: the "one degree per bar on beat 1" model breaks for some schemas.
+
+**Mitigation**: each schema definition specifies its degree count and bar span. The phrase generator uses a degree placement map derived from the schema YAML, not hardcoded.
+
+### Cadences need specific voice-leading
+
+**Risk**: "just place the degrees" doesn't produce proper cadential motion.
+
+**Mitigation**: cadential schemas are handled by a dedicated cadence writer with fixed templates. These are not generated — they guarantee correct resolution.
+
+### Counterpoint checking during soprano generation
+
+**Risk**: soprano generated first, no bass to check against.
+
+**Mitigation**: soprano checked only for self-consistency. Full counterpoint checks happen during bass generation where each bass note is validated against the completed soprano.
+
+### Loss of the diminution data
+
+**Risk**: the figure catalogue represents real baroque diminution practice.
+
+**Mitigation**: the diminution data is not discarded — it is restructured. Figures are re-indexed by genre and schema position, selected per phrase rather than per gap.
+
+---
+
+## Success Criteria
+
+A piece passes if:
+
+1. **Correct tonal ending.** Final note is tonic in both voices.
+2. **Genre-appropriate rhythm.** Minuet sounds like 3/4 dance, not continuous quavers. Gavotte has graceful paired quavers. Invention has contrapuntal activity.
+3. **No D007 violations.** No repeated soprano pitch across bar boundaries.
+4. **Melodic coherence.** No octave leaps except deliberate registral shifts. Predominant stepwise motion with occasional thirds.
+5. **Proper cadences.** Section endings have correct voice-leading (2->1 over 5->1 for authentic, soprano to 5 for half cadence).
+6. **No counterpoint faults.** No parallel fifths/octaves on strong beats. No voice overlap.
+7. **Phrase shape.** Each schema produces an audibly distinct phrase with beginning, middle, and end.
+
+---
+
+## Migration Plan
+
+### Phase 1: Minuet end-to-end
+
+1. Implement rhythm_cells.py with minuet vocabulary
+2. Implement phrase_planner.py (anchors -> PhrasePlans)
+3. Implement phrase_writer.py (soprano generation)
+4. Implement bass generation within phrase_writer
+5. Implement cadence_writer.py with cadenza_semplice template
+6. Wire into compose.py
+7. Verify: minuet ends on tonic, has 3/4 character, no D007 violations
+
+### Phase 2: Gavotte (binary dance with upbeat)
+
+8. Add gavotte rhythm cells
+9. Handle upbeat in phrase_planner
+10. Verify: correct ending, graceful character, no octave leaps
+
+### Phase 3: Invention (counterpoint)
+
+11. Add invention rhythm cells (continuous quavers / semiquavers)
+12. Implement subject statement + tonal answer copy
+13. Handle contrapuntal bass (walking texture with real independence)
+14. Verify: audible imitation, active counterpoint, correct ending
+
+### Phase 4: Cleanup
+
+15. Remove dead strategies and figuration loader
+16. Remove textural.py and old voice_planning.py
+17. Update documentation
+18. Run all genres, compare output quality
+
+Each phase produces a working system.
+
+---
+
 ## Expansion Strategy
 
 **General rule:** Minimal viable set first. Prove architecture works with smallest possible vocabulary. Expand only after proof.
@@ -1142,9 +1240,9 @@ If no guidance after all sources, choice is free (counterpoint still applies).
 **What doesn't expand:**
 
 - Layer structure (always seven layers)
-- Mechanism types (lookup, enumerate, CP-SAT)
 - Hard rules (validity is non-negotiable)
 - Source hierarchy (counterpoint always floor)
+- Phrase-as-unit principle
 
 ---
 
@@ -1169,9 +1267,10 @@ If no guidance after all sources, choice is free (counterpoint still applies).
 | 2025-01-21 | Keys computed from (tonic, mode) - no keys/ directory; registers→tessitura (medians per L003); key comment fixed in code interface |
 | 2025-01-21 | Tessitura medians corrected: soprano 70 (Bb4), bass 48 (C3) - midpoints of original ranges; previous values (64, 43) pulled pitches too low |
 | 2025-01-22 | v1.4.0: Swapped Layers 4/5 (Metric now L4, Thematic now L5) for logical data flow. Removed incoherent Layer 4.5. Added phrase-level solving to L5. Moved solver config to appendix. |
-| 2025-01-22 | v1.5.0: Expanded to 7-layer architecture. L5 Textural outputs treatment assignments (voice roles per bar). New L6 Rhythmic outputs active slots and durations per voice. L7 Melodic (was Thematic) uses greedy solver, processes only active slots. Moved Imitation/Countersubject to reference section. Solver config moved to solver_specs.md. |
-| 2025-01-25 | v1.6.0: Added L6.5 Figuration layer. Replaces solver with authentic baroque patterns (Quantz/CPE Bach). Gap filling via ornament+diminution chaining. Cadential detection via final stage + cadence_approach flag. Bass uses accompaniments.yaml when role is accompaniment. L7 Melodic orphaned (kept for future). Validation via counterpoint.py. |
-| 2025-01-28 | v1.7.0: Added voices.md defining canonical voice/instrument entity model. Brief now requires voices, instruments, scoring, tracks. Anchor fields renamed soprano_degree→upper_degree, bass_degree→lower_degree. Range flows from actuator, not hardcoded. Realisation order from dependency graph, not array index. MIDI track assignment explicit. |
+| 2025-01-22 | v1.5.0: Expanded to 7-layer architecture. L5 Textural outputs treatment assignments (voice roles per bar). New L6 Rhythmic outputs active slots and durations per voice. L8 Melodic (was Thematic) uses greedy solver, processes only active slots. Moved Imitation/Countersubject to reference section. Solver config moved to solver_specs.md. |
+| 2025-01-25 | v1.6.0: Added L7 Figuration layer (was L6.5). Replaces solver with authentic baroque patterns (Quantz/CPE Bach). Gap filling via ornament+diminution chaining. Cadential detection via final stage + cadence_approach flag. Bass uses accompaniments.yaml when role is accompaniment. L8 Melodic orphaned (kept for future). Validation via counterpoint.py. |
+| 2025-01-28 | v1.7.0: Added voices.md defining canonical voice/instrument entity model. Brief now requires voices, instruments, scoring, tracks. Anchor fields renamed soprano_degree->upper_degree, bass_degree->lower_degree. Range flows from actuator, not hardcoded. Realisation order from dependency graph, not array index. MIDI track assignment explicit. |
+| 2026-02-06 | v2.0.0: Phrase-based redesign. Replaced Layers 5-7 (Textural, Rhythmic, Figuration, Melodic) with Layer 5 Phrase Planning + Layer 6 Composition. Phrase is the unit of composition, not the gap. Genre-specific rhythm cells replace universal diminution table. Cadence writer with fixed templates replaces cadential strategy. Inline counterpoint checking. Added design principles, algorithms, module architecture, risks/mitigations, success criteria, migration plan. Integrated from redesign.md. |
 
 ---
 

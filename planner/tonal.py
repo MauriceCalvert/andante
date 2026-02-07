@@ -82,7 +82,12 @@ def _assign_key_areas(
         elif i == count - 1:
             key_areas.append(_FINAL_KEY)
         elif i == count - 2 and count > 2:
-            key_areas.append(_PENULTIMATE_KEY)
+            penultimate: str = _PENULTIMATE_KEY
+            prev_key: str = key_areas[i - 1]
+            # V-T004: no consecutive identical non-tonic keys
+            if prev_key == penultimate and prev_key != "I":
+                penultimate = "IV"
+            key_areas.append(penultimate)
         else:
             pool: tuple[str, ...] = _ODD_KEY_CANDIDATES if i % 2 == 1 else _EVEN_KEY_CANDIDATES
             prev_key: str = key_areas[i - 1]

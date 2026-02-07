@@ -13,9 +13,20 @@ _Claude: read at chat start. Dense reference — no rationale. For "why", see hu
 | 3 Schematic | `planner/schematic.py` | tonal_plan, GenreConfig, FormConfig, schemas | SchemaChain (schemas, key_areas, free_passages) |
 | 4 Metric | `planner/metric/layer.py` | SchemaChain, configs, tonal_plan | bar_assignments, anchors, total_bars |
 | 5 Phrase Planning | `builder/phrase_planner.py` | SchemaChain, anchors, GenreConfig, schemas | tuple[PhrasePlan, ...] |
-| 6 Composition | `builder/compose.py` | PhrasePlans, home_key, metre, tempo, upbeat | Composition (voices, notes) |
+| 6 Phrase Writing | `builder/phrase_writer.py` | PhrasePlan, PhraseContext | PhraseResult (upper_notes, lower_notes) |
+| 7 Composition | `builder/compose.py` | PhrasePlans, home_key, metre, tempo, upbeat | Composition (voices, notes) |
 
 Orchestrator: `planner/planner.py` — calls layers 1-4, then phrase planning + `compose_phrases()`.
+
+---
+
+## Design Principles
+
+1. **Phrase is the unit of composition** — one schema = one phrase, not assembled from gap fragments
+2. **Genre defines rhythmic vocabulary** — idiomatic rhythm cells per genre, not a universal diminution table
+3. **Counterpoint checked inline** — bass generated with soprano awareness, not post-hoc
+4. **Cadences are formulaic** — fixed clausula templates in cadence_writer, not strategy lookups
+5. **Soprano first, bass fitted** — matches baroque compositional practice
 
 ---
 
@@ -27,6 +38,10 @@ Exit pitches thread between consecutive phrases for voice continuity.
 
 The phrase writer (`builder/phrase_writer.py`) realises each phrase from its schema anchors,
 generating notes for soprano and bass voices with inline counterpoint checking.
+
+Cadential schemas (cadenza_semplice, cadenza_composta, half_cadence, comma) use
+`builder/cadence_writer.py` with fixed voice-leading templates instead of the phrase
+generation algorithm.
 
 ---
 

@@ -361,3 +361,160 @@ For existing modules with asserts:
 6. Add validation calls to Category B orchestrators
 7. Decompose Category C into smaller Category A modules
 8. Integration test Category B orchestrators
+
+---
+
+## Layer Contract Tests
+
+Every layer must have a **contract test** that takes the layer's output in isolation and verifies all invariants. These run without invoking any other layer — the input is either a fixture or the output of the previous layer captured as test data.
+
+### Test architecture
+
+```
+Unit tests          ->  function-level correctness
+Layer contract tests ->  each layer's output satisfies its postconditions
+Integration tests    ->  adjacent layers compose correctly
+System tests         ->  full pipeline produces valid .note output
+```
+
+Layer contract tests answer: "assuming this layer received valid input, did it produce valid output?"
+
+### Layer 1: Rhetorical
+
+**Input**: GenreConfig
+**Output**: trajectory, rhythm_vocab, tempo
+**Invariants**:
+- tempo > 0 and within genre's plausible range
+- rhythm_vocab is non-empty
+- trajectory length == number of sections in genre config
+- all trajectory values are valid affect terms
+
+### Layer 2: Tonal
+
+**Input**: AffectConfig, GenreConfig
+**Output**: TonalPlan
+**Invariants**:
+- every section in genre config has a corresponding TonalPlan section
+- every key_area is a valid Roman numeral (I, IV, V, vi, etc.)
+- every cadence_type is one of: authentic, half, deceptive, plagal
+- final section cadence_type == "authentic"
+- density and modality are valid enum values
+
+### Layer 3: Schematic
+
+**Input**: TonalPlan, GenreConfig, FormConfig, schemas
+**Output**: SchemaChain
+**Invariants**:
+- every schema name in the chain exists in the schema catalogue
+- section_boundaries length == number of genre sections
+- boundaries are monotonically increasing
+- boundaries tile the chain exactly: boundary[-1] == len(schemas)
+- first schema in first section has position == "opening"
+- last schema in each section has cadential_state appropriate to the section's cadence type ("closed" for authentic, "half" for half)
+- no two adjacent schemas are identical (no immediate repetition)
+
+### Layer 4: Metric
+
+**Input**: SchemaChain, GenreConfig, FormConfig, KeyConfig, schemas, TonalPlan
+**Output**: bar_assignments, anchors, total_bars
+**Invariants**:
+- bar_assignments: every genre section has an entry
+- bar_assignments: ranges tile 1..total_bars with no gaps or overlaps
+- anchors: sorted by bar_beat
+- anchors: no duplicate bar_beat values
+- anchors: every degree is 1-7
+- anchors: every local_key is a valid Key
+- anchors: first anchor has upper_degree==1, lower_degree==1 in home key
+- anchors: last anchor has upper_degree==1, lower_degree==1 in home key
+- anchors: anchor count >= 2 (at least start and end)
+- anchors: for cadential schemas, the final stage has the correct terminal degrees (soprano 1, bass 1)
+- anchors: for half_cadence, the final stage has bass degree 5
+- anchors: bar numbers in bar_beat are within 0..total_bars
+- anchors: beat numbers are valid for the metre
+
+### Phrase Planner
+
+**Input**: anchors, genre_config, schemas
+**Output**: tuple[PhrasePlan, ...]
+**Invariants**:
+- one PhrasePlan per schema in the chain
+- PhrasePlan.schema_degrees_upper matches schema definition
+- PhrasePlan.schema_degrees_lower matches schema definition
+- degree_placements length == number of schema degrees
+- every placement falls within the phrase's bar span
+- placements are in chronological order
+- rhythm_profile exists in the genre's rhythm cell vocabulary
+- is_cadential == True iff schema is cadential type
+- start_offset of phrase N+1 == start_offset of phrase N + phrase N's total duration (phrases tile exactly, no gaps)
+- prev_exit_pitch is None only for the first phrase
+
+### Phrase Writer -- Soprano
+
+**Input**: PhrasePlan
+**Output**: tuple[Note, ...]
+**Invariants**:
+- note count >= 1
+- all pitches within actuator_range
+- all durations are in VALID_DURATIONS
+- durations sum to exactly the phrase's total bar span
+- no timing gaps between consecutive notes
+- no timing overlaps between consecutive notes
+- the note at each degree_placement offset has the correct scale degree (verified by converting MIDI back to degree via local_key)
+- no repeated pitch across bar boundaries (D007)
+- no melodic interval > octave (12 semitones)
+- leaps (> 4 semitones) are followed by step in contrary direction, except at phrase boundaries
+- if is_cadential: final note is degree 1 in local_key
+
+### Phrase Writer -- Bass
+
+**Input**: PhrasePlan, completed soprano notes
+**Output**: tuple[Note, ...]
+**Invariants**:
+- all pitches within bass actuator_range
+- all durations are in VALID_DURATIONS
+- durations sum to exactly the phrase's total bar span
+- no timing gaps or overlaps
+- bass note at each degree_placement offset has the correct bass degree
+- if is_cadential: final bass note is degree 1 in local_key
+- no parallel fifths or octaves on strong beats (checked against soprano)
+- no voice overlap with soprano at any offset
+- strong-beat notes are consonant with soprano (no seconds, tritones)
+
+### Compose (integration)
+
+**Input**: all phrase outputs concatenated
+**Output**: Composition
+**Invariants**:
+- exactly 2 voices present (for current genres)
+- total duration == total_bars * bar_length
+- no note in either voice exceeds total duration
+- no note has negative offset
+- notes within each voice are sorted by offset
+- no overlapping notes within the same voice
+- first note offset == 0 (or -upbeat for upbeat pieces)
+- last note offset + duration == total duration
+
+### Fault scan (existing, unchanged)
+
+**Input**: Composition
+**Output**: list of faults
+**Invariants**:
+- zero faults is the target, but faults are advisory
+- every fault has: type, bar, beat, voice, description
+- fault types are from a known enum
+
+---
+
+## Contract Test Implementation Rules
+
+1. **One test file per layer.** `tests/test_layer1_rhetorical.py`, etc. Not mixed into other test files.
+
+2. **Fixtures are frozen layer outputs.** Each test file includes a fixture (or loads one from `tests/fixtures/`) that provides the layer's input. The fixture is the known-good output of the previous layer for a specific genre.
+
+3. **Tests are exhaustive on invariants.** Every invariant listed above becomes one test function (or one parametrised case). No invariant is tested "implicitly" by another test.
+
+4. **Tests are genre-parametrised.** Each contract test runs for every genre in the `data/genres/` directory. A new genre automatically gets tested.
+
+5. **Contract tests run in CI before system tests.** If a layer contract test fails, system tests are skipped.
+
+6. **Regression fixtures.** When a bug is found via system test, the failing layer's input is captured as a new fixture and a contract test is added for the specific invariant that was violated.

@@ -1,6 +1,12 @@
 # Solver Specifications
 
-Implementation details for the greedy solver used in L7 Melodic. These are tuning parameters, not architectural decisions.
+**Status: HISTORICAL.** The greedy solver (L8 Melodic) has been replaced by phrase-level generation in `builder/phrase_writer.py`. See `architecture.md` (v2.0.0) for the current design.
+
+The content below is retained as historical reference.
+
+---
+
+Implementation details for the greedy solver formerly used in L8 Melodic. These are tuning parameters, not architectural decisions.
 
 ## Motive weighting (cost function)
 
