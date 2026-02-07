@@ -67,7 +67,9 @@ def phrase_bar_start(plan: PhrasePlan, bar_num: int, bar_length: Fraction) -> Fr
     """Absolute offset where bar_num begins, accounting for anacrusis."""
     if bar_num == 1:
         return plan.start_offset
-    return plan.start_offset + plan.anacrusis + (bar_num - 2) * bar_length
+    if plan.anacrusis > 0:
+        return plan.start_offset + plan.anacrusis + (bar_num - 2) * bar_length
+    return plan.start_offset + (bar_num - 1) * bar_length
 
 
 def phrase_bar_duration(plan: PhrasePlan, bar_num: int, bar_length: Fraction) -> Fraction:
