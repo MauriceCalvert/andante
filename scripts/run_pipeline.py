@@ -17,26 +17,18 @@ Examples:
 Options:
     -o, --output-dir DIR    Output directory (default: output/)
     -v, --verbose           Verbose output
-    -trace N                Trace level 0-3 (0=off, 1=summary, 2=detail, 3=fine)
-
-This uses the 6-layer architecture:
-    Layer 1: Rhetorical - Genre -> Trajectory + rhythm + tempo
-    Layer 2: Tonal - Affect -> Tonal plan + density + modality
-    Layer 3: Schematic - Tonal plan -> Schema chain
-    Layer 4: Metric - Schema chain -> Bar assignments + phrase anchors
-    Layer 5: Thematic - Phrase anchors -> Pitches per phrase
-    Layer 6: Textural - Genre + chain + subject -> Treatment sequence
+    -trace                  Write <piece>.trace diagnostic file
 """
 import argparse
 from pathlib import Path
 
 import yaml
 
-from builder.faults import find_faults, print_faults
+from builder.faults import find_faults_from_composition, print_faults
 from motifs.fugue_loader import LoadedFugue, load_fugue
 from builder.types import Composition
 from planner.planner import generate_to_files
-from shared.tracer import get_tracer, reset_tracer, set_trace_level
+from shared.tracer import get_tracer, reset_tracer, set_trace_enabled
 
 
 SCRIPT_DIR: Path = Path(__file__).resolve().parent
@@ -76,7 +68,7 @@ def run_from_args(
     output_name: str | None = None,
     verbose: bool = False,
     tempo: int | None = None,
-    trace_level: int = 0,
+    trace: bool = False,
     fugue: LoadedFugue | None = None,
     sections_override: tuple[dict, ...] | None = None,
 ) -> Composition:
@@ -91,19 +83,21 @@ def run_from_args(
         print(f"  Affect: {affect}")
     key_display: str = key if key else "(derived from affect)"
     print(f"Generating {genre} with {affect} affect in {key_display}...")
+    reset_tracer()
+    set_trace_enabled(enabled=trace)
     result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key, tempo=tempo, fugue=fugue, sections_override=sections_override)
     for vid, vnotes in result.voices.items():
         print(f"  {vid}: {len(vnotes)} notes")
     print(f"  Tempo: {result.tempo} BPM")
     print(f"Output: {output_dir / name}.note, {output_dir / name}.midi")
-    if trace_level > 0:
-        trace_path = output_dir / "trace.txt"
-        get_tracer().write_to_file(path=trace_path)
-        print(f"Trace: {trace_path}")
-    print()
-    voice_list: list[tuple] = list(result.voices.values())
-    faults = find_faults(voices=voice_list, metre=result.metre)
+    faults = find_faults_from_composition(composition=result)
     print_faults(faults=faults)
+    if trace:
+        get_tracer().trace_faults(faults=faults)
+        trace_path = get_tracer().write(output_dir=output_dir)
+        if trace_path:
+            print(f"Trace: {trace_path}")
+    print()
     return result
 
 
@@ -143,7 +137,7 @@ def run_from_brief(
     brief_path: Path,
     output_dir: Path,
     verbose: bool = False,
-    trace_level: int = 0,
+    trace: bool = False,
 ) -> Composition:
     """Generate from a .brief file."""
     print(f"Loading {brief_path.name}...")
@@ -178,14 +172,14 @@ def run_from_brief(
         if verbose:
             print(f"  Sections override: {len(sections_override)} sections")
     output_name: str = brief_path.stem
-    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace_level=trace_level, fugue=fugue, sections_override=sections_override)
+    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace=trace, fugue=fugue, sections_override=sections_override)
 
 
 def run_from_directory(
     directory: Path,
     output_dir: Path,
     verbose: bool = False,
-    trace_level: int = 0,
+    trace: bool = False,
 ) -> int:
     """Generate from all .brief files in a directory."""
     briefs: list[Path] = sorted(directory.glob("*.brief"))
@@ -195,9 +189,7 @@ def run_from_directory(
     print(f"Found {len(briefs)} brief files in {directory}\n")
     total_notes: int = 0
     for brief_path in briefs:
-        reset_tracer()
-        set_trace_level(level=trace_level)
-        result = run_from_brief(brief_path=brief_path, output_dir=output_dir, verbose=verbose, trace_level=trace_level)
+        result = run_from_brief(brief_path=brief_path, output_dir=output_dir, verbose=verbose, trace=trace)
         total_notes += sum(len(v) for v in result.voices.values())
         print()
     print(f"Generated {len(briefs)} pieces ({total_notes} total notes)")
@@ -215,15 +207,10 @@ Examples:
   python -m scripts.run_pipeline invention default c_major
   python -m scripts.run_pipeline briefs/builder/freude_invention.brief
   python -m scripts.run_pipeline briefs/tests/ -o output/tests
-  python -m scripts.run_pipeline invention default -trace 2
-
-Trace levels:
-  0 = no tracing (default)
-  1 = high-level layer summaries
-  2 = mid-level details (schemas, bars, anchors)
-  3 = fine-grained details (notes, figures)
+  python -m scripts.run_pipeline invention default -trace
 
 When key is omitted, derives from affect per Mattheson's Affektenlehre.
+Use -trace to write a <piece>.trace diagnostic file.
         """,
     )
     parser.add_argument(
@@ -244,29 +231,26 @@ When key is omitted, derives from affect per Mattheson's Affektenlehre.
     )
     parser.add_argument(
         "-trace",
-        type=int,
-        default=0,
-        choices=[0, 1, 2, 3],
-        help="Trace level 0-3 (0=off, 1=summary, 2=detail, 3=fine)",
+        action="store_true",
+        default=False,
+        help="Write <piece>.trace diagnostic file to output dir",
     )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    reset_tracer()
-    set_trace_level(level=args.trace)
     first_arg: str = args.args[0]
     first_arg_clean: str = first_arg.lstrip("/\\")
     first_path: Path = Path(first_arg_clean)
     if not first_path.exists() and (PROJECT_DIR / first_arg_clean).exists():
         first_path = PROJECT_DIR / first_arg_clean
     if first_path.is_dir():
-        run_from_directory(directory=first_path, output_dir=args.output_dir, verbose=args.verbose, trace_level=args.trace)
+        run_from_directory(directory=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace)
         return
     if first_path.suffix == ".brief" or (first_path.exists() and first_path.is_file()):
         if not first_path.exists():
             print(f"File not found: {first_arg_clean}")
             print(f"  (also checked: {PROJECT_DIR / first_arg_clean})")
             return
-        run_from_brief(brief_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace_level=args.trace)
+        run_from_brief(brief_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace)
         print("\nDone!")
         return
     if len(args.args) < 2:
@@ -283,7 +267,7 @@ When key is omitted, derives from affect per Mattheson's Affektenlehre.
             output_name = args.args[3] if len(args.args) > 3 else None
         else:
             output_name = args.args[2]
-    run_from_args(genre=genre, affect=affect, output_dir=args.output_dir, key=key, output_name=output_name, verbose=args.verbose, trace_level=args.trace)
+    run_from_args(genre=genre, affect=affect, output_dir=args.output_dir, key=key, output_name=output_name, verbose=args.verbose, trace=args.trace)
     print("\nDone!")
 
 

@@ -68,7 +68,7 @@ def generate(
     tracer = get_tracer()
     if key is None:
         key = _derive_key_from_affect(affect=affect)
-    tracer.config(genre=genre, affect=affect, key=key)
+    tracer.start(genre=genre, affect=affect, key=key)
     config: dict[str, Any] = load_configs(genre=genre, key=key, affect=affect)
     genre_config = config["genre"]
     if sections_override is not None:
@@ -85,15 +85,19 @@ def generate(
         tempo = tempo_override
     else:
         tempo = tempo + affect_config.tempo_modifier
-    tracer.L1("Rhetorical", trajectory=trajectory, tempo=tempo)
+    tracer.trace_L1(
+        trajectory=trajectory,
+        tempo=tempo,
+        rhythmic_unit=genre_config.rhythmic_unit,
+        metre=genre_config.metre,
+    )
     # Layer 2: Tonal planning (key areas + cadences)
     tonal_plan: TonalPlan = layer_2_tonal(
         affect_config=affect_config,
         genre_config=genre_config,
         seed=seed,
     )
-    tracer.L2("Tonal", density=tonal_plan.density, modality=tonal_plan.modality)
-    tracer.tonal_plan(plan={s.name: (s.key_area,) for s in tonal_plan.sections})
+    tracer.trace_L2(tonal_plan=tonal_plan)
     # Layer 3: Schematic planning (graph-walk schema selection)
     schema_chain: SchemaChain = layer_3_schematic(
         tonal_plan=tonal_plan,
@@ -102,8 +106,7 @@ def generate(
         schemas=schemas,
         seed=seed + 1,
     )
-    tracer.L3("Schematic", schema_count=len(schema_chain.schemas))
-    tracer.schema_chain(schemas=schema_chain.schemas)
+    tracer.trace_L3(schema_chain=schema_chain)
     # Layer 4: Metric planning (bar assignments + anchors)
     bar_assignments, anchors, total_bars = layer_4_metric(
         schema_chain=schema_chain,
@@ -115,9 +118,11 @@ def generate(
         answer_interval=affect_config.answer_interval,
         modality=tonal_plan.modality,
     )
-    tracer.L4("Metric", total_bars=total_bars, anchor_count=len(anchors))
-    tracer.bar_assignments(assignments=bar_assignments)
-    tracer.anchors_summary(anchors=anchors)
+    tracer.trace_L4(
+        bar_assignments=bar_assignments,
+        anchors=anchors,
+        total_bars=total_bars,
+    )
     # Build phrase plans from Layer 4 output
     phrase_plans: tuple[PhrasePlan, ...] = build_phrase_plans(
         schema_chain=schema_chain,
@@ -126,6 +131,7 @@ def generate(
         schemas=schemas,
         total_bars=total_bars,
     )
+    tracer.trace_L5(plans=phrase_plans)
     # Compose from phrase plans
     assert len(anchors) > 0, "Layer 4 produced no anchors; cannot determine home key"
     home_key: Key = anchors[0].local_key

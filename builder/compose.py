@@ -10,6 +10,7 @@ from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
 from shared.key import Key
 from shared.music_math import parse_metre
+from shared.tracer import get_tracer
 
 
 def _structural_offsets_for_plan(plan: PhrasePlan) -> tuple[frozenset[Fraction], frozenset[Fraction]]:
@@ -77,6 +78,11 @@ def compose_phrases(
         )
         upper_notes.extend(result.upper_notes)
         lower_notes.extend(result.lower_notes)
+        get_tracer().trace_phrase_result(
+            index=plan_idx,
+            plan=plan,
+            result=result,
+        )
         # Collect structural offsets
         up_struct, lo_struct = _structural_offsets_for_plan(plan=plan)
         if plan.is_cadential:
@@ -90,6 +96,10 @@ def compose_phrases(
             prev_upper_pitch = result.upper_notes[-1].pitch
         if result.lower_notes:
             prev_lower_pitch = result.lower_notes[-1].pitch
+    get_tracer().trace_L6_header(
+        total_upper=len(upper_notes),
+        total_lower=len(lower_notes),
+    )
     phrase_offsets: tuple[Fraction, ...] = tuple(
         p.start_offset for p in phrase_plans
     )

@@ -21,7 +21,6 @@ from planner.metric.distribution import bar_beat_to_float
 from planner.metric.schema_anchors import compute_upbeat_bar_beat, generate_schema_anchors
 from shared.constants import CADENCE_DEGREES
 from shared.key import Key
-from shared.tracer import get_tracer
 
 
 def get_schema_stages(
@@ -51,7 +50,6 @@ def layer_4_metric(
     modality: str = "diatonic",
 ) -> tuple[dict[str, tuple[int, int]], list[Anchor], int]:
     """Execute Layer 4 metric planning."""
-    tracer = get_tracer()
     if schemas is None:
         schemas = {}
     tonal_plan_obj: TonalPlan | None = tonal_plan if isinstance(tonal_plan, TonalPlan) else None
@@ -83,8 +81,6 @@ def layer_4_metric(
     )
     anchors.sort(key=lambda a: (bar_beat_to_float(bar_beat=a.bar_beat), a.upper_degree))
     anchors = _deduplicate_anchors(anchors=anchors)
-    for a in anchors:
-        tracer.anchor(bar_beat=a.bar_beat, upper=a.upper_degree, lower=a.lower_degree, key=a.local_key.tonic, schema=a.schema, stage=a.stage, section=a.section)
     return bar_assignments, anchors, total_bars
 
 
