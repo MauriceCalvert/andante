@@ -18,21 +18,21 @@ TESTS_DIR: Path = ANDANTE_DIR / "tests"
 # Ordered from fast/foundational to slow/integration
 TEST_FILES: tuple[str, ...] = (
     # foundational utilities
-    "test_key.py",
-    "test_music_math.py",
-    "test_yaml_integrity.py",
+    "shared/test_key.py",
+    "shared/test_music_math.py",
+    "data/test_yaml_integrity.py",
     # pipeline layers L1-L5
-    "test_L1_rhetorical.py",
-    "test_L2_tonal.py",
-    "test_L3_schematic.py",
-    "test_L4_metric.py",
-    "test_L5_phrase_planner.py",
+    "planner/test_L1_rhetorical.py",
+    "planner/test_L2_tonal.py",
+    "planner/test_L3_schematic.py",
+    "planner/test_L4_metric.py",
+    "builder/test_L5_phrase_planner.py",
     # generation
-    "test_L6_phrase_writer.py",
+    "builder/test_L6_phrase_writer.py",
     # integration
-    "test_L7_compose.py",
-    "test_cross_phrase_counterpoint.py",
-    "test_system.py",
+    "builder/test_L7_compose.py",
+    "integration/test_cross_phrase_counterpoint.py",
+    "integration/test_system.py",
 )
 
 

@@ -37,7 +37,8 @@ def _run_full_pipeline(
     config = load_configs(genre=genre, key=key, affect="Zierlich")
     gc: GenreConfig = config["genre"]
     kc = config["key"]
-    tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42)
+    home_mode: str = kc.name.split()[-1].lower() if kc else "major"
+    tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42, home_mode=home_mode)
     chain = layer_3_schematic(
         tonal_plan=tonal_plan,
         genre_config=gc,

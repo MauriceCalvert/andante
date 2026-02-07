@@ -7,6 +7,7 @@ form: binary
 metre: "4/4"
 rhythmic_unit: "1/8"
 tempo: 90
+upbeat: "1/4"
 bass_treatment: patterned
 bass_pattern: continuo_walking
 

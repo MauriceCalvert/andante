@@ -5,7 +5,7 @@ the phrase writer, threading exit pitches between consecutive phrases.
 """
 from fractions import Fraction
 from builder.cadence_writer import load_cadence_templates
-from builder.phrase_types import PhrasePlan, PhraseResult
+from builder.phrase_types import PhrasePlan, PhraseResult, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
 from shared.key import Key
@@ -26,7 +26,7 @@ def _structural_offsets_for_plan(plan: PhrasePlan) -> tuple[frozenset[Fraction],
         return frozenset(), frozenset()
     bar_length, beat_unit = parse_metre(metre=plan.metre)
     offsets: frozenset[Fraction] = frozenset(
-        plan.start_offset + (pos.bar - 1) * bar_length + (pos.beat - 1) * beat_unit
+        phrase_degree_offset(plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit)
         for pos in plan.degree_positions
     )
     return offsets, offsets

@@ -87,10 +87,18 @@ def check_no_parallel(
                 for up_b in upper_by_off[off_b]:
                     for lo_b in lower_by_off[off_b]:
                         ic_b: int = interval_class(a=up_b, b=lo_b)
-                        if ic_b == ic_a:
-                            violations.append(
-                                f"parallel {ic_a} at offsets {off_a} and {off_b}"
-                            )
+                        if ic_b != ic_a:
+                            continue
+                        # Require similar motion (both voices same direction)
+                        upper_dir: int = up_b - up_a
+                        lower_dir: int = lo_b - lo_a
+                        if upper_dir == 0 or lower_dir == 0:
+                            continue  # oblique motion, not parallel
+                        if (upper_dir > 0) != (lower_dir > 0):
+                            continue  # contrary motion, not parallel
+                        violations.append(
+                            f"parallel {ic_a} at offsets {off_a} and {off_b}"
+                        )
     return violations
 
 

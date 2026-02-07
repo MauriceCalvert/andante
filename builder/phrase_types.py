@@ -47,6 +47,7 @@ class PhrasePlan:
     bass_pattern: str | None = None
     degree_keys: tuple[Key, ...] | None = None
     character: str = "plain"
+    anacrusis: Fraction = Fraction(0)
 
 
 @dataclass(frozen=True)
@@ -60,3 +61,41 @@ class PhraseResult:
     faults: tuple[str, ...] = ()
     soprano_figures: tuple[str, ...] = ()
     bass_pattern_name: str | None = None
+
+
+def phrase_bar_start(plan: PhrasePlan, bar_num: int, bar_length: Fraction) -> Fraction:
+    """Absolute offset where bar_num begins, accounting for anacrusis."""
+    if bar_num == 1:
+        return plan.start_offset
+    return plan.start_offset + plan.anacrusis + (bar_num - 2) * bar_length
+
+
+def phrase_bar_duration(plan: PhrasePlan, bar_num: int, bar_length: Fraction) -> Fraction:
+    """Duration of a bar, accounting for partial anacrusis bar."""
+    if bar_num == 1 and plan.anacrusis > 0:
+        return plan.anacrusis
+    return bar_length
+
+
+def phrase_degree_offset(
+    plan: PhrasePlan,
+    pos: BeatPosition,
+    bar_length: Fraction,
+    beat_unit: Fraction,
+) -> Fraction:
+    """Absolute offset for a BeatPosition, accounting for anacrusis."""
+    return phrase_bar_start(plan=plan, bar_num=pos.bar, bar_length=bar_length) + (pos.beat - 1) * beat_unit
+
+
+def phrase_offset_to_bar(
+    plan: PhrasePlan,
+    offset: Fraction,
+    bar_length: Fraction,
+) -> int:
+    """Reverse mapping: absolute offset to bar number, accounting for anacrusis."""
+    rel: Fraction = offset - plan.start_offset
+    if plan.anacrusis > 0:
+        if rel < plan.anacrusis:
+            return 1
+        return int((rel - plan.anacrusis) // bar_length) + 2
+    return int(rel // bar_length) + 1

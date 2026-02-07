@@ -1,3 +1,32 @@
+## 2026-02-07 (Anacrusis Implementation)
+
+Implemented anacrusis (upbeat) support across the phrase pipeline. Pieces with
+an anacrusis (gavotte: half-bar, bourree: quarter-note) now have correct bar
+offsets — previously every bar after bar 1 was shifted by `bar_length - anacrusis`.
+
+- **phrase_types.py**: Added `anacrusis: Fraction = Fraction(0)` field to PhrasePlan.
+  Added 4 module-level helpers: `phrase_bar_start`, `phrase_bar_duration`,
+  `phrase_degree_offset`, `phrase_offset_to_bar`. When anacrusis == 0, all helpers
+  collapse to the old formula (zero behavioral change for non-upbeat genres).
+
+- **phrase_planner.py**: `cumulative_bar` starts at 0 when upbeat > 0 (triggers
+  existing bar==0 branch in `_compute_start_offset` for negative offset). First
+  phrase gets `anacrusis = upbeat`; `phrase_duration` adjusted to
+  `anacrusis + (bar_span - 1) * bar_length`. Passed `anacrusis=` to PhrasePlan.
+
+- **phrase_writer.py**: Replaced all ~14 inline offset formulas
+  (`start_offset + (bar_num-1) * bar_length`, `offset // bar_length + 1`, etc.)
+  with the 4 helpers in both soprano and bass (all 3 texture paths: patterned,
+  pillar, walking). Anacrusis bars bypass `select_cell` and use single-note
+  `(bar_dur,)` rhythm instead.
+
+- **compose.py**: Replaced structural offset formula with `phrase_degree_offset`.
+
+- **bourree.yaml**: Added `upbeat: "1/4"`.
+
+Modified: builder/phrase_types.py, builder/phrase_planner.py,
+builder/phrase_writer.py, builder/compose.py, data/genres/bourree.yaml
+
 ## 2026-02-07 (Fix Key Resolution Bugs)
 
 Two key-resolution bugs caused parallel octaves at schema boundaries:

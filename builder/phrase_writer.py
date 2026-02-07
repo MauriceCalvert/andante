@@ -8,7 +8,14 @@ from fractions import Fraction
 from builder.cadence_writer import write_cadence
 from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
 from builder.figuration.soprano import figurate_soprano_span
-from builder.phrase_types import PhrasePlan, PhraseResult
+from builder.phrase_types import (
+    PhrasePlan,
+    PhraseResult,
+    phrase_bar_start,
+    phrase_bar_duration,
+    phrase_degree_offset,
+    phrase_offset_to_bar,
+)
 from builder.rhythm_cells import select_cell
 from builder.types import Note
 from shared.constants import (
@@ -314,11 +321,7 @@ def generate_soprano_phrase(
     prev_prev: int | None = None
     for i, degree in enumerate(plan.degrees_upper):
         pos = plan.degree_positions[i]
-        offset: Fraction = (
-            plan.start_offset
-            + (pos.bar - 1) * bar_length
-            + (pos.beat - 1) * beat_unit
-        )
+        offset: Fraction = phrase_degree_offset(plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit)
         key_for_degree: Key = plan.degree_keys[i] if plan.degree_keys is not None else plan.local_key
         midi: int = degree_to_nearest_midi(
             degree=degree,
@@ -337,8 +340,8 @@ def generate_soprano_phrase(
     structural_key_map: dict[Fraction, Key] = dict(structural_keys)
     bar_structural_offsets: dict[int, frozenset[Fraction]] = {}
     for st_offset, _ in structural_tones:
-        bar_num_for_st: int = int((st_offset - plan.start_offset) // bar_length) + 1
-        bar_rel: Fraction = st_offset - plan.start_offset - (bar_num_for_st - 1) * bar_length
+        bar_num_for_st: int = phrase_offset_to_bar(plan=plan, offset=st_offset, bar_length=bar_length)
+        bar_rel: Fraction = st_offset - phrase_bar_start(plan=plan, bar_num=bar_num_for_st, bar_length=bar_length)
         bar_structural_offsets.setdefault(bar_num_for_st, set()).add(bar_rel)
     bar_structural_offsets = {k: frozenset(v) for k, v in bar_structural_offsets.items()}
     # Cross-phrase guard: compute next phrase's first soprano pitch
@@ -364,7 +367,11 @@ def generate_soprano_phrase(
         else (structural_tones[-1][1] if structural_tones else plan.upper_median)
     )
     midi_range: tuple[int, int] = (plan.upper_range.low, plan.upper_range.high)
-    is_minor: bool = plan.local_key.mode == "minor"
+    is_minor: bool = (
+        plan.degree_keys[0].mode == "minor"
+        if plan.degree_keys is not None
+        else plan.local_key.mode == "minor"
+    )
     # Build pitch pool from figuration spans
     figured_pitches: dict[int, list[int]] = {}  # span_idx -> pitch sequence
     collected_figure_names: list[str] = []
@@ -379,7 +386,7 @@ def generate_soprano_phrase(
             b_midi = end_midi_target
         if b_off <= a_off:
             continue
-        bar_num_for_span: int = int((a_off - plan.start_offset) // bar_length) + 1
+        bar_num_for_span: int = phrase_offset_to_bar(plan=plan, offset=a_off, bar_length=bar_length)
         is_final: bool = si == len(structural_tones) - 1
         position: str = "cadential" if is_final else "passing"
         span_notes, fig_name = figurate_soprano_span(
@@ -416,20 +423,30 @@ def generate_soprano_phrase(
     fig_pool_idx: int = 0
     fig_pool: list[int] = figured_pitches.get(0, [])
     for bar_num in range(1, plan.bar_span + 1):
-        bar_start: Fraction = plan.start_offset + (bar_num - 1) * bar_length
+        bar_start: Fraction = phrase_bar_start(plan=plan, bar_num=bar_num, bar_length=bar_length)
+        bar_dur: Fraction = phrase_bar_duration(plan=plan, bar_num=bar_num, bar_length=bar_length)
         is_final_bar: bool = bar_num == plan.bar_span
         prefer: str = "cadential" if is_final_bar else "plain"
-        cell = select_cell(
-            genre=plan.rhythm_profile,
-            metre=plan.metre,
-            bar_index=bar_num - 1,
-            prefer_character=prefer,
-            avoid_name=prev_cell_name,
-            required_onsets=bar_structural_offsets.get(bar_num),
-        )
-        prev_cell_name = cell.name
+        cell_durations: tuple[Fraction, ...]
+        cell_name: str | None
+        if bar_dur < bar_length:
+            # Anacrusis bar: simple single-note rhythm
+            cell_durations = (bar_dur,)
+            cell_name = None
+        else:
+            cell = select_cell(
+                genre=plan.rhythm_profile,
+                metre=plan.metre,
+                bar_index=bar_num - 1,
+                prefer_character=prefer,
+                avoid_name=prev_cell_name,
+                required_onsets=bar_structural_offsets.get(bar_num),
+            )
+            cell_durations = cell.durations
+            cell_name = cell.name
+        prev_cell_name = cell_name
         note_offset: Fraction = bar_start
-        for dur in cell.durations:
+        for dur in cell_durations:
             if note_offset in structural_map:
                 pitch: int = structural_map[note_offset]
                 if note_offset in structural_key_map:
@@ -515,7 +532,7 @@ def generate_soprano_phrase(
                     target_pitch=next_target,
                 )
             # D007: prevent cross-bar pitch repetition at bar exit
-            next_bar_start: Fraction = bar_start + bar_length
+            next_bar_start: Fraction = bar_start + bar_dur
             is_bar_exit: bool = note_offset + dur == next_bar_start
             if (
                 is_bar_exit
@@ -595,11 +612,7 @@ def generate_bass_phrase(
     prev_prev: int | None = None
     for i, degree in enumerate(plan.degrees_lower):
         pos = plan.degree_positions[i]
-        offset: Fraction = (
-            plan.start_offset
-            + (pos.bar - 1) * bar_length
-            + (pos.beat - 1) * beat_unit
-        )
+        offset: Fraction = phrase_degree_offset(plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit)
         key_for_degree: Key = plan.degree_keys[i] if plan.degree_keys is not None else plan.local_key
         soprano_at_offset: int | None = _soprano_pitch_at_offset(soprano_notes=soprano_notes, offset=offset)
         if soprano_at_offset is not None:
@@ -629,16 +642,16 @@ def generate_bass_phrase(
     structural_key_map: dict[Fraction, Key] = dict(structural_keys)
     bar_structural_offsets: dict[int, frozenset[Fraction]] = {}
     for st_offset, _ in structural_tones:
-        bar_num_for_st: int = int((st_offset - plan.start_offset) // bar_length) + 1
-        bar_rel: Fraction = st_offset - plan.start_offset - (bar_num_for_st - 1) * bar_length
+        bar_num_for_st: int = phrase_offset_to_bar(plan=plan, offset=st_offset, bar_length=bar_length)
+        bar_rel: Fraction = st_offset - phrase_bar_start(plan=plan, bar_num=bar_num_for_st, bar_length=bar_length)
         bar_structural_offsets.setdefault(bar_num_for_st, set()).add(bar_rel)
     bar_structural_offsets = {k: frozenset(v) for k, v in bar_structural_offsets.items()}
     # Pre-compute soprano onset offsets per bar (bar-relative) for
     # complementary rhythm selection — shared by both textures
     soprano_onsets_per_bar: dict[int, frozenset[Fraction]] = {}
     for sn in soprano_notes:
-        s_bar: int = int((sn.offset - plan.start_offset) // bar_length) + 1
-        s_rel: Fraction = sn.offset - plan.start_offset - (s_bar - 1) * bar_length
+        s_bar: int = phrase_offset_to_bar(plan=plan, offset=sn.offset, bar_length=bar_length)
+        s_rel: Fraction = sn.offset - phrase_bar_start(plan=plan, bar_num=s_bar, bar_length=bar_length)
         soprano_onsets_per_bar.setdefault(s_bar, set()).add(s_rel)
     soprano_onsets_per_bar = {
         k: frozenset(v) for k, v in soprano_onsets_per_bar.items()
@@ -679,7 +692,8 @@ def generate_bass_phrase(
         for pos in plan.degree_positions:
             bar_struct_count[pos.bar] = bar_struct_count.get(pos.bar, 0) + 1
         for bar_num in range(1, plan.bar_span + 1):
-            bar_start: Fraction = plan.start_offset + (bar_num - 1) * bar_length
+            bar_start: Fraction = phrase_bar_start(plan=plan, bar_num=bar_num, bar_length=bar_length)
+            bar_dur: Fraction = phrase_bar_duration(plan=plan, bar_num=bar_num, bar_length=bar_length)
             if bar_num in bar_degree_map:
                 current_bass_degree = bar_degree_map[bar_num]
             key_for_bar: Key = plan.local_key
@@ -688,6 +702,26 @@ def generate_bass_phrase(
                 if pos.bar == bar_num and plan.degree_keys is not None:
                     key_for_bar = plan.degree_keys[i]
                     break
+            # Anacrusis bar: emit structural tone with bar_dur, skip pattern
+            if bar_dur < bar_length:
+                st_pitch: int = structural_tones[0][1] if structural_tones else plan.lower_median
+                sop_here_ac: int | None = _soprano_pitch_at_offset(
+                    soprano_notes=soprano_notes, offset=bar_start,
+                )
+                if sop_here_ac is not None and st_pitch > sop_here_ac:
+                    st_pitch -= 12
+                notes.append(Note(
+                    offset=bar_start,
+                    pitch=st_pitch,
+                    duration=bar_dur,
+                    voice=TRACK_BASS,
+                ))
+                if bar_start in soprano_onset_set and sop_here_ac is not None:
+                    prev_common_bass = st_pitch
+                    prev_common_sop = sop_here_ac
+                prev_prev_bp = prev_bp_pitch
+                prev_bp_pitch = st_pitch
+                continue
             # If bar has more structural tones than pattern beats,
             # fall back to structural tones directly
             n_struct_in_bar: int = bar_struct_count.get(bar_num, 0)
@@ -695,7 +729,7 @@ def generate_bass_phrase(
                 # Emit structural tones as individual notes splitting the bar
                 bar_structs: list[tuple[Fraction, int]] = [
                     (off, midi) for off, midi in structural_tones
-                    if bar_start <= off < bar_start + bar_length
+                    if bar_start <= off < bar_start + bar_dur
                 ]
                 bar_structs.sort(key=lambda x: x[0])
                 for j, (st_off, st_midi) in enumerate(bar_structs):
@@ -703,7 +737,7 @@ def generate_bass_phrase(
                     if j + 1 < len(bar_structs):
                         st_dur: Fraction = bar_structs[j + 1][0] - st_off
                     else:
-                        st_dur = bar_start + bar_length - st_off
+                        st_dur = bar_start + bar_dur - st_off
                     sop_here_fb: int | None = _soprano_pitch_at_offset(
                         soprano_notes=soprano_notes, offset=st_off,
                     )
@@ -834,21 +868,30 @@ def generate_bass_phrase(
         )
         prev_cell_name: str | None = None
         for bar_num in range(1, plan.bar_span + 1):
-            bar_start: Fraction = plan.start_offset + (bar_num - 1) * bar_length
+            bar_start: Fraction = phrase_bar_start(plan=plan, bar_num=bar_num, bar_length=bar_length)
+            bar_dur: Fraction = phrase_bar_duration(plan=plan, bar_num=bar_num, bar_length=bar_length)
             is_final_bar: bool = bar_num == plan.bar_span
             prefer: str = "cadential" if is_final_bar else "plain"
-            cell = select_cell(
-                genre=plan.rhythm_profile,
-                metre=plan.metre,
-                bar_index=bar_num - 1,
-                prefer_character=prefer,
-                avoid_name=prev_cell_name,
-                required_onsets=bar_structural_offsets.get(bar_num),
-                soprano_onsets=soprano_onsets_per_bar.get(bar_num),
-            )
-            prev_cell_name = cell.name
+            cell_durations: tuple[Fraction, ...]
+            cell_name_p: str | None
+            if bar_dur < bar_length:
+                cell_durations = (bar_dur,)
+                cell_name_p = None
+            else:
+                cell = select_cell(
+                    genre=plan.rhythm_profile,
+                    metre=plan.metre,
+                    bar_index=bar_num - 1,
+                    prefer_character=prefer,
+                    avoid_name=prev_cell_name,
+                    required_onsets=bar_structural_offsets.get(bar_num),
+                    soprano_onsets=soprano_onsets_per_bar.get(bar_num),
+                )
+                cell_durations = cell.durations
+                cell_name_p = cell.name
+            prev_cell_name = cell_name_p
             note_offset: Fraction = bar_start
-            for dur in cell.durations:
+            for dur in cell_durations:
                 if note_offset in structural_map:
                     pitch = structural_map[note_offset]
                 else:
@@ -891,21 +934,33 @@ def generate_bass_phrase(
         prev_common_sop_w: int | None = None
         prev_cell_name: str | None = None
         for bar_num in range(1, plan.bar_span + 1):
-            bar_start: Fraction = plan.start_offset + (bar_num - 1) * bar_length
+            bar_start: Fraction = phrase_bar_start(plan=plan, bar_num=bar_num, bar_length=bar_length)
+            bar_dur: Fraction = phrase_bar_duration(plan=plan, bar_num=bar_num, bar_length=bar_length)
             is_final_bar: bool = bar_num == plan.bar_span
             prefer: str = "cadential" if is_final_bar else "plain"
-            cell = select_cell(
-                genre=plan.rhythm_profile,
-                metre=plan.metre,
-                bar_index=bar_num - 1,
-                prefer_character=prefer,
-                avoid_name=prev_cell_name,
-                required_onsets=bar_structural_offsets.get(bar_num),
-                soprano_onsets=soprano_onsets_per_bar.get(bar_num),
-            )
-            prev_cell_name = cell.name
+            cell_durations_w: tuple[Fraction, ...]
+            cell_accents_w: tuple[bool, ...]
+            cell_name_w: str | None
+            if bar_dur < bar_length:
+                cell_durations_w = (bar_dur,)
+                cell_accents_w = (True,)
+                cell_name_w = None
+            else:
+                cell = select_cell(
+                    genre=plan.rhythm_profile,
+                    metre=plan.metre,
+                    bar_index=bar_num - 1,
+                    prefer_character=prefer,
+                    avoid_name=prev_cell_name,
+                    required_onsets=bar_structural_offsets.get(bar_num),
+                    soprano_onsets=soprano_onsets_per_bar.get(bar_num),
+                )
+                cell_durations_w = cell.durations
+                cell_accents_w = cell.accent_pattern
+                cell_name_w = cell.name
+            prev_cell_name = cell_name_w
             note_offset: Fraction = bar_start
-            for note_idx, dur in enumerate(cell.durations):
+            for note_idx, dur in enumerate(cell_durations_w):
                 # L004: look up soprano ceiling before computing bass pitch
                 sop_here: int | None = _soprano_pitch_at_offset(
                     soprano_notes=soprano_notes,
@@ -948,7 +1003,7 @@ def generate_bass_phrase(
                     f"at offset {note_offset}, bar {bar_num}"
                 )
                 # Use cell accent_pattern instead of offset-based strong beat check
-                is_accented: bool = cell.accent_pattern[note_idx]
+                is_accented: bool = cell_accents_w[note_idx]
                 is_common_w: bool = (
                     sop_here is not None
                     and note_offset in walk_soprano_onsets

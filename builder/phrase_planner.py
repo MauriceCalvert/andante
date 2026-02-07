@@ -35,7 +35,7 @@ def build_phrase_plans(
     lower_range: Range = Range(low=VOICE_RANGES[3][0], high=VOICE_RANGES[3][1])
     upper_median: int = (upper_range.low + upper_range.high) // 2
     lower_median: int = (lower_range.low + lower_range.high) // 2
-    cumulative_bar: int = 1
+    cumulative_bar: int = 0 if upbeat > 0 else 1
     plans: list[PhrasePlan] = []
     for i, schema_name in enumerate(schema_chain.schemas):
         schema_def: Schema = schemas[schema_name]
@@ -117,7 +117,7 @@ def _build_single_plan(
         degrees_upper, degrees_lower, seq_positions, degree_keys = _expand_sequential_degrees(
             schema_def=schema_def,
             bar_span=bar_span,
-            home_key=local_key,
+            home_key=home_key,
             metre=genre_config.metre,
         )
     else:
@@ -149,7 +149,12 @@ def _build_single_plan(
         beat_unit=beat_unit,
         upbeat=upbeat,
     )
-    phrase_duration: Fraction = bar_span * bar_length
+    anacrusis: Fraction = upbeat if schema_index == 0 and upbeat > 0 else Fraction(0)
+    phrase_duration: Fraction = (
+        anacrusis + (bar_span - 1) * bar_length
+        if anacrusis > 0
+        else bar_span * bar_length
+    )
     cadence_type: str | None = None
     if is_cadential and schema_index < len(schema_chain.cadences):
         cadence_type = schema_chain.cadences[schema_index]
@@ -186,6 +191,7 @@ def _build_single_plan(
         bass_pattern=genre_config.bass_pattern,
         degree_keys=degree_keys,
         character=character,
+        anacrusis=anacrusis,
     )
 
 
