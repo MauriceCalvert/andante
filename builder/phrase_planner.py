@@ -94,6 +94,12 @@ def _build_single_plan(
     """Build a single PhrasePlan for one schema."""
     bar_span: int = _compute_bar_span(schema_def=schema_def, schema_name=schema_name, metre=genre_config.metre)
     is_cadential: bool = schema_def.position == CADENTIAL_POSITION
+    # Resolve per-schema key from chain key_areas (canonical source of truth)
+    local_key: Key = _resolve_local_key(
+        schema_index=schema_index,
+        schema_chain=schema_chain,
+        home_key=home_key,
+    )
     cadence_template: CadenceTemplate | None = None
     degrees_upper: tuple[int, ...]
     degrees_lower: tuple[int, ...]
@@ -111,7 +117,7 @@ def _build_single_plan(
         degrees_upper, degrees_lower, seq_positions, degree_keys = _expand_sequential_degrees(
             schema_def=schema_def,
             bar_span=bar_span,
-            home_key=home_key,
+            home_key=local_key,
             metre=genre_config.metre,
         )
     else:
@@ -119,10 +125,6 @@ def _build_single_plan(
         degrees_lower = schema_def.bass_degrees
     first_bar: int = cumulative_bar
     first_beat: int = 1
-    if anchor_group:
-        local_key = anchor_group[0].local_key
-    else:
-        local_key = home_key
     degree_positions: tuple[BeatPosition, ...]
     if cadence_template is not None:
         degree_positions = _cadential_degree_positions(
@@ -155,6 +157,10 @@ def _build_single_plan(
         section_name=section_name,
         genre_config=genre_config,
     )
+    character: str = _get_section_character(
+        section_name=section_name,
+        genre_config=genre_config,
+    )
     return PhrasePlan(
         schema_name=schema_name,
         degrees_upper=degrees_upper,
@@ -179,6 +185,7 @@ def _build_single_plan(
         bass_texture=bass_texture,
         bass_pattern=genre_config.bass_pattern,
         degree_keys=degree_keys,
+        character=character,
     )
 
 
@@ -276,6 +283,31 @@ def _get_section_bass_texture(
         if section.get("name") == section_name:
             return section.get("accompany_texture", "pillar")
     return "pillar"
+
+
+def _get_section_character(
+    section_name: str,
+    genre_config: GenreConfig,
+) -> str:
+    """Look up character from genre section data (A003)."""
+    for section in genre_config.sections:
+        if section.get("name") == section_name:
+            return section.get("character", "plain")
+    return "plain"
+
+
+def _resolve_local_key(
+    schema_index: int,
+    schema_chain: SchemaChain,
+    home_key: Key,
+) -> Key:
+    """Resolve local key from chain key_areas (canonical source of truth)."""
+    if schema_index < len(schema_chain.key_areas):
+        area: str = schema_chain.key_areas[schema_index]
+        if area == "I":
+            return home_key
+        return home_key.modulate_to(target=area)
+    return home_key
 
 
 def _section_for_schema_index(

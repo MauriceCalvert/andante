@@ -29,21 +29,25 @@ bass_treatment: contrapuntal
 
 sections:
   - name: exordium
+    character: plain
     schema_sequence: [do_re_mi, prinner]
     lead_voice: 0
     accompany_texture: walking
 
   - name: narratio
+    character: energetic
     schema_sequence: [fonte, monte]
     accompany_texture: walking
     lead_voice: 1
 
   - name: confirmatio
+    character: expressive
     schema_sequence: [romanesca, fenaroli]
     lead_voice: 0
     accompany_texture: walking
 
   - name: peroratio
+    character: ornate
     schema_sequence: [passo_indietro, cadenza_composta]
     accompany_texture: chordal
     lead_voice: 1

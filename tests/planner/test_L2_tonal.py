@@ -61,9 +61,15 @@ def test_final_cadence_authentic(tonal_result: tuple[TonalPlan, GenreConfig]) ->
 
 
 def test_first_key_tonic(tonal_result: tuple[TonalPlan, GenreConfig]) -> None:
-    """L2-07: first section key_area is I (tonic)."""
-    plan, _ = tonal_result
-    assert plan.sections[0].key_area == "I"
+    """L2-07: first section key_area is I for 3+ sections, V/III for binary."""
+    plan, genre_config = tonal_result
+    if len(genre_config.sections) == 2:
+        # Binary forms: section A destination is dominant (V) or relative major (III)
+        assert plan.sections[0].key_area in ("V", "III"), (
+            f"Binary section A should target V or III, got '{plan.sections[0].key_area}'"
+        )
+    else:
+        assert plan.sections[0].key_area == "I"
 
 
 def test_final_key_tonic(tonal_result: tuple[TonalPlan, GenreConfig]) -> None:

@@ -12,6 +12,8 @@ bass_pattern: arpeggiated_3_4
 
 sections:
   - name: A
+    character: expressive
     schema_sequence: [do_re_mi, fenaroli, prinner]
   - name: B
+    character: energetic
     schema_sequence: [monte, fenaroli, passo_indietro, cadenza_semplice]

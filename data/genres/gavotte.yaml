@@ -15,11 +15,13 @@ affect: Zierlich
 
 sections:
   - name: A
+    character: expressive
     schema_sequence: [meyer, prinner, half_cadence]
     accompany_texture: pillar
     lead_voice: 0
 
   - name: B
+    character: energetic
     schema_sequence: [fonte, monte, fenaroli, passo_indietro, cadenza_composta]
     accompany_texture: walking
     lead_voice: 1

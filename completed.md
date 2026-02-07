@@ -1,3 +1,72 @@
+## 2026-02-07 (Fix Key Resolution Bugs)
+
+Two key-resolution bugs caused parallel octaves at schema boundaries:
+
+- **Bug 1: Anchor grouping misattribution**: `_group_anchors_by_schema` matched
+  anchors by name instance-counting. When deduplication removed a schema anchor
+  (replaced by section_cadence/piece_end), the counting shifted, assigning anchors
+  from a later instance to an earlier schema — giving it the wrong key. E.g.,
+  invention exordium comma (bar 6) got G major from confirmatio comma (bar 16).
+
+- **Bug 2: Sequential expansion used wrong home_key**: `_expand_sequential_degrees`
+  used the piece's overall home_key (C major) instead of the per-schema local_key
+  (e.g., G major for key_area="V"). This made fonte typical_keys ("ii","I") resolve
+  relative to C major instead of G major, producing wrong degree_keys.
+
+Fixes:
+- Removed hardcoded `is_exordium and schema_index == 1 → V` override from
+  `_get_local_key()` in planner/metric/layer.py. This rule conflicted with the
+  per-schema key_areas from `_distribute_section_key_areas()`.
+- Added `_resolve_local_key()` in builder/phrase_planner.py: resolves local_key
+  from `schema_chain.key_areas` (canonical source of truth) instead of from
+  anchor groups (fragile due to deduplication).
+- Fixed `_expand_sequential_degrees` to use per-schema `local_key` instead of
+  overall `home_key`, so typical_keys resolve relative to the correct key area.
+
+Modified: planner/metric/layer.py, builder/phrase_planner.py
+All 101 integration tests pass (zero faults, all genres × keys).
+
+## 2026-02-07 (Activate Tonal System + Fix Short-Circuits)
+
+Five short-circuits rendered core systems inert. All fixed:
+
+- **Fix 1A**: Removed `modality == "diatonic"` short-circuit in `_get_local_key()`
+  (planner/metric/layer.py). Removed the entire `modality` parameter chain from
+  layer_4_metric -> _generate_all_anchors -> _generate_phrase_anchors ->
+  _phrase_anchors_from_chain -> _phrase_anchors_legacy -> _get_local_key.
+  Updated planner/planner.py to stop passing modality.
+
+- **Fix 1B**: Binary forms now get mode-aware key_area for Section A:
+  V (dominant) for major keys, III (relative major) for minor keys.
+  Added `_BINARY_A_DESTINATION_MAJOR`/`_BINARY_A_DESTINATION_MINOR` constants.
+  Added `home_mode` parameter to `layer_2_tonal()` and `_assign_key_areas()`.
+  Caller in planner.py extracts mode from key_config.name.
+
+- **Fix 1C**: Per-schema key area distribution in planner/schematic.py. Added
+  `_distribute_section_key_areas()`. Departure schemas stay in start key;
+  cadential + post-cadential schemas (last 2) get destination key. Section B
+  starts in the previous section's destination key. Updated metric layer to
+  use SchemaChain.key_areas (per-schema) instead of tonal_plan_dict (per-section).
+
+- **Fix 2**: Wired figuration character through the pipeline.
+  Added `character` field to PhrasePlan. Added `character` to all 8 genre YAML
+  section definitions (minuet, gavotte, invention, bourree, sarabande, chorale,
+  fantasia, trio_sonata). Added `_get_section_character()` helper in
+  phrase_planner.py. Replaced hardcoded `character="plain"` in phrase_writer.py
+  with `plan.character`.
+
+- **Fix 3**: Reverted — negative offsets are illegal. Upbeat handling deferred.
+
+- **Fix 4**: Fixed `tension_to_energy()` in planner/arc.py: the 0.7-0.85 range
+  now returns "high" instead of redundantly returning "peak".
+
+Modified: planner/metric/layer.py, planner/planner.py, planner/tonal.py,
+planner/schematic.py, planner/arc.py, builder/phrase_planner.py,
+builder/phrase_writer.py, builder/phrase_types.py, tests/planner/test_L2_tonal.py,
+data/genres/*.yaml (8 files)
+
+All 8 genres generate successfully with tonal contrast.
+
 ## 2026-02-07 (Figuration Revision)
 
 - Wired the unused figuration system into the phrase writer (8 phases):

@@ -20,6 +20,10 @@ _PENULTIMATE_KEY: str = "V"
 _ODD_KEY_CANDIDATES: tuple[str, ...] = ("V", "IV", "vi")
 _EVEN_KEY_CANDIDATES: tuple[str, ...] = ("IV", "ii", "vi")
 
+# Binary form: section A destination (modulate away from tonic)
+_BINARY_A_DESTINATION_MAJOR: str = "V"
+_BINARY_A_DESTINATION_MINOR: str = "III"
+
 # Cadence candidates by section position
 _FINAL_CADENCE: str = "authentic"
 _PENULTIMATE_CADENCES: tuple[str, ...] = ("half", "authentic")
@@ -31,6 +35,7 @@ def layer_2_tonal(
     affect_config: AffectConfig,
     genre_config: GenreConfig,
     seed: int = 42,
+    home_mode: str = "major",
 ) -> TonalPlan:
     """Execute Layer 2: generate tonal plan with key areas and cadences."""
     sections: tuple[dict, ...] = genre_config.sections
@@ -42,6 +47,7 @@ def layer_2_tonal(
         sections=sections,
         density=density,
         rng=rng,
+        home_mode=home_mode,
     )
     cadences: list[str] = _assign_cadences(
         sections=sections,
@@ -69,12 +75,20 @@ def _assign_key_areas(
     sections: tuple[dict, ...],
     density: str,
     rng: Random,
+    home_mode: str = "major",
 ) -> list[str]:
     """Assign key areas to sections based on position.
 
     V-T004: no consecutive identical non-tonic keys (enforced inline).
     """
     count: int = len(sections)
+    # Binary forms: section A modulates to dominant (major) or relative major (minor)
+    if count == 2:
+        destination: str = (
+            _BINARY_A_DESTINATION_MINOR if home_mode == "minor"
+            else _BINARY_A_DESTINATION_MAJOR
+        )
+        return [destination, _FINAL_KEY]
     key_areas: list[str] = []
     for i in range(count):
         if i == 0:

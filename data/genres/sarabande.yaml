@@ -12,6 +12,8 @@ bass_pattern: continuo_sustained
 
 sections:
   - name: A
+    character: expressive
     schema_sequence: [romanesca, prinner]
   - name: B
+    character: ornate
     schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]

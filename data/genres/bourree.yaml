@@ -12,6 +12,8 @@ bass_pattern: continuo_walking
 
 sections:
   - name: A
+    character: energetic
     schema_sequence: [do_re_mi, fenaroli, prinner]
   - name: B
+    character: bold
     schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]

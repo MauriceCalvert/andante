@@ -11,6 +11,8 @@ bass_treatment: contrapuntal
 
 sections:
   - name: A
+    character: plain
     schema_sequence: [do_re_mi, fenaroli, prinner]
   - name: B
+    character: plain
     schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]

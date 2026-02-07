@@ -68,6 +68,7 @@ def layer_3_schematic(
     all_key_areas: list[str] = []
     all_cadences: list[str | None] = []
     section_boundaries: list[int] = []
+    prev_destination: str = "I"
     for section_idx, section_plan in enumerate(tonal_plan.sections):
         genre_section: dict[str, Any] = _find_genre_section(
             genre_config=genre_config,
@@ -85,12 +86,18 @@ def layer_3_schematic(
             is_first_section=section_idx == 0,
             is_final_section=section_idx == len(tonal_plan.sections) - 1,
         )
+        schema_key_areas: list[str] = _distribute_section_key_areas(
+            schema_count=len(section_schemas),
+            start_key_area=prev_destination,
+            destination_key_area=section_plan.key_area,
+        )
         for i, schema_name in enumerate(section_schemas):
             all_schemas.append(schema_name)
-            all_key_areas.append(section_plan.key_area)
+            all_key_areas.append(schema_key_areas[i])
             is_last_in_section: bool = i == len(section_schemas) - 1
             all_cadences.append(section_plan.cadence_type if is_last_in_section else None)
         section_boundaries.append(len(all_schemas))
+        prev_destination = section_plan.key_area
     free_passages: set[tuple[int, int]] = _mark_free_passages(
         schemas=all_schemas,
     )
@@ -249,6 +256,31 @@ def _select_next_schema(
     if fresh:
         candidates = fresh
     return rng.choice(candidates)
+
+
+def _distribute_section_key_areas(
+    schema_count: int,
+    start_key_area: str,
+    destination_key_area: str,
+) -> list[str]:
+    """Distribute key areas across schemas within a section.
+
+    The section starts in start_key_area (inherited from previous section)
+    and arrives at destination_key_area by the cadential schema.
+    The cadence effects the modulation, so it and any post-cadential
+    schemas are in the destination key.
+    """
+    assert schema_count > 0, "Cannot distribute key areas to zero schemas"
+    if start_key_area == destination_key_area:
+        return [start_key_area] * schema_count
+    if schema_count == 1:
+        return [destination_key_area]
+    if schema_count == 2:
+        return [start_key_area, destination_key_area]
+    # Cadential + post-cadential schemas (last 2) get destination key;
+    # departure schemas stay in start key
+    dest_count: int = min(2, schema_count)
+    return [start_key_area] * (schema_count - dest_count) + [destination_key_area] * dest_count
 
 
 def _schema_bars(schema_name: str, schema_defs: dict) -> int:

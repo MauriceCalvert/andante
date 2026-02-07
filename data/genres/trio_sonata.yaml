@@ -11,6 +11,8 @@ bass_treatment: contrapuntal
 
 sections:
   - name: A
+    character: expressive
     schema_sequence: [romanesca, prinner]
   - name: B
+    character: energetic
     schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]

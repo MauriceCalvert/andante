@@ -1108,6 +1108,7 @@ VALID_GENRE_KEYS: frozenset[str] = frozenset({
 VALID_GENRE_SECTION_KEYS: frozenset[str] = frozenset({
     "name", "schema_sequence", "lead_voice", "lead_material",
     "accompany_material", "accompany_texture", "tonal_path", "final_cadence",
+    "character",
 })
 VALID_BRIEF_KEYS: frozenset[str] = frozenset({
     "brief", "frame", "material", "sections", "structure",

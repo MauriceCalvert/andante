@@ -47,7 +47,6 @@ def layer_4_metric(
     schemas: dict[str, Schema] | None = None,
     tonal_plan: TonalPlan | dict | None = None,
     answer_interval: int = 7,
-    modality: str = "diatonic",
 ) -> tuple[dict[str, tuple[int, int]], list[Anchor], int]:
     """Execute Layer 4 metric planning."""
     if schemas is None:
@@ -75,7 +74,6 @@ def layer_4_metric(
         tonal_plan_dict=tonal_plan_dict,
         tonal_plan_obj=tonal_plan_obj,
         answer_interval=answer_interval,
-        modality=modality,
         bar_assignments=bar_assignments,
         total_bars=total_bars,
     )
@@ -168,7 +166,6 @@ def _generate_all_anchors(
     tonal_plan_dict: dict[str, tuple[str, ...]],
     tonal_plan_obj: TonalPlan | None,
     answer_interval: int,
-    modality: str,
     bar_assignments: dict[str, tuple[int, int]],
     total_bars: int,
 ) -> list[Anchor]:
@@ -198,7 +195,6 @@ def _generate_all_anchors(
         home_key=home_key,
         tonal_plan_dict=tonal_plan_dict,
         answer_interval=answer_interval,
-        modality=modality,
         bar_assignments=bar_assignments,
     )
     anchors.extend(phrase_anchors)
@@ -280,7 +276,6 @@ def _generate_phrase_anchors(
     home_key: Key,
     tonal_plan_dict: dict[str, tuple[str, ...]],
     answer_interval: int,
-    modality: str,
     bar_assignments: dict[str, tuple[int, int]],
 ) -> list[Anchor]:
     """Level 3: phrase-level schema stage anchors."""
@@ -292,7 +287,6 @@ def _generate_phrase_anchors(
             home_key=home_key,
             tonal_plan_dict=tonal_plan_dict,
             answer_interval=answer_interval,
-            modality=modality,
             bar_assignments=bar_assignments,
         )
     return _phrase_anchors_legacy(
@@ -301,7 +295,6 @@ def _generate_phrase_anchors(
         home_key=home_key,
         tonal_plan_dict=tonal_plan_dict,
         answer_interval=answer_interval,
-        modality=modality,
         bar_assignments=bar_assignments,
     )
 
@@ -313,7 +306,6 @@ def _phrase_anchors_from_chain(
     home_key: Key,
     tonal_plan_dict: dict[str, tuple[str, ...]],
     answer_interval: int,
-    modality: str,
     bar_assignments: dict[str, tuple[int, int]],
 ) -> list[Anchor]:
     """Generate phrase anchors from SchemaChain with section boundaries."""
@@ -327,7 +319,7 @@ def _phrase_anchors_from_chain(
         boundary: int = schema_chain.section_boundaries[section_idx] if section_idx < len(schema_chain.section_boundaries) else len(schema_chain.schemas)
         section_schemas: list[str] = list(schema_chain.schemas[prev_boundary:boundary])
         start_bar: int = bar_assignments[section_name][0]
-        key_areas: tuple[str, ...] = tonal_plan_dict.get(section_name, ("I",))
+        key_areas: tuple[str, ...] = tuple(schema_chain.key_areas[prev_boundary:boundary])
         is_exordium: bool = section_name == "exordium"
         section_upbeat: Fraction = genre_config.upbeat if is_first_section else Fraction(0)
         current_bar: int = start_bar
@@ -344,7 +336,6 @@ def _phrase_anchors_from_chain(
                 is_exordium=is_exordium,
                 key_areas=key_areas,
                 answer_interval=answer_interval,
-                modality=modality,
             )
             schema_upbeat: Fraction = section_upbeat if is_first_schema else Fraction(0)
             if schema_upbeat > 0:
@@ -378,7 +369,6 @@ def _phrase_anchors_legacy(
     home_key: Key,
     tonal_plan_dict: dict[str, tuple[str, ...]],
     answer_interval: int,
-    modality: str,
     bar_assignments: dict[str, tuple[int, int]],
 ) -> list[Anchor]:
     """Legacy phrase anchor generation from genre_config sections."""
@@ -408,7 +398,6 @@ def _phrase_anchors_legacy(
                 is_exordium=is_exordium,
                 key_areas=key_areas,
                 answer_interval=answer_interval,
-                modality=modality,
             )
             schema_upbeat: Fraction = section_upbeat if is_first_schema else Fraction(0)
             if schema_upbeat > 0:
@@ -441,13 +430,8 @@ def _get_local_key(
     is_exordium: bool,
     key_areas: tuple[str, ...],
     answer_interval: int,
-    modality: str,
 ) -> Key:
     """Determine local key for schema at given index."""
-    if modality == "diatonic":
-        return home_key
-    if is_exordium and schema_index == 1:
-        return home_key.modulate_to(target="V")
     if schema_index < len(key_areas):
         area: str = key_areas[schema_index]
         if area == "I":

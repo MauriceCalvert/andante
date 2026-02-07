@@ -389,7 +389,7 @@ def generate_soprano_phrase(
             end_midi=b_midi,
             key=a_key,
             metre=plan.metre,
-            character="plain",
+            character=plan.character,
             position=position,
             is_minor=is_minor,
             bar_num=bar_num_for_span,

@@ -79,7 +79,7 @@ def tension_to_energy(level: float) -> str:
     if level < 0.7:
         return "rising"
     if level < 0.85:
-        return "peak"
+        return "high"
     return "peak"
 
 

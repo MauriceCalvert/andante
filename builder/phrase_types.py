@@ -46,6 +46,7 @@ class PhrasePlan:
     bass_texture: str = "pillar"
     bass_pattern: str | None = None
     degree_keys: tuple[Key, ...] | None = None
+    character: str = "plain"
 
 
 @dataclass(frozen=True)

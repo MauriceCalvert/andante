@@ -92,10 +92,12 @@ def generate(
         metre=genre_config.metre,
     )
     # Layer 2: Tonal planning (key areas + cadences)
+    home_mode: str = key_config.name.split()[-1].lower() if key_config else "major"
     tonal_plan: TonalPlan = layer_2_tonal(
         affect_config=affect_config,
         genre_config=genre_config,
         seed=seed,
+        home_mode=home_mode,
     )
     tracer.trace_L2(tonal_plan=tonal_plan)
     # Layer 3: Schematic planning (graph-walk schema selection)
@@ -116,7 +118,6 @@ def generate(
         schemas=schemas,
         tonal_plan=tonal_plan,
         answer_interval=affect_config.answer_interval,
-        modality=tonal_plan.modality,
     )
     tracer.trace_L4(
         bar_assignments=bar_assignments,

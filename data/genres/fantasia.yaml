@@ -11,4 +11,5 @@ bass_treatment: contrapuntal
 
 sections:
   - name: A
+    character: bold
     schema_sequence: [do_re_mi, fonte, fenaroli, prinner]
