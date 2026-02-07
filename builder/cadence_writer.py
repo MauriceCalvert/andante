@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 
 from builder.types import Note
-from shared.constants import METRE_BAR_LENGTH, PHRASE_VOICE_BASS, TRACK_SOPRANO, VALID_DURATIONS_SET
+from shared.constants import METRE_BAR_LENGTH, TRACK_BASS, TRACK_SOPRANO, VALID_DURATIONS_SET
 from shared.key import Key
 from shared.music_math import parse_fraction
 from shared.pitch import degree_to_nearest_midi
@@ -203,7 +203,7 @@ def write_cadence(
             offset=bass_offset,
             pitch=midi,
             duration=dur,
-            voice=PHRASE_VOICE_BASS,
+            voice=TRACK_BASS,
         ))
         bass_offset += dur
         lower_target = midi

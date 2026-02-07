@@ -10,6 +10,20 @@ from builder.config_loader import load_configs
 from builder.types import AffectConfig, FormConfig, GenreConfig, KeyConfig
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _validate_yaml_data() -> None:
+    """Gate all tests on YAML validation. Skips if data unchanged."""
+    from scripts.yaml_validator import validate_all
+    result = validate_all()
+    if not result.valid:
+        lines = [f"YAML validation failed ({len(result.errors)} errors):"]
+        for e in result.errors:
+            lines.append(f"  {e}")
+        pytest.fail("\n".join(lines))
+    for p in result.orphaned:
+        print(f"  INFO: orphaned YAML file: {p}")
+
+
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
 
 GENRES: tuple[str, ...] = tuple(

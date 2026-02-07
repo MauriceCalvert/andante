@@ -449,7 +449,7 @@ VOICE_NAME_TO_RANGE_IDX: dict[str, int] = {
 }
 
 # Phrase-path voice indices (2-voice texture: soprano=0, bass=1)
-PHRASE_VOICE_BASS: int = 1
+# PHRASE_VOICE_BASS retired — use TRACK_BASS (=3) instead
 
 
 # =============================================================================

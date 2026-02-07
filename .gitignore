@@ -23,3 +23,6 @@ test832.*
 
 # Temp output
 pyout.txt
+
+# YAML validator cache
+data/.yaml_last_validated

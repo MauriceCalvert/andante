@@ -70,6 +70,19 @@ continuo_octave_leap:
       degree_offset: -7
       duration: "half"
 
+half_bar:
+  texture: continuo
+  harmonic_rhythm: per_half
+  metre: "4/4"
+  description: "Half-bar pulse for gavotte and similar duple dances"
+  beats:
+    - beat: 1
+      degree_offset: 0
+      duration: 2
+    - beat: 3
+      degree_offset: 4
+      duration: 2
+
 # =============================================================================
 # ARPEGGIATED PATTERNS
 # Broken chord textures for preludes, toccatas, free sections

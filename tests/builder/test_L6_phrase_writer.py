@@ -13,7 +13,7 @@ from builder.types import Note
 from planner.metric.layer import layer_4_metric
 from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
-from shared.constants import PHRASE_VOICE_BASS, STRONG_BEAT_DISSONANT, TRACK_SOPRANO, VALID_DURATIONS
+from shared.constants import STRONG_BEAT_DISSONANT, TRACK_BASS, TRACK_SOPRANO, VALID_DURATIONS
 from shared.key import Key
 from tests.helpers import (
     bar_of,
@@ -468,8 +468,8 @@ def test_bass_voice_index(phrase_result: tuple[PhraseResult, PhrasePlan]) -> Non
     """B-13: all bass Note.voice == bass track index."""
     result, _ = phrase_result
     for note in result.lower_notes:
-        assert note.voice == PHRASE_VOICE_BASS, (
-            f"Bass note has voice {note.voice}, expected {PHRASE_VOICE_BASS}"
+        assert note.voice == TRACK_BASS, (
+            f"Bass note has voice {note.voice}, expected {TRACK_BASS}"
         )
 
 

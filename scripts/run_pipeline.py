@@ -198,6 +198,17 @@ def run_from_directory(
 
 def main() -> None:
     """Run the pipeline."""
+    from scripts.yaml_validator import validate_all
+    result = validate_all()
+    if not result.valid:
+        print(f"YAML validation failed ({len(result.errors)} errors):")
+        for e in result.errors:
+            print(f"  {e}")
+        import sys
+        sys.exit(1)
+    for p in result.orphaned:
+        print(f"  INFO: orphaned YAML file: {p}")
+
     parser = argparse.ArgumentParser(
         description="Generate music from genre/affect or brief files",
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -13,7 +13,7 @@ from shared.constants import (
     LEAP_THRESHOLD,
     MAX_MELODIC_INTERVAL,
     PERFECT_INTERVALS,
-    PHRASE_VOICE_BASS,
+    TRACK_BASS,
     SKIP_SEMITONES,
     STEP_SEMITONES,
     STRONG_BEAT_DISSONANT,
@@ -609,7 +609,7 @@ def generate_bass_phrase(
                     offset=note_offset,
                     pitch=pitch,
                     duration=dur,
-                    voice=PHRASE_VOICE_BASS,
+                    voice=TRACK_BASS,
                 ))
                 current_midi = pitch
                 note_offset += dur
@@ -720,7 +720,7 @@ def generate_bass_phrase(
                     offset=note_offset,
                     pitch=pitch,
                     duration=dur,
-                    voice=PHRASE_VOICE_BASS,
+                    voice=TRACK_BASS,
                 ))
                 current_midi = pitch
                 note_offset += dur
