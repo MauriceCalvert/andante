@@ -186,6 +186,16 @@ class PipelineTracer:
             f"       {'':22s} "
             f"B: {b_pitches}"
         )
+        if result.soprano_figures:
+            self._line(
+                f"       {'':22s} "
+                f"fig: {' '.join(result.soprano_figures)}"
+            )
+        if result.bass_pattern_name:
+            self._line(
+                f"       {'':22s} "
+                f"bass_pattern: {result.bass_pattern_name}"
+            )
 
     def trace_L6_header(self, total_upper: int, total_lower: int) -> None:
         """L6 composition summary header."""

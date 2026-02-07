@@ -177,6 +177,7 @@ def _build_single_plan(
         upper_median=upper_median,
         lower_median=lower_median,
         bass_texture=bass_texture,
+        bass_pattern=genre_config.bass_pattern,
         degree_keys=degree_keys,
     )
 

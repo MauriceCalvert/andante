@@ -44,6 +44,7 @@ class PhrasePlan:
     upper_median: int
     lower_median: int
     bass_texture: str = "pillar"
+    bass_pattern: str | None = None
     degree_keys: tuple[Key, ...] | None = None
 
 
@@ -56,3 +57,5 @@ class PhraseResult:
     exit_lower: int
     schema_name: str
     faults: tuple[str, ...] = ()
+    soprano_figures: tuple[str, ...] = ()
+    bass_pattern_name: str | None = None

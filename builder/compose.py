@@ -47,6 +47,7 @@ def compose_phrases(
     lower_structural: set[Fraction] = set()
     prev_upper_pitch: int | None = None
     prev_lower_pitch: int | None = None
+    prev_prev_lower_pitch: int | None = None
     for plan_idx, plan in enumerate(phrase_plans):
         # Compute next phrase's first soprano degree/key for cross-phrase guard
         next_entry_degree: int | None = None
@@ -73,6 +74,7 @@ def compose_phrases(
             plan=plan,
             prev_upper_midi=prev_upper_pitch,
             prev_lower_midi=prev_lower_pitch,
+            prev_prev_lower_midi=prev_prev_lower_pitch,
             next_phrase_entry_degree=next_entry_degree,
             next_phrase_entry_key=next_entry_key,
         )
@@ -95,6 +97,11 @@ def compose_phrases(
         if result.upper_notes:
             prev_upper_pitch = result.upper_notes[-1].pitch
         if result.lower_notes:
+            prev_prev_lower_pitch = (
+                result.lower_notes[-2].pitch
+                if len(result.lower_notes) >= 2
+                else prev_lower_pitch
+            )
             prev_lower_pitch = result.lower_notes[-1].pitch
     get_tracer().trace_L6_header(
         total_upper=len(upper_notes),
