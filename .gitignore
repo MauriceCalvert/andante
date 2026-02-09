@@ -9,6 +9,7 @@ htmlcov/
 
 # Generated outputs
 output/
+tests/output/
 
 # Temp files
 tmpclaude-*

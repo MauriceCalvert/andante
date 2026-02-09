@@ -160,7 +160,8 @@ Available genres: bourree, chorale, fantasia, gavotte, invention, minuet, saraba
 |--------|-------|
 | `builder/faults.py` | Post-composition fault scan (parallels, dissonance, leaps, cross-relations, tessitura, spacing, overlap) |
 | `builder/junction.py` | Gap boundary checks |
-| `builder/phrase_writer.py` | Inline counterpoint checks during phrase composition |
+| `builder/soprano_writer.py` | Inline soprano counterpoint checks |
+| `builder/bass_writer.py` | Inline bass counterpoint checks (parallels, cross-relations, leaps) |
 
 Guards detect, generators prevent (D010). Faults report; never fix.
 
@@ -176,21 +177,17 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 | `tonal.py` | L2: affect -> tonal plan, density, modality |
 | `schematic.py` | L3: tonal plan -> schema chain |
 | `schema_loader.py` | Parse schemas.yaml into SchemaConfig |
-| `schema_generator.py` | Generate schema sequences per form |
 | `metric/layer.py` | L4: schemas -> bar assignments + anchors |
 | `metric/pitch.py` | Anchor pitch assignment |
 | `metric/schema_anchors.py` | Schema -> anchor expansion |
 | `metric/distribution.py` | Bar distribution across schemas |
 | `metric/constants.py` | Metric layer constants |
-| `harmony.py` | Harmonic analysis helpers |
 | `phrase_harmony.py` | Phrase-level harmony |
-| `constraints.py` | Planning constraints |
-| `coherence.py` | Coherence checks |
-| `structure.py` | Form structure helpers |
 | `arc.py` | Trajectory arc |
 | `dramaturgy.py` | Key suggestion from affect |
 | `frame.py` | Frame-level planning |
 | `material.py` | Material assignments |
+| `variety.py` | Variety/variation helpers |
 | `subject.py` | Subject handling in planning |
 | `subject_deriver.py` | Subject derivation |
 | `subject_validator.py` | Subject validation |
@@ -199,7 +196,6 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 | `koch_rules.py` | Koch's phrase rules |
 | `serializer.py` | Plan serialization |
 | `plannertypes.py` | Planner-internal types |
-| `plan_validator.py` | Additional plan checks |
 | `motif_loader.py` | Load motifs for planning |
 
 ### builder/
@@ -207,9 +203,11 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 |------|---------------|
 | `compose.py` | Phrase-by-phrase composition entry point |
 | `phrase_planner.py` | Build PhrasePlans from L4 output |
-| `phrase_writer.py` | Per-phrase note generation with inline counterpoint |
+| `phrase_writer.py` | Thin orchestrator: dispatches to soprano_writer, bass_writer, cadence_writer |
+| `soprano_writer.py` | Soprano note generation with inline counterpoint checks |
+| `bass_writer.py` | Bass note generation (patterned, pillar, walking) with counterpoint |
+| `cadence_writer.py` | Cadence note generation from clausula templates |
 | `phrase_types.py` | PhrasePlan, PhraseResult types |
-| `cadence_writer.py` | Cadence note generation |
 | `rhythm_cells.py` | Rhythm cell patterns |
 | `config_loader.py` | Load all YAML configs |
 | `figuration/loader.py` | Load diminution tables |
@@ -219,7 +217,8 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 | `faults.py` | Post-composition fault detection |
 | `junction.py` | Gap boundary validation |
 | `types.py` | Builder domain types (Note, Composition, SchemaConfig, GenreConfig, etc.) |
-| `io.py` | Write MIDI, MusicXML, .note files |
+| `io.py` | Write MIDI, MusicXML; shared note helpers (all_notes_sorted, bar_beat, note_name) |
+| `note_writer.py` | Write enriched .note CSV with degree/harmony/phrase/cadence |
 | `musicxml_writer.py` | MusicXML output |
 
 ### shared/
@@ -229,9 +228,11 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 | `key.py` | Key class: degree/MIDI/diatonic conversion |
 | `pitch.py` | FloatingNote, MidiPitch, Rest, place_degree, select_octave |
 | `diatonic_pitch.py` | DiatonicPitch (linear step, key-relative) |
+| `schema_types.py` | Schema-related shared types |
 | `voice_types.py` | Voice, Actuator, Range, Role, Instrument, Scoring, Track |
 | `music_math.py` | Duration arithmetic, fill_slot, valid durations |
 | `midi_writer.py` | Low-level MIDI writing |
+| `yaml_parsing.py` | YAML loading and parsing utilities |
 | `errors.py` | Custom exceptions |
 | `tracer.py` | Debug trace output |
 
@@ -255,6 +256,8 @@ Guards detect, generators prevent (D010). Faults report; never fix.
 |------|---------|
 | `run_pipeline.py` | Main CLI entry point |
 | `run_showcase.py` | Generate showcase pieces |
+| `run_pipeline_coverage.py` | Pipeline run with coverage reporting |
+| `full_tests.py` | Run full test suite |
 | `generate_subjects.py` | Batch subject generation |
 | `generate_heads.py` | Batch head generation |
 | `yaml_validator.py` | Validate YAML data files |
@@ -289,6 +292,18 @@ MIDI gate: 95% of notated duration (L013, GATE_FACTOR = 19/20).
 - Assert preconditions, not if/raise
 - Empty `__init__.py` files (L018)
 - ASCII only (L019)
+
+---
+
+## CLI
+
+```
+python -m scripts.run_pipeline <genre> <affect> [key] [-o DIR] [-trace]
+```
+
+Positional args, not flags. Examples:
+- `python -m scripts.run_pipeline minuet default c_major -o output -trace`
+- `python -m scripts.run_pipeline gavotte default g_major -o output -trace`
 
 ---
 

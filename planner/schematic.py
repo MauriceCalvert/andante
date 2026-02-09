@@ -6,8 +6,11 @@ Output: SchemaChain with schemas, key areas, cadences, free passages
 
 RNG lives here per A005; downstream is deterministic.
 """
+import logging
 from random import Random
 from typing import Any
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 from builder.types import (
     FormConfig,
@@ -20,6 +23,7 @@ from shared.schema_types import Schema
 from planner.schema_loader import (
     can_connect_direct,
     get_allowed_next,
+    get_genre_preferred,
     get_schema,
     get_schemas_by_position,
     load_schemas as load_schema_defs,
@@ -85,6 +89,8 @@ def layer_3_schematic(
             rng=rng,
             is_first_section=section_idx == 0,
             is_final_section=section_idx == len(tonal_plan.sections) - 1,
+            genre_name=genre_config.name,
+            genre_section=genre_section,
         )
         schema_key_areas: list[str] = _distribute_section_key_areas(
             schema_count=len(section_schemas),
@@ -155,45 +161,125 @@ def _generate_section_schemas(
     rng: Random,
     is_first_section: bool,
     is_final_section: bool,
+    genre_name: str,
+    genre_section: dict[str, Any] | None = None,
 ) -> list[str]:
-    """Generate schema sequence for a section via graph walk."""
-    positions: tuple[str, ...] = _SECTION_POSITIONS.get(
-        section_plan.name, ("continuation", "opening"),
-    )
-    opening_schema: str | None = _select_opening_schema(
-        positions=positions,
-        schema_defs=schema_defs,
-        bar_budget=bar_budget,
-        rng=rng,
-    )
-    assert opening_schema is not None, (
-        f"No valid opening schema for section '{section_plan.name}' "
-        f"with positions {positions} and budget {bar_budget} bars"
-    )
-    result: list[str] = [opening_schema]
-    bars_used: int = _schema_bars(schema_name=opening_schema, schema_defs=schema_defs)
-    max_iterations: int = 20
-    iteration: int = 0
-    while bars_used < bar_budget:
-        assert iteration < max_iterations, (
-            f"Schema walk exceeded {max_iterations} iterations for section "
-            f"'{section_plan.name}'. Schemas so far: {result}, bars: {bars_used}/{bar_budget}"
+    """Generate schema sequence for a section.
+
+    Uses declared schema_sequence from genre section if available and valid.
+    Falls back to graph walk otherwise.
+    """
+    # Phase 3: use declared schema_sequence if present and fully resolvable
+    use_declared: bool = False
+    if genre_section is not None:
+        declared: list[str] = genre_section.get("schema_sequence", [])
+        if declared:
+            missing: list[str] = [s for s in declared if s not in schema_defs]
+            if missing:
+                logger.warning(
+                    "Section '%s' schema_sequence has unknown schemas %s — "
+                    "falling back to graph walk",
+                    section_plan.name,
+                    missing,
+                )
+            else:
+                use_declared = True
+
+    if use_declared:
+        result: list[str] = list(declared)
+        bars_used: int = sum(
+            _schema_bars(schema_name=s, schema_defs=schema_defs)
+            for s in declared
         )
-        iteration += 1
-        remaining: int = bar_budget - bars_used
-        next_schema: str | None = _select_next_schema(
-            current=result[-1],
-            remaining_bars=remaining,
+    else:
+        # Fallback: graph walk
+        positions: tuple[str, ...] = _SECTION_POSITIONS.get(
+            section_plan.name, ("continuation", "opening"),
+        )
+        opening_schema: str | None = _select_opening_schema(
+            positions=positions,
+            schema_defs=schema_defs,
+            bar_budget=bar_budget,
+            rng=rng,
+            genre_name=genre_name,
+        )
+        assert opening_schema is not None, (
+            f"No valid opening schema for section '{section_plan.name}' "
+            f"with positions {positions} and budget {bar_budget} bars"
+        )
+        result = [opening_schema]
+        bars_used: int = _schema_bars(schema_name=opening_schema, schema_defs=schema_defs)
+        max_iterations: int = 20
+        iteration: int = 0
+        while bars_used < bar_budget:
+            assert iteration < max_iterations, (
+                f"Schema walk exceeded {max_iterations} iterations for section "
+                f"'{section_plan.name}'. Schemas so far: {result}, bars: {bars_used}/{bar_budget}"
+            )
+            iteration += 1
+            remaining: int = bar_budget - bars_used
+            next_schema: str | None = _select_next_schema(
+                current=result[-1],
+                remaining_bars=remaining,
+                cadence_type=section_plan.cadence_type,
+                schema_defs=schema_defs,
+                previous_schemas=result,
+                is_final_section=is_final_section,
+                rng=rng,
+                genre_name=genre_name,
+            )
+            if next_schema is None:
+                break
+            result.append(next_schema)
+            bars_used += _schema_bars(schema_name=next_schema, schema_defs=schema_defs)
+    # Guarantee final cadential schema for sections that require it.
+    # If the last schema is not cadential-position and cadence_type demands
+    # one, pop the last schema and replace with a cadential match.
+    if section_plan.cadence_type in ("authentic", "half"):
+        last: str = result[-1]
+        if not _is_final_cadence(
+            schema_name=last,
             cadence_type=section_plan.cadence_type,
             schema_defs=schema_defs,
-            previous_schemas=result,
-            is_final_section=is_final_section,
-            rng=rng,
-        )
-        if next_schema is None:
-            break
-        result.append(next_schema)
-        bars_used += _schema_bars(schema_name=next_schema, schema_defs=schema_defs)
+        ):
+            assert len(result) >= 2, (
+                f"Section '{section_plan.name}' has only one schema ({last}) "
+                f"and it is not cadential — cannot guarantee final cadence"
+            )
+            popped: str = result.pop()
+            popped_bars: int = _schema_bars(schema_name=popped, schema_defs=schema_defs)
+            available: int = bar_budget - bars_used + popped_bars
+            predecessor: str = result[-1]
+            # Prefer cadential schemas reachable via the transition graph
+            allowed: list[str] = get_allowed_next(schema_name=predecessor)
+            cadential_candidates: list[str] = [
+                s for s in allowed
+                if s in schema_defs
+                and _is_final_cadence(
+                    schema_name=s,
+                    cadence_type=section_plan.cadence_type,
+                    schema_defs=schema_defs,
+                )
+                and _schema_bars(schema_name=s, schema_defs=schema_defs) <= available
+            ]
+            # Fallback: any fitting cadential schema (free passage will bridge)
+            if not cadential_candidates:
+                cadential_candidates = [
+                    s for s in schema_defs
+                    if _is_final_cadence(
+                        schema_name=s,
+                        cadence_type=section_plan.cadence_type,
+                        schema_defs=schema_defs,
+                    )
+                    and _schema_bars(schema_name=s, schema_defs=schema_defs) <= available
+                ]
+            assert cadential_candidates, (
+                f"No cadential schema fits section '{section_plan.name}' "
+                f"(cadence_type='{section_plan.cadence_type}'). "
+                f"Predecessor: {predecessor}, available: {available} bars, "
+                f"allowed_next: {allowed}"
+            )
+            result.append(rng.choice(cadential_candidates))
     return result
 
 
@@ -202,6 +288,7 @@ def _select_opening_schema(
     schema_defs: dict,
     bar_budget: int,
     rng: Random,
+    genre_name: str,
 ) -> str | None:
     """Select first schema for a section from valid positions."""
     candidates: list[str] = []
@@ -213,6 +300,14 @@ def _select_opening_schema(
     ]
     if not candidates:
         return None
+    # Soft genre preference: prefer genre-preferred opening schemas
+    preferred: list[str] = get_genre_preferred(
+        genre_name=genre_name,
+        position="opening",
+    )
+    genre_candidates: list[str] = [c for c in candidates if c in preferred]
+    if genre_candidates:
+        return rng.choice(genre_candidates)
     return rng.choice(candidates)
 
 
@@ -224,6 +319,7 @@ def _select_next_schema(
     previous_schemas: list[str],
     is_final_section: bool,
     rng: Random,
+    genre_name: str,
 ) -> str | None:
     """Select next schema from transitions graph."""
     allowed: list[str] = get_allowed_next(schema_name=current)
@@ -242,8 +338,19 @@ def _select_next_schema(
     candidates = [s for s in candidates if s not in OPENING_SCHEMAS]
     if not candidates:
         return None
-    # Prefer cadential schemas when near end and cadence required
-    if remaining_bars <= 4 and cadence_type in ("authentic", "half"):
+    # Hard filter: cadential and post-cadential schemas only eligible near
+    # section end (remaining_bars <= 3). Pre-cadential schemas (passo_indietro,
+    # indugio) are allowed mid-section — they prepare the cadential approach.
+    # Soft guard: if all candidates are punctuation, fall back to unfiltered.
+    if remaining_bars > 3:
+        non_punctuation: list[str] = [
+            s for s in candidates
+            if schema_defs[s].position not in ("cadential", "post_cadential")
+        ]
+        if non_punctuation:
+            candidates = non_punctuation
+    # Prefer cadential schemas when near section end and cadence required
+    if remaining_bars <= 3 and cadence_type in ("authentic", "half"):
         cadential: list[str] = [
             s for s in candidates
             if _is_cadential_position(schema_name=s, schema_defs=schema_defs)
@@ -255,6 +362,18 @@ def _select_next_schema(
     fresh: list[str] = [s for s in candidates if s not in recent]
     if fresh:
         candidates = fresh
+    # Soft genre preference: prefer genre-preferred schemas for their position
+    genre_candidates: list[str] = []
+    for c in candidates:
+        c_position: str = schema_defs[c].position
+        preferred: list[str] = get_genre_preferred(
+            genre_name=genre_name,
+            position=c_position,
+        )
+        if c in preferred:
+            genre_candidates.append(c)
+    if genre_candidates:
+        return rng.choice(genre_candidates)
     return rng.choice(candidates)
 
 
@@ -295,6 +414,20 @@ def _is_cadential_position(schema_name: str, schema_defs: dict) -> bool:
     """Check if schema is in cadential or pre-cadential position."""
     schema = schema_defs[schema_name]
     return schema.position in ("cadential", "pre_cadential")
+
+
+def _is_final_cadence(schema_name: str, cadence_type: str, schema_defs: dict) -> bool:
+    """Check if schema qualifies as a section-final cadence.
+
+    For authentic: cadential-position schemas except half_cadence
+    (cadenza_semplice, cadenza_composta, comma).
+    For half: only half_cadence.
+    """
+    schema = schema_defs[schema_name]
+    if cadence_type == "half":
+        return schema_name == "half_cadence"
+    # authentic / deceptive: any cadential-position schema except half_cadence
+    return schema.position == "cadential" and schema_name != "half_cadence"
 
 
 def _mark_free_passages(schemas: list[str]) -> set[tuple[int, int]]:

@@ -7,7 +7,7 @@ import pytest
 from fractions import Fraction
 from builder.config_loader import load_configs
 from builder.phrase_planner import build_phrase_plans
-from builder.phrase_types import PhrasePlan, PhraseResult
+from builder.phrase_types import PhrasePlan, PhraseResult, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Note
 from planner.metric.layer import layer_4_metric
@@ -75,19 +75,19 @@ def _build_all_fixtures() -> list[tuple[str, PhrasePlan, PhraseResult]]:
     for genre in ALL_GENRES:
         plans: tuple[PhrasePlan, ...] = _run_pipeline_for_genre(genre)
         seen: set[str] = set()
-        prev_upper: int | None = None
-        prev_lower: int | None = None
+        all_upper: list[Note] = []
+        all_lower: list[Note] = []
         for plan in plans:
             result: PhraseResult = write_phrase(
                 plan=plan,
-                prev_upper_midi=prev_upper,
-                prev_lower_midi=prev_lower,
+                prior_upper=tuple(all_upper),
+                prior_lower=tuple(all_lower),
             )
             if plan.schema_name not in seen:
                 seen.add(plan.schema_name)
                 fixtures.append((genre, plan, result))
-            prev_upper = result.exit_upper
-            prev_lower = result.exit_lower
+            all_upper.extend(result.upper_notes)
+            all_lower.extend(result.lower_notes)
     return fixtures
 
 
@@ -212,10 +212,8 @@ def test_soprano_hits_schema_degrees(phrase_result: tuple[PhraseResult, PhrasePl
         if i >= len(plan.degree_positions):
             break
         pos = plan.degree_positions[i]
-        expected_offset: Fraction = (
-            plan.start_offset
-            + (pos.bar - 1) * bar_length
-            + (pos.beat - 1) * beat_unit
+        expected_offset: Fraction = phrase_degree_offset(
+            plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
         )
         if expected_offset >= plan.start_offset + plan.phrase_duration:
             continue
@@ -266,7 +264,7 @@ def test_soprano_leap_then_step(phrase_result: tuple[PhraseResult, PhrasePlan]) 
     result, plan = phrase_result
     bar_length, beat_unit = parse_metre(plan.metre)
     structural_offsets: frozenset[Fraction] = frozenset(
-        plan.start_offset + (pos.bar - 1) * bar_length + (pos.beat - 1) * beat_unit
+        phrase_degree_offset(plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit)
         for pos in plan.degree_positions
     )
     notes: tuple[Note, ...] = result.upper_notes
@@ -421,10 +419,8 @@ def test_bass_hits_schema_degrees(phrase_result: tuple[PhraseResult, PhrasePlan]
         if i >= len(plan.degree_positions):
             break
         pos = plan.degree_positions[i]
-        expected_offset: Fraction = (
-            plan.start_offset
-            + (pos.bar - 1) * bar_length
-            + (pos.beat - 1) * beat_unit
+        expected_offset: Fraction = phrase_degree_offset(
+            plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
         )
         if expected_offset >= plan.start_offset + plan.phrase_duration:
             continue
@@ -522,9 +518,7 @@ def test_strong_beat_consonance(phrase_result: tuple[PhraseResult, PhrasePlan]) 
     bar_length, beat_unit = parse_metre(plan.metre)
     # Schema structural offsets — dissonance here is the harmonic plan, not a bug
     structural_offsets: frozenset[Fraction] = frozenset(
-        plan.start_offset
-        + (pos.bar - 1) * bar_length
-        + (pos.beat - 1) * beat_unit
+        phrase_degree_offset(plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit)
         for pos in plan.degree_positions
     )
     upper_dict: dict[Fraction, int] = notes_at_offsets(result.upper_notes)

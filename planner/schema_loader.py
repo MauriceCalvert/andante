@@ -253,3 +253,39 @@ def get_typical_keys(schema_name: str) -> tuple[str, ...] | None:
     """Get key journey for a sequential schema."""
     schema = get_schema(name=schema_name)
     return schema.typical_keys
+
+
+@lru_cache(maxsize=1)
+def load_genre_preferences() -> dict[str, dict[str, list[str]]]:
+    """Load genre_preferences block from schema_transitions.yaml.
+
+    Returns mapping: genre_name -> position -> list of preferred schema names.
+    """
+    transitions: dict[str, Any] = _load_transitions()
+    raw: dict[str, Any] = transitions.get("genre_preferences", {})
+    result: dict[str, dict[str, list[str]]] = {}
+    for genre_name, prefs in raw.items():
+        assert isinstance(prefs, dict), (
+            f"genre_preferences['{genre_name}'] must be a dict, got {type(prefs)}"
+        )
+        genre_prefs: dict[str, list[str]] = {}
+        for position, schemas in prefs.items():
+            if position == "texture":
+                continue
+            assert isinstance(schemas, list), (
+                f"genre_preferences['{genre_name}']['{position}'] must be a list, "
+                f"got {type(schemas)}"
+            )
+            genre_prefs[position] = schemas
+        result[genre_name] = genre_prefs
+    return result
+
+
+def get_genre_preferred(genre_name: str, position: str) -> list[str]:
+    """Get preferred schemas for a genre at a given position.
+
+    Returns the preferred list, or empty list if genre/position not found.
+    """
+    prefs: dict[str, dict[str, list[str]]] = load_genre_preferences()
+    genre_prefs: dict[str, list[str]] = prefs.get(genre_name, {})
+    return genre_prefs.get(position, [])

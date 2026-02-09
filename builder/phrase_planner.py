@@ -4,12 +4,15 @@ One PhrasePlan per schema in the chain. Makes zero compositional choices
 about notes - only determines where schema degrees fall in time and
 what ranges/keys apply.
 """
+from dataclasses import replace
 from fractions import Fraction
 from builder.cadence_writer import get_schema_bars, load_cadence_templates, CadenceTemplate
 from builder.phrase_types import BeatPosition, PhrasePlan
 from builder.types import Anchor, GenreConfig, SchemaChain
+from planner.arc import get_energy_for_bar
+from planner.plannertypes import TensionCurve
 from shared.schema_types import Schema
-from shared.constants import CADENTIAL_POSITION, VOICE_RANGES
+from shared.constants import CADENTIAL_POSITION, DESCENT_BIAS_STEP, ENERGY_TO_CHARACTER, ENERGY_TO_REGISTRAL_BIAS, MIN_SOPRANO_MIDI, VOICE_RANGES
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.voice_types import Range
@@ -21,6 +24,7 @@ def build_phrase_plans(
     genre_config: GenreConfig,
     schemas: dict[str, Schema],
     total_bars: int,
+    tension_curve: TensionCurve | None = None,
 ) -> tuple[PhrasePlan, ...]:
     """Build PhrasePlan objects from schema chain and anchors."""
     bar_length, beat_unit = parse_metre(metre=genre_config.metre)
@@ -31,7 +35,7 @@ def build_phrase_plans(
         anchors=anchors,
         schema_chain=schema_chain,
     )
-    upper_range: Range = Range(low=VOICE_RANGES[0][0], high=VOICE_RANGES[0][1])
+    upper_range: Range = Range(low=MIN_SOPRANO_MIDI, high=VOICE_RANGES[0][1])
     lower_range: Range = Range(low=VOICE_RANGES[3][0], high=VOICE_RANGES[3][1])
     upper_median: int = (upper_range.low + upper_range.high) // 2
     lower_median: int = (lower_range.low + lower_range.high) // 2
@@ -67,6 +71,22 @@ def build_phrase_plans(
             cumulative_bar=cumulative_bar,
             home_key=home_key,
         )
+        # Compute registral bias from tension energy at phrase midpoint
+        if tension_curve is not None and total_bars > 0:
+            midpoint_bar: int = cumulative_bar + plan.bar_span // 2
+            energy: str = get_energy_for_bar(
+                curve=tension_curve,
+                bar=midpoint_bar,
+                total_bars=total_bars,
+            )
+            bias: int = 0 if plan.is_cadential else ENERGY_TO_REGISTRAL_BIAS[energy]
+            # Cap descent rate for non-cadential phrases (cadential = bias 0, exempt)
+            if not plan.is_cadential and i > 0:
+                prev_bias: int = plans[i - 1].registral_bias
+                if prev_bias - bias > DESCENT_BIAS_STEP:
+                    bias = prev_bias - DESCENT_BIAS_STEP
+            char: str = ENERGY_TO_CHARACTER[energy]
+            plan = replace(plan, registral_bias=bias, character=char)
         plans.append(plan)
         cumulative_bar += plan.bar_span
     _validate_plans(plans=plans, schema_chain=schema_chain)

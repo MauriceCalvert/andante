@@ -420,6 +420,9 @@ BASS_CLEF_THRESHOLD: int = 60
 # Voice index into VOICE_RANGES for bass
 BASS_VOICE_IDX: int = 3
 
+# Lowest acceptable soprano pitch (C4, MIDI) — practical floor for voice separation
+MIN_SOPRANO_MIDI: int = 60
+
 # Voice index into VOICE_RANGES for soprano
 SOPRANO_VOICE_IDX: int = 0
 
@@ -538,6 +541,33 @@ SCHEMA_TREATMENTS: tuple[str, ...] = (
 
 # Valid direction types for schema degrees
 VALID_DIRECTIONS: frozenset[str] = frozenset({"down", "same", "up"})
+
+
+# =============================================================================
+# Registral Bias
+# =============================================================================
+
+# Per-phrase soprano registral bias (semitones) by tension energy level.
+# Maps tension_to_energy() output to upward semitone shift of upper_median.
+ENERGY_TO_CHARACTER: dict[str, str] = {
+    "low": "plain",
+    "moderate": "expressive",
+    "rising": "energetic",
+    "high": "ornate",
+    "peak": "bold",
+}
+
+ENERGY_TO_REGISTRAL_BIAS: dict[str, int] = {
+    "low": 0,
+    "moderate": 2,
+    "rising": 4,
+    "high": 6,
+    "peak": 7,
+}
+
+# Maximum per-phrase registral bias drop (semitones) during descent.
+# Prevents the soprano from plunging after peak energy.
+DESCENT_BIAS_STEP: int = 2
 
 
 # =============================================================================

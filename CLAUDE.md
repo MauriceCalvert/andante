@@ -1,8 +1,20 @@
-# Andante Project Guide
+# Andante Project Guide — Claude Code
 
-You **MUST** read 
-`docs/Tier1_Normative/laws.md` and `docs/knowledge.md`
-now and keep them in the foreground for the whole chat.
+You **MUST** read these files now and keep them in the foreground:
+1. `docs/Tier1_Normative/laws.md`
+2. `docs/knowledge.md`
+3. `workflow/player.md` — your persona and evaluation rules
+4. `workflow/chaz.md` — your musical evaluation persona
+5. `workflow/bob.md` — your musical ear
+
+## Task System
+
+Check `workflow/task.md` for pending tasks. If it exists, execute it
+following the instructions in `workflow/player.md`. When complete
+(including the mandatory Chaz checkpoint), write your results to
+`workflow/result.md` and delete `workflow/task.md`.
+
+If there is no `workflow/task.md`, ask the user what to do.
 
 ---
 
@@ -27,6 +39,13 @@ Don't test after each change, test once when all changes have been made.
 Only test changed code.
 Full test suite takes a long time, ask before running.
 
+Pipeline checkpoint runs (Bob/Chaz evaluation) must use `-o tests/output`.
+The `output/` directory is reserved for the user's brief runs.
+
+After all tests pass, run:
+`python -m scripts.run_pipeline briefs/builder/ -v -trace`
+This regenerates the user's pieces with the latest code.
+
 ---
 
 ## Coding
@@ -49,6 +68,13 @@ rng is forbidden in the builder, it must be deterministic.
 
 Quick fixes are forbidden. Changes must be canonical and robust, regardless of effort.
 Don't show changes, make them.
+
+## API Discovery
+
+Never write ad-hoc Python scripts to probe internal APIs. Read the source
+files to learn function signatures, return types, and module structure
+before writing any code that calls them. Guessing at parameter names or
+attribute names wastes time and context window.
 
 ## Logging
 

@@ -18,8 +18,10 @@ Options:
     -o, --output-dir DIR    Output directory (default: output/)
     -v, --verbose           Verbose output
     -trace                  Write <piece>.trace diagnostic file
+    -seed N                 RNG seed for reproducibility (default: varies per run)
 """
 import argparse
+import time
 from pathlib import Path
 
 import yaml
@@ -71,21 +73,34 @@ def run_from_args(
     trace: bool = False,
     fugue: LoadedFugue | None = None,
     sections_override: tuple[dict, ...] | None = None,
+    seed: int | None = None,
 ) -> Composition:
     """Generate from explicit genre/affect arguments."""
     affect = normalize_affect(affect=affect)
     if key is not None:
         key = normalize_key(key=key)
-    name: str = output_name or f"{genre}_{affect}"
+    if seed is None:
+        seed = hash((genre, affect, key or "", int(time.time()))) % (2**31)
+    if output_name:
+        name = output_name
+    elif affect == "default" and key:
+        name = f"{genre}_{key}"
+    elif affect == "default":
+        name = genre
+    elif key:
+        name = f"{genre}_{affect}_{key}"
+    else:
+        name = f"{genre}_{affect}"
     if verbose:
         print(f"  Genre: {genre}")
         print(f"  Key: {key if key else '(from affect)'}")
         print(f"  Affect: {affect}")
     key_display: str = key if key else "(derived from affect)"
     print(f"Generating {genre} with {affect} affect in {key_display}...")
+    print(f"  Seed: {seed}")
     reset_tracer()
     set_trace_enabled(enabled=trace)
-    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key, tempo=tempo, fugue=fugue, sections_override=sections_override)
+    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key, tempo=tempo, fugue=fugue, sections_override=sections_override, seed=seed)
     for vid, vnotes in result.voices.items():
         print(f"  {vid}: {len(vnotes)} notes")
     print(f"  Tempo: {result.tempo} BPM")
@@ -138,6 +153,7 @@ def run_from_brief(
     output_dir: Path,
     verbose: bool = False,
     trace: bool = False,
+    seed: int | None = None,
 ) -> Composition:
     """Generate from a .brief file."""
     print(f"Loading {brief_path.name}...")
@@ -172,7 +188,7 @@ def run_from_brief(
         if verbose:
             print(f"  Sections override: {len(sections_override)} sections")
     output_name: str = brief_path.stem
-    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace=trace, fugue=fugue, sections_override=sections_override)
+    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace=trace, fugue=fugue, sections_override=sections_override, seed=seed)
 
 
 def run_from_directory(
@@ -180,6 +196,7 @@ def run_from_directory(
     output_dir: Path,
     verbose: bool = False,
     trace: bool = False,
+    seed: int | None = None,
 ) -> int:
     """Generate from all .brief files in a directory."""
     briefs: list[Path] = sorted(directory.glob("*.brief"))
@@ -189,7 +206,7 @@ def run_from_directory(
     print(f"Found {len(briefs)} brief files in {directory}\n")
     total_notes: int = 0
     for brief_path in briefs:
-        result = run_from_brief(brief_path=brief_path, output_dir=output_dir, verbose=verbose, trace=trace)
+        result = run_from_brief(brief_path=brief_path, output_dir=output_dir, verbose=verbose, trace=trace, seed=seed)
         total_notes += sum(len(v) for v in result.voices.values())
         print()
     print(f"Generated {len(briefs)} pieces ({total_notes} total notes)")
@@ -206,8 +223,8 @@ def main() -> None:
             print(f"  {e}")
         import sys
         sys.exit(1)
-    for p in result.orphaned:
-        print(f"  INFO: orphaned YAML file: {p}")
+    # for p in result.orphaned:
+    #     print(f"  INFO: orphaned YAML file: {p}")
 
     parser = argparse.ArgumentParser(
         description="Generate music from genre/affect or brief files",
@@ -246,6 +263,12 @@ Use -trace to write a <piece>.trace diagnostic file.
         default=False,
         help="Write <piece>.trace diagnostic file to output dir",
     )
+    parser.add_argument(
+        "-seed",
+        type=int,
+        default=None,
+        help="RNG seed for reproducibility (default: varies per run)",
+    )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     first_arg: str = args.args[0]
@@ -254,14 +277,14 @@ Use -trace to write a <piece>.trace diagnostic file.
     if not first_path.exists() and (PROJECT_DIR / first_arg_clean).exists():
         first_path = PROJECT_DIR / first_arg_clean
     if first_path.is_dir():
-        run_from_directory(directory=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace)
+        run_from_directory(directory=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace, seed=args.seed)
         return
     if first_path.suffix == ".brief" or (first_path.exists() and first_path.is_file()):
         if not first_path.exists():
             print(f"File not found: {first_arg_clean}")
             print(f"  (also checked: {PROJECT_DIR / first_arg_clean})")
             return
-        run_from_brief(brief_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace)
+        run_from_brief(brief_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace, seed=args.seed)
         print("\nDone!")
         return
     if len(args.args) < 2:
@@ -278,7 +301,7 @@ Use -trace to write a <piece>.trace diagnostic file.
             output_name = args.args[3] if len(args.args) > 3 else None
         else:
             output_name = args.args[2]
-    run_from_args(genre=genre, affect=affect, output_dir=args.output_dir, key=key, output_name=output_name, verbose=args.verbose, trace=args.trace)
+    run_from_args(genre=genre, affect=affect, output_dir=args.output_dir, key=key, output_name=output_name, verbose=args.verbose, trace=args.trace, seed=args.seed)
     print("\nDone!")
 
 

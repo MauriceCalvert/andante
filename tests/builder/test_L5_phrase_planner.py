@@ -200,13 +200,17 @@ def test_bar_span_positive(
 def test_phrase_duration_consistent(
     phrase_plans_result: tuple[tuple[PhrasePlan, ...], GenreConfig, dict[str, Any], int, SchemaChain],
 ) -> None:
-    """P-11: phrase_duration equals bar_span times bar_length."""
+    """P-11: phrase_duration equals bar_span times bar_length (adjusted for anacrusis)."""
     plans, _, _, _, _ = phrase_plans_result
+    bar_len: Fraction = _bar_length(plans[0].metre)
     for plan in plans:
-        expected: Fraction = plan.bar_span * _bar_length(plan.metre)
+        if plan.anacrusis > 0:
+            expected: Fraction = plan.anacrusis + (plan.bar_span - 1) * bar_len
+        else:
+            expected = plan.bar_span * bar_len
         assert plan.phrase_duration == expected, (
-            f"phrase_duration {plan.phrase_duration} != "
-            f"bar_span {plan.bar_span} * bar_length {_bar_length(plan.metre)}"
+            f"phrase_duration {plan.phrase_duration} != expected {expected} "
+            f"(bar_span={plan.bar_span}, bar_length={bar_len}, anacrusis={plan.anacrusis})"
         )
 
 

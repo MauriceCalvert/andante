@@ -34,7 +34,8 @@ andante/
 │   ├── solver.py              # CP-SAT wrapper
 │   ├── cost.py                # Weight evaluator
 │   ├── realisation.py         # Fills decoration
-│   └── io.py                  # MIDI/note output
+│   ├── io.py                  # MIDI/MusicXML output, shared helpers
+│   └── note_writer.py         # Enriched .note output
 │
 ├── config/                    # YAML (changes per genre)
 │   ├── genres/
@@ -65,7 +66,7 @@ Note: Schema definitions live in data/schemas.yaml (authoritative source per L01
 | Counterpoint rules (parallels, consonance) | Code | ✓ Universal |
 | CP-SAT solver infrastructure | Code | ✓ Universal |
 | Cost function evaluator | Code | ✓ Universal |
-| MIDI/note file I/O | Code | ✓ Universal |
+| MIDI/MusicXML I/O, .note writer | Code | ✓ Universal |
 | Key pitch sets (diatonic, pentatonic) | Code | ✓ Computed from tonic+mode |
 | Schema definitions | data/schemas.yaml | ✓ Universal |
 | Tonal paths | YAML | Per-affect |
@@ -1129,7 +1130,8 @@ planner -> anchors -> phrase_planner -> PhrasePlans -> phrase_writer
 | `planner/metric/schema_anchors.py` | Schema -> anchor expansion |
 | `shared/*` | All shared infrastructure |
 | `builder/faults.py` | Post-composition fault scan |
-| `builder/io.py` | Output writers |
+| `builder/io.py` | MIDI/MusicXML output, shared helpers (all_notes_sorted, bar_beat) |
+| `builder/note_writer.py` | Enriched .note CSV with degree/harmony/phrase/cadence |
 | `builder/compose.py` | Simplified: phrase loop replaces gap loop |
 
 ---
@@ -1270,6 +1272,7 @@ Each phase produces a working system.
 | 2025-01-22 | v1.5.0: Expanded to 7-layer architecture. L5 Textural outputs treatment assignments (voice roles per bar). New L6 Rhythmic outputs active slots and durations per voice. L8 Melodic (was Thematic) uses greedy solver, processes only active slots. Moved Imitation/Countersubject to reference section. Solver config moved to solver_specs.md. |
 | 2025-01-25 | v1.6.0: Added L7 Figuration layer (was L6.5). Replaces solver with authentic baroque patterns (Quantz/CPE Bach). Gap filling via ornament+diminution chaining. Cadential detection via final stage + cadence_approach flag. Bass uses accompaniments.yaml when role is accompaniment. L8 Melodic orphaned (kept for future). Validation via counterpoint.py. |
 | 2025-01-28 | v1.7.0: Added voices.md defining canonical voice/instrument entity model. Brief now requires voices, instruments, scoring, tracks. Anchor fields renamed soprano_degree->upper_degree, bass_degree->lower_degree. Range flows from actuator, not hardcoded. Realisation order from dependency graph, not array index. MIDI track assignment explicit. |
+| 2026-02-08 | v2.0.1: .note output split to builder/note_writer.py. io.py retains MIDI/MusicXML and shared helpers. .note now includes degree, harmony (bass-derived), phrase, cadence columns. Sort order: offset asc, MIDI pitch desc. Piece-level constants in ## metadata headers. generate() returns (Composition, tuple[PhrasePlan, ...], Key). |
 | 2026-02-06 | v2.0.0: Phrase-based redesign. Replaced Layers 5-7 (Textural, Rhythmic, Figuration, Melodic) with Layer 5 Phrase Planning + Layer 6 Composition. Phrase is the unit of composition, not the gap. Genre-specific rhythm cells replace universal diminution table. Cadence writer with fixed templates replaces cadential strategy. Inline counterpoint checking. Added design principles, algorithms, module architecture, risks/mitigations, success criteria, migration plan. Integrated from redesign.md. |
 
 ---

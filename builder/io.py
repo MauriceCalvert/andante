@@ -3,8 +3,7 @@
 Category A: Pure functions for formatting.
 Category B: File I/O operations.
 
-Note file format:
-offset,midinote,duration,track,length,bar,beat,notename,lyric
+Note file writing is in builder/note_writer.py.
 """
 from fractions import Fraction
 from pathlib import Path
@@ -39,36 +38,13 @@ def bar_beat(offset: Fraction, metre: str, upbeat: Fraction = Fraction(0)) -> tu
     return bar, beat_in_bar
 
 
-def format_note_line(note: Note, metre: str, upbeat: Fraction = Fraction(0)) -> str:
-    """Format a single note as CSV line."""
-    bar, beat = bar_beat(offset=note.offset, metre=metre, upbeat=upbeat)
-    return (
-        f"{float(note.offset)},"
-        f"{note.pitch},"
-        f"{note.duration},"
-        f"{note.voice},"
-        f","
-        f"{bar},"
-        f"{float(beat)},"
-        f"{note_name(midi=note.pitch)}"
-    )
-
-
-def _all_notes_sorted(comp: Composition) -> list[Note]:
-    """Collect all notes from all voices, sorted by offset then voice."""
+def all_notes_sorted(comp: Composition) -> list[Note]:
+    """Collect all notes from all voices, sorted by offset then MIDI descending."""
     all_notes: list[Note] = []
     for voice_notes in comp.voices.values():
         all_notes.extend(voice_notes)
-    all_notes.sort(key=lambda n: (float(n.offset), n.voice))
+    all_notes.sort(key=lambda n: (float(n.offset), -n.pitch))
     return all_notes
-
-
-def write_note_file(comp: Composition, path: Path) -> None:
-    """Write notes to .note CSV file."""
-    lines: list[str] = ["offset,midinote,duration,track,length,bar,beat,notename"]
-    for note in _all_notes_sorted(comp=comp):
-        lines.append(format_note_line(note=note, metre=comp.metre, upbeat=comp.upbeat))
-    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def write_midi_file(
@@ -80,7 +56,7 @@ def write_midi_file(
 ) -> None:
     """Write notes to MIDI file."""
     from shared.midi_writer import SimpleNote, write_midi_notes
-    all_notes: list[Note] = _all_notes_sorted(comp=comp)
+    all_notes: list[Note] = all_notes_sorted(comp=comp)
     all_offsets: list[Fraction] = [n.offset for n in all_notes]
     min_offset: Fraction = min(all_offsets) if all_offsets else Fraction(0)
     shift: Fraction = -min_offset if min_offset < 0 else Fraction(0)

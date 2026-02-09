@@ -52,7 +52,7 @@ humanised .note file (or direct MIDI)
 
 ### 1.1 Phrase Detection
 
-**Input**: .note with lyric annotations (you already have these)
+**Input**: .note with phrase and cadence annotations (already present in .note output)
 
 **Enhancements**:
 - Detect phrase boundaries from melodic contour (rests, long notes, direction changes)
@@ -755,8 +755,8 @@ overrides:
 Add humanisation hints to .note:
 
 ```csv
-offset,midinote,duration,track,length,bar,beat,notename,lyric,h_onset,h_velocity,h_duration
-0,72,0.25,0,,1,1.0,C5,statement,-0.002,78,0.23
+offset,midinote,duration,track,bar,beat,notename,degree,harmony,phrase,cadence,h_onset,h_velocity,h_duration
+0,72,0.25,0,1,1.0,C5,1,I,A,,-0.002,78,0.23
 ...
 ```
 

@@ -518,11 +518,13 @@ def _check_voice_overlap(
 def _check_parallel_perfect(
     voices: Sequence[Sequence[Note]],
     metre: str,
+    phrase_offsets: Sequence[Fraction] = (),
 ) -> list[Fault]:
     """Check for parallel fifths, octaves, unisons."""
     faults: list[Fault] = []
     if len(voices) < 2:
         return faults
+    phrase_breaks: frozenset[Fraction] = frozenset(phrase_offsets)
     for v_a in range(len(voices)):
         for v_b in range(v_a + 1, len(voices)):
             a_by_off: dict[Fraction, int] = {n.offset: n.pitch for n in voices[v_a]}
@@ -530,6 +532,9 @@ def _check_parallel_perfect(
             common: list[Fraction] = sorted(set(a_by_off.keys()) & set(b_by_off.keys()))
             for i in range(len(common) - 1):
                 off1, off2 = common[i], common[i + 1]
+                # Parallels across a phrase boundary are not a fault
+                if off2 in phrase_breaks:
+                    continue
                 a1, a2 = a_by_off[off1], a_by_off[off2]
                 b1, b2 = b_by_off[off1], b_by_off[off2]
                 motion: str = _motion_type(pitch_a_from=a1, pitch_a_to=a2, pitch_b_from=b1, pitch_b_to=b2)
@@ -649,7 +654,7 @@ def find_faults(
     faults.extend(_check_cross_relation(voices=voices, metre=metre))
     faults.extend(_check_direct_motion(voices=voices, metre=metre, voice_structural=voice_structural))
     faults.extend(_check_dissonance(voices=voices, metre=metre, voice_structural=voice_structural))
-    faults.extend(_check_parallel_perfect(voices=voices, metre=metre))
+    faults.extend(_check_parallel_perfect(voices=voices, metre=metre, phrase_offsets=phrase_offsets))
     faults.extend(_check_parallel_rhythm(voices=voices, metre=metre, phrase_offsets=phrase_offsets))
     faults.extend(_check_spacing(voices=voices, metre=metre))
     faults.extend(_check_voice_overlap(voices=voices, metre=metre, voice_structural=voice_structural))

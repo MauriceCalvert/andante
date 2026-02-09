@@ -20,8 +20,8 @@ def _validate_yaml_data() -> None:
         for e in result.errors:
             lines.append(f"  {e}")
         pytest.fail("\n".join(lines))
-    for p in result.orphaned:
-        print(f"  INFO: orphaned YAML file: {p}")
+    # for p in result.orphaned:
+    #     print(f"  INFO: orphaned YAML file: {p}")
 
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"

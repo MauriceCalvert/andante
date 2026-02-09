@@ -3,7 +3,9 @@
 Given a sequence of PhrasePlans, composes each phrase in order using
 the phrase writer, threading exit pitches between consecutive phrases.
 """
+from dataclasses import replace
 from fractions import Fraction
+
 from builder.cadence_writer import load_cadence_templates
 from builder.phrase_types import PhrasePlan, PhraseResult, phrase_degree_offset
 from builder.phrase_writer import write_phrase
@@ -32,6 +34,43 @@ def _structural_offsets_for_plan(plan: PhrasePlan) -> tuple[frozenset[Fraction],
     return offsets, offsets
 
 
+def _stamp_lyrics(plan: PhrasePlan, result: PhraseResult) -> tuple[Note, ...]:
+    """Annotate soprano notes with schema/section/character/figuration lyrics."""
+    if not result.upper_notes:
+        return result.upper_notes
+
+    notes: list[Note] = list(result.upper_notes)
+    first_parts: list[str] = [plan.schema_name, plan.section_name, plan.character]
+    if plan.is_cadential and plan.cadence_type:
+        first_parts.append(plan.cadence_type)
+    first_lyric: str = "/".join(first_parts)
+
+    if not plan.is_cadential and result.soprano_figures:
+        bar_length, beat_unit = parse_metre(metre=plan.metre)
+        structural_offsets: list[Fraction] = [
+            phrase_degree_offset(
+                plan=plan, pos=pos,
+                bar_length=bar_length, beat_unit=beat_unit,
+            )
+            for pos in plan.degree_positions
+        ]
+        offset_to_figure: dict[Fraction, str] = {}
+        for fig_idx, fig_name in enumerate(result.soprano_figures):
+            offset_to_figure[structural_offsets[fig_idx]] = fig_name
+        for j, sn in enumerate(notes):
+            parts: list[str] = []
+            if j == 0:
+                parts.append(first_lyric)
+            if sn.offset in offset_to_figure:
+                parts.append(offset_to_figure[sn.offset])
+            if parts:
+                notes[j] = replace(sn, lyric="/".join(parts))
+    else:
+        notes[0] = replace(notes[0], lyric=first_lyric)
+
+    return tuple(notes)
+
+
 def compose_phrases(
     phrase_plans: tuple[PhrasePlan, ...],
     home_key: Key,
@@ -45,9 +84,6 @@ def compose_phrases(
     lower_notes: list[Note] = []
     upper_structural: set[Fraction] = set()
     lower_structural: set[Fraction] = set()
-    prev_upper_pitch: int | None = None
-    prev_lower_pitch: int | None = None
-    prev_prev_lower_pitch: int | None = None
     for plan_idx, plan in enumerate(phrase_plans):
         # Compute next phrase's first soprano degree/key for cross-phrase guard
         next_entry_degree: int | None = None
@@ -72,13 +108,12 @@ def compose_phrases(
                 )
         result: PhraseResult = write_phrase(
             plan=plan,
-            prev_upper_midi=prev_upper_pitch,
-            prev_lower_midi=prev_lower_pitch,
-            prev_prev_lower_midi=prev_prev_lower_pitch,
+            prior_upper=tuple(upper_notes),
+            prior_lower=tuple(lower_notes),
             next_phrase_entry_degree=next_entry_degree,
             next_phrase_entry_key=next_entry_key,
         )
-        upper_notes.extend(result.upper_notes)
+        upper_notes.extend(_stamp_lyrics(plan=plan, result=result))
         lower_notes.extend(result.lower_notes)
         get_tracer().trace_phrase_result(
             index=plan_idx,
@@ -94,15 +129,6 @@ def compose_phrases(
         else:
             upper_structural.update(up_struct)
             lower_structural.update(lo_struct)
-        if result.upper_notes:
-            prev_upper_pitch = result.upper_notes[-1].pitch
-        if result.lower_notes:
-            prev_prev_lower_pitch = (
-                result.lower_notes[-2].pitch
-                if len(result.lower_notes) >= 2
-                else prev_lower_pitch
-            )
-            prev_lower_pitch = result.lower_notes[-1].pitch
     get_tracer().trace_L6_header(
         total_upper=len(upper_notes),
         total_lower=len(lower_notes),

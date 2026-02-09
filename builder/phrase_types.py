@@ -48,6 +48,7 @@ class PhrasePlan:
     degree_keys: tuple[Key, ...] | None = None
     character: str = "plain"
     anacrusis: Fraction = Fraction(0)
+    registral_bias: int = 0
 
 
 @dataclass(frozen=True)

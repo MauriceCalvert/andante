@@ -17,13 +17,16 @@ from typing import Any
 
 from builder.compose import compose_phrases
 from builder.config_loader import load_configs
-from builder.io import write_midi_file, write_musicxml_file, write_note_file
+from builder.io import write_midi_file, write_musicxml_file
+from builder.note_writer import write_note_file
 from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan
 from builder.types import Composition, SchemaChain, TonalPlan
 from motifs.fugue_loader import LoadedFugue
+from planner.arc import build_tension_curve
 from planner.dramaturgy import get_suggested_key
 from planner.metric.layer import layer_4_metric
+from planner.plannertypes import Brief, TensionCurve
 from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
@@ -63,7 +66,7 @@ def generate(
     fugue: LoadedFugue | None = None,
     sections_override: tuple[dict, ...] | None = None,
     seed: int = 42,
-) -> Composition:
+) -> tuple[Composition, tuple[PhrasePlan, ...], Key]:
     """Generate composition from genre and affect, with optional key and tempo."""
     tracer = get_tracer()
     if key is None:
@@ -81,6 +84,9 @@ def generate(
     form_config = config["form"]
     schemas = config["schemas"]
     trajectory, rhythm_vocab, tempo = layer_1_rhetorical(genre_config=genre_config)
+    # Build tension curve for registral arc shaping
+    brief: Brief = Brief(affect=affect, genre=genre, forces="keyboard", bars=0)
+    tension_curve: TensionCurve = build_tension_curve(brief=brief)
     if tempo_override is not None:
         tempo = tempo_override
     else:
@@ -131,18 +137,20 @@ def generate(
         genre_config=genre_config,
         schemas=schemas,
         total_bars=total_bars,
+        tension_curve=tension_curve,
     )
     tracer.trace_L5(plans=phrase_plans)
     # Compose from phrase plans
     assert len(anchors) > 0, "Layer 4 produced no anchors; cannot determine home key"
     home_key: Key = anchors[0].local_key
-    return compose_phrases(
+    comp: Composition = compose_phrases(
         phrase_plans=phrase_plans,
         home_key=home_key,
         metre=genre_config.metre,
         tempo=tempo,
         upbeat=genre_config.upbeat,
     )
+    return comp, phrase_plans, home_key
 
 
 def generate_to_files(
@@ -154,26 +162,31 @@ def generate_to_files(
     tempo: int | None = None,
     fugue: LoadedFugue | None = None,
     sections_override: tuple[dict, ...] | None = None,
+    seed: int = 42,
 ) -> Composition:
     """Generate composition and write to files."""
-    result: Composition = generate(genre=genre, affect=affect, key=key, tempo_override=tempo, fugue=fugue, sections_override=sections_override)
+    result, phrase_plans, home_key = generate(
+        genre=genre,
+        affect=affect,
+        key=key,
+        tempo_override=tempo,
+        fugue=fugue,
+        sections_override=sections_override,
+        seed=seed,
+    )
     note_path: Path = output_dir / f"{name}.note"
     midi_path: Path = output_dir / f"{name}.midi"
     xml_path: Path = output_dir / name
-    write_note_file(comp=result, path=note_path)
-    tonic, mode = _parse_key(key_str=key) if key else ("C", "major")
+    write_note_file(
+        comp=result,
+        path=note_path,
+        home_key=home_key,
+        genre=genre,
+        phrase_plans=phrase_plans,
+    )
+    tonic: str = home_key.tonic
+    mode: str = home_key.mode
     write_midi_file(comp=result, path=midi_path, tonic=tonic, mode=mode)
     write_musicxml_file(comp=result, path=xml_path, tonic=tonic, mode=mode)
     return result
 
-
-def _parse_key(key_str: str) -> tuple[str, str]:
-    """Parse key string like 'c_major' to ('C', 'major')."""
-    parts: list[str] = key_str.lower().split("_")
-    tonic: str = parts[0].capitalize()
-    if len(tonic) > 1 and tonic[1] == "b":
-        tonic = tonic[0].upper() + "b"
-    elif len(tonic) > 1 and tonic[1] == "#":
-        tonic = tonic[0].upper() + "#"
-    mode: str = parts[1] if len(parts) > 1 else "major"
-    return tonic, mode

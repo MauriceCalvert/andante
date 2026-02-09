@@ -155,14 +155,16 @@ def write_cadence(
     metre: str,
     local_key: Key,
     start_offset: Fraction,
-    prev_upper_midi: int | None,
-    prev_lower_midi: int | None,
+    prior_upper: tuple[Note, ...],
+    prior_lower: tuple[Note, ...],
     upper_range: tuple[int, int],
     lower_range: tuple[int, int],
     upper_median: int,
     lower_median: int,
 ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
     """Write soprano and bass notes for a cadential schema."""
+    prev_upper_midi: int | None = prior_upper[-1].pitch if prior_upper else None
+    prev_lower_midi: int | None = prior_lower[-1].pitch if prior_lower else None
     templates: dict[tuple[str, str], CadenceTemplate] = load_cadence_templates()
     key: tuple[str, str] = (schema_name, metre)
     assert key in templates, (
@@ -173,6 +175,26 @@ def write_cadence(
     bass_notes: list[Note] = []
     soprano_offset: Fraction = start_offset
     upper_target: int = prev_upper_midi if prev_upper_midi is not None else upper_median
+    # Descent guard: simulate template trajectory without range clamping.
+    # If any predicted pitch falls below range floor, raise target by shortfall.
+    pilot_midis: list[int] = [degree_to_nearest_midi(
+        degree=template.soprano_degrees[0],
+        key=local_key,
+        target_midi=upper_target,
+        midi_range=upper_range,
+    )]
+    for pilot_deg in template.soprano_degrees[1:]:
+        pilot_candidates: list[int] = [
+            local_key.degree_to_midi(degree=pilot_deg, octave=octave)
+            for octave in range(2, 7)
+        ]
+        pilot_midis.append(min(
+            pilot_candidates,
+            key=lambda m: abs(m - pilot_midis[-1]),
+        ))
+    lowest_predicted: int = min(pilot_midis)
+    if lowest_predicted < upper_range[0]:
+        upper_target += (upper_range[0] - lowest_predicted)
     for deg, dur in zip(template.soprano_degrees, template.soprano_durations):
         midi: int = degree_to_nearest_midi(degree=deg, key=local_key, target_midi=upper_target, midi_range=upper_range)
         soprano_notes.append(Note(

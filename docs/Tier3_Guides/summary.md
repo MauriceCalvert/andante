@@ -33,7 +33,8 @@ andante/
 │   ├── counterpoint.py     # Two-part counterpoint rules
 │   ├── faults.py           # 11+ fault categories detection
 │   ├── greedy_solver.py    # Greedy solving approach
-│   ├── io.py               # .note, MIDI, MusicXML output
+│   ├── io.py               # MIDI, MusicXML output, shared helpers
+│   ├── note_writer.py      # Enriched .note output with analysis
 │   ├── musicxml_writer.py  # MusicXML export
 │   ├── realisation.py      # Anchors → Note objects
 │   ├── slice.py            # Interval/motion analysis
@@ -323,7 +324,8 @@ YAML degrees → FloatingNote → (realisation) → MIDI int
 ```
 config_loader.py   Load YAML configs (genres, schemas, affects, forms)
 types.py           Note, Anchor, Solution, RhythmState, etc.
-io.py              Export to .note CSV, MIDI, MusicXML
+io.py              Export MIDI, MusicXML; shared note helpers
+note_writer.py     Export enriched .note CSV with degree/harmony/phrase/cadence
 musicxml_writer.py MusicXML-specific export
 ```
 
