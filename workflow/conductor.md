@@ -569,6 +569,8 @@ You communicate with Claude Code through the filesystem. No copy-pasting.
   to start a fresh Claude Code session.
 - All evaluations are preserved in `workflow/result.md`. You can also
   archive them to `workflow/results/` if a history is needed.
+- Make changes without approval.
+- Don't display code or plans, write them.
 
 ## Escalation
 

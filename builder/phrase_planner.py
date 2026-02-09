@@ -89,6 +89,12 @@ def build_phrase_plans(
             plan = replace(plan, registral_bias=bias, character=char)
         plans.append(plan)
         cumulative_bar += plan.bar_span
+    # Phase 6.3: mark motivic recall phrases for binary forms
+    plans = _mark_recall_phrases(
+        plans=plans,
+        schema_chain=schema_chain,
+        genre_config=genre_config,
+    )
     _validate_plans(plans=plans, schema_chain=schema_chain)
     return tuple(plans)
 
@@ -401,6 +407,45 @@ def _get_sequential_segment_key(
     if key_area == "I" or key_area == "i":
         return home_key
     return home_key.modulate_to(target=key_area)
+
+
+def _mark_recall_phrases(
+    plans: list[PhrasePlan],
+    schema_chain: SchemaChain,
+    genre_config: GenreConfig,
+) -> list[PhrasePlan]:
+    """Mark phrases that should recall the opening motif.
+
+    For binary forms: first non-cadential phrase of section B,
+    and last non-cadential phrase before the final cadence.
+    """
+    if len(genre_config.sections) < 2:
+        return plans
+    if len(schema_chain.section_boundaries) < 2:
+        return plans
+    # Find the index where section B starts
+    section_b_start: int = schema_chain.section_boundaries[0]
+    # Mark first non-cadential phrase in section B
+    first_b_marked: bool = False
+    for i in range(section_b_start, len(plans)):
+        if not plans[i].is_cadential and not first_b_marked:
+            plans[i] = replace(plans[i], recall_motif=True)
+            first_b_marked = True
+            break
+    # Mark last non-cadential phrase before final cadence
+    last_non_cadential: int | None = None
+    for i in range(len(plans) - 1, -1, -1):
+        if plans[i].is_cadential:
+            continue
+        # Found the last non-cadential phrase — but only mark if it's
+        # different from the one already marked above
+        last_non_cadential = i
+        break
+    if last_non_cadential is not None and not plans[last_non_cadential].recall_motif:
+        plans[last_non_cadential] = replace(
+            plans[last_non_cadential], recall_motif=True,
+        )
+    return plans
 
 
 def _validate_plans(

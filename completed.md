@@ -1,3 +1,90 @@
+## 2026-02-10 Plans 5, 6, 7: Boundary smoothing, Motivic return, Genre validation
+
+### Plan 5 — Phrase Boundary Register Smoothing
+- Audited boundary intervals across minuet/gavotte (scripts/boundary_audit.py)
+- Soprano avg 2.2st, bass avg 3.8st — already smooth
+- degree_to_nearest_midi with prev_exit_midi threading already implements proximity-based octave selection
+- No code changes needed; existing architecture handles this
+
+### Plan 6 — Motivic Return
+- Added HeadMotif dataclass to builder/phrase_types.py (interval_sequence, duration_sequence, figure_name)
+- Added recall_motif: bool = False to PhrasePlan
+- _extract_head_motif in compose.py captures opening figuration after first non-cadential phrase
+- recall_figure_name threaded through selection.py → soprano.py → soprano_writer.py → phrase_writer.py
+- select_figure prefers recalled figure when found in filtered pool
+- _mark_recall_phrases in phrase_planner.py marks first non-cadential in section B + last non-cadential before final cadence
+- Verified: minuet recalls at plans 3,5; gavotte at plans 3,6
+
+### Plan 7 — Genre Validation
+- Bass routing fix: continuo_walking pattern now correctly routes to walking bass
+  (changed elif condition in bass_writer.py generate_bass_phrase to exclude continuo_walking from pillar)
+- Reverted uncommitted StructuralFrame refactoring (introduced test regressions — not behaviour-preserving as claimed)
+- Sarabande: 43+22 notes, 2 cross-relation faults at key boundaries (D minor ↔ F major), sustained bass correct
+- Bourree: 57+58 notes, 0 faults, walking bass + upbeat correct
+- Invention: 64+57 notes, 0 faults, 4-section through-composed structure works
+- All 3752 tests pass, 204 skipped, 0 failures
+- Genre comparison table in workflow/result.md
+
+Modified: builder/phrase_types.py, builder/compose.py, builder/phrase_planner.py,
+builder/figuration/selection.py, builder/figuration/soprano.py, builder/soprano_writer.py,
+builder/phrase_writer.py, builder/bass_writer.py
+
+---
+
+## 2026-02-09 Phase 4.2+4.3: Patterned and Pillar Bass Rhythm Audit
+
+**Phase 4.2 — Soprano-aware cell selection: verified no-op.**
+- `_generate_pillar_bass` line 438: `soprano_onsets=frame.soprano_onsets_per_bar.get(bar_num)` already passed to `select_cell`.
+- `_generate_pattern_bass`: uses `realise_bass_pattern`, not `select_cell`. No action needed.
+- `_generate_walking_bass`: no `select_cell` call (even beat_unit grid since 4.1). No action needed.
+
+**Phase 4.3 — Pillar bass energetic cell exclusion: guard added.**
+Minuet 3/4 rhythm cell pool: plain=2, cadential=2, flowing=2, dotted=1, energetic=2 (total 9).
+Energetic cells (`four_quavers_crotchet`, `six_quavers`) exist for minuet and could be selected
+by the soprano-onset ranking in `select_cell`. Added guard in `_generate_pillar_bass`: after
+`select_cell` returns, if `cell.character == "energetic"`, re-calls with `prefer_character="plain"`
+and `avoid_name` set to the energetic cell's name. Assert verifies replacement is not energetic.
+
+Minuet output: all bass notes are crotchet (1/4), minim (1/2), or dotted minim (3/4) — plain
+and cadential cells only. No quaver runs in pillar bass.
+
+Gavotte output: unaffected (uses `_generate_pattern_bass`, different code path).
+
+Modified: builder/bass_writer.py (1 file only)
+
+---
+
+## 2026-02-09 Phase 4.1: Walking Bass Even Note Values
+
+Replaced `select_cell` in `_generate_walking_bass` with even beat_unit durations.
+Walking bass now produces one note per beat, every beat, equal duration.
+
+- Added `_walking_accent_pattern` helper: derives accent pattern from STRONG_BEAT_OFFSETS
+- Replaced cell selection block: even quarter notes for full bars, proportional for anacrusis
+- Removed `prev_cell_name` tracking (dead code without cell selection)
+- Gavotte section B: all walking bass notes have duration 1/4 (verified from .note output)
+- Gavotte section A (patterned bass): unchanged
+- Minuet: unaffected (no walking bass)
+
+Known new faults: parallel_rhythm in gavotte/invention (walking bass + soprano
+both at beat-level = lockstep). Root cause is soprano figuration density, not
+walking bass rhythm. Separate task needed.
+
+Modified: builder/bass_writer.py (1 file only)
+
+---
+
+## 2026-02-09 Bass Writer Refactor A/B/C — REVERTED
+
+Three refactoring steps (StructuralFrame extraction, _refine_pitch unification,
+texture function extraction) were attempted but reverted on 2026-02-10. Despite
+claiming byte-identical output, the refactoring introduced test regressions
+(parallel_octave in gavotte, parallel_rhythm in walking-bass genres) due to subtle
+ordering differences in the constraint pipeline. The monolithic generate_bass_phrase
+remains the canonical implementation.
+
+---
+
 ## 2026-02-09 Full backward visibility in composition pipeline
 
 Implemented the plan from `workflow/task.md`:

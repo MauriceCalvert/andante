@@ -119,6 +119,7 @@ def generate_soprano_phrase(
     prior_upper: tuple[Note, ...] = (),
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
+    recall_figure_name: str | None = None,
 ) -> tuple[tuple[Note, ...], tuple[str, ...]]:
     """Generate soprano notes for one phrase.
 
@@ -213,6 +214,8 @@ def generate_soprano_phrase(
         bar_num_for_span: int = phrase_offset_to_bar(plan=plan, offset=a_off, bar_length=bar_length)
         is_final: bool = si == len(structural_tones) - 1
         position: str = "cadential" if is_final else "passing"
+        # Motivic recall: pass recall_figure_name only for the first span
+        span_recall: str | None = recall_figure_name if si == 0 else None
         span_notes, fig_name = figurate_soprano_span(
             start_offset=a_off,
             start_midi=a_midi,
@@ -226,6 +229,7 @@ def generate_soprano_phrase(
             bar_num=bar_num_for_span,
             midi_range=midi_range,
             prev_figure_name=prev_figure_name,
+            recall_figure_name=span_recall,
         )
         prev_figure_name = fig_name
         collected_figure_names.append(fig_name)

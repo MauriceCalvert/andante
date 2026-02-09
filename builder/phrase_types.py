@@ -21,6 +21,17 @@ class BeatPosition:
 
 
 @dataclass(frozen=True)
+class HeadMotif:
+    """Lightweight descriptor of the opening soprano figuration.
+
+    Captured after the first non-cadential phrase to enable motivic recall.
+    """
+    interval_sequence: tuple[int, ...]   # signed semitone deltas between consecutive notes
+    duration_sequence: tuple[Fraction, ...]  # note durations
+    figure_name: str  # diminution table figure that produced it
+
+
+@dataclass(frozen=True)
 class PhrasePlan:
     """Complete specification for writing one phrase (one schema)."""
     schema_name: str
@@ -49,6 +60,7 @@ class PhrasePlan:
     character: str = "plain"
     anacrusis: Fraction = Fraction(0)
     registral_bias: int = 0
+    recall_motif: bool = False
 
 
 @dataclass(frozen=True)

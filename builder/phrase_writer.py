@@ -13,6 +13,7 @@ def write_phrase(
     prior_lower: tuple[Note, ...] = (),
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
+    recall_figure_name: str | None = None,
 ) -> PhraseResult:
     """Write complete phrase (soprano + bass) and return result."""
     soprano_figures: tuple[str, ...] = ()
@@ -36,6 +37,7 @@ def write_phrase(
             prior_upper=prior_upper,
             next_phrase_entry_degree=next_phrase_entry_degree,
             next_phrase_entry_key=next_phrase_entry_key,
+            recall_figure_name=recall_figure_name,
         )
         bass_notes = generate_bass_phrase(
             plan=plan,

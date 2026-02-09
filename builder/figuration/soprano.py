@@ -28,6 +28,7 @@ def figurate_soprano_span(
     bar_num: int,
     midi_range: tuple[int, int],
     prev_figure_name: str | None = None,
+    recall_figure_name: str | None = None,
 ) -> tuple[list[tuple[Fraction, int, Fraction]], str]:
     """Fill gap between two structural tones with a figured diminution.
 
@@ -48,6 +49,7 @@ def figurate_soprano_span(
         bar_num: Bar index for deterministic variation (V001).
         midi_range: (low, high) MIDI bounds for soprano.
         prev_figure_name: Previous figure name to avoid repetition.
+        recall_figure_name: If set, prefer this figure for motivic recall.
 
     Returns:
         (notes, figure_name) where notes is [(offset, midi, duration), ...].
@@ -90,6 +92,7 @@ def figurate_soprano_span(
         is_minor=is_minor,
         bar_num=bar_num,
         prev_figure_name=prev_figure_name,
+        recall_figure_name=recall_figure_name,
     )
 
     # Realise figure degrees as MIDI pitches

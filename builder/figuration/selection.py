@@ -56,6 +56,7 @@ def select_figure(
     is_minor: bool,
     bar_num: int,
     prev_figure_name: str | None = None,
+    recall_figure_name: str | None = None,
 ) -> Figure:
     """Deterministic figure selection from diminution table.
 
@@ -67,6 +68,7 @@ def select_figure(
         is_minor: True if current key is minor.
         bar_num: Bar index for deterministic rotation (V001).
         prev_figure_name: Previous figure name to avoid immediate repetition.
+        recall_figure_name: If set, prefer this figure (motivic recall).
 
     Returns:
         Selected Figure from the diminution table.
@@ -74,6 +76,12 @@ def select_figure(
     diminutions: dict[str, list[Figure]] = get_diminutions()
     pool: list[Figure] = diminutions[interval]
     assert len(pool) > 0, f"No figures for interval '{interval}'"
+
+    # Motivic recall: if requested figure exists in pool, prefer it
+    if recall_figure_name is not None:
+        recalled: list[Figure] = [f for f in pool if f.name == recall_figure_name]
+        if recalled:
+            return recalled[0]
 
     # Filter by note count: exact match or chainable figures that divide evenly
     exact: list[Figure] = [f for f in pool if f.note_count == note_count]

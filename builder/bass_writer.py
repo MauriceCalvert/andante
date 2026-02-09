@@ -377,10 +377,14 @@ def generate_bass_phrase(
     }
     texture: str = plan.bass_texture
     # Walking patterns should use walking texture path for complementary rhythm
+    continuo_walking: bool = (
+        plan.bass_pattern is not None
+        and plan.bass_pattern.startswith("continuo_walking")
+    )
     use_pattern_bass: bool = (
         texture == "pillar"
         and plan.bass_pattern is not None
-        and not plan.bass_pattern.startswith("continuo_walking")
+        and not continuo_walking
     )
     notes: list[Note] = []
     if use_pattern_bass:
@@ -609,7 +613,7 @@ def generate_bass_phrase(
                     prev_common_sop = sop_here
                 prev_prev_bp = prev_bp_pitch
                 prev_bp_pitch = pitch
-    elif texture == "pillar":
+    elif texture == "pillar" and not continuo_walking:
         # Legacy pillar: no bass_pattern declared
         current_midi: int = (
             prev_exit_midi if prev_exit_midi is not None

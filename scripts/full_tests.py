@@ -45,13 +45,23 @@ def main() -> None:
     if missing:
         print(f"Missing test files: {missing}")
         sys.exit(1)
+    user_args: list[str] = sys.argv[1:]
+    cov_args: list[str] = []
+    if "--cov" in user_args:
+        user_args.remove("--cov")
+        cov_args = [
+            f"--cov={ANDANTE_DIR}",
+            "--cov-report=term-missing",
+            f"--cov-report=html:{ANDANTE_DIR / 'htmlcov'}",
+        ]
     args: list[str] = [
         sys.executable, "-m", "pytest",
         str(TESTS_DIR),
         "-q",
         "--tb=short",
+        *cov_args,
     ]
-    args.extend(sys.argv[1:])
+    args.extend(user_args)
     start: float = time.perf_counter()
     result: subprocess.CompletedProcess[bytes] = subprocess.run(
         args,

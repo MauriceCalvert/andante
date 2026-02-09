@@ -7,7 +7,7 @@ from dataclasses import replace
 from fractions import Fraction
 
 from builder.cadence_writer import load_cadence_templates
-from builder.phrase_types import PhrasePlan, PhraseResult, phrase_degree_offset
+from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
 from shared.key import Key
@@ -71,6 +71,49 @@ def _stamp_lyrics(plan: PhrasePlan, result: PhraseResult) -> tuple[Note, ...]:
     return tuple(notes)
 
 
+def _extract_head_motif(
+    upper_notes: tuple[Note, ...],
+    soprano_figures: tuple[str, ...],
+    plan: PhrasePlan,
+) -> HeadMotif | None:
+    """Extract the head motif from the first non-cadential phrase's soprano.
+
+    Captures the interval and duration sequence of the first figuration span
+    (from the first structural tone to the second).
+    """
+    if not soprano_figures or not upper_notes:
+        return None
+    bar_length, beat_unit = parse_metre(metre=plan.metre)
+    # Find the second structural tone offset
+    if len(plan.degree_positions) < 2:
+        return None
+    first_struct: Fraction = phrase_degree_offset(
+        plan=plan, pos=plan.degree_positions[0],
+        bar_length=bar_length, beat_unit=beat_unit,
+    )
+    second_struct: Fraction = phrase_degree_offset(
+        plan=plan, pos=plan.degree_positions[1],
+        bar_length=bar_length, beat_unit=beat_unit,
+    )
+    # Collect notes in the first span [first_struct, second_struct)
+    span_notes: list[Note] = [
+        n for n in upper_notes
+        if first_struct <= n.offset < second_struct
+    ]
+    if len(span_notes) < 2:
+        return None
+    intervals: list[int] = [
+        span_notes[i + 1].pitch - span_notes[i].pitch
+        for i in range(len(span_notes) - 1)
+    ]
+    durations: list[Fraction] = [n.duration for n in span_notes]
+    return HeadMotif(
+        interval_sequence=tuple(intervals),
+        duration_sequence=tuple(durations),
+        figure_name=soprano_figures[0],
+    )
+
+
 def compose_phrases(
     phrase_plans: tuple[PhrasePlan, ...],
     home_key: Key,
@@ -84,6 +127,7 @@ def compose_phrases(
     lower_notes: list[Note] = []
     upper_structural: set[Fraction] = set()
     lower_structural: set[Fraction] = set()
+    head_motif: HeadMotif | None = None
     for plan_idx, plan in enumerate(phrase_plans):
         # Compute next phrase's first soprano degree/key for cross-phrase guard
         next_entry_degree: int | None = None
@@ -106,13 +150,25 @@ def compose_phrases(
                     if next_plan.degree_keys is not None
                     else next_plan.local_key
                 )
+        # Determine recall figure name for motivic return
+        recall_figure: str | None = None
+        if plan.recall_motif and head_motif is not None:
+            recall_figure = head_motif.figure_name
         result: PhraseResult = write_phrase(
             plan=plan,
             prior_upper=tuple(upper_notes),
             prior_lower=tuple(lower_notes),
             next_phrase_entry_degree=next_entry_degree,
             next_phrase_entry_key=next_entry_key,
+            recall_figure_name=recall_figure,
         )
+        # Extract head motif after first non-cadential phrase
+        if head_motif is None and not plan.is_cadential:
+            head_motif = _extract_head_motif(
+                upper_notes=result.upper_notes,
+                soprano_figures=result.soprano_figures,
+                plan=plan,
+            )
         upper_notes.extend(_stamp_lyrics(plan=plan, result=result))
         lower_notes.extend(result.lower_notes)
         get_tracer().trace_phrase_result(
