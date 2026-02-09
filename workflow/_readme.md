@@ -147,6 +147,5 @@ for Chaz evaluation.
 
 ## Current Implementation Plan
 
-See `plan3.md` in the project root. Plan 3 (Polish and Variety) is
-complete. All four phases done: walking bass, seed variation,
-per-section schema sequences, gentle registral descent.
+Plans 3–7 complete. See `completed.md` for full history.
+See `continue.md` for current state and known issues.
