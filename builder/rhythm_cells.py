@@ -147,12 +147,12 @@ def _cell_onsets(cell: RhythmCell) -> frozenset[Fraction]:
 
 def _onset_overlap(
     cell: RhythmCell,
-    soprano_onsets: frozenset[Fraction],
+    avoid_onsets: frozenset[Fraction],
 ) -> int:
-    """Count onsets shared between cell and soprano (excluding beat 1)."""
+    """Count onsets shared between cell and avoid_onsets (excluding beat 1)."""
     cell_onsets: frozenset[Fraction] = _cell_onsets(cell=cell)
     # Beat 1 (offset 0) is idiomatically shared; exclude from penalty
-    return len((cell_onsets - frozenset({Fraction(0)})) & (soprano_onsets - frozenset({Fraction(0)})))
+    return len((cell_onsets - frozenset({Fraction(0)})) & (avoid_onsets - frozenset({Fraction(0)})))
 
 
 def select_cell(
@@ -162,7 +162,7 @@ def select_cell(
     prefer_character: str = "plain",
     avoid_name: str | None = None,
     required_onsets: frozenset[Fraction] | None = None,
-    soprano_onsets: frozenset[Fraction] | None = None,
+    avoid_onsets: frozenset[Fraction] | None = None,
 ) -> RhythmCell:
     """Select a rhythm cell for one bar. Deterministic (A005)."""
     candidates: list[RhythmCell] = get_cells_for_genre(genre=genre, metre=metre)
@@ -180,11 +180,11 @@ def select_cell(
         )
     if avoid_name is not None and len(candidates) > 1:
         candidates = [c for c in candidates if c.name != avoid_name] or candidates
-    # When selecting complementary rhythm for bass, onset independence
-    # outranks character preference (use full candidate pool)
-    if soprano_onsets is not None and len(candidates) > 1:
+    # When selecting complementary rhythm, onset independence outranks
+    # character preference (use full candidate pool)
+    if avoid_onsets is not None and len(candidates) > 1:
         pool: list[RhythmCell] = sorted(candidates, key=lambda c: (
-            _onset_overlap(cell=c, soprano_onsets=soprano_onsets),
+            _onset_overlap(cell=c, avoid_onsets=avoid_onsets),
             0 if c.character == prefer_character else 1,
             c.name,
         ))

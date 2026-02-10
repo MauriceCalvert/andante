@@ -1,5 +1,148 @@
 # Completed
 
+## Phase 11: Small Fixes Batch (11a + 11b + 11c) (2026-02-10)
+
+### Changes
+- **11a: Invention exordium min_non_cadential constraint**
+  - `data/genres/invention.yaml:35`: Added `min_non_cadential: 2` to exordium section
+  - `planner/schematic.py:234-283`: Added enforcement loop in `_generate_section_schemas` that reads `min_non_cadential` from genre section YAML and inserts additional continuation schemas until the minimum non-cadential count is met
+  - `scripts/yaml_validator.py:1108-1112`: Added `min_non_cadential` to `VALID_GENRE_SECTION_KEYS`
+
+- **11b: Parallel octave in gavotte bar 19.1**
+  - `builder/bass_writer.py:951-1023`: Walking bass parallel prevention enhanced with:
+    1. Widened alternatives (lines 963-984): For non-structural tones, `pp_candidates` now includes diatonic ±1, ±2, and octave shifts (previously only ±1)
+    2. Lookahead check (lines 985-1023): Checks whether the NEXT soprano note forms parallel perfects with current bass pitch, catching non-simultaneous but adjacent parallel octaves
+
+- **11c: Sarabande beat-2 weight**
+  - `data/rhythm_cells/cells.yaml:63-88`: Added four sarabande-specific cells with beat-2 accent:
+    - `sarabande_crotchet_minim` (1/4 + 1/2, accent [true, true])
+    - `sarabande_three_crotchets` (three quarters, accent [true, true, false])
+    - `sarabande_dotted_crotchet_quaver_crotchet` (dotted figure, accent [true, true, false])
+    - `sarabande_minim_crotchet` (cadential, accent [true, false])
+  - `data/rhythm_cells/cells.yaml:8-48`: Removed `sarabande` from shared 3/4 cell genre_tags
+
+### Verification
+- 8 pipeline runs (invention C/Am, minuet C, gavotte C/Am, sarabande C/Am, bourree C)
+- Bob assessment:
+  - Both inventions show proper two-voice exposition with subject and answer before any cadence (exordium runs 7 bars with answer entry at bar 4)
+  - Gavotte bar 18-19 shows oblique motion instead of parallel octaves; no new parallel perfects detected in any genre
+  - Sarabande rhythm emphasizes beat 2 with 1/4+1/2 pattern (57% of non-cadential bars), distinct from minuet
+  - No new faults detected in any genre
+- Chaz diagnosis: All three fixes are minimal, targeted, and preserve existing counterpoint systems
+
+### Musical Impact
+Before: A minor invention exordium could have only 1 non-cadential phrase, truncating exposition to subject-only without answer. Gavotte had parallel octaves at bar 19.1. Sarabande and minuet used identical rhythm cells.
+After: Invention exordium guarantees room for subject+answer before cadence. Parallel octave prevention includes lookahead checking and wider alternative search. Sarabande has distinct beat-2 emphasis rhythm, separate from minuet.
+
+## Phase 10: Cross-Relation Prevention in Soprano Writer (2026-02-10)
+
+### Changes
+- Created `shared/counterpoint.py` with two functions: `has_cross_relation()` 
+  and `prevent_cross_relation()`. Extracted from bass_writer.py local functions,
+  generalized parameter names (soprano_notes→other_notes, bass_range→pitch_range,
+  soprano_ceiling→ceiling) for voice-neutral usage. L017: single source of truth.
+- `builder/bass_writer.py`: Removed local `_has_cross_relation` and 
+  `_prevent_cross_relation` functions. Import from `shared.counterpoint`.
+  Updated 5 call sites to use new parameter names.
+- `builder/soprano_writer.py`: Added `lower_notes: tuple[Note, ...] = ()` 
+  parameter to `generate_soprano_phrase()`. Added imports for cross-relation
+  functions and logging. Added `check_cross_relations: bool = len(lower_notes) > 0`
+  guard (line 141). Added diagnostic warning for structural tones that cross-relate
+  (lines 315-326, logged but not altered). Added `prevent_cross_relation` filter
+  as final pitch filter before range assert for non-structural pitches (lines 452-463).
+- `builder/phrase_writer.py`: Pass `lower_notes=bass_subject` in 
+  `_write_subject_phrase()` when `lead_voice == 1` (line 131). Pass 
+  `lower_notes=bass_answer` in `_write_answer_phrase()` when `lead_voice == 0`,
+  tail generation (lines 222-224).
+
+### Verification
+- 5 pipeline runs (invention C/Am, minuet C, gavotte C, sarabande Am).
+- Bob assessment: Zero cross-relations detected in invention A minor and C major.
+  Soprano lines in invention bars 5-8 (where bass is pre-composed) sound smooth,
+  idiomatic, not avoidant. Counterpoint reads as dialogue between independent voices.
+  Non-invention genres (minuet, gavotte, sarabande) generated successfully with
+  no behavioral change (lower_notes empty, filter bypassed).
+- Chaz diagnosis: Cross-relation prevention now active when bass is pre-composed
+  (invention flows). Filter runs as last pitch filter before range assert for all
+  non-structural pitches when `check_cross_relations` is True. Structural tones
+  logged if cross-relate but not altered (planning-layer issue). Normal galant
+  flow (soprano-first) unaffected: `check_cross_relations` guard only activates
+  when `len(lower_notes) > 0`. All implementation requirements verified.
+- All acceptance criteria met: zero cross-relations, zero new faults, non-invention
+  genres unchanged, bass_writer.py has no local cross-relation logic (L017 enforced).
+
+### Musical Impact
+Before: When bass was pre-composed (invention subject/answer entries), soprano
+generated blind to bass chromatic alterations, producing cross-relations (same
+letter-name chromatically altered between voices within a beat, e.g., F4 in
+soprano against F#3 in bass). This is a jarring fault in baroque counterpoint.
+After: Soprano checks against bass notes before committing a pitch, mirroring
+the check bass already performs. The fix is inaudible — it prevents a fault
+without adding a feature. Voices now share a chromatic vocabulary, as Principle 2
+requires (voices relate to each other, the relationship is the point).
+
+## Phase 9.2: Denser soprano figuration over walking bass (2026-02-10)
+
+### Changes
+- `builder/rhythm_cells.py`: Renamed parameter `soprano_onsets` → `avoid_onsets`
+  in `_onset_overlap()` and `select_cell()` for direction-neutrality. Updated
+  docstring to reflect that this parameter is used for rhythmic independence
+  between any two voices (bass avoiding soprano, or soprano avoiding bass).
+- `builder/bass_writer.py`: Updated two `select_cell()` call sites (lines 641, 747)
+  to use `avoid_onsets=soprano_onsets_per_bar.get(bar_num)` instead of old
+  parameter name.
+- `builder/soprano_writer.py`: Added computation of `bass_avoid_onsets` when
+  `plan.bass_texture == "walking"` (lines 137-142). Generates frozenset of
+  bar-relative onsets at each beat (quarters for 4/4, etc.). Pass
+  `avoid_onsets=bass_avoid_onsets` to `select_cell()` (line 276). When
+  bass texture is not walking, pass `avoid_onsets=None` (existing behavior).
+
+### Verification
+- 10 pipeline runs (minuet, gavotte, bourree, sarabande, invention x C/Am).
+- Bob assessment: Soprano in walking-bass genres (gavotte, invention, bourree)
+  now uses mixed quarter-eighth rhythm cells instead of lockstep quarters.
+  Onset overlap reduced from ~100% (pre-Phase 9.2) to ~25-40% of non-downbeat
+  positions. Cadential bars still appropriately sparse. No frenetic motion.
+- Chaz diagnosis: Bass uses rhythm cells (not pure even quarters), so soprano
+  avoidance is a heuristic. Acceptable — acceptance criteria "< 50% overlap" met.
+- All acceptance criteria passed: zero new faults, walking-bass genres < 50%
+  shared non-downbeat onsets, minuet/sarabande unchanged, no frenetic motion.
+
+### Musical Impact
+Before: Soprano and bass in walking-bass genres used identical rhythm (lockstep
+quarters), creating "march" texture (Principle 6 violation).
+After: Soprano selects cells with fewer onset overlaps, producing rhythmic
+independence. Gavotte/invention/bourree now have two-voice dialogue instead of
+single-rhythm texture.
+
+## Phase 9.1: Fix repeated-pitch fallback in soprano writer (2026-02-10)
+
+### Changes
+- `builder/soprano_writer.py`: Replaced bar-parity direction logic in the
+  post-structural-tone fallback with neighbour-tone oscillation cycle
+  `[+1, 0, -1, 0]`. Added `neighbour_cycle` (int) and `neighbour_anchor`
+  (int|None) state variables at phrase level. The cycle direction swaps
+  when `next_entry_midi < neighbour_anchor`. Range checking tries all 4
+  cycle positions before falling back to anchor pitch.
+- `builder/figuration/soprano.py`: Replaced static `last_deg` padding in
+  `_fit_degrees_to_count` with alternating neighbour pattern `[1, 0, -1, 0]`.
+  Added logger warning when padding exceeds 4 notes. Added `import logging`
+  and module-level logger.
+
+### Verification
+- 10 pipeline runs (minuet, gavotte, bourree, sarabande, invention x C major, A minor).
+- Zero instances of 3+ consecutive identical soprano MIDI pitches (automated scan).
+- 31 instances of 2-note repeats across 532 soprano notes (structural tone boundaries).
+- No assertion failures or new faults.
+- Padding warnings fired for gavottes and bourrees (figures with 2 degrees
+  padded to 8 — figuration selection issue for future phases).
+
+### Open Issues
+- Low soprano register in gavottes (E4-D4 area, bars 3-5) — registration issue
+- Whole-note held structural tones (gavotte bar 18) — single structural tone
+  spanning full bar, no figured content to subdivide
+- Rhythmic uniformity in dance genres (mostly quarter notes) — Phase 9.2
+
 ## Phase I4e+I7: Re-enable CS in answer phrase + episode assignment (2026-02-10)
 
 ### Changes
@@ -25,31 +168,6 @@
 ### Open Issues
 - A minor exordium too short for answer+CS (schema chain issue, not builder)
 - Cross-relation risk persists (soprano unaware of chromatic bass alterations)
-
-## Phase I4d: Invertible countersubject — dual validation (2026-02-10)
-
-### Changes
-- `motifs/countersubject_generator.py`: Added `answer_degrees` parameter to
-  `generate_countersubject()`. When provided, creates parallel CP-SAT variables
-  for CS-vs-answer intervals (answer_imod7), adds hard consonance constraints
-  on strong beats ({0, 2, 5}) and weak beats ({0, 1, 2, 4, 5, 6}), and adds
-  soft penalty terms mirroring the subject penalties. Existing behaviour
-  unchanged when answer_degrees is None.
-- `motifs/subject_generator.py`: `generate_fugue_triple()` now passes
-  `answer_degrees=answer.scale_indices` to `generate_countersubject()`.
-- `motifs/countersubject_generator.py` `__main__`: Updated test to generate
-  answers and pass answer_degrees for dual validation.
-
-### Verification
-- __main__ test: 5/5 subjects with dual validation (unchanged from subject-only).
-- Invention C major pipeline: 0 faults, completed.
-- Invention A minor pipeline: completed.
-- Minuet C major: completed, no regression.
-
-### Notes
-- Pipeline used cached .fugue files; CS not yet wired into output. This phase
-  adds the solver constraint. Wiring CS into the pipeline is a future phase.
-- Solver found OPTIMAL for all 5 test seeds within timeout.
 
 ## Phase I5c+I6: Verify tail fix and audit episodes (2026-02-10)
 
@@ -116,6 +234,31 @@
 - Extended last note when subject < phrase duration (4+ bars held).
 - Soprano unaware of pre-composed bass (occasional parallel octaves).
 - A minor exordium has no answer (only 1 non-cadential phrase).
+
+## Phase I4d: Invertible countersubject — dual validation (2026-02-10)
+
+### Changes
+- `motifs/countersubject_generator.py`: Added `answer_degrees` parameter to
+  `generate_countersubject()`. When provided, creates parallel CP-SAT variables
+  for CS-vs-answer intervals (answer_imod7), adds hard consonance constraints
+  on strong beats ({0, 2, 5}) and weak beats ({0, 1, 2, 4, 5, 6}), and adds
+  soft penalty terms mirroring the subject penalties. Existing behaviour
+  unchanged when answer_degrees is None.
+- `motifs/subject_generator.py`: `generate_fugue_triple()` now passes
+  `answer_degrees=answer.scale_indices` to `generate_countersubject()`.
+- `motifs/countersubject_generator.py` `__main__`: Updated test to generate
+  answers and pass answer_degrees for dual validation.
+
+### Verification
+- __main__ test: 5/5 subjects with dual validation (unchanged from subject-only).
+- Invention C major pipeline: 0 faults, completed.
+- Invention A minor pipeline: completed.
+- Minuet C major: completed, no regression.
+
+### Notes
+- Pipeline used cached .fugue files; CS not yet wired into output. This phase
+  adds the solver constraint. Wiring CS into the pipeline is a future phase.
+- Solver found OPTIMAL for all 5 test seeds within timeout.
 
 ## Phase I4c: Fix tracks, restrict scope, drop pre-composed CS (2026-02-10)
 

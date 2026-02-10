@@ -12,7 +12,6 @@ from builder.phrase_types import (
 from builder.rhythm_cells import select_cell
 from builder.types import Note
 from shared.constants import (
-    CROSS_RELATION_PAIRS,
     MAX_BASS_LEAP,
     PERFECT_INTERVALS,
     SKIP_SEMITONES,
@@ -21,6 +20,7 @@ from shared.constants import (
     UGLY_INTERVALS,
     VALID_DURATIONS_SET,
 )
+from shared.counterpoint import has_cross_relation, prevent_cross_relation
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
@@ -45,56 +45,6 @@ def _check_parallel_perfects(
         return False
     same_direction: bool = (soprano_motion > 0) == (bass_motion > 0)
     return same_direction
-
-
-def _has_cross_relation(
-    pitch: int,
-    soprano_notes: tuple[Note, ...],
-    offset: Fraction,
-    beat_unit: Fraction,
-) -> bool:
-    """Return True if pitch creates a cross-relation with nearby soprano."""
-    pc: int = pitch % 12
-    for sn in soprano_notes:
-        if abs(sn.offset - offset) <= beat_unit:
-            sop_pc: int = sn.pitch % 12
-            pair: tuple[int, int] = (min(pc, sop_pc), max(pc, sop_pc))
-            if pair in CROSS_RELATION_PAIRS:
-                return True
-    return False
-
-
-def _prevent_cross_relation(
-    pitch: int,
-    soprano_notes: tuple[Note, ...],
-    offset: Fraction,
-    beat_unit: Fraction,
-    key: Key,
-    bass_range: tuple[int, int],
-    soprano_ceiling: int | None,
-) -> int:
-    """Select an alternative pitch to avoid cross-relation with nearby soprano.
-
-    Part of the generation/selection flow (D010: generators prevent).
-    Returns original pitch if no cross-relation exists or no alternative found.
-    """
-    if not _has_cross_relation(
-        pitch=pitch, soprano_notes=soprano_notes,
-        offset=offset, beat_unit=beat_unit,
-    ):
-        return pitch
-    for step_dir in (-1, +1):
-        alt: int = key.diatonic_step(midi=pitch, steps=step_dir)
-        if alt < bass_range[0] or alt > bass_range[1]:
-            continue
-        if soprano_ceiling is not None and alt > soprano_ceiling:
-            continue
-        if not _has_cross_relation(
-            pitch=alt, soprano_notes=soprano_notes,
-            offset=offset, beat_unit=beat_unit,
-        ):
-            return alt
-    return pitch
 
 
 def _find_consonant_alternative(
@@ -345,12 +295,14 @@ def generate_bass_phrase(
                 prev_prev_midi=prev_prev,
             )
         # Cross-relation prevention for structural tones
-        midi = _prevent_cross_relation(
-            pitch=midi, soprano_notes=soprano_notes,
-            offset=offset, beat_unit=beat_unit,
+        midi = prevent_cross_relation(
+            pitch=midi,
+            other_notes=soprano_notes,
+            offset=offset,
+            beat_unit=beat_unit,
             key=key_for_degree,
-            bass_range=(plan.lower_range.low, plan.lower_range.high),
-            soprano_ceiling=soprano_at_offset,
+            pitch_range=(plan.lower_range.low, plan.lower_range.high),
+            ceiling=soprano_at_offset,
         )
         structural_tones.append((offset, midi))
         structural_keys.append((offset, key_for_degree))
@@ -434,11 +386,14 @@ def generate_bass_phrase(
                 )
                 if sop_here_ac is not None and st_pitch > sop_here_ac:
                     st_pitch -= 12
-                st_pitch = _prevent_cross_relation(
-                    pitch=st_pitch, soprano_notes=soprano_notes,
-                    offset=bar_start, beat_unit=beat_unit,
-                    key=key_for_bar, bass_range=(plan.lower_range.low, plan.lower_range.high),
-                    soprano_ceiling=sop_here_ac,
+                st_pitch = prevent_cross_relation(
+                    pitch=st_pitch,
+                    other_notes=soprano_notes,
+                    offset=bar_start,
+                    beat_unit=beat_unit,
+                    key=key_for_bar,
+                    pitch_range=(plan.lower_range.low, plan.lower_range.high),
+                    ceiling=sop_here_ac,
                 )
                 notes.append(Note(
                     offset=bar_start,
@@ -480,11 +435,14 @@ def generate_bass_phrase(
                         bass_range=(plan.lower_range.low, plan.lower_range.high),
                         soprano_pitch=sop_here_fb,
                     )
-                    fb_pitch = _prevent_cross_relation(
-                        pitch=fb_pitch, soprano_notes=soprano_notes,
-                        offset=st_off, beat_unit=beat_unit,
-                        key=key_for_bar, bass_range=(plan.lower_range.low, plan.lower_range.high),
-                        soprano_ceiling=sop_here_fb,
+                    fb_pitch = prevent_cross_relation(
+                        pitch=fb_pitch,
+                        other_notes=soprano_notes,
+                        offset=st_off,
+                        beat_unit=beat_unit,
+                        key=key_for_bar,
+                        pitch_range=(plan.lower_range.low, plan.lower_range.high),
+                        ceiling=sop_here_fb,
                     )
                     notes.append(Note(
                         offset=st_off,
@@ -595,11 +553,14 @@ def generate_bass_phrase(
                     bass_range=(plan.lower_range.low, plan.lower_range.high),
                     soprano_pitch=sop_here,
                 )
-                pitch = _prevent_cross_relation(
-                    pitch=pitch, soprano_notes=soprano_notes,
-                    offset=p_offset, beat_unit=beat_unit,
-                    key=key_for_bar, bass_range=(plan.lower_range.low, plan.lower_range.high),
-                    soprano_ceiling=sop_here,
+                pitch = prevent_cross_relation(
+                    pitch=pitch,
+                    other_notes=soprano_notes,
+                    offset=p_offset,
+                    beat_unit=beat_unit,
+                    key=key_for_bar,
+                    pitch_range=(plan.lower_range.low, plan.lower_range.high),
+                    ceiling=sop_here,
                 )
                 notes.append(Note(
                     offset=p_offset,
@@ -638,7 +599,7 @@ def generate_bass_phrase(
                     prefer_character=prefer,
                     avoid_name=prev_cell_name,
                     required_onsets=bar_structural_offsets.get(bar_num),
-                    soprano_onsets=soprano_onsets_per_bar.get(bar_num),
+                    avoid_onsets=soprano_onsets_per_bar.get(bar_num),
                 )
                 cell_durations = cell.durations
                 cell_name_p = cell.name
@@ -744,7 +705,7 @@ def generate_bass_phrase(
                     prefer_character=prefer,
                     avoid_name=prev_cell_name,
                     required_onsets=bar_structural_offsets.get(bar_num),
-                    soprano_onsets=soprano_onsets_per_bar.get(bar_num),
+                    avoid_onsets=soprano_onsets_per_bar.get(bar_num),
                 )
                 cell_durations_w = cell.durations
                 cell_accents_w = cell.accent_pattern
@@ -1000,13 +961,17 @@ def generate_bass_phrase(
                     )
                 ):
                     # Structural tones: octave shift (preserves degree).
-                    # Non-structural: diatonic step.
+                    # Non-structural: diatonic step ±1, ±2, then octave.
                     if from_structural:
                         pp_candidates: list[int] = [pitch - 12, pitch + 12]
                     else:
                         pp_candidates = [
                             current_key.diatonic_step(midi=pitch, steps=-1),
                             current_key.diatonic_step(midi=pitch, steps=+1),
+                            current_key.diatonic_step(midi=pitch, steps=-2),
+                            current_key.diatonic_step(midi=pitch, steps=+2),
+                            pitch - 12,
+                            pitch + 12,
                         ]
                     for alt_pp in pp_candidates:
                         if (
@@ -1021,13 +986,54 @@ def generate_bass_phrase(
                         ):
                             pitch = alt_pp
                             break
+                # Lookahead check: prevent parallel octaves with next soprano note
+                # even if not a common onset (11b fix)
+                if sop_here is not None and prev_bass is not None and prev_soprano is not None:
+                    next_sop_off: Fraction = note_offset + dur
+                    next_sop_pitch: int | None = _soprano_pitch_at_offset(
+                        soprano_notes=soprano_notes,
+                        offset=next_sop_off,
+                    )
+                    if (
+                        next_sop_pitch is not None
+                        and _check_parallel_perfects(
+                            bass_pitch=pitch,
+                            soprano_pitch=next_sop_pitch,
+                            prev_bass_pitch=prev_bass,
+                            prev_soprano_pitch=prev_soprano,
+                        )
+                    ):
+                        # Try alternatives: ±1, ±2, octave
+                        lookahead_candidates: list[int] = [
+                            current_key.diatonic_step(midi=pitch, steps=-1),
+                            current_key.diatonic_step(midi=pitch, steps=+1),
+                            current_key.diatonic_step(midi=pitch, steps=-2),
+                            current_key.diatonic_step(midi=pitch, steps=+2),
+                            pitch - 12,
+                            pitch + 12,
+                        ]
+                        for alt_la in lookahead_candidates:
+                            if (
+                                plan.lower_range.low <= alt_la <= plan.lower_range.high
+                                and (sop_here is None or alt_la <= sop_here)
+                                and not _check_parallel_perfects(
+                                    bass_pitch=alt_la,
+                                    soprano_pitch=next_sop_pitch,
+                                    prev_bass_pitch=prev_bass,
+                                    prev_soprano_pitch=prev_soprano,
+                                )
+                            ):
+                                pitch = alt_la
+                                break
                 # Cross-relation prevention (D010: generators prevent)
-                pitch = _prevent_cross_relation(
-                    pitch=pitch, soprano_notes=soprano_notes,
-                    offset=note_offset, beat_unit=beat_unit,
+                pitch = prevent_cross_relation(
+                    pitch=pitch,
+                    other_notes=soprano_notes,
+                    offset=note_offset,
+                    beat_unit=beat_unit,
                     key=current_key,
-                    bass_range=(plan.lower_range.low, plan.lower_range.high),
-                    soprano_ceiling=sop_here,
+                    pitch_range=(plan.lower_range.low, plan.lower_range.high),
+                    ceiling=sop_here,
                 )
                 pitch = _prevent_bass_leap(
                     pitch=pitch,

@@ -9,25 +9,25 @@ three_crotchets:
   metre: "3/4"
   durations: ["1/4", "1/4", "1/4"]
   character: plain
-  genre_tags: [minuet, sarabande]
+  genre_tags: [minuet]
 
 minim_crotchet:
   metre: "3/4"
   durations: ["1/2", "1/4"]
   character: cadential
-  genre_tags: [minuet, sarabande]
+  genre_tags: [minuet]
 
 crotchet_minim:
   metre: "3/4"
   durations: ["1/4", "1/2"]
   character: plain
-  genre_tags: [minuet, sarabande]
+  genre_tags: [minuet]
 
 dotted_minim:
   metre: "3/4"
   durations: ["3/4"]
   character: cadential
-  genre_tags: [minuet, sarabande]
+  genre_tags: [minuet]
 
 crotchet_two_quavers_crotchet:
   metre: "3/4"
@@ -45,7 +45,7 @@ dotted_crotchet_quaver_crotchet:
   metre: "3/4"
   durations: ["3/8", "1/8", "1/4"]
   character: dotted
-  genre_tags: [minuet, sarabande]
+  genre_tags: [minuet]
 
 four_quavers_crotchet:
   metre: "3/4"
@@ -58,6 +58,35 @@ six_quavers:
   durations: ["1/8", "1/8", "1/8", "1/8", "1/8", "1/8"]
   character: energetic
   genre_tags: [minuet]
+
+# Sarabande-specific cells with beat-2 accent
+sarabande_crotchet_minim:
+  metre: "3/4"
+  durations: ["1/4", "1/2"]
+  character: plain
+  genre_tags: [sarabande]
+  accent_pattern: [true, true]
+
+sarabande_three_crotchets:
+  metre: "3/4"
+  durations: ["1/4", "1/4", "1/4"]
+  character: plain
+  genre_tags: [sarabande]
+  accent_pattern: [true, true, false]
+
+sarabande_dotted_crotchet_quaver_crotchet:
+  metre: "3/4"
+  durations: ["3/8", "1/8", "1/4"]
+  character: dotted
+  genre_tags: [sarabande]
+  accent_pattern: [true, true, false]
+
+sarabande_minim_crotchet:
+  metre: "3/4"
+  durations: ["1/2", "1/4"]
+  character: cadential
+  genre_tags: [sarabande]
+  accent_pattern: [true, false]
 
 # === 4/4 cells (bar = 1 whole note) ===
 

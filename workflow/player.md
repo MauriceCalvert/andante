@@ -143,7 +143,9 @@ Bob catches all of them. Chaz traces the causes. Both are blocking.
 
 ## Logging
 
-After each completed phase, append to `completed.md`:
+After each completed phase, prepend to `completed.md` (insert immediately
+after the `# Completed` heading, before all existing entries). The file is
+in reverse chronological order — most recent phase first.
 - Bob's assessment (what changed musically, what's still wrong)
 - Chaz's diagnosis (what code was modified, what caused the faults)
 - Open complaints (Bob observations not yet addressed)

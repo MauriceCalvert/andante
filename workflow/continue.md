@@ -2,47 +2,45 @@
 
 ## Current state
 
-Plan 8 (Invention Imitation) active. Phase I4e+I7 issued.
+Plans 4–11 complete. Plan 12 in progress — brief is in workflow/task.md, ready for CC.
 
-### Active plan
-- Plan 8 (Invention Imitation): `workflow/plan_imitation.md`
-- Phase I4e+I7 brief: `workflow/task.md`
-- I4d (invertible CS) complete. Now re-enabling pre-composed CS in
-  the answer phrase and adding episode assignment so the piece breathes.
+### Plans
+- plan11.md — complete (small fixes batch)
+- plan12.md — Algorithmic figuration + harmony threading + register floor (in progress)
+  - 12a: Algorithmic figuration generator (replaces lookup-then-pad)
+  - 12b: Thread bass harmony (chord tones) to figuration system
+  - 12c: Soprano register floor (prevents downward drift in gavottes)
+  - All three in single brief, single checkpoint at end
 
-### Phase sequence
-```
-I1 (generate/cache FugueTriple) ✓
-  → I2 (wire lead_voice through PhrasePlan) ✓
-    → I3a (thread fugue param to write_phrase) ✓
-      → I3b (subject as notes + monophonic opening) ✓
-        → I4a (add imitation_role to PhrasePlan) ✓
-          → I4b (answer + countersubject dispatch) ✓
-            → I4c (fix tracks, scope, CS) ✓
-              → I4d (invertible CS — dual validation) ✓
-                → I5 (voice swap + key transposition) ✓
-                  → I5b (subject tail generation) ✓
-                    → I5c (inject degree for empty tails) ✓
-                      → I5c+I6 audit ✓
-                        → I4e+I7 (CS playback + episodes) ← CURRENT
-```
+### What just happened
+- Phase 11: Small fixes batch. Passed.
+  - 11a: `min_non_cadential: 2` in invention exordium. Both keys show subject + answer before cadence.
+  - 11b: Walking bass parallel prevention widened + lookahead. Gavotte bar 19.1 fixed.
+  - 11c: Sarabande-specific rhythm cells with beat-2 accent. 57% crotchet-minim pattern.
+  - All 8 genre/key combinations clean, zero new faults.
 
-### Key decisions this session
-- I4d confirmed: CP-SAT solver finds solutions 5/5 seeds with dual
-  validation. No feasibility issues.
-- Combining I4e (CS playback) and I7 (episode assignment) because
-  they're one musical outcome: proper exposition + breathing room.
-- CS key = tonic (plan.local_key), not dominant. The CS was composed
-  at the tonic and validated against both subject and answer degrees.
-- Only exordium gets subject + answer + CS. Later sections: one
-  subject entry, remaining phrases = episodes (free galant generation).
+### Known test failures
+- parallel_rhythm: gavotte_c_major (bar 15.3), gavotte_a_minor (bar 15.3),
+  invention_c_major (bars 5.3, 9.3, 14.3), invention_a_minor (bars 5.3, 9.3, 14.3).
 
-### Open issues from I5c+I6 audit
-1. Soprano writer end-of-phrase repeated pitch (bars 3, 16)
-2. ~~Need episode phrases for invention genre~~ → addressed by I7
-3. Soprano-bass awareness for cross-relation avoidance
+### bass_writer.py
+1016 lines. generate_bass_phrase ~769 lines. Three texture branches
+(patterned, pillar, walking) each with own bar loop and duplicated
+guards. Defer refactor until inner voices or bass rewrite forces it.
+
+### Deferred
+- Subject development (inversion, augmentation, stretto)
+- Episode derivation from subject fragments
+- CS in later invention entries
+- Inner voices
+- Figurenlehre labelling for training data
+- bass_writer refactor (three texture branches → three functions)
+
+### Bob's open complaints (from Phase 11 result)
+- Figuration padding warnings: figures with 2 degrees padded to 8 → Phase 12a
+- Low soprano register in gavottes (E4-D4 area, bars 3-5) → Phase 12c
+- Whole-note held structural tones (gavotte bar 18)
 
 ## Key files
-- workflow/plan_imitation.md — full imitation plan
-- workflow/task.md — current CC task (I4e+I7)
-- completed.md — full history (most recent first)
+- workflow/task.md — Plan 12 brief, ready for CC
+- completed.md — full history

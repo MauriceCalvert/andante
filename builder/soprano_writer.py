@@ -1,4 +1,5 @@
 """Soprano phrase generation and validation."""
+import logging
 from fractions import Fraction
 
 from builder.figuration.soprano import figurate_soprano_span
@@ -20,9 +21,12 @@ from shared.constants import (
     UGLY_INTERVALS,
     VALID_DURATIONS_SET,
 )
+from shared.counterpoint import has_cross_relation, prevent_cross_relation
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
+
+logger = logging.getLogger(__name__)
 
 
 def _check_leap_step(
@@ -117,6 +121,7 @@ def _validate_soprano_notes(
 def generate_soprano_phrase(
     plan: PhrasePlan,
     prior_upper: tuple[Note, ...] = (),
+    lower_notes: tuple[Note, ...] = (),
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
     recall_figure_name: str | None = None,
@@ -132,6 +137,15 @@ def generate_soprano_phrase(
     )
     prev_exit_midi: int | None = prior_upper[-1].pitch if prior_upper else None
     bar_length, beat_unit = parse_metre(metre=plan.metre)
+    # Cross-relation prevention: only active when lower_notes provided (invention flows)
+    check_cross_relations: bool = len(lower_notes) > 0
+    # Compute walking bass onset grid for rhythmic independence
+    bass_avoid_onsets: frozenset[Fraction] | None = None
+    if plan.bass_texture == "walking":
+        bass_avoid_onsets = frozenset(
+            Fraction(i) * beat_unit
+            for i in range(int(bar_length / beat_unit))
+        )
     structural_tones: list[tuple[Fraction, int]] = []
     structural_keys: list[tuple[Fraction, Key]] = []
     biased_upper_median: int = plan.upper_median + plan.registral_bias
@@ -250,6 +264,9 @@ def generate_soprano_phrase(
     # Index into figured pitch pool for current span
     fig_pool_idx: int = 0
     fig_pool: list[int] = figured_pitches.get(0, [])
+    # Neighbour-tone oscillation state (for post-structural fallback)
+    neighbour_cycle: int = 0
+    neighbour_anchor: int | None = None
     for bar_num in range(1, plan.bar_span + 1):
         bar_start: Fraction = phrase_bar_start(plan=plan, bar_num=bar_num, bar_length=bar_length)
         bar_dur: Fraction = phrase_bar_duration(plan=plan, bar_num=bar_num, bar_length=bar_length)
@@ -269,6 +286,7 @@ def generate_soprano_phrase(
                 prefer_character=prefer,
                 avoid_name=prev_cell_name,
                 required_onsets=bar_structural_offsets.get(bar_num),
+                avoid_onsets=bass_avoid_onsets,
             )
             cell_durations = cell.durations
             cell_name = cell.name
@@ -294,6 +312,18 @@ def generate_soprano_phrase(
                     recovery_direction = +1 if pitch < current_midi else -1
                 else:
                     recovery_direction = 0
+                # Diagnostic: structural tones that cross-relate are logged but not altered
+                if check_cross_relations and has_cross_relation(
+                    pitch=pitch,
+                    other_notes=lower_notes,
+                    offset=note_offset,
+                    beat_unit=beat_unit,
+                ):
+                    logger.warning(
+                        "Structural tone %d at offset %s cross-relates with bass",
+                        pitch,
+                        note_offset,
+                    )
             else:
                 # Use figured pitch if available, else fall back to old logic
                 if recovery_direction != 0:
@@ -318,29 +348,54 @@ def generate_soprano_phrase(
                     if pitch < plan.upper_range.low or pitch > plan.upper_range.high:
                         pitch = current_midi
                 else:
-                    # Fallback: step toward next structural tone (old logic)
-                    next_struct_offset: Fraction
-                    next_struct_midi: int
                     if struct_idx < len(structural_tones):
-                        next_struct_offset, next_struct_midi = structural_tones[struct_idx]
-                    else:
-                        next_struct_offset = plan.start_offset + plan.phrase_duration
-                        next_struct_midi = next_entry_midi if next_entry_midi is not None else current_midi
-                    if next_struct_midi > current_midi:
-                        direction = +1
-                    elif next_struct_midi < current_midi:
-                        direction = -1
-                    else:
-                        direction = +1 if (bar_num % 2 == 0) else -1
-                    candidate_pitch = current_key.diatonic_step(midi=current_midi, steps=direction)
-                    if plan.upper_range.low <= candidate_pitch <= plan.upper_range.high:
-                        pitch = candidate_pitch
-                    else:
-                        alt_pitch: int = current_key.diatonic_step(midi=current_midi, steps=-direction)
-                        if plan.upper_range.low <= alt_pitch <= plan.upper_range.high:
-                            pitch = alt_pitch
+                        # Fallback: step toward next structural tone
+                        next_struct_midi: int = structural_tones[struct_idx][1]
+                        if next_struct_midi > current_midi:
+                            direction: int = +1
+                        elif next_struct_midi < current_midi:
+                            direction = -1
                         else:
-                            pitch = current_midi
+                            direction = +1 if (bar_num % 2 == 0) else -1
+                        candidate_pitch = current_key.diatonic_step(
+                            midi=current_midi, steps=direction,
+                        )
+                        if plan.upper_range.low <= candidate_pitch <= plan.upper_range.high:
+                            pitch = candidate_pitch
+                        else:
+                            alt_pitch: int = current_key.diatonic_step(
+                                midi=current_midi, steps=-direction,
+                            )
+                            if plan.upper_range.low <= alt_pitch <= plan.upper_range.high:
+                                pitch = alt_pitch
+                            else:
+                                pitch = current_midi
+                    else:
+                        # Past all structural tones: neighbour-tone oscillation
+                        if neighbour_anchor is None:
+                            neighbour_anchor = (
+                                structural_tones[-1][1] if structural_tones
+                                else current_midi
+                            )
+                        if next_entry_midi is not None and next_entry_midi < neighbour_anchor:
+                            cycle: tuple[int, ...] = (-1, 0, +1, 0)
+                        else:
+                            cycle = (+1, 0, -1, 0)
+                        pitch = neighbour_anchor
+                        for attempt in range(4):
+                            step: int = cycle[(neighbour_cycle + attempt) % 4]
+                            if step == 0:
+                                candidate_pitch = neighbour_anchor
+                            else:
+                                candidate_pitch = current_key.diatonic_step(
+                                    midi=neighbour_anchor, steps=step,
+                                )
+                            if plan.upper_range.low <= candidate_pitch <= plan.upper_range.high:
+                                pitch = candidate_pitch
+                                neighbour_cycle += attempt + 1
+                                break
+                        else:
+                            neighbour_cycle += 1
             # D007: prevent cross-bar pitch repetition at bar entry
             is_bar_entry: bool = note_offset == bar_start and bar_num > 1
             if (
@@ -394,6 +449,17 @@ def generate_soprano_phrase(
                             if alt_interval <= STEP_SEMITONES or alt_interval % 12 not in UGLY_INTERVALS:
                                 pitch = alt
                                 break
+            # Cross-relation prevention: final pitch filter (only for non-structural)
+            if check_cross_relations and note_offset not in structural_map:
+                pitch = prevent_cross_relation(
+                    pitch=pitch,
+                    other_notes=lower_notes,
+                    offset=note_offset,
+                    beat_unit=beat_unit,
+                    key=current_key,
+                    pitch_range=(plan.upper_range.low, plan.upper_range.high),
+                    ceiling=None,
+                )
             # Range and leap guards
             assert plan.upper_range.low <= pitch <= plan.upper_range.high, (
                 f"Soprano fill pitch {pitch} outside range "

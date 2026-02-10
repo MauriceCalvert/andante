@@ -4,6 +4,7 @@ Given two anchor (offset, midi) pairs, selects a figure from the diminution
 table, pairs it with a rhythm template, and realises concrete (offset, midi,
 duration) note tuples.
 """
+import logging
 from fractions import Fraction
 
 from builder.figuration.loader import get_rhythm_templates, select_rhythm_template
@@ -13,6 +14,8 @@ from builder.figuration.types import Figure, RhythmTemplate
 from shared.constants import VALID_DURATIONS_SET
 from shared.key import Key
 from shared.music_math import parse_metre
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 def figurate_soprano_span(
@@ -244,11 +247,19 @@ def _fit_degrees_to_count(
         indices.append(len(figure.degrees) - 1)
         return tuple(figure.degrees[idx] for idx in indices[:target_count])
 
-    # Too few figure notes — extend with linear interpolation toward end
+    # Too few figure notes — extend with neighbour-tone alternation
     result_list: list[int] = list(figure.degrees)
     last_deg: int = figure.degrees[-1]
+    pad_count: int = target_count - len(figure.degrees)
+    if pad_count > 4:
+        logger.warning(
+            "Figure '%s' padded by %d notes (degrees %d, target %d)",
+            figure.name, pad_count, len(figure.degrees), target_count,
+        )
     while len(result_list) < target_count:
-        result_list.append(last_deg)
+        pad_idx: int = len(result_list) - len(figure.degrees)
+        offset: int = [1, 0, -1, 0][pad_idx % 4]
+        result_list.append(last_deg + offset)
     return tuple(result_list)
 
 

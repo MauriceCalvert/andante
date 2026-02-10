@@ -232,6 +232,50 @@ def _generate_section_schemas(
                 break
             result.append(next_schema)
             bars_used += _schema_bars(schema_name=next_schema, schema_defs=schema_defs)
+    # Enforce minimum non-cadential schema count (11a: invention exordium)
+    min_non_cad: int = 0
+    if genre_section is not None:
+        min_non_cad = genre_section.get("min_non_cadential", 0)
+    if min_non_cad > 0:
+        non_cad_count: int = sum(
+            1 for s in result
+            if schema_defs[s].position != "cadential"
+        )
+        while non_cad_count < min_non_cad:
+            remaining: int = bar_budget - bars_used
+            if remaining <= 0:
+                logger.warning(
+                    "Section '%s' bar budget exhausted before reaching "
+                    "min_non_cadential=%d (current=%d). "
+                    "Consider expanding schema_sequence.",
+                    section_plan.name,
+                    min_non_cad,
+                    non_cad_count,
+                )
+                break
+            continuation_schema: str | None = _select_next_schema(
+                current=result[-1],
+                remaining_bars=remaining,
+                cadence_type=section_plan.cadence_type,
+                schema_defs=schema_defs,
+                previous_schemas=result,
+                is_final_section=is_final_section,
+                rng=rng,
+                genre_name=genre_name,
+            )
+            if continuation_schema is None:
+                logger.warning(
+                    "Section '%s' no continuation schema available to reach "
+                    "min_non_cadential=%d (current=%d)",
+                    section_plan.name,
+                    min_non_cad,
+                    non_cad_count,
+                )
+                break
+            result.append(continuation_schema)
+            bars_used += _schema_bars(schema_name=continuation_schema, schema_defs=schema_defs)
+            if schema_defs[continuation_schema].position != "cadential":
+                non_cad_count += 1
     # Guarantee final cadential schema for sections that require it.
     # If the last schema is not cadential-position and cadence_type demands
     # one, pop the last schema and replace with a cadential match.

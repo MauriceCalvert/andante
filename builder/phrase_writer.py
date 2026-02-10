@@ -130,6 +130,7 @@ def _write_subject_phrase(
     soprano_notes, soprano_figures = generate_soprano_phrase(
         plan=plan,
         prior_upper=prior_upper,
+        lower_notes=bass_subject,
         next_phrase_entry_degree=next_phrase_entry_degree,
         next_phrase_entry_key=next_phrase_entry_key,
     )
@@ -220,6 +221,7 @@ def _write_answer_phrase(
             tail_soprano, _ = generate_soprano_phrase(
                 plan=tail_plan,
                 prior_upper=soprano_cs,
+                lower_notes=bass_answer,
             )
             soprano_notes: tuple[Note, ...] = soprano_cs + tail_soprano
             tail_bass: tuple[Note, ...] = generate_bass_phrase(

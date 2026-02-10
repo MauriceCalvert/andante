@@ -33,6 +33,7 @@ sections:
     schema_sequence: [do_re_mi, prinner]
     lead_voice: 0
     accompany_texture: walking
+    min_non_cadential: 2
 
   - name: narratio
     character: energetic
