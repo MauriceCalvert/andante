@@ -197,19 +197,6 @@ def get_bass_pattern(name: str) -> BassPattern | None:
     return patterns.get(name)
 
 
-def get_patterns_by_texture(texture: str) -> list[BassPattern]:
-    """Get all patterns of a given texture type."""
-    assert texture in VALID_TEXTURES, f"Invalid texture: {texture}"
-    patterns = get_bass_patterns()
-    return [p for p in patterns.values() if p.texture == texture]
-
-
-def get_patterns_for_metre(metre: str) -> list[BassPattern]:
-    """Get all patterns compatible with a metre."""
-    patterns = get_bass_patterns()
-    return [p for p in patterns.values() if p.metre == metre or p.metre == "any"]
-
-
 def validate_bass_treatment(
     bass_treatment: str | None,
     bass_mode: str,

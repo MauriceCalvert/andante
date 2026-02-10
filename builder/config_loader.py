@@ -24,29 +24,6 @@ from shared.schema_types import Schema
 
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
-_genre_cache: dict[str, dict] = {}
-
-
-def load_genre_raw(name: str) -> dict:
-    """Load genre YAML as raw dict (cached).
-
-    Use this for simple field access without validation.
-    For typed access, use load_genre() instead.
-    """
-    if name in _genre_cache:
-        return _genre_cache[name]
-    path: Path = DATA_DIR / "genres" / f"{name}.yaml"
-    if path.exists():
-        data: dict = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    else:
-        data = {}
-    _genre_cache[name] = data
-    return data
-
-
-def clear_genre_cache() -> None:
-    """Clear genre cache. Used in tests."""
-    _genre_cache.clear()
 
 
 def load_genre(name: str) -> GenreConfig:

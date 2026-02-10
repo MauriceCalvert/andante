@@ -1,126 +1,20 @@
-"""Planner types: Brief, Frame, Material, Motif, Section, Phrase, Structure, Plan."""
+"""Planner types: Brief, MacroForm, TensionCurve, TensionPoint."""
 from dataclasses import dataclass
 from fractions import Fraction
 
 
 @dataclass(frozen=True)
-class TonalSection:
-    """Section of a piece in a single key area.
-
-    Tonal sections drive structure in schema-first planning. They define
-    where the piece spends time in each key area before cadences are placed.
-    """
-    start_bar: int      # 1-indexed inclusive
-    end_bar: int        # 1-indexed inclusive
-    key_area: str       # Roman numeral: I, V, vi, etc.
-    relationship: str   # tonic, dominant, relative, subdominant
-
-
-@dataclass(frozen=True)
 class Brief:
-    """User input specifying compositional intent.
-
-    Required fields define the commission. Optional fields override genre defaults.
-    """
+    """User input specifying compositional intent."""
     affect: str
     genre: str
     forces: str
     bars: int
-    # Optional: override genre defaults
     key: str | None = None
     mode: str | None = None
     metre: str | None = None
     tempo: str | None = None
-    # Optional: provide subject (otherwise derived from opening schema)
-    subject: 'Motif | None' = None
-    # Optional: override specific genre settings
     overrides: dict | None = None
-    # Deprecated: kept for backward compatibility during migration
-    virtuosic: bool = False
-    motif_source: str | None = None
-
-
-@dataclass(frozen=True)
-class Frame:
-    """Derived musical parameters."""
-    key: str
-    mode: str
-    metre: str
-    tempo: str
-    voices: int
-    upbeat: Fraction
-    form: str
-
-
-@dataclass(frozen=True)
-class Motif:
-    """Musical subject with pitches (MIDI) or degrees and durations.
-
-    Use pitches for subjects loaded from .note files (preserves contour).
-    Use degrees for programmatically generated subjects.
-    """
-    durations: tuple[Fraction, ...]
-    bars: int
-    pitches: tuple[int, ...] | None = None  # MIDI pitch values
-    degrees: tuple[int, ...] | None = None  # Scale degrees 1-7
-    source_key: str | None = None  # Key of pitches (e.g., "G" for G major)
-
-
-@dataclass(frozen=True)
-class DerivedMotif:
-    """Pre-computed derived motif from subject or counter-subject."""
-    name: str
-    degrees: tuple[int, ...]
-    durations: tuple[Fraction, ...]
-    source: str  # "subject" or "counter_subject"
-    transforms: tuple[str, ...]  # e.g., ("head", "invert")
-
-
-@dataclass(frozen=True)
-class Material:
-    """Thematic material for the piece."""
-    subject: Motif
-    counter_subject: Motif | None = None
-
-
-@dataclass(frozen=True)
-class Phrase:
-    """Musical phrase within an episode."""
-    index: int
-    bars: int
-    tonal_target: str
-    cadence: str | None
-    treatment: str
-    surprise: str | None
-    is_climax: bool = False
-    energy: str | None = None
-    harmony: tuple[str, ...] | None = None  # one Roman numeral per bar
-
-
-@dataclass(frozen=True)
-class Episode:
-    """Dramatic unit within a section containing phrases."""
-    type: str
-    bars: int
-    texture: str
-    phrases: tuple[Phrase, ...]
-    is_transition: bool = False
-
-
-@dataclass(frozen=True)
-class Section:
-    """Formal section containing episodes."""
-    label: str
-    tonal_path: tuple[str, ...]
-    final_cadence: str
-    episodes: tuple['Episode', ...]
-
-
-@dataclass(frozen=True)
-class Structure:
-    """Complete formal structure."""
-    sections: tuple[Section, ...]
-    arc: str
 
 
 @dataclass(frozen=True)
@@ -155,83 +49,3 @@ class TensionCurve:
     points: tuple[TensionPoint, ...]
     climax_position: float
     climax_level: float
-
-
-@dataclass(frozen=True)
-class RhetoricalSection:
-    """A section of the classical rhetorical structure."""
-    name: str           # exordium, narratio, confutatio, confirmatio, peroratio
-    start_bar: int      # 1-indexed bar where section starts
-    end_bar: int        # 1-indexed bar where section ends
-    function: str       # Description of rhetorical function
-    proportion: float   # Proportion of total piece (0.0 to 1.0)
-
-
-@dataclass(frozen=True)
-class RhetoricalStructure:
-    """Complete rhetorical disposition of the piece."""
-    archetype: str                              # Name of the archetype
-    sections: tuple[RhetoricalSection, ...]     # The five classical sections
-    climax_position: float                      # Position of climax (0.0 to 1.0)
-    climax_bar: int                             # 1-indexed bar of climax
-
-
-@dataclass(frozen=True)
-class CadencePoint:
-    """Arrival point in piece structure.
-
-    Cadences drive structure in schema-first planning. They are placed before
-    any melodic content, determining where phrases end and new sections begin.
-    """
-    bar: int            # 1-indexed bar number where cadence occurs
-    type: str           # half, authentic, deceptive, phrygian
-    target: str         # Harmonic target: I, V, vi, etc.
-    in_key_area: str = "I"        # Key area where cadence occurs
-    beat: Fraction | None = None  # Beat within bar; None = downbeat
-
-
-@dataclass(frozen=True)
-class SchemaSlot:
-    """Atomic planning unit replacing Episode+Phrase.
-
-    A SchemaSlot specifies a partimento schema tiled to fill a given number
-    of bars, with texture, treatment, and dux voice. The schema's bass_degrees
-    and soprano_degrees encode the harmonic content; no separate harmony field needed.
-    """
-    type: str           # Schema name: romanesca, prinner, fonte, etc.
-    bars: int           # Actual bars (tiled from schema's base bars)
-    texture: str        # imitative, melody_bass, free
-    treatment: str      # statement, imitation, sequence, inversion, stretto
-    dux_voice: str      # soprano, bass (voice that presents subject first)
-    cadence: str | None  # Cadence type if this slot ends on a cadence point
-    key_area: str = "I"  # Key area for this slot
-    stretto_overlap_beats: Fraction | None = None  # Overlap for stretto treatment
-    sequence_repetitions: int | None = None        # Repetitions for sequence treatment
-
-
-@dataclass(frozen=True)
-class SubjectValidation:
-    """Result of validating subject against opening schema.
-
-    Used when user provides a subject to ensure it fits the schema-first model:
-    - First degree must be consonant with schema's opening bass
-    - Must be invertible (intervals stay consonant when flipped)
-    - Must be answerable at the fifth (transposition stays in mode)
-    """
-    valid: bool
-    invertible: bool
-    answerable: bool
-    errors: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class Plan:
-    """Complete plan output."""
-    brief: Brief
-    frame: Frame
-    material: Material
-    structure: Structure
-    actual_bars: int
-    macro_form: MacroForm | None = None
-    tension_curve: TensionCurve | None = None
-    rhetoric: RhetoricalStructure | None = None
