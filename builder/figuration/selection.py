@@ -3,6 +3,7 @@
 Deterministic selection of baroque figures from the diminution table,
 indexed by interval between consecutive structural tones.
 """
+from builder.figuration.generator import generate_degrees
 from builder.figuration.loader import get_diminutions
 from builder.figuration.types import Figure
 from shared.key import Key
@@ -57,6 +58,7 @@ def select_figure(
     bar_num: int,
     prev_figure_name: str | None = None,
     recall_figure_name: str | None = None,
+    chord_tones: tuple[int, ...] = (),
 ) -> Figure:
     """Deterministic figure selection from diminution table.
 
@@ -69,6 +71,7 @@ def select_figure(
         bar_num: Bar index for deterministic rotation (V001).
         prev_figure_name: Previous figure name to avoid immediate repetition.
         recall_figure_name: If set, prefer this figure (motivic recall).
+        chord_tones: Diatonic offsets of chord tones from start pitch.
 
     Returns:
         Selected Figure from the diminution table.
@@ -83,8 +86,64 @@ def select_figure(
         if recalled:
             return recalled[0]
 
-    # Filter by note count: exact match or chainable figures that divide evenly
+    # Check for high-weight exact match from YAML (preserve strong named figures)
     exact: list[Figure] = [f for f in pool if f.note_count == note_count]
+    if exact:
+        high_weight: list[Figure] = [f for f in exact if f.weight >= 2.0]
+        if high_weight:
+            # Sort by weight descending
+            high_weight.sort(key=lambda f: (-f.weight, f.name))
+            # Avoid immediate repetition
+            if prev_figure_name is not None and len(high_weight) > 1:
+                non_repeat: list[Figure] = [
+                    f for f in high_weight if f.name != prev_figure_name
+                ]
+                if non_repeat:
+                    high_weight = non_repeat
+            # Deterministic rotation by bar_num (V001)
+            return high_weight[bar_num % len(high_weight)]
+
+    # Try algorithmic generation (new path)
+    if True:
+        try:
+            generated_degrees: tuple[int, ...] = generate_degrees(
+                interval=interval,
+                note_count=note_count,
+                character=character,
+                position=position,
+                chord_tones=chord_tones,
+                bar_num=bar_num,
+            )
+            # Wrap generated degrees in a transient Figure
+            return Figure(
+                name=f"generated_{interval}_{note_count}",
+                degrees=generated_degrees,
+                contour="generated",
+                polarity="balanced",
+                arrival="stepwise",
+                placement="span",
+                character=character,
+                harmonic_tension="medium",
+                max_density="high",
+                cadential_safe=(position == "cadential"),
+                repeatable=True,
+                requires_compensation=False,
+                compensation_direction=None,
+                is_compound=False,
+                minor_safe=True,
+                requires_leading_tone=False,
+                weight=1.0,
+            )
+        except Exception as e:
+            # Algorithmic generation failed — fall back to YAML selection
+            import logging
+            logging.getLogger(__name__).debug(
+                "Algorithmic generation failed for %s/%d: %s",
+                interval, note_count, e,
+            )
+
+    # Fall back to YAML figure selection
+    # Filter by note count: exact match or chainable figures that divide evenly
     chainable: list[Figure] = [
         f for f in pool
         if f.chainable and f.effective_chain_unit > 0

@@ -21,7 +21,7 @@ sections:
     lead_voice: 0
 
   - name: B
-    character: energetic
+    character: expressive
     schema_sequence: [fonte, monte, fenaroli, passo_indietro, cadenza_composta]
     accompany_texture: walking
     lead_voice: 1

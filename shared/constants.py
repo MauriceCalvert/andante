@@ -557,6 +557,15 @@ ENERGY_TO_CHARACTER: dict[str, str] = {
     "peak": "bold",
 }
 
+# Character rank for floor comparison (higher = more energetic)
+CHARACTER_RANK: dict[str, int] = {
+    "plain": 0,
+    "expressive": 1,
+    "energetic": 2,
+    "ornate": 3,
+    "bold": 4,
+}
+
 ENERGY_TO_REGISTRAL_BIAS: dict[str, int] = {
     "low": 0,
     "moderate": 2,

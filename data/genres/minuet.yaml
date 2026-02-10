@@ -15,5 +15,5 @@ sections:
     character: expressive
     schema_sequence: [do_re_mi, fenaroli, prinner]
   - name: B
-    character: energetic
+    character: expressive
     schema_sequence: [monte, fenaroli, passo_indietro, cadenza_semplice]

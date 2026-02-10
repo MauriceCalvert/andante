@@ -32,6 +32,7 @@ def figurate_soprano_span(
     midi_range: tuple[int, int],
     prev_figure_name: str | None = None,
     recall_figure_name: str | None = None,
+    chord_tones: tuple[int, ...] = (),
 ) -> tuple[list[tuple[Fraction, int, Fraction]], str]:
     """Fill gap between two structural tones with a figured diminution.
 
@@ -53,6 +54,7 @@ def figurate_soprano_span(
         midi_range: (low, high) MIDI bounds for soprano.
         prev_figure_name: Previous figure name to avoid repetition.
         recall_figure_name: If set, prefer this figure for motivic recall.
+        chord_tones: Diatonic offsets of chord tones from start pitch.
 
     Returns:
         (notes, figure_name) where notes is [(offset, midi, duration), ...].
@@ -82,6 +84,7 @@ def figurate_soprano_span(
         character=character,
         position=position,
         bar_num=bar_num,
+        density=density,
     )
     # Durations are authoritative for actual note count
     actual_count: int = len(durations)
@@ -96,6 +99,7 @@ def figurate_soprano_span(
         bar_num=bar_num,
         prev_figure_name=prev_figure_name,
         recall_figure_name=recall_figure_name,
+        chord_tones=chord_tones,
     )
 
     # Realise figure degrees as MIDI pitches
@@ -137,6 +141,7 @@ def _get_durations(
     character: str,
     position: str,
     bar_num: int,
+    density: str,
 ) -> tuple[Fraction, ...]:
     """Get duration sequence for the figuration.
 
@@ -170,7 +175,7 @@ def _get_durations(
                 return scaled
 
     # Fall back to equal subdivision via compute_rhythmic_distribution
-    _, unit_dur = compute_rhythmic_distribution(gap=gap, density="medium")
+    _, unit_dur = compute_rhythmic_distribution(gap=gap, density=density)
     count: int = int(gap / unit_dur) if unit_dur > 0 else note_count
     if count < 1:
         count = 1
@@ -189,22 +194,28 @@ def _realise_pitches(
     """Convert figure degree offsets to MIDI pitches.
 
     Figure.degrees are diatonic offsets from the start pitch.
-    The first note is always start_midi.
+    The first note is always start_midi. Subsequent pitches use
+    voice-leading-aware octave selection: all octave variants of the
+    target pitch within midi_range are generated, and the one closest
+    to the previous pitch is chosen.
     """
-    # Get the figure's degree sequence, adjusted to target note_count
     degrees: tuple[int, ...] = _fit_degrees_to_count(
         figure=figure, target_count=note_count,
     )
-
     pitches: list[int] = []
+    prev_pitch: int = start_midi
     for i, deg_offset in enumerate(degrees):
         if i == 0:
             pitch: int = start_midi
         else:
-            pitch = key.diatonic_step(midi=start_midi, steps=deg_offset)
-            pitch = _clamp_to_range(pitch=pitch, midi_range=midi_range)
+            raw: int = key.diatonic_step(midi=start_midi, steps=deg_offset)
+            pitch = _nearest_in_range(
+                target=raw,
+                prev_pitch=prev_pitch,
+                midi_range=midi_range,
+            )
+        prev_pitch = pitch
         pitches.append(pitch)
-
     return pitches
 
 
@@ -263,15 +274,30 @@ def _fit_degrees_to_count(
     return tuple(result_list)
 
 
-def _clamp_to_range(pitch: int, midi_range: tuple[int, int]) -> int:
-    """Clamp a pitch to the allowed MIDI range, using octave transposition."""
-    while pitch < midi_range[0] and pitch + 12 <= midi_range[1]:
+def _nearest_in_range(
+    target: int,
+    prev_pitch: int,
+    midi_range: tuple[int, int],
+) -> int:
+    """Pick the octave variant of target closest to prev_pitch, within range.
+
+    Generates all octave transpositions of target that fall within
+    midi_range, then returns the one with the smallest absolute
+    interval to prev_pitch. If no variant is in range (degenerate),
+    falls back to hard clamp.
+    """
+    candidates: list[int] = []
+    # Start from lowest possible octave variant
+    base: int = target % 12 + (midi_range[0] // 12) * 12
+    if base < midi_range[0]:
+        base += 12
+    pitch: int = base
+    while pitch <= midi_range[1]:
+        candidates.append(pitch)
         pitch += 12
-    while pitch > midi_range[1] and pitch - 12 >= midi_range[0]:
-        pitch -= 12
-    # Final clamp if still out
-    if pitch < midi_range[0]:
-        pitch = midi_range[0]
-    if pitch > midi_range[1]:
-        pitch = midi_range[1]
-    return pitch
+    if not candidates:
+        # Degenerate: no octave variant in range, hard clamp
+        return max(midi_range[0], min(target, midi_range[1]))
+    # Pick closest to prev_pitch
+    best: int = min(candidates, key=lambda p: abs(p - prev_pitch))
+    return best

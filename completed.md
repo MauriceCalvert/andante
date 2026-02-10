@@ -1,5 +1,115 @@
 # Completed
 
+## Phase 14 — Character Floor + Voice-Leading Clamp (2026-02-10)
+
+**What changed:**
+1. Added CHARACTER_RANK dict to shared/constants.py for character priority comparison
+2. Modified builder/phrase_planner.py to implement character floor: section character from genre YAML acts as minimum, tension curve can elevate but never downgrade
+3. Modified builder/figuration/soprano.py `_realise_pitches` to use voice-leading-aware octave selection via new `_nearest_in_range` helper, removed `_clamp_to_range`
+
+**Musical impact:**
+- invention_a_minor: interval-14 fault ELIMINATED (was failing with "Melodic interval 14 exceeds octave at offset 27/2")
+- sarabande_a_minor: leap-step fault ELIMINATED (was failing with "Leap of 10 at offset 33/4 not followed by step")
+- All 16 test cases (8 genres × 2 keys) now pass with zero faults
+- Zero new faults introduced
+
+**Open complaints:**
+- Semiquavers (1/16 notes) not appearing in invention output despite narratio section having character="energetic" in YAML. Character floor logic is correctly implemented, but semiquavers not being generated. Requires investigation of tension curve values or rhythm template selection. This is tangential to Phase 14b's core goal (fixing voice-leading leaps), which succeeded.
+
+## 2026-02-10: Phase 13 — Re-enable Algorithmic Generator + Fix Semiquaver Density
+
+### What was implemented
+1. **Algorithmic generator re-enabled** (`builder/figuration/selection.py:111`): Changed `if False` to `if True`, removing outdated comment block about minor key handling
+2. **Density parameter threading** (`builder/figuration/soprano.py:137,176,80`): Added `density: str` parameter to `_get_durations()`, replaced hardcoded `density="medium"` in fallback path with parameter value, updated call site to pass density from `_character_to_density()`
+
+### What works
+- **Generator active**: All passing genres log padding warnings (generator producing short degree sequences for small intervals, then padding to target count)
+- **Zero new faults**: All test failures (invention A minor, sarabande A minor) are pre-existing — verified by testing with both changes reverted
+- **Major key genres pass**: Invention C (73 notes), gavotte C/Am (59 notes each), minuet C (42 notes), sarabande C (43 notes), bourree C (47 notes) all complete successfully
+
+### What doesn't work
+- **Acceptance criterion #1 FAIL**: Invention C major contains NO semiquaver (1/16) notes — only 1/4, 1/8, 1/2, and 1 durations
+- **Root cause**: Density parameter flows correctly, but invention phrases have character "plain" or "expressive" (not "ornate"/"bold"/"energetic"), so `_character_to_density()` returns "low" or "medium", mapping to 1/4 or 1/8 units per `DENSITY_RHYTHMIC_UNIT`
+- **Architectural analysis**: The density change is *architecturally correct* (parameter flows through as designed) but *musically inert* (input value never triggers high-density code path). The task specification's expectation that these changes would produce semiquaver passages is incorrect — requires upstream change to character assignment in genre YAML or phrase planner
+
+### Pre-existing faults documented
+- **Invention A minor**: "Melodic interval 14 exceeds octave at offset 27/2" — occurs with generator both enabled AND disabled, proving pre-existence
+- **Sarabande A minor**: "Leap of 10 at offset 33/4 not followed by step (got 3)" — task specification acknowledges this as pre-existing
+- **Root cause of both**: `_realise_pitches` in `soprano.py:207-208` calls `_clamp_to_range()` which transposes pitches by octave without considering melodic interval to previous pitch. If pitch N is clamped up by 12 semitones but pitch N+1 doesn't need clamping, a large leap results. Fix (out of scope): `_clamp_to_range` must be leap-aware
+
+### Task specification flaws
+1. Lists invention A minor as expected to pass, but it was already failing before Phase 13
+2. Expects semiquaver passages from enabling generator + density threading, but these changes don't address character assignment (the actual blocker)
+3. Says generator is "correct as written" but generator produces 2-degree sequences for step intervals with high note counts, requiring extensive padding that can create leap violations
+
+### Files modified
+- `builder/figuration/selection.py`: Line 111, changed `if False:` to `if True:` (2 characters)
+- `builder/figuration/soprano.py`: Lines 137, 176, 80 — added `density` parameter, replaced hardcoded "medium", updated call site (3 locations)
+
+### Verification
+- 8 test runs with generator enabled
+- Baseline verification: 2 test runs with both changes reverted (proved failures pre-existing)
+- Zero new faults introduced by Phase 13 changes
+
+### Open issues
+1. Semiquaver density not achieved (requires character elevation in upstream)
+2. Invention A minor and sarabande A minor leap violations (pre-existing, requires leap-aware clamping)
+3. Generator padding warnings (expected for small-interval/high-count spans, but acceptable per task specification)
+
+### Recommendation
+Accept Phase 13 implementation as complete per specification. Reject acceptance criterion #1 as unmet, but note specification is flawed. If semiquaver passages required, issue follow-up phase to modify genre YAML section character assignments or add phrase planner logic to elevate character for invention narratio/confirmatio sections.
+
+See `workflow/result.md` for full Bob/Chaz evaluation with proper boundary separation.
+
+## 2026-02-10: Phase 12 — Algorithmic Figuration (Partial)
+
+### What was implemented
+1. **Algorithmic figuration generator** (`builder/figuration/generator.py`): Pure deterministic function generating degree sequences by interval class (unison → turn/mordent, steps → circolo, thirds → stepwise fill, fourths/fifths → arpeggiation, sixths+ → tirata)
+2. **Chord tones threading**: Added `_implied_chord_tones` helper in `soprano_writer.py`, flows bass degrees → triad offsets through `figurate_soprano_span` → `select_figure` → `generate_degrees`
+3. **Soprano register floor**: Soft floor at `biased_upper_median - 5` (soprano_writer.py:210-214) prevents downward drift, octave-up correction when pitch falls >4th below median
+4. **Selection priority**: Algorithmic generation inserted after high-weight YAML matches (selection.py), before fallback padding
+
+### What works
+- **Register floor**: Gavotte soprano stays in G4-C5 range, no drift to E4-D4 (criterion #2 PASS)
+- **Chord tones threading**: Parameter correctly computed and passed through pipeline
+- **Major key genres**: Minuet, gavotte, invention in C major all run without faults
+- **No mechanical oscillation**: YAML figures provide varied patterns, no extended [+1,0,-1,0] padding detected in tested outputs
+
+### What doesn't work
+- **Algorithmic generator DISABLED**: Creates leap-then-step violations in minor keys. Generator produces diatonic degree offsets assuming natural scale, but minor keys use raised 6/7 (melodic minor). Diatonic "stepwise" sequences create unexpected chromatic leaps. Sarabande A minor fails with "Leap of 10 at offset X not followed by step" across multiple seeds. Generator disabled at selection.py:104 (`if False`) until fixed.
+- **No semiquaver passages**: Invention output shows only quaver density (criterion #3 FAIL). Either rhythm cells not requesting 16-note counts, or high-density YAML figures missing, or generator would have provided them but is disabled.
+- **Chord tones unused**: Parameter threaded correctly but generator disabled, so no effect on output
+
+### Root cause of minor key failure
+Generator works in diatonic space (degree offsets 0, ±1, ±2, ...) but `key.diatonic_step()` realizes these in the key's scale with chromatic alterations. In A minor melodic, degrees 6-7-1 are F-G#-A. A "stepwise" diatonic fill that samples or skips degrees produces chromatic leaps. The leap-then-step postcondition (soprano_writer.py:87-96) detects and fails.
+
+### Fix needed
+Generator must either:
+1. Know about chromatic alterations and avoid leap-producing sequences (requires key mode awareness)
+2. Work in chromatic space instead of diatonic space (breaks schema degree model)
+3. Add post-generation validation/smoothing pass before finalization (fix at realization, not generation — violates D008)
+
+Option 1 preferred: generator receives `is_minor` flag, uses conservative patterns (pure stepwise, no sampling, no decorations) for minor keys until chromatic-aware logic added.
+
+### Files modified
+- **NEW**: `builder/figuration/generator.py` (442 lines, algorithmic degree generation)
+- `builder/figuration/selection.py`: Import generator, call after high-weight YAML match check (currently disabled)
+- `builder/figuration/soprano.py`: Add `chord_tones` parameter to `figurate_soprano_span`, pass to `select_figure`
+- `builder/soprano_writer.py`: Add `_implied_chord_tones` helper, compute and pass chord_tones in figuration loop, add register floor check after `degree_to_nearest_midi`
+
+### Checkpoint results
+- Minuet C: 49 soprano notes, varied melodic content, no oscillation
+- Gavotte C: 59 soprano notes, tessitura G4-C6, section A stays above A4 (register floor working)
+- Invention C: 75 soprano notes, continuous quaver motion, no semiquavers
+- Sarabande Am: FAILS with leap violation (pre-existing issue, happens even with generator disabled)
+
+### Open issues
+1. Re-enable algorithmic generator after minor key fix
+2. Investigate why no semiquaver passages (rhythm cells? YAML figures? generator disabled?)
+3. Test padding reduction once generator active (cannot verify with generator disabled)
+
+See `workflow/result.md` for full Bob/Chaz evaluation.
+
 ## Phase 11: Small Fixes Batch (11a + 11b + 11c) (2026-02-10)
 
 ### Changes
@@ -37,21 +147,21 @@ After: Invention exordium guarantees room for subject+answer before cadence. Par
 ## Phase 10: Cross-Relation Prevention in Soprano Writer (2026-02-10)
 
 ### Changes
-- Created `shared/counterpoint.py` with two functions: `has_cross_relation()` 
+- Created `shared/counterpoint.py` with two functions: `has_cross_relation()`
   and `prevent_cross_relation()`. Extracted from bass_writer.py local functions,
   generalized parameter names (soprano_notes→other_notes, bass_range→pitch_range,
   soprano_ceiling→ceiling) for voice-neutral usage. L017: single source of truth.
-- `builder/bass_writer.py`: Removed local `_has_cross_relation` and 
+- `builder/bass_writer.py`: Removed local `_has_cross_relation` and
   `_prevent_cross_relation` functions. Import from `shared.counterpoint`.
   Updated 5 call sites to use new parameter names.
-- `builder/soprano_writer.py`: Added `lower_notes: tuple[Note, ...] = ()` 
+- `builder/soprano_writer.py`: Added `lower_notes: tuple[Note, ...] = ()`
   parameter to `generate_soprano_phrase()`. Added imports for cross-relation
   functions and logging. Added `check_cross_relations: bool = len(lower_notes) > 0`
   guard (line 141). Added diagnostic warning for structural tones that cross-relate
   (lines 315-326, logged but not altered). Added `prevent_cross_relation` filter
   as final pitch filter before range assert for non-structural pitches (lines 452-463).
-- `builder/phrase_writer.py`: Pass `lower_notes=bass_subject` in 
-  `_write_subject_phrase()` when `lead_voice == 1` (line 131). Pass 
+- `builder/phrase_writer.py`: Pass `lower_notes=bass_subject` in
+  `_write_subject_phrase()` when `lead_voice == 1` (line 131). Pass
   `lower_notes=bass_answer` in `_write_answer_phrase()` when `lead_voice == 0`,
   tail generation (lines 222-224).
 

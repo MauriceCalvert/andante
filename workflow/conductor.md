@@ -133,6 +133,7 @@ At the start of every chat, also read:
 2. `docs/knowledge.md`
 3. `plan3.md`
 4. `completed.md`
+5. `workflow/todo.md`
 
 ## Role
 

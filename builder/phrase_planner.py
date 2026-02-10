@@ -12,7 +12,7 @@ from builder.types import Anchor, GenreConfig, SchemaChain
 from planner.arc import get_energy_for_bar
 from planner.plannertypes import TensionCurve
 from shared.schema_types import Schema
-from shared.constants import CADENTIAL_POSITION, DESCENT_BIAS_STEP, ENERGY_TO_CHARACTER, ENERGY_TO_REGISTRAL_BIAS, MIN_SOPRANO_MIDI, VOICE_RANGES
+from shared.constants import CADENTIAL_POSITION, CHARACTER_RANK, DESCENT_BIAS_STEP, ENERGY_TO_CHARACTER, ENERGY_TO_REGISTRAL_BIAS, MIN_SOPRANO_MIDI, VOICE_RANGES
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.voice_types import Range
@@ -86,6 +86,11 @@ def build_phrase_plans(
                 if prev_bias - bias > DESCENT_BIAS_STEP:
                     bias = prev_bias - DESCENT_BIAS_STEP
             char: str = ENERGY_TO_CHARACTER[energy]
+            # Section character from genre YAML is a floor — tension curve
+            # can elevate but never downgrade (Phase 14a)
+            section_char: str = plan.character  # set by _build_single_plan from YAML
+            if CHARACTER_RANK.get(section_char, 0) > CHARACTER_RANK.get(char, 0):
+                char = section_char
             plan = replace(plan, registral_bias=bias, character=char)
         plans.append(plan)
         cumulative_bar += plan.bar_span
