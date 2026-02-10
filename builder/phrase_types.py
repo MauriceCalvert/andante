@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import TYPE_CHECKING
 from shared.key import Key
+from shared.music_math import parse_metre
 from shared.voice_types import Range
 
 if TYPE_CHECKING:
@@ -61,6 +62,8 @@ class PhrasePlan:
     anacrusis: Fraction = Fraction(0)
     registral_bias: int = 0
     recall_motif: bool = False
+    lead_voice: int | None = None
+    imitation_role: str | None = None  # "subject", "answer", or None
 
 
 @dataclass(frozen=True)
@@ -114,3 +117,95 @@ def phrase_offset_to_bar(
             return 1
         return int((rel - plan.anacrusis) // bar_length) + 2
     return int(rel // bar_length) + 1
+
+
+def make_tail_plan(
+    plan: PhrasePlan,
+    tail_start_bar: int,
+    tail_start_offset: Fraction,
+    prev_exit_upper: int | None,
+    prev_exit_lower: int | None,
+) -> PhrasePlan:
+    """Build a PhrasePlan covering bars tail_start_bar..bar_span after a subject entry.
+
+    The tail is free counterpoint (not imitative), generated via normal
+    soprano/bass writers. Degree arrays are filtered to only positions in
+    the tail range, with bar numbers remapped so tail_start_bar becomes 1.
+    """
+    assert tail_start_bar > 1, (
+        f"tail_start_bar must be > 1 (subject must occupy at least 1 bar), got {tail_start_bar}"
+    )
+    tail_bar_span: int = plan.bar_span - tail_start_bar + 1
+    assert tail_bar_span > 0, (
+        f"No tail bars: bar_span={plan.bar_span}, tail_start_bar={tail_start_bar}"
+    )
+    bar_length: Fraction = parse_metre(metre=plan.metre)[0]
+    tail_duration: Fraction = bar_length * tail_bar_span
+
+    # Filter degree_positions to those in the tail range, remap bar numbers
+    tail_indices: list[int] = [
+        i for i, pos in enumerate(plan.degree_positions)
+        if pos.bar >= tail_start_bar
+    ]
+    bar_shift: int = tail_start_bar - 1
+    # If no schema degrees fall in the tail, inject the last parent degree
+    # at the tail downbeat so generators have a structural target.
+    if len(tail_indices) == 0 and len(plan.degrees_upper) > 0:
+        last_idx: int = len(plan.degrees_upper) - 1
+        tail_positions = (BeatPosition(bar=1, beat=1),)
+        tail_degrees_upper = (plan.degrees_upper[last_idx],)
+        tail_degrees_lower = (plan.degrees_lower[last_idx],) if last_idx < len(plan.degrees_lower) else ()
+        tail_degree_keys: tuple[Key, ...] | None = None
+        if plan.degree_keys is not None and last_idx < len(plan.degree_keys):
+            tail_degree_keys = (plan.degree_keys[last_idx],)
+    else:
+        tail_positions = tuple(
+            BeatPosition(bar=plan.degree_positions[i].bar - bar_shift, beat=plan.degree_positions[i].beat)
+            for i in tail_indices
+        )
+        tail_degrees_upper = tuple(
+            plan.degrees_upper[i] for i in tail_indices
+            if i < len(plan.degrees_upper)
+        )
+        tail_degrees_lower = tuple(
+            plan.degrees_lower[i] for i in tail_indices
+            if i < len(plan.degrees_lower)
+        )
+        tail_degree_keys = None
+        if plan.degree_keys is not None:
+            tail_degree_keys = tuple(
+                plan.degree_keys[i] for i in tail_indices
+                if i < len(plan.degree_keys)
+            )
+
+    return PhrasePlan(
+        schema_name=plan.schema_name,
+        degrees_upper=tail_degrees_upper,
+        degrees_lower=tail_degrees_lower,
+        degree_positions=tail_positions,
+        local_key=plan.local_key,
+        bar_span=tail_bar_span,
+        start_bar=plan.start_bar + bar_shift,
+        start_offset=tail_start_offset,
+        phrase_duration=tail_duration,
+        metre=plan.metre,
+        rhythm_profile=plan.rhythm_profile,
+        is_cadential=False,
+        cadence_type=None,
+        prev_exit_upper=prev_exit_upper,
+        prev_exit_lower=prev_exit_lower,
+        section_name=plan.section_name,
+        upper_range=plan.upper_range,
+        lower_range=plan.lower_range,
+        upper_median=plan.upper_median,
+        lower_median=plan.lower_median,
+        bass_texture=plan.bass_texture,
+        bass_pattern=plan.bass_pattern,
+        degree_keys=tail_degree_keys,
+        character="plain",
+        anacrusis=Fraction(0),
+        registral_bias=plan.registral_bias,
+        recall_motif=False,
+        lead_voice=None,
+        imitation_role=None,
+    )

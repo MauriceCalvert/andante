@@ -95,6 +95,10 @@ def build_phrase_plans(
         schema_chain=schema_chain,
         genre_config=genre_config,
     )
+    plans = _assign_imitation_roles(
+        plans=plans,
+        schema_chain=schema_chain,
+    )
     _validate_plans(plans=plans, schema_chain=schema_chain)
     return tuple(plans)
 
@@ -192,6 +196,10 @@ def _build_single_plan(
         section_name=section_name,
         genre_config=genre_config,
     )
+    lead_voice: int | None = _get_section_lead_voice(
+        section_name=section_name,
+        genre_config=genre_config,
+    )
     return PhrasePlan(
         schema_name=schema_name,
         degrees_upper=degrees_upper,
@@ -218,6 +226,7 @@ def _build_single_plan(
         degree_keys=degree_keys,
         character=character,
         anacrusis=anacrusis,
+        lead_voice=lead_voice,
     )
 
 
@@ -326,6 +335,17 @@ def _get_section_character(
         if section.get("name") == section_name:
             return section.get("character", "plain")
     return "plain"
+
+
+def _get_section_lead_voice(
+    section_name: str,
+    genre_config: GenreConfig,
+) -> int | None:
+    """Look up lead_voice from genre section data."""
+    for section in genre_config.sections:
+        if section.get("name") == section_name:
+            return section.get("lead_voice")
+    return None
 
 
 def _resolve_local_key(
@@ -445,6 +465,42 @@ def _mark_recall_phrases(
         plans[last_non_cadential] = replace(
             plans[last_non_cadential], recall_motif=True,
         )
+    return plans
+
+
+def _assign_imitation_roles(
+    plans: list[PhrasePlan],
+    schema_chain: SchemaChain,
+) -> list[PhrasePlan]:
+    """Assign imitation roles in sections that have lead_voice.
+
+    Exordium (sec_idx 0): first non-cadential phrase with lead_voice gets
+    "subject", second gets "answer" (with countersubject).
+    Later sections: only the first non-cadential phrase gets "subject";
+    remaining phrases are episodes (imitation_role=None).
+    """
+    boundaries: tuple[int, ...] = schema_chain.section_boundaries
+    if not boundaries:
+        return plans
+    # Build section ranges: [(start, end), ...]
+    section_starts: list[int] = [0] + list(boundaries[:-1])
+    section_ends: list[int] = list(boundaries)
+    for sec_idx in range(len(section_starts)):
+        start: int = section_starts[sec_idx]
+        end: int = section_ends[sec_idx]
+        assigned: int = 0
+        for i in range(start, end):
+            if plans[i].is_cadential:
+                continue
+            if plans[i].lead_voice is None:
+                continue
+            if assigned == 0:
+                plans[i] = replace(plans[i], imitation_role="subject")
+                assigned += 1
+            elif assigned == 1 and sec_idx == 0:
+                # Only the exordium gets both subject + answer
+                plans[i] = replace(plans[i], imitation_role="answer")
+                assigned += 1
     return plans
 
 

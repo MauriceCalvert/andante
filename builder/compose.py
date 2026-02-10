@@ -10,6 +10,7 @@ from builder.cadence_writer import load_cadence_templates
 from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
+from motifs.fugue_loader import LoadedFugue
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.tracer import get_tracer
@@ -120,6 +121,7 @@ def compose_phrases(
     metre: str,
     tempo: int,
     upbeat: Fraction,
+    fugue: LoadedFugue | None = None,
 ) -> Composition:
     """Compose a piece phrase by phrase using the phrase writer."""
     assert len(phrase_plans) > 0, "Must have at least one PhrasePlan"
@@ -161,6 +163,7 @@ def compose_phrases(
             next_phrase_entry_degree=next_entry_degree,
             next_phrase_entry_key=next_entry_key,
             recall_figure_name=recall_figure,
+            fugue=fugue,
         )
         # Extract head motif after first non-cadential phrase
         if head_motif is None and not plan.is_cadential:

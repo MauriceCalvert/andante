@@ -382,7 +382,6 @@ numbers, not heard. This means:
   they are not hearing. Treat them as expert score-reading.
 - The only real ear is the human user listening to MIDI output. The
   human's untrained impression overrides Bob when they conflict.
-- Encourage the user to listen after each phase and report what they hear.
 
 ### 5. Iterate or Advance
 
@@ -556,8 +555,13 @@ You communicate with Claude Code through the filesystem. No copy-pasting.
 3. Judge Bob's assessment against the Principles
 4. Judge Chaz's diagnosis for rigour (wire before invent, scope matches
    Bob's complaints)
-5. Either approve (log to completed.md, issue next task) or reject
-   (write a corrected task.md explaining which Principle is violated)
+5. Either approve (issue next task) or reject (write a corrected
+   task.md explaining which Principle is violated)
+
+**completed.md is maintained by the player, not the conductor.** The
+player prepends to completed.md as part of each task's checkpoint. The
+conductor reads it but never writes to it. Entries are in reverse
+chronological order (most recent phase first).
 
 ## Session Management
 

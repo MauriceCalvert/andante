@@ -42,10 +42,6 @@ Full test suite takes a long time, ask before running.
 Pipeline checkpoint runs (Bob/Chaz evaluation) must use `-o tests/output`.
 The `output/` directory is reserved for the user's brief runs.
 
-After all tests pass, run:
-`python -m scripts.run_pipeline briefs/builder/ -v -trace`
-This regenerates the user's pieces with the latest code.
-
 ---
 
 ## Coding

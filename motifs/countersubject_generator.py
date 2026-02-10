@@ -85,10 +85,20 @@ def generate_countersubject(
     tonic_midi: int = 60,
     min_degree: int = MIN_CS_DEGREE,
     max_degree: int = MAX_CS_DEGREE,
+    answer_degrees: tuple[int, ...] | None = None,
 ) -> GeneratedCountersubject | None:
-    """Generate countersubject using CP-SAT optimisation."""
+    """Generate countersubject using CP-SAT optimisation.
+
+    When answer_degrees is provided, the solver also constrains the CS
+    to be consonant against the answer (dual validation for invertible
+    counterpoint). This narrows the solution space but never widens it.
+    """
     n = len(subject.scale_indices)
     assert n >= 2, f"Subject too short: {n} notes"
+    if answer_degrees is not None:
+        assert len(answer_degrees) == n, (
+            f"answer_degrees length {len(answer_degrees)} != subject length {n}"
+        )
     subj_degrees = subject.scale_indices
     beat_positions = _compute_beat_positions(
         durations=subject.durations,
@@ -112,6 +122,23 @@ def generate_countersubject(
             model.AddAllowedAssignments([interval_mod7[i]], [(0,), (2,), (5,)])
         else:
             model.AddAllowedAssignments([interval_mod7[i]], [(0,), (1,), (2,), (4,), (5,), (6,)])
+    # --- Answer interval variables and constraints (dual validation) ---
+    answer_imod7: list[cp_model.IntVar] = []
+    if answer_degrees is not None:
+        for i in range(n):
+            aimod = model.NewIntVar(0, 6, f"aimod_{i}")
+            adiff = model.NewIntVar(-28, 28, f"adiff_{i}")
+            model.Add(adiff == cs[i] - answer_degrees[i])
+            aabs = model.NewIntVar(0, 28, f"aabs_{i}")
+            model.AddAbsEquality(aabs, adiff)
+            model.AddModuloEquality(aimod, aabs, 7)
+            answer_imod7.append(aimod)
+        for i in range(n):
+            is_strong = beat_positions[i] in strong_beats
+            if is_strong:
+                model.AddAllowedAssignments([answer_imod7[i]], [(0,), (2,), (5,)])
+            else:
+                model.AddAllowedAssignments([answer_imod7[i]], [(0,), (1,), (2,), (4,), (5,), (6,)])
     penalties = []
     rewards = []
     for i in range(n):
@@ -134,6 +161,23 @@ def generate_countersubject(
             model.Add(interval_mod7[i] == 0).OnlyEnforceIf(is_unison)
             model.Add(interval_mod7[i] != 0).OnlyEnforceIf(is_unison.Not())
             penalties.append((is_unison, PENALTY_INTERIOR_UNISON))
+    # --- Answer weak-beat penalties (parallel to subject penalties) ---
+    if answer_degrees is not None:
+        for i in range(n):
+            is_strong = beat_positions[i] in strong_beats
+            if not is_strong:
+                a_fifth = model.NewBoolVar(f"afifth_{i}")
+                model.Add(answer_imod7[i] == 4).OnlyEnforceIf(a_fifth)
+                model.Add(answer_imod7[i] != 4).OnlyEnforceIf(a_fifth.Not())
+                penalties.append((a_fifth, PENALTY_WEAK_BEAT_FIFTH))
+                a_diss = model.NewBoolVar(f"adiss_{i}")
+                model.Add(answer_imod7[i] == 1).OnlyEnforceIf(a_diss)
+                model.Add(answer_imod7[i] != 1).OnlyEnforceIf(a_diss.Not())
+                a_diss6 = model.NewBoolVar(f"adiss6_{i}")
+                model.Add(answer_imod7[i] == 6).OnlyEnforceIf(a_diss6)
+                model.Add(answer_imod7[i] != 6).OnlyEnforceIf(a_diss6.Not())
+                penalties.append((a_diss, PENALTY_WEAK_BEAT_DISSONANCE))
+                penalties.append((a_diss6, PENALTY_WEAK_BEAT_DISSONANCE))
     for i in range(n - 1):
         uni_i = model.NewBoolVar(f"u_{i}")
         uni_j = model.NewBoolVar(f"u_{i + 1}")
@@ -240,7 +284,8 @@ def verify_countersubject(
 
 if __name__ == "__main__":
     from motifs.subject_generator import generate_subject
-    print("Testing countersubject generation...")
+    from motifs.answer_generator import generate_answer
+    print("Testing countersubject generation (dual validation)...")
     print("=" * 60)
     success_count = 0
     for seed in range(5):
@@ -252,10 +297,15 @@ if __name__ == "__main__":
             tonic_midi=67,
             verbose=False,
         )
+        answer = generate_answer(
+            subject=subject,
+            tonic_midi=67,
+        )
         cs = generate_countersubject(
             subject=subject,
             metre=(4, 4),
             tonic_midi=67,
+            answer_degrees=answer.scale_indices,
         )
         if cs:
             violations = verify_countersubject(
@@ -271,8 +321,9 @@ if __name__ == "__main__":
                 print("OK")
                 success_count += 1
                 print(f"  Subject:  {subject.scale_indices}")
+                print(f"  Answer:   {answer.scale_indices} ({answer.answer_type})")
                 print(f"  CS:       {cs.scale_indices}")
-                print(f"  Intervals: {cs.vertical_intervals}")
+                print(f"  Intervals (vs subj): {cs.vertical_intervals}")
         else:
             print("FAILED (no solution)")
-    print(f"\n{success_count}/5 subjects produced valid countersubjects")
+    print(f"\n{success_count}/5 subjects produced valid countersubjects (dual validation)")

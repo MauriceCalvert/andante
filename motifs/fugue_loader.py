@@ -83,19 +83,13 @@ class LoadedFugue:
         )
 
 
-def load_fugue(name: str) -> LoadedFugue:
-    """Load a fugue triple from the library by name."""
-    if name.endswith(".fugue"):
-        name = name[:-6]
-    path = LIBRARY_DIR / f"{name}.fugue"
-    assert path.exists(), f"Fugue file not found: {path}"
-    with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    subj_data = data["subject"]
-    ans_data = data["answer"]
-    cs_data = data["countersubject"]
-    meta = data["metadata"]
-    subject = LoadedSubject(
+def _parse_fugue_data(data: dict) -> LoadedFugue:
+    """Parse fugue YAML data dict into a LoadedFugue."""
+    subj_data: dict = data["subject"]
+    ans_data: dict = data["answer"]
+    cs_data: dict = data["countersubject"]
+    meta: dict = data["metadata"]
+    subject: LoadedSubject = LoadedSubject(
         degrees=tuple(subj_data["degrees"]),
         durations=tuple(subj_data["durations"]),
         mode=subj_data["mode"],
@@ -104,13 +98,13 @@ def load_fugue(name: str) -> LoadedFugue:
         leap_size=subj_data["leap_size"],
         leap_direction=subj_data["leap_direction"],
     )
-    answer = LoadedAnswer(
+    answer: LoadedAnswer = LoadedAnswer(
         degrees=tuple(ans_data["degrees"]),
         durations=tuple(ans_data["durations"]),
         answer_type=ans_data["type"],
         mutation_points=tuple(ans_data["mutation_points"]),
     )
-    countersubject = LoadedCountersubject(
+    countersubject: LoadedCountersubject = LoadedCountersubject(
         degrees=tuple(cs_data["degrees"]),
         durations=tuple(cs_data["durations"]),
         vertical_intervals=tuple(cs_data["vertical_intervals"]),
@@ -124,6 +118,25 @@ def load_fugue(name: str) -> LoadedFugue:
         tonic_midi=meta["tonic_midi"],
         seed=meta["seed"],
     )
+
+
+def load_fugue(name: str) -> LoadedFugue:
+    """Load a fugue triple from the library by name."""
+    if name.endswith(".fugue"):
+        name = name[:-6]
+    path: Path = LIBRARY_DIR / f"{name}.fugue"
+    assert path.exists(), f"Fugue file not found: {path}"
+    with open(path, encoding="utf-8") as f:
+        data: dict = yaml.safe_load(f)
+    return _parse_fugue_data(data=data)
+
+
+def load_fugue_path(path: Path) -> LoadedFugue:
+    """Load a fugue triple from an explicit file path."""
+    assert path.exists(), f"Fugue file not found: {path}"
+    with open(path, encoding="utf-8") as f:
+        data: dict = yaml.safe_load(f)
+    return _parse_fugue_data(data=data)
 
 
 def list_fugues() -> list[str]:

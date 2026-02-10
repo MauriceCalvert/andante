@@ -15,6 +15,8 @@ Category B: Orchestrator that validates and delegates.
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from builder.compose import compose_phrases
 from builder.config_loader import load_configs
 from builder.io import write_midi_file, write_musicxml_file
@@ -22,7 +24,8 @@ from builder.note_writer import write_note_file
 from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan
 from builder.types import Composition, SchemaChain, TonalPlan
-from motifs.fugue_loader import LoadedFugue
+from motifs.fugue_loader import LoadedFugue, load_fugue_path
+from motifs.subject_generator import generate_fugue_triple, write_fugue_file
 from planner.arc import build_tension_curve
 from planner.dramaturgy import get_suggested_key
 from planner.metric.layer import layer_4_metric
@@ -30,6 +33,7 @@ from planner.plannertypes import Brief, TensionCurve
 from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
+from shared.constants import TONIC_TO_MIDI
 from shared.key import Key
 from shared.tracer import get_tracer
 
@@ -47,6 +51,26 @@ def _derive_key_from_affect(affect: str) -> str:
     else:
         tonic = tonic.lower()
     return f"{tonic}_{mode}"
+
+
+def _parse_key_string(key: str) -> tuple[str, int]:
+    """Parse key string like 'c_major' or 'bb_minor' into (mode, tonic_midi).
+
+    Returns:
+        (mode, tonic_midi) e.g. ("major", 60) for "c_major"
+    """
+    parts: list[str] = key.rsplit("_", maxsplit=1)
+    assert len(parts) == 2, f"Key string must be 'tonic_mode', got: {key}"
+    tonic_name: str = parts[0]
+    mode: str = parts[1]
+    assert mode in ("major", "minor"), f"Unknown mode in key '{key}': {mode}"
+    # Capitalise tonic for TONIC_TO_MIDI lookup (e.g. "bb" -> "Bb", "c" -> "C")
+    tonic_upper: str = tonic_name[0].upper() + tonic_name[1:]
+    assert tonic_upper in TONIC_TO_MIDI, (
+        f"Unknown tonic '{tonic_name}' in key '{key}'. "
+        f"Valid tonics: {sorted(TONIC_TO_MIDI.keys())}"
+    )
+    return mode, TONIC_TO_MIDI[tonic_upper]
 
 
 def _with_sections_override(
@@ -149,6 +173,7 @@ def generate(
         metre=genre_config.metre,
         tempo=tempo,
         upbeat=genre_config.upbeat,
+        fugue=fugue,
     )
     return comp, phrase_plans, home_key
 
@@ -165,6 +190,39 @@ def generate_to_files(
     seed: int = 42,
 ) -> Composition:
     """Generate composition and write to files."""
+    # For invention genre: generate or load cached fugue triple
+    if genre == "invention" and fugue is None and key is not None:
+        fugue_path: Path = output_dir / f"{name}.fugue"
+        if fugue_path.exists():
+            fugue = load_fugue_path(path=fugue_path)
+            print(f"  Loaded cached fugue: {fugue_path.name}")
+        else:
+            mode, tonic_midi = _parse_key_string(key=key)
+            # Read metre from genre YAML
+            genre_yaml_path: Path = Path(__file__).parent.parent / "data" / "genres" / f"{genre}.yaml"
+            assert genre_yaml_path.exists(), f"Genre YAML not found: {genre_yaml_path}"
+            with open(genre_yaml_path, encoding="utf-8") as f:
+                genre_data: dict = yaml.safe_load(f)
+            metre_str: str = genre_data["metre"]
+            metre_parts: list[str] = metre_str.split("/")
+            metre_tuple: tuple[int, int] = (int(metre_parts[0]), int(metre_parts[1]))
+            triple = generate_fugue_triple(
+                mode=mode,
+                metre=metre_tuple,
+                seed=seed,
+                tonic_midi=tonic_midi,
+                verbose=True,
+            )
+            write_fugue_file(triple=triple, path=fugue_path)
+            fugue = load_fugue_path(path=fugue_path)
+            print(f"  Generated fugue: {fugue_path.name}")
+        # Print summary
+        print(f"  Subject: {len(fugue.subject.degrees)} notes, {fugue.subject.bars} bars, "
+              f"leap {fugue.subject.leap_direction} {fugue.subject.leap_size}, "
+              f"head: {fugue.subject.head_name}")
+        print(f"  Answer: {fugue.answer.answer_type}, "
+              f"{len(fugue.answer.mutation_points)} mutation(s)")
+        print(f"  Countersubject: {len(fugue.countersubject.degrees)} notes")
     result, phrase_plans, home_key = generate(
         genre=genre,
         affect=affect,

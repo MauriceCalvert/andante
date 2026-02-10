@@ -27,7 +27,8 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key)
     key_used: str = key if key else "(derived from affect)"
-    print(f"Generated {len(result.soprano)} soprano notes, {len(result.bass)} bass notes")
+    total_notes: int = sum(len(v) for v in result.voices.values())
+    print(f"Generated {total_notes} notes across {len(result.voices)} voices")
     print(f"Key: {key_used}")
     print(f"Output: {output_dir / name}.note, {output_dir / name}.midi")
 

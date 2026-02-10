@@ -448,6 +448,7 @@ def generate_fugue_triple(
         subject=subject,
         metre=metre,
         tonic_midi=tonic_midi,
+        answer_degrees=answer.scale_indices,
     )
     assert cs is not None, "Countersubject generation failed"
     return FugueTriple(
