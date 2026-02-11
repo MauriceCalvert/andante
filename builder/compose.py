@@ -147,11 +147,7 @@ def compose_phrases(
                 next_entry_key = next_plan.local_key
             else:
                 next_entry_degree = next_plan.degrees_upper[0]
-                next_entry_key = (
-                    next_plan.degree_keys[0]
-                    if next_plan.degree_keys is not None
-                    else next_plan.local_key
-                )
+                next_entry_key = next_plan.degree_keys[0]
         # Determine recall figure name for motivic return
         recall_figure: str | None = None
         if plan.recall_motif and head_motif is not None:

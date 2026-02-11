@@ -397,19 +397,19 @@ def test_start_bar_in_range(
 def test_degree_keys_for_sequential(
     phrase_plans_result: tuple[tuple[PhrasePlan, ...], GenreConfig, dict[str, Any], int, SchemaChain],
 ) -> None:
-    """P-27: sequential schemas have degree_keys; non-sequential have None."""
+    """P-27: all schemas have degree_keys; sequential have per-segment keys."""
     plans, _, schemas, _, _ = phrase_plans_result
     for plan in plans:
         schema_def = schemas[plan.schema_name]
-        if schema_def.sequential:
-            assert plan.degree_keys is not None, (
-                f"Sequential schema '{plan.schema_name}' has degree_keys=None"
-            )
-            assert len(plan.degree_keys) == len(plan.degrees_upper), (
-                f"degree_keys length {len(plan.degree_keys)} != "
-                f"degrees_upper length {len(plan.degrees_upper)}"
-            )
-        else:
-            assert plan.degree_keys is None, (
-                f"Non-sequential schema '{plan.schema_name}' has degree_keys set"
+        assert len(plan.degree_keys) > 0, (
+            f"Schema '{plan.schema_name}' has empty degree_keys"
+        )
+        assert len(plan.degree_keys) == len(plan.degrees_upper), (
+            f"degree_keys length {len(plan.degree_keys)} != "
+            f"degrees_upper length {len(plan.degrees_upper)}"
+        )
+        if not schema_def.sequential:
+            # Non-sequential: all degree_keys should be the same (local_key)
+            assert all(dk == plan.local_key for dk in plan.degree_keys), (
+                f"Non-sequential schema '{plan.schema_name}' has varying degree_keys"
             )

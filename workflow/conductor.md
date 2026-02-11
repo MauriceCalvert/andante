@@ -542,12 +542,13 @@ the real test.]
 You communicate with Claude Code through the filesystem. No copy-pasting.
 
 ### To issue a task:
-1. Write the task brief to `workflow/task.md`
-2. Tell the user to type **"go"** in Claude Code
-3. Claude Code reads CLAUDE.md, which tells it to read `workflow/task.md`
-4. Claude Code executes the task and writes results to `workflow/result.md`
-5. Claude Code deletes `workflow/task.md` when done
-6. You read `workflow/result.md` to evaluate
+1. Delete `workflow/result.md` if it exists
+2. Write the task brief to `workflow/task.md`
+3. Tell the user to type **"go"** in Claude Code
+4. Claude Code reads CLAUDE.md, which tells it to read `workflow/task.md`
+5. Claude Code executes the task and writes results to `workflow/result.md`
+6. Claude Code deletes `workflow/task.md` when done
+7. You read `workflow/result.md` to evaluate
 
 ### To evaluate results:
 1. Read `workflow/result.md`

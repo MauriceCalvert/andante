@@ -37,8 +37,6 @@ Defer updates. Track what needs changing, execute only when explicitly told.
 
 Don't test after each change, test once when all changes have been made.
 Only test changed code.
-Full test suite takes a long time, ask before running.
-
 Pipeline checkpoint runs (Bob/Chaz evaluation) must use `-o tests/output`.
 The `output/` directory is reserved for the user's brief runs.
 

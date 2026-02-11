@@ -177,6 +177,10 @@ def _build_single_plan(
             BeatPosition(bar=stage + 1, beat=1)
             for stage in range(len(degrees_upper))
         )
+    # Guarantee degree_keys is always populated (Phase 16a)
+    # Create one key per degree position (sequential schemas already set this)
+    if degree_keys is None:
+        degree_keys = tuple(local_key for _ in degree_positions)
     start_offset: Fraction = _compute_start_offset(
         bar=first_bar,
         beat=first_beat,

@@ -1,131 +1,17 @@
-"""Soprano figuration — fill gaps between structural tones with diminutions.
+"""Soprano figuration helpers — public pitch realisation functions.
 
-Given two anchor (offset, midi) pairs, selects a figure from the diminution
-table, pairs it with a rhythm template, and realises concrete (offset, midi,
-duration) note tuples.
+Provides utilities for converting figured diminutions to MIDI pitches with
+voice-leading-aware octave selection.
 """
 import logging
-from fractions import Fraction
 
-from builder.figuration.loader import get_rhythm_templates, select_rhythm_template
-from builder.figuration.rhythm_calc import compute_rhythmic_distribution
-from builder.figuration.selection import classify_interval, select_figure
-from builder.figuration.types import Figure, RhythmTemplate
-from shared.constants import VALID_DURATIONS_SET
+from builder.figuration.types import Figure
 from shared.key import Key
-from shared.music_math import parse_metre
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def figurate_soprano_span(
-    start_offset: Fraction,
-    start_midi: int,
-    end_offset: Fraction,
-    end_midi: int,
-    key: Key,
-    metre: str,
-    character: str,
-    position: str,
-    is_minor: bool,
-    bar_num: int,
-    midi_range: tuple[int, int],
-    prev_figure_name: str | None = None,
-    recall_figure_name: str | None = None,
-    chord_tones: tuple[int, ...] = (),
-) -> tuple[list[tuple[Fraction, int, Fraction]], str]:
-    """Fill gap between two structural tones with a figured diminution.
-
-    The first note always starts at start_offset with start_midi.
-    The last note's pitch approaches end_midi but need not equal it —
-    the next structural tone handles arrival.
-
-    Args:
-        start_offset: Absolute offset of the first anchor (whole notes).
-        start_midi: MIDI pitch of the first anchor.
-        end_offset: Absolute offset of the next anchor (whole notes).
-        end_midi: MIDI pitch of the next anchor.
-        key: Current musical key.
-        metre: Time signature string (e.g. "3/4").
-        character: Desired character ("plain", "expressive", etc.).
-        position: "passing" | "cadential" | "schema_arrival".
-        is_minor: True if current key is minor.
-        bar_num: Bar index for deterministic variation (V001).
-        midi_range: (low, high) MIDI bounds for soprano.
-        prev_figure_name: Previous figure name to avoid repetition.
-        recall_figure_name: If set, prefer this figure for motivic recall.
-        chord_tones: Diatonic offsets of chord tones from start pitch.
-
-    Returns:
-        (notes, figure_name) where notes is [(offset, midi, duration), ...].
-    """
-    gap: Fraction = end_offset - start_offset
-    assert gap > 0, (
-        f"figurate_soprano_span: non-positive gap {gap} "
-        f"from offset {start_offset} to {end_offset}"
-    )
-
-    # Classify the melodic interval
-    interval: str = classify_interval(
-        from_midi=start_midi, to_midi=end_midi, key=key,
-    )
-
-    # Determine note count from gap + density
-    density: str = _character_to_density(character=character)
-    note_count, _equal_dur = compute_rhythmic_distribution(
-        gap=gap, density=density,
-    )
-
-    # Get rhythm durations — may adjust note_count for valid durations
-    durations: tuple[Fraction, ...] = _get_durations(
-        note_count=note_count,
-        gap=gap,
-        metre=metre,
-        character=character,
-        position=position,
-        bar_num=bar_num,
-        density=density,
-    )
-    # Durations are authoritative for actual note count
-    actual_count: int = len(durations)
-
-    # Select figure based on actual note count
-    figure: Figure = select_figure(
-        interval=interval,
-        note_count=actual_count,
-        character=character,
-        position=position,
-        is_minor=is_minor,
-        bar_num=bar_num,
-        prev_figure_name=prev_figure_name,
-        recall_figure_name=recall_figure_name,
-        chord_tones=chord_tones,
-    )
-
-    # Realise figure degrees as MIDI pitches
-    pitches: list[int] = _realise_pitches(
-        figure=figure,
-        note_count=actual_count,
-        start_midi=start_midi,
-        end_midi=end_midi,
-        key=key,
-        midi_range=midi_range,
-    )
-
-    # Build output notes
-    assert len(pitches) == len(durations), (
-        f"Pitch count {len(pitches)} != duration count {len(durations)}"
-    )
-    notes: list[tuple[Fraction, int, Fraction]] = []
-    offset: Fraction = start_offset
-    for pitch, dur in zip(pitches, durations):
-        notes.append((offset, pitch, dur))
-        offset += dur
-
-    return notes, figure.name
-
-
-def _character_to_density(character: str) -> str:
+def character_to_density(character: str) -> str:
     """Map figure character to rhythmic density."""
     if character in ("ornate", "bold", "energetic"):
         return "high"
@@ -134,56 +20,7 @@ def _character_to_density(character: str) -> str:
     return "low"
 
 
-def _get_durations(
-    note_count: int,
-    gap: Fraction,
-    metre: str,
-    character: str,
-    position: str,
-    bar_num: int,
-    density: str,
-) -> tuple[Fraction, ...]:
-    """Get duration sequence for the figuration.
-
-    Uses rhythm templates only when the gap is a full bar (so scaling
-    by beat_unit preserves valid durations). For sub-bar gaps, uses
-    equal subdivision from compute_rhythmic_distribution.
-    """
-    bar_length, beat_unit = parse_metre(metre=metre)
-
-    # Only use templates for full-bar gaps where scaling is clean
-    if gap == bar_length:
-        templates: dict[tuple[int, str], list[RhythmTemplate]] = get_rhythm_templates()
-        counts_to_try: list[int] = [note_count]
-        for try_count in counts_to_try:
-            template_key: tuple[int, str] = (try_count, metre)
-            if template_key not in templates:
-                continue
-            template_list: list[RhythmTemplate] = templates[template_key]
-            template: RhythmTemplate = select_rhythm_template(
-                templates=template_list,
-                character=character,
-                position=position,
-                bar_num=bar_num,
-            )
-            # Template durations are in beats — multiply by beat_unit
-            scaled: tuple[Fraction, ...] = tuple(
-                d * beat_unit for d in template.durations
-            )
-            # Verify all are valid durations
-            if all(d in VALID_DURATIONS_SET for d in scaled):
-                return scaled
-
-    # Fall back to equal subdivision via compute_rhythmic_distribution
-    _, unit_dur = compute_rhythmic_distribution(gap=gap, density=density)
-    count: int = int(gap / unit_dur) if unit_dur > 0 else note_count
-    if count < 1:
-        count = 1
-    actual_dur: Fraction = gap / count
-    return tuple(actual_dur for _ in range(count))
-
-
-def _realise_pitches(
+def realise_pitches(
     figure: Figure,
     note_count: int,
     start_midi: int,
@@ -199,7 +36,7 @@ def _realise_pitches(
     target pitch within midi_range are generated, and the one closest
     to the previous pitch is chosen.
     """
-    degrees: tuple[int, ...] = _fit_degrees_to_count(
+    degrees: tuple[int, ...] = fit_degrees_to_count(
         figure=figure, target_count=note_count,
     )
     pitches: list[int] = []
@@ -209,7 +46,7 @@ def _realise_pitches(
             pitch: int = start_midi
         else:
             raw: int = key.diatonic_step(midi=start_midi, steps=deg_offset)
-            pitch = _nearest_in_range(
+            pitch = nearest_in_range(
                 target=raw,
                 prev_pitch=prev_pitch,
                 midi_range=midi_range,
@@ -219,7 +56,7 @@ def _realise_pitches(
     return pitches
 
 
-def _fit_degrees_to_count(
+def fit_degrees_to_count(
     figure: Figure,
     target_count: int,
 ) -> tuple[int, ...]:
@@ -274,7 +111,7 @@ def _fit_degrees_to_count(
     return tuple(result_list)
 
 
-def _nearest_in_range(
+def nearest_in_range(
     target: int,
     prev_pitch: int,
     midi_range: tuple[int, int],

@@ -57,7 +57,7 @@ class PhrasePlan:
     lower_median: int
     bass_texture: str = "pillar"
     bass_pattern: str | None = None
-    degree_keys: tuple[Key, ...] | None = None
+    degree_keys: tuple[Key, ...] = ()
     character: str = "plain"
     anacrusis: Fraction = Fraction(0)
     registral_bias: int = 0
@@ -155,9 +155,11 @@ def make_tail_plan(
         tail_positions = (BeatPosition(bar=1, beat=1),)
         tail_degrees_upper = (plan.degrees_upper[last_idx],)
         tail_degrees_lower = (plan.degrees_lower[last_idx],) if last_idx < len(plan.degrees_lower) else ()
-        tail_degree_keys: tuple[Key, ...] | None = None
-        if plan.degree_keys is not None and last_idx < len(plan.degree_keys):
-            tail_degree_keys = (plan.degree_keys[last_idx],)
+        tail_degree_keys: tuple[Key, ...] = (
+            (plan.degree_keys[last_idx],)
+            if last_idx < len(plan.degree_keys)
+            else (plan.local_key,)
+        )
     else:
         tail_positions = tuple(
             BeatPosition(bar=plan.degree_positions[i].bar - bar_shift, beat=plan.degree_positions[i].beat)
@@ -171,12 +173,10 @@ def make_tail_plan(
             plan.degrees_lower[i] for i in tail_indices
             if i < len(plan.degrees_lower)
         )
-        tail_degree_keys = None
-        if plan.degree_keys is not None:
-            tail_degree_keys = tuple(
-                plan.degree_keys[i] for i in tail_indices
-                if i < len(plan.degree_keys)
-            )
+        tail_degree_keys = tuple(
+            plan.degree_keys[i] if i < len(plan.degree_keys) else plan.local_key
+            for i in tail_indices
+        )
 
     return PhrasePlan(
         schema_name=plan.schema_name,

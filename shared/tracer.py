@@ -151,14 +151,15 @@ class PipelineTracer:
             deg_up: str = ",".join(str(d) for d in p.degrees_upper)
             deg_lo: str = ",".join(str(d) for d in p.degrees_lower)
             seq_tag: str = ""
-            if p.degree_keys is not None:
-                keys_unique: list[str] = []
-                prev: str = ""
-                for dk in p.degree_keys:
-                    ks: str = _key_str(key=dk)
-                    if ks != prev:
-                        keys_unique.append(ks)
-                        prev = ks
+            keys_unique: list[str] = []
+            prev: str = ""
+            for dk in p.degree_keys:
+                ks: str = _key_str(key=dk)
+                if ks != prev:
+                    keys_unique.append(ks)
+                    prev = ks
+            # Only show seq tag if multiple unique keys (sequential modulation)
+            if len(keys_unique) > 1:
                 seq_tag = f" seq[{'>'.join(keys_unique)}]"
             self._line(
                 f"  [{i}] {p.schema_name:22s} bars {p.start_bar}-{p.start_bar + p.bar_span - 1:>2d} "

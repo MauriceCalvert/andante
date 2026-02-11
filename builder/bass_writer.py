@@ -274,7 +274,7 @@ def generate_bass_phrase(
     for i, degree in enumerate(plan.degrees_lower):
         pos = plan.degree_positions[i]
         offset: Fraction = phrase_degree_offset(plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit)
-        key_for_degree: Key = plan.degree_keys[i] if plan.degree_keys is not None else plan.local_key
+        key_for_degree: Key = plan.degree_keys[i]
         soprano_at_offset: int | None = _soprano_pitch_at_offset(soprano_notes=soprano_notes, offset=offset)
         if soprano_at_offset is not None:
             midi: int = _find_consonant_alternative(
@@ -375,7 +375,7 @@ def generate_bass_phrase(
             key_for_bar: Key = plan.local_key
             # Use degree_keys if available for this bar's structural tone
             for i, pos in enumerate(plan.degree_positions):
-                if pos.bar == bar_num and plan.degree_keys is not None:
+                if pos.bar == bar_num:
                     key_for_bar = plan.degree_keys[i]
                     break
             # Anacrusis bar: emit structural tone with bar_dur, skip pattern
