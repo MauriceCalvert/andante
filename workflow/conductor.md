@@ -131,9 +131,8 @@ fault log.
 At the start of every chat, also read:
 1. `docs/Tier1_Normative/laws.md`
 2. `docs/knowledge.md`
-3. `plan3.md`
-4. `completed.md`
-5. `workflow/todo.md`
+3. `completed.md`
+4. `workflow/todo.md`
 
 ## Role
 

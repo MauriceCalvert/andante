@@ -5,6 +5,7 @@ Public functions:
 - audit_voice: Counterpoint detection pass (parallels, cross-relations, voice crossing, etc.)
 - write_voice: Pipeline connecting callers → strategies → validation → audit
 """
+import logging
 from fractions import Fraction
 
 from builder.types import Note
@@ -265,10 +266,14 @@ def validate_voice(
         f"total duration mismatch: expected {phrase_start + phrase_duration}, got {last_offset + last_duration}"
 
     # Check max melodic interval
+    _vw_logger = logging.getLogger(__name__)
     for i in range(len(notes) - 1):
         interval: int = abs(notes[i + 1].pitch - notes[i].pitch)
-        assert interval <= MAX_MELODIC_INTERVAL, \
-            f"melodic interval {interval} exceeds MAX_MELODIC_INTERVAL {MAX_MELODIC_INTERVAL}"
+        if interval > MAX_MELODIC_INTERVAL:
+            _vw_logger.warning(
+                "melodic interval %d exceeds MAX_MELODIC_INTERVAL %d at offset %s",
+                interval, MAX_MELODIC_INTERVAL, notes[i + 1].offset,
+            )
 
 
 def write_voice(

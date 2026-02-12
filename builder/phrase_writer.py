@@ -11,7 +11,11 @@ from builder.imitation import (
 )
 from shared.constants import TRACK_BASS, TRACK_SOPRANO
 from builder.phrase_types import PhrasePlan, PhraseResult, make_tail_plan, phrase_bar_start
-from builder.soprano_writer import generate_soprano_phrase
+from builder.soprano_writer import (
+    build_structural_soprano,
+    generate_soprano_phrase,
+    generate_soprano_viterbi,
+)
 from builder.types import Note
 from motifs.fugue_loader import LoadedFugue
 from shared.key import Key
@@ -116,7 +120,7 @@ def _write_subject_phrase(
             bass_pattern_name=None,
         )
 
-    # lead_voice == 1: Bass leads with subject
+    # lead_voice == 1: Bass leads with subject — Viterbi soprano path
     bass_subject: tuple[Note, ...] = subject_to_voice_notes(
         fugue=fugue,
         start_offset=plan.start_offset,
@@ -126,43 +130,47 @@ def _write_subject_phrase(
     )
     bass_subject = (replace(bass_subject[0], lyric="subject"),) + bass_subject[1:]
 
-    # Soprano generates for the full original plan
-    soprano_notes, soprano_figures = generate_soprano_phrase(
-        plan=plan,
-        prior_upper=prior_upper,
-        lower_notes=bass_subject,
-        next_phrase_entry_degree=next_phrase_entry_degree,
-        next_phrase_entry_key=next_phrase_entry_key,
-    )
+    prev_exit_midi: int | None = prior_upper[-1].pitch if prior_upper else None
 
     if needs_tail:
-        tail_offset = phrase_bar_start(
+        tail_offset: Fraction = phrase_bar_start(
             plan=plan, bar_num=tail_start_bar, bar_length=bar_length,
         )
         bass_subject = _pad_to_offset(notes=bass_subject, target_offset=tail_offset)
-        tail_plan = make_tail_plan(
+        structural_soprano: tuple[Note, ...] = build_structural_soprano(
+            plan=plan, prev_exit_midi=prev_exit_midi,
+        )
+        tail_plan: PhrasePlan = make_tail_plan(
             plan=plan,
             tail_start_bar=tail_start_bar,
             tail_start_offset=tail_offset,
-            prev_exit_upper=soprano_notes[-1].pitch,
+            prev_exit_upper=structural_soprano[-1].pitch,
             prev_exit_lower=bass_subject[-1].pitch,
         )
         tail_bass: tuple[Note, ...] = generate_bass_phrase(
             plan=tail_plan,
-            soprano_notes=prior_upper + soprano_notes,
+            soprano_notes=prior_upper + structural_soprano,
             prior_bass=bass_subject,
         )
-        bass_notes = bass_subject + tail_bass
+        full_bass: tuple[Note, ...] = bass_subject + tail_bass
     else:
-        bass_notes = bass_subject
+        full_bass = bass_subject
+
+    soprano_notes, _ = generate_soprano_viterbi(
+        plan=plan,
+        bass_notes=full_bass,
+        prior_upper=prior_upper,
+        next_phrase_entry_degree=next_phrase_entry_degree,
+        next_phrase_entry_key=next_phrase_entry_key,
+    )
 
     return PhraseResult(
         upper_notes=soprano_notes,
-        lower_notes=bass_notes,
+        lower_notes=full_bass,
         exit_upper=soprano_notes[-1].pitch,
-        exit_lower=bass_notes[-1].pitch,
+        exit_lower=full_bass[-1].pitch,
         schema_name=plan.schema_name,
-        soprano_figures=soprano_figures,
+        soprano_figures=(),
         bass_pattern_name=None,
     )
 
@@ -340,17 +348,23 @@ def write_phrase(
             lower_median=plan.lower_median,
         )
     else:
-        soprano_notes, soprano_figures = generate_soprano_phrase(
+        # Galant path: build structural soprano, generate bass, then Viterbi soprano
+        prev_exit_upper: int | None = prior_upper[-1].pitch if prior_upper else None
+        structural_soprano: tuple[Note, ...] = build_structural_soprano(
             plan=plan,
-            prior_upper=prior_upper,
-            next_phrase_entry_degree=next_phrase_entry_degree,
-            next_phrase_entry_key=next_phrase_entry_key,
-            recall_figure_name=recall_figure_name,
+            prev_exit_midi=prev_exit_upper,
         )
         bass_notes = generate_bass_phrase(
             plan=plan,
-            soprano_notes=prior_upper + soprano_notes,
+            soprano_notes=prior_upper + structural_soprano,
             prior_bass=prior_lower,
+        )
+        soprano_notes, soprano_figures = generate_soprano_viterbi(
+            plan=plan,
+            bass_notes=bass_notes,
+            prior_upper=prior_upper,
+            next_phrase_entry_degree=next_phrase_entry_degree,
+            next_phrase_entry_key=next_phrase_entry_key,
         )
         bass_pattern_name = plan.bass_pattern
     return PhraseResult(

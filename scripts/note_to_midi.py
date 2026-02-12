@@ -103,15 +103,23 @@ def convert_note_to_midi(note_path: Path) -> None:
 def main() -> None:
     """Convert .note to MIDI format."""
     if len(sys.argv) < 2:
-        print("Usage: python note_to_midi.py <note_file>")
+        print("Usage: python note_to_midi.py <note_file_or_folder>")
         sys.exit(1)
 
-    note_path = Path(sys.argv[1])
-    if not note_path.exists():
-        print(f"File not found: {note_path}")
+    target = Path(sys.argv[1])
+    if not target.exists():
+        print(f"Not found: {target}")
         sys.exit(1)
 
-    convert_note_to_midi(note_path=note_path)
+    if target.is_dir():
+        note_files = sorted(target.glob("*.note"))
+        if not note_files:
+            print(f"No .note files found in {target}")
+            sys.exit(1)
+        for note_path in note_files:
+            convert_note_to_midi(note_path=note_path)
+    else:
+        convert_note_to_midi(note_path=target)
 
 
 if __name__ == "__main__":

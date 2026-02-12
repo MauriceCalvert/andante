@@ -1,0 +1,88 @@
+subject:
+  degrees:
+  - 0
+  - 0
+  - 4
+  - 3
+  - 3
+  - 1
+  - 0
+  - -2
+  - -3
+  durations:
+  - 0.375
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.25
+  - 0.25
+  - 0.125
+  - 0.375
+  mode: major
+  bars: 2
+  head_name: dotted-run-quarter
+  leap_size: 4
+  leap_direction: up
+answer:
+  degrees:
+  - 4
+  - 4
+  - 7
+  - 7
+  - 7
+  - 5
+  - 4
+  - 2
+  - 1
+  durations:
+  - 0.375
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.25
+  - 0.25
+  - 0.125
+  - 0.375
+  type: tonal
+  mutation_points:
+  - 1
+countersubject:
+  degrees:
+  - 2
+  - 6
+  - 2
+  - 5
+  - 8
+  - 10
+  - 12
+  - 14
+  - 13
+  durations:
+  - 0.375
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.25
+  - 0.25
+  - 0.125
+  - 0.375
+  vertical_intervals:
+  - 2
+  - 6
+  - 2
+  - 2
+  - 5
+  - 2
+  - 5
+  - 2
+  - 2
+metadata:
+  metre:
+  - 4
+  - 4
+  tonic: C
+  tonic_midi: 60
+  seed: 42

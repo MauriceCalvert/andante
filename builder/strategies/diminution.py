@@ -23,9 +23,12 @@ from builder.voice_types import (
 )
 from shared.constants import TRACK_SOPRANO, VALID_DURATIONS_SET
 from shared.counterpoint import (
+    has_consecutive_leaps,
     has_cross_relation,
     has_parallel_perfect,
+    is_cross_bar_repetition,
     is_ugly_melodic_interval,
+    needs_step_recovery,
     would_cross_voice,
 )
 from shared.pitch_selection import select_best_pitch
@@ -330,6 +333,46 @@ class DiminutionFill:
                             other_voice_id=other_voice_id,
                         ):
                             return False, ()
+
+            # Check cross-bar repetition (D007)
+            # Determine previous note for cross-bar check
+            prev_note_for_xbar: Note | None = (
+                notes_so_far[-1] if notes_so_far
+                else (own_previous[-1] if own_previous else context.prior_phrase_tail)
+            )
+            if prev_note_for_xbar is not None:
+                if is_cross_bar_repetition(
+                    pitch=pitch,
+                    offset=offset,
+                    previous_note=prev_note_for_xbar,
+                    bar_length=config.bar_length,
+                    phrase_start=config.phrase_start,
+                    structural_offsets=context.structural_offsets,
+                ):
+                    return False, ()
+
+            # Check leap-step recovery
+            all_previous: tuple[Note, ...] = own_previous + tuple(notes_so_far)
+            if needs_step_recovery(
+                previous_notes=all_previous,
+                candidate_pitch=pitch,
+                structural_offsets=context.structural_offsets,
+            ):
+                return False, ()
+
+            # Check consecutive leaps
+            if len(notes_so_far) >= 1:
+                prev_pitch_for_leaps: int = notes_so_far[-1].pitch
+                prev_prev_pitch_for_leaps: int | None = (
+                    notes_so_far[-2].pitch if len(notes_so_far) >= 2
+                    else (own_previous[-1].pitch if own_previous else None)
+                )
+                if has_consecutive_leaps(
+                    prev_prev_pitch=prev_prev_pitch_for_leaps,
+                    prev_pitch=prev_pitch_for_leaps,
+                    candidate_pitch=pitch,
+                ):
+                    return False, ()
 
             notes_so_far.append(temp_note)
             offset += dur
