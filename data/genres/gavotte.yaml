@@ -8,6 +8,7 @@ form: binary
 metre: "4/4"
 rhythmic_unit: "1/16"
 tempo: 66
+tension: dance
 upbeat: "1/2"
 bass_treatment: patterned
 bass_pattern: half_bar
@@ -15,7 +16,7 @@ affect: Zierlich
 
 sections:
   - name: A
-    character: expressive
+    character: plain
     schema_sequence: [meyer, prinner, half_cadence]
     accompany_texture: pillar
     lead_voice: 0

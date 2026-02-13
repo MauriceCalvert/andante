@@ -12,7 +12,7 @@ from builder.types import Anchor, GenreConfig, SchemaChain
 from planner.arc import get_energy_for_bar
 from planner.plannertypes import TensionCurve
 from shared.schema_types import Schema
-from shared.constants import CADENTIAL_POSITION, CHARACTER_RANK, DESCENT_BIAS_STEP, ENERGY_TO_CHARACTER, ENERGY_TO_REGISTRAL_BIAS, MIN_SOPRANO_MIDI, VOICE_RANGES
+from shared.constants import CADENTIAL_POSITION, CHARACTER_RANK, DESCENT_BIAS_STEP, ENERGY_TO_CHARACTER, ENERGY_TO_REGISTRAL_BIAS, MIN_SOPRANO_MIDI, RHYTHMIC_UNIT_MAX_RANK, VOICE_RANGES
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.voice_types import Range
@@ -40,6 +40,8 @@ def build_phrase_plans(
     upper_median: int = (upper_range.low + upper_range.high) // 2
     lower_median: int = (lower_range.low + lower_range.high) // 2
     cumulative_bar: int = 0 if upbeat > 0 else 1
+    genre_rhythmic_unit: Fraction = Fraction(genre_config.rhythmic_unit)
+    max_char_rank: int = RHYTHMIC_UNIT_MAX_RANK.get(genre_rhythmic_unit, 4)
     plans: list[PhrasePlan] = []
     for i, schema_name in enumerate(schema_chain.schemas):
         schema_def: Schema = schemas[schema_name]
@@ -91,7 +93,16 @@ def build_phrase_plans(
             section_char: str = plan.character  # set by _build_single_plan from YAML
             if CHARACTER_RANK.get(section_char, 0) > CHARACTER_RANK.get(char, 0):
                 char = section_char
+            # Cap character at genre's rhythmic_unit ceiling
+            if CHARACTER_RANK.get(char, 0) > max_char_rank:
+                char = next(k for k, v in CHARACTER_RANK.items() if v == max_char_rank)
             plan = replace(plan, registral_bias=bias, character=char)
+        else:
+            # No tension curve: still cap base character at genre ceiling
+            base_char: str = plan.character
+            if CHARACTER_RANK.get(base_char, 0) > max_char_rank:
+                capped: str = next(k for k, v in CHARACTER_RANK.items() if v == max_char_rank)
+                plan = replace(plan, character=capped)
         plans.append(plan)
         cumulative_bar += plan.bar_span
     # Phase 6.3: mark motivic recall phrases for binary forms

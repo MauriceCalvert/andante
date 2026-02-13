@@ -15,7 +15,7 @@ from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
 from viterbi.mtypes import Knot, LeaderNote
 from viterbi.pipeline import solve_phrase
-from viterbi.scale import KeyInfo
+from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +295,56 @@ def generate_soprano_viterbi(
         tonic_pc=tonic_pc,
     )
 
+    # Step 4b: Build chord grid from schema bass degrees
+    assert len(plan.degrees_lower) == len(plan.degree_positions), (
+        f"degrees_lower ({len(plan.degrees_lower)}) and degree_positions "
+        f"({len(plan.degree_positions)}) length mismatch"
+    )
+    bass_degree_offsets: list[tuple[Fraction, int, Key]] = []
+    for i, degree in enumerate(plan.degrees_lower):
+        pos = plan.degree_positions[i]
+        offset: Fraction = phrase_degree_offset(
+            plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
+        )
+        key_for_deg: Key = plan.degree_keys[i]
+        bass_midi_for_chord: int = key_for_deg.degree_to_midi(
+            degree=degree,
+            octave=0,
+        )
+        bass_degree_offsets.append((offset, bass_midi_for_chord, key_for_deg))
+
+    # Pre-build KeyInfo + fallback triad for each schema degree position
+    degree_key_infos: list[KeyInfo] = []
+    degree_triads: list[frozenset[int]] = []
+    for _, bass_midi, deg_key in bass_degree_offsets:
+        deg_key_info: KeyInfo = KeyInfo(
+            pitch_class_set=deg_key.pitch_class_set,
+            tonic_pc=deg_key.degree_to_midi(degree=1, octave=0) % 12,
+        )
+        degree_key_infos.append(deg_key_info)
+        degree_triads.append(viterbi_triad_pcs(bass_midi=bass_midi, key=deg_key_info))
+
+    # H3: derive chord from surface bass at each grid position.
+    # If surface bass is diatonic in the active key, build a triad from it
+    # (per-beat harmonic awareness). Otherwise fall back to the most recent
+    # schema degree's triad (H2 behaviour).
+    chord_pcs_per_beat: list[frozenset[int]] = []
+    for i, (grid_onset, _) in enumerate(grid_positions):
+        # Find most recent schema degree index
+        active_idx: int = 0
+        for j in range(len(bass_degree_offsets) - 1, -1, -1):
+            if bass_degree_offsets[j][0] <= grid_onset:
+                active_idx = j
+                break
+        fallback_chord: frozenset[int] = degree_triads[active_idx] if degree_triads else frozenset()
+        active_key: KeyInfo = degree_key_infos[active_idx] if degree_key_infos else key_info
+        # Surface bass triad if diatonic, else schema degree fallback
+        surface_bass_pc: int = leader_notes[i].midi_pitch % 12
+        if surface_bass_pc in active_key.pitch_class_set:
+            chord_pcs_per_beat.append(viterbi_triad_pcs(bass_midi=leader_notes[i].midi_pitch, key=active_key))
+        else:
+            chord_pcs_per_beat.append(fallback_chord)
+
     # Step 5: Run Viterbi solver
     result = solve_phrase(
         leader_notes=leader_notes,
@@ -303,6 +353,7 @@ def generate_soprano_viterbi(
         follower_high=plan.upper_range.high,
         verbose=False,
         key=key_info,
+        chord_pcs_per_beat=chord_pcs_per_beat,
     )
 
     # Step 6: Convert solver output to Notes

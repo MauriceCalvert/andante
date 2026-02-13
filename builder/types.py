@@ -214,6 +214,7 @@ class GenreConfig:
     bass_mode: str  # 'schema' or 'pattern'
     bass_pattern: str | None
     sections: tuple[dict[str, Any], ...]
+    tension: str | None = None  # Named tension curve, or None (no curve)
     upbeat: Fraction = Fraction(0)  # Anacrusis duration in whole notes
 
 

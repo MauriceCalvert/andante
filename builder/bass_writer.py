@@ -202,7 +202,7 @@ def _soprano_pitch_at_offset(
     return None
 
 
-def _validate_bass_notes(
+def validate_bass_notes(
     notes: list[Note],
     plan: PhrasePlan,
     soprano_notes: tuple[Note, ...],
@@ -1055,5 +1055,5 @@ def generate_bass_phrase(
                 ))
                 current_midi = pitch
                 note_offset += dur
-    _validate_bass_notes(notes=notes, plan=plan, soprano_notes=soprano_notes)
+    validate_bass_notes(notes=notes, plan=plan, soprano_notes=soprano_notes)
     return tuple(notes)

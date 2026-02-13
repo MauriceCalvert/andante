@@ -87,6 +87,26 @@ def scale_degree_distance(pitch_a: int, pitch_b: int, key: KeyInfo = CMAJ) -> in
     return count
 
 
+def triad_pcs(
+    bass_midi: int,
+    key: KeyInfo = CMAJ,
+) -> frozenset[int]:
+    """Pitch classes of the diatonic triad built above bass_midi.
+
+    Stacks two diatonic thirds above the bass. Root-position assumption.
+    """
+    pcs = sorted(key.pitch_class_set)
+    bass_pc: int = bass_midi % 12
+    assert bass_pc in key.pitch_class_set, (
+        f"bass pitch class {bass_pc} not in key {key.pitch_class_set}"
+    )
+    idx: int = pcs.index(bass_pc)
+    n: int = len(pcs)
+    third_pc: int = pcs[(idx + 2) % n]
+    fifth_pc: int = pcs[(idx + 4) % n]
+    return frozenset({bass_pc, third_pc, fifth_pc})
+
+
 def is_diatonic(midi: int, key: KeyInfo = CMAJ) -> bool:
     """True if midi pitch is diatonic in the given key."""
     return (midi % 12) in key.pitch_class_set

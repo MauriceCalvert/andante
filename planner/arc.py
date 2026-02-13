@@ -21,6 +21,30 @@ def load_yaml(name: str) -> dict:
         return yaml.safe_load(f)
 
 
+def load_named_curve(name: str) -> TensionCurve:
+    """Load a tension curve by name from tension_curves.yaml."""
+    curves: dict = load_yaml(name="rhetoric/tension_curves.yaml")
+    assert name in curves, (
+        f"Unknown tension curve '{name}'. "
+        f"Available: {sorted(curves.keys())}"
+    )
+    curve_def: dict = curves[name]
+    raw_points: list[list[float]] = curve_def["points"]
+    points: list[TensionPoint] = []
+    max_level: float = 0.0
+    max_position: float = 0.5
+    for pos, level in raw_points:
+        points.append(TensionPoint(position=pos, level=level))
+        if level > max_level:
+            max_level = level
+            max_position = pos
+    return TensionCurve(
+        points=tuple(points),
+        climax_position=max_position,
+        climax_level=max_level,
+    )
+
+
 def select_tension_curve(brief: Brief) -> str:
     """Select tension curve template based on affect."""
     affect_to_curve: dict[str, str] = {

@@ -7,6 +7,7 @@ form: strophic
 metre: "4/4"
 rhythmic_unit: "1/4"
 tempo: 68
+tension: calm
 bass_treatment: contrapuntal
 
 sections:
@@ -15,4 +16,4 @@ sections:
     schema_sequence: [do_re_mi, fenaroli, prinner]
   - name: B
     character: plain
-    schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]
+    schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_composta]

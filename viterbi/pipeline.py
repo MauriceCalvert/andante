@@ -17,6 +17,7 @@ def solve_phrase(
     follower_high: int = 84,
     verbose: bool = False,
     key: KeyInfo = CMAJ,
+    chord_pcs_per_beat: list[frozenset[int]] | None = None,
 ) -> PhraseResult:
     """Solve a complete phrase: validate, build corridors, pathfind."""
     assert len(follower_knots) >= 2, "Need at least 2 knots"
@@ -24,6 +25,11 @@ def solve_phrase(
                for i in range(len(follower_knots) - 1)), "Knots must be in beat order"
     assert abs(follower_knots[0].beat - leader_notes[0].beat) < 1e-6, "First knot must align with first beat"
     assert abs(follower_knots[-1].beat - leader_notes[-1].beat) < 1e-6, "Last knot must align with last beat"
+    if chord_pcs_per_beat is not None:
+        assert len(chord_pcs_per_beat) == len(leader_notes), (
+            f"chord_pcs_per_beat length ({len(chord_pcs_per_beat)}) != "
+            f"leader_notes length ({len(leader_notes)})"
+        )
     leader_map = {ln.beat: ln.midi_pitch for ln in leader_notes}
     _validate_knots(follower_knots, leader_map)
     corridors = build_corridors(
@@ -40,6 +46,7 @@ def solve_phrase(
         phrase_length=len(leader_notes),
         verbose=verbose,
         key=key,
+        chord_pcs_at=chord_pcs_per_beat,
     )
     if verbose:
         _print_phrase_summary(beats, pitches, leader_map, follower_knots)

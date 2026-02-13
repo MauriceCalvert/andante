@@ -574,6 +574,14 @@ ENERGY_TO_REGISTRAL_BIAS: dict[str, int] = {
     "peak": 7,
 }
 
+# Maximum character rank permitted by the genre's rhythmic_unit.
+# Prevents the tension curve from pushing density beyond the genre ceiling.
+RHYTHMIC_UNIT_MAX_RANK: dict[Fraction, int] = {
+    Fraction(1, 4): 0,   # plain (crotchets)
+    Fraction(1, 8): 1,   # expressive (quavers)
+    Fraction(1, 16): 4,  # bold (semiquavers) — effectively no cap
+}
+
 # Maximum per-phrase registral bias drop (semitones) during descent.
 # Prevents the soprano from plunging after peak energy.
 DESCENT_BIAS_STEP: int = 2

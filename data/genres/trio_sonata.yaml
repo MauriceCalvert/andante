@@ -7,12 +7,15 @@ form: binary
 metre: "4/4"
 rhythmic_unit: "1/8"
 tempo: 75
+tension: arch
 bass_treatment: contrapuntal
 
 sections:
   - name: A
-    character: expressive
+    character: plain
     schema_sequence: [romanesca, prinner]
+    accompany_texture: walking
   - name: B
-    character: energetic
-    schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]
+    character: expressive
+    schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_composta]
+    accompany_texture: walking

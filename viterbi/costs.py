@@ -74,6 +74,9 @@ IDEAL_SPACING_HIGH = 24          # 2 octaves
 # Interval quality on strong beats
 COST_PERFECT_ON_STRONG = 1.5
 
+# Chord-tone preference (schema-derived)
+COST_NON_CHORD_TONE = 5.0     # non-chord-tone on strong beat
+
 # Local replica of CROSS_RELATION_PAIRS from shared/constants.py
 # Pairs of pitch classes that form chromatic cross-relations
 _CROSS_RELATION_PAIRS = frozenset({
@@ -326,6 +329,21 @@ def interval_quality_cost(
     return 0.0
 
 
+def chord_tone_cost(
+    curr_pitch: int,
+    chord_pcs: frozenset[int],
+    beat_strength: str,
+) -> float:
+    """Penalise non-chord-tones on strong beats."""
+    if beat_strength != "strong":
+        return 0.0
+    if not chord_pcs:
+        return 0.0
+    if (curr_pitch % 12) in chord_pcs:
+        return 0.0
+    return COST_NON_CHORD_TONE
+
+
 def transition_cost(
     prev_pitch: int,
     curr_pitch: int,
@@ -340,6 +358,7 @@ def transition_cost(
     key: KeyInfo = CMAJ,
     nearby_leader_pcs: frozenset[int] = frozenset(),
     contour_target: int = 0,
+    chord_pcs: frozenset[int] = frozenset(),
 ) -> tuple[float, dict[str, float]]:
     """Total cost of one transition, with itemised breakdown."""
     sc = step_cost(prev_pitch, curr_pitch, key)
@@ -357,7 +376,8 @@ def transition_cost(
     spc = spacing_cost(curr_pitch, curr_leader)
     iqc = interval_quality_cost(curr_pitch, curr_leader, curr_beat_strength)
     cc = contour_cost(curr_pitch, contour_target, key)
-    total = sc + mc + lrc + zc + prc + rp + dc + pp + xrc + spc + iqc + cc
+    ctc = chord_tone_cost(curr_pitch, chord_pcs, curr_beat_strength)
+    total = sc + mc + lrc + zc + prc + rp + dc + pp + xrc + spc + iqc + cc + ctc
     breakdown = {
         "step": sc,
         "motion": mc,
@@ -371,6 +391,7 @@ def transition_cost(
         "spacing": spc,
         "iv_qual": iqc,
         "contour": cc,
+        "chord": ctc,
         "total": total,
     }
     return total, breakdown

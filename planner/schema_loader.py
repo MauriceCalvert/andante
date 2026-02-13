@@ -73,7 +73,7 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
         min_bars=min_bars,
         max_bars=max_bars,
         position=data.get("position", "continuation"),
-        cadential_state=data.get("cadential_state", "open"),
+        cadence_type=data.get("cadence_type"),
         sequential=data.get("sequential", False),
         segments=_parse_segments(data=data.get("segments", 1)),
         direction=data.get("direction"),

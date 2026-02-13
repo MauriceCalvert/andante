@@ -8,8 +8,10 @@ metre: "4/4"
 rhythmic_unit: "1/16"
 tempo: 75
 bass_treatment: contrapuntal
+tension: arch
 
 sections:
   - name: A
-    character: bold
-    schema_sequence: [do_re_mi, fonte, fenaroli, prinner]
+    character: plain
+    schema_sequence: [do_re_mi, fonte, fenaroli, prinner, cadenza_composta]
+    accompany_texture: walking

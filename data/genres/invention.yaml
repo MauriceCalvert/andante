@@ -26,6 +26,7 @@ metre: "4/4"
 rhythmic_unit: "1/16"
 tempo: 100
 bass_treatment: contrapuntal
+tension: arch
 
 sections:
   - name: exordium

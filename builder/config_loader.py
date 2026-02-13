@@ -188,6 +188,7 @@ def _validate_genre(data: dict) -> GenreConfig:
     validate_bass_treatment(bass_treatment=bass_treatment, bass_mode=bass_mode, bass_pattern=bass_pattern, genre_name=genre_name)
     upbeat_raw = data.get("upbeat", 0)
     upbeat = Fraction(upbeat_raw) if isinstance(upbeat_raw, str) else Fraction(upbeat_raw)
+    tension: str | None = data.get("tension")
     return GenreConfig(
         name=genre_name,
         voices=data["voices"],
@@ -199,6 +200,7 @@ def _validate_genre(data: dict) -> GenreConfig:
         bass_mode=bass_mode,
         bass_pattern=bass_pattern,
         sections=tuple(data.get("sections", [])),
+        tension=tension,
         upbeat=upbeat,
     )
 

@@ -5,13 +5,13 @@
 
 cadenza_semplice:
   "3/4":
-    bars: 2
+    bars: 1
     soprano:
       degrees: [2, 1]
-      durations: ["3/4", "3/4"]
+      durations: ["1/4", "1/2"]
     bass:
       degrees: [5, 1]
-      durations: ["3/4", "3/4"]
+      durations: ["1/4", "1/2"]
   "4/4":
     bars: 1
     soprano:

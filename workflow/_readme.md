@@ -145,7 +145,8 @@ python -m scripts.run_pipeline gavotte default d_major -o output -trace -seed 42
 Output goes to `output/`. The player reads the .note and .trace files
 for Chaz evaluation.
 
-## Current Implementation Plan
+## Current State
 
-Plans 3–7 complete. See `completed.md` for full history.
-See `continue.md` for current state and known issues.
+Viterbi solver (V0–V9) and bass Viterbi (BV1) complete.
+See `completed.md` for full history, `continue.md` for next steps,
+`todo.md` for deferred work.

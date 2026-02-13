@@ -31,7 +31,7 @@ class Schema:
     min_bars: int
     max_bars: int
     position: str  # opening, riposte, continuation, pre_cadential, cadential, post_cadential
-    cadential_state: str  # open, closed, preparing, half
+    cadence_type: str | None  # authentic_internal, authentic_final, half, comma (cadential schemas only)
     sequential: bool
     segments: tuple[int, ...]  # segment counts (tuple for consistency)
     direction: str | None  # ascending, descending for sequential schemas

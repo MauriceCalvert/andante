@@ -101,7 +101,9 @@ def degree_to_nearest_midi(
             ]
             if no_consec:
                 pool = no_consec
-    return min(pool, key=lambda m: abs(m - target_midi))
+    # Secondary sort: among equidistant candidates, prefer upper (keeps
+    # soprano in register, prevents bass diving to range floor).
+    return min(pool, key=lambda m: (abs(m - target_midi), -m))
 
 
 def wrap_degree(deg: int) -> int:

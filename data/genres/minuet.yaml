@@ -5,15 +5,16 @@ name: minuet
 voices: 2
 form: binary
 metre: "3/4"
-rhythmic_unit: "1/4"
+rhythmic_unit: "1/8"
 tempo: 110
 bass_treatment: patterned
 bass_pattern: arpeggiated_3_4
+tension: dance
 
 sections:
   - name: A
-    character: expressive
+    character: plain
     schema_sequence: [do_re_mi, fenaroli, prinner]
   - name: B
-    character: expressive
-    schema_sequence: [monte, fenaroli, passo_indietro, cadenza_semplice]
+    character: plain
+    schema_sequence: [monte, fenaroli, passo_indietro, cadenza_composta]

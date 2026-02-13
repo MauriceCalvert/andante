@@ -26,10 +26,10 @@ from builder.phrase_types import PhrasePlan
 from builder.types import Composition, SchemaChain, TonalPlan
 from motifs.fugue_loader import LoadedFugue, load_fugue_path
 from motifs.subject_generator import generate_fugue_triple, write_fugue_file
-from planner.arc import build_tension_curve
+from planner.arc import load_named_curve
 from planner.dramaturgy import get_suggested_key
 from planner.metric.layer import layer_4_metric
-from planner.plannertypes import Brief, TensionCurve
+from planner.plannertypes import TensionCurve
 from planner.rhetorical import layer_1_rhetorical
 from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
@@ -108,9 +108,10 @@ def generate(
     form_config = config["form"]
     schemas = config["schemas"]
     trajectory, rhythm_vocab, tempo = layer_1_rhetorical(genre_config=genre_config)
-    # Build tension curve for registral arc shaping
-    brief: Brief = Brief(affect=affect, genre=genre, forces="keyboard", bars=0)
-    tension_curve: TensionCurve = build_tension_curve(brief=brief)
+    # Build tension curve only if genre opts in
+    tension_curve: TensionCurve | None = None
+    if genre_config.tension is not None:
+        tension_curve = load_named_curve(name=genre_config.tension)
     if tempo_override is not None:
         tempo = tempo_override
     else:

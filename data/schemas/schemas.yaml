@@ -24,7 +24,6 @@ do_re_mi:
   bass_degrees: ["1", "-7", "+1"]
   bass_alt: [1, 5, 1]
   bars: [1, 2]
-  cadential_state: open
   position: opening
   figuration_profile: stepwise_ascent
   cadence_approach: false
@@ -36,7 +35,6 @@ romanesca:
   soprano_degrees: ["3", "+5", "-1", "+3", "+6", "-5"]
   bass_degrees: ["1", "-7", "-6", "-5", "-4", "-3"]
   bars: [2, 4]
-  cadential_state: open
   position: opening
   figuration_profile: stepwise_mixed
   cadence_approach: false
@@ -50,7 +48,6 @@ meyer:
   bass_degrees: ["1", "+2", "-7", "+1"]
   structure: two_dyads
   bars: [1, 2]
-  cadential_state: open
   position: opening
   figuration_profile: stepwise_mixed
   cadence_approach: false
@@ -63,7 +60,6 @@ sol_fa_mi:
   bass_degrees: ["1", "+2", "-7", "+1"]
   structure: two_dyads
   bars: [1, 2]
-  cadential_state: open
   position: opening
   figuration_profile: stepwise_descent
   cadence_approach: false
@@ -80,7 +76,6 @@ prinner:
   bass_degrees: ["4", "-3", "-2", "-1"]
   bass_alt: [4, 3, 2, 5, 1]
   bars: [1, 2]
-  cadential_state: closed
   position: riposte
   figuration_profile: stepwise_descent
   cadence_approach: true
@@ -102,7 +97,6 @@ fonte:
   direction: descending
   typical_keys: "ii -> I"
   bars: [2, 4]
-  cadential_state: open
   position: continuation
   sequential: true
   figuration_profile: sequence_descending
@@ -120,7 +114,6 @@ monte:
   direction: ascending
   typical_keys: "IV -> V (-> vi)"
   bars: [2, 4]
-  cadential_state: open
   position: continuation
   sequential: true
   figuration_profile: sequence_ascending
@@ -134,7 +127,6 @@ fenaroli:
   soprano_degrees: ["4", "-3", "-7", "+1"]
   bass_degrees: ["7", "+1", "+2", "+3"]
   bars: [1, 2]
-  cadential_state: open
   position: continuation
   repeatable: true
   figuration_profile: galant_general
@@ -151,7 +143,6 @@ ponte:
   soprano_degrees: ["2", "2", "2"]
   bass_degrees: ["5", "5", "5"]
   bars: [1, 2]
-  cadential_state: open
   position: pre_cadential
   pedal: dominant
   figuration_profile: repeated_tone
@@ -164,7 +155,6 @@ passo_indietro:
   soprano_degrees: ["6", "-5"]
   bass_degrees: ["4", "+5"]
   bars: [1, 2]
-  cadential_state: open
   position: pre_cadential
   chromatic: true
   figuration_profile: stepwise_descent
@@ -178,7 +168,6 @@ indugio:
   soprano_degrees: ["2", "-1", "-7"]
   bass_degrees: ["4", "4", "4"]
   bars: [1, 2]
-  cadential_state: open
   position: pre_cadential
   pedal: subdominant
   figuration_profile: repeated_tone
@@ -196,7 +185,7 @@ cadenza_semplice:
   soprano_degrees: ["2", "-7", "+1"]
   bass_degrees: ["5", "5", "-1"]
   bars: [1, 1]
-  cadential_state: closed
+  cadence_type: authentic_internal
   position: cadential
   figuration_profile: galant_general
   cadence_approach: true
@@ -208,7 +197,7 @@ cadenza_composta:
   soprano_degrees: ["4", "-3", "-2", "-1"]
   bass_degrees: ["4", "+5", "5", "-1"]
   bars: [1, 2]
-  cadential_state: closed
+  cadence_type: authentic_final
   position: cadential
   figuration_profile: stepwise_descent
   cadence_approach: true
@@ -220,7 +209,7 @@ comma:
   soprano_degrees: ["4", "-3"]
   bass_degrees: ["5", "-1"]
   bars: [1, 1]
-  cadential_state: closed
+  cadence_type: comma
   position: cadential
   repeatable: true
   figuration_profile: galant_general
@@ -233,7 +222,7 @@ half_cadence:
   soprano_degrees: ["2", "2"]
   bass_degrees: ["5", "5"]
   bars: [1, 1]
-  cadential_state: half_closed
+  cadence_type: half
   position: cadential
   figuration_profile: repeated_tone
   cadence_approach: true
@@ -249,7 +238,6 @@ quiescenza:
   soprano_degrees: ["1", "-7", "-6", "+7", "+1"]
   bass_degrees: ["1", "1", "1", "1", "1"]
   bars: [1, 2]
-  cadential_state: closed
   position: post_cadential
   pedal: tonic
   chromatic: true

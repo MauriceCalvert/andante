@@ -113,6 +113,7 @@ def find_path(
     phrase_length: int,
     verbose: bool = False,
     key: KeyInfo = CMAJ,
+    chord_pcs_at: list[frozenset[int]] | None = None,
 ) -> tuple[list[float], list[int], float]:
     """Find minimum-cost path through corridors with knot constraints."""
     knot_map = {k.beat: k.midi_pitch for k in knots}
@@ -164,6 +165,7 @@ def find_path(
             key=key,
             nearby_leader_pcs=nearby_ldr_pcs[1],
             contour_target=contour_targets[1],
+            chord_pcs=chord_pcs_at[1] if chord_pcs_at else frozenset(),
         )
         state: State = (start_pitch, curr_p, new_dir, 1)
         if state not in dp[1] or cost < dp[1][state]:
@@ -194,6 +196,7 @@ def find_path(
                     key=key,
                     nearby_leader_pcs=nearby_ldr_pcs[t],
                     contour_target=contour_targets[t],
+                    chord_pcs=chord_pcs_at[t] if chord_pcs_at else frozenset(),
                 )
                 total = prev_cost + cost
                 state = (prev_p, curr_p, new_rd, new_rc)
@@ -277,7 +280,7 @@ def _print_path(
                       f"r={bd.get('run', 0):.0f} d={bd.get('diss', 0):.0f} "
                       f"p={bd.get('phrase', 0):.1f} xr={bd.get('cross_rel', 0):.0f} "
                       f"sp={bd.get('spacing', 0):.0f} iq={bd.get('iv_qual', 0):.1f} "
-                      f"ct={bd.get('contour', 0):.1f}]"
+                      f"ct={bd.get('contour', 0):.1f} ch={bd.get('chord', 0):.1f}]"
                       f"{'  run=' + str(rc) if rc > 2 else ''}")
         strength = corridors[i].beat_strength
         ct_str = ""

@@ -7,9 +7,9 @@
 #
 # Schema B can follow schema A if and only if:
 #
-# 1. CADENTIAL STATE:
-#    - A is open, OR
-#    - A is closed AND B is an opening schema (restart)
+# 1. POSITION:
+#    - A is non-cadential, OR
+#    - A is cadential AND B is an opening schema (restart)
 #
 # 2. BASS CONTINUITY (one of):
 #    - Identity: A.exit.bass == B.entry.bass
@@ -26,30 +26,30 @@
 # OUTCOMES:
 #   - Rules 1-4 pass: Direct connection (overlap or abutment)
 #   - Rule 2 fails but 1,3,4 pass: Free passage required (counterpoint bridge)
-#   - Rule 1 fails (closed -> non-opening): INVALID
+#   - Rule 1 fails (cadential -> non-opening): INVALID
 #
 # =============================================================================
 # SCHEMA ENTRY/EXIT REFERENCE (from schemas.yaml)
 # =============================================================================
 #
-# Schema            Entry S/B    Exit S/B     Cadential
-# ----------------  -----------  -----------  ---------
-# do_re_mi          1/1          3/1          open
-# romanesca         3/1          5/3          open
-# meyer             1/1          3/1          open
-# sol_fa_mi         5/1          3/1          open
-# prinner           6/4          3/1          closed
-# fonte             4/7 (local)  3/1 (local)  open
-# monte             4/7 (local)  3/1 (local)  open
-# fenaroli          4/7          1/3          open
-# ponte             2/5          2/5          open
-# passo_indietro    6/4          5/5          open
-# indugio           2/4          7/4          open
-# cadenza_semplice  2/5          1/1          closed
-# cadenza_composta  4/4          1/1          closed
-# comma             4/5          3/1          closed
-# half_cadence      2/5          2/5          half-closed
-# quiescenza        1/1          1/1          closed
+# Schema            Entry S/B    Exit S/B     Position
+# ----------------  -----------  -----------  ----------------
+# do_re_mi          1/1          3/1          opening
+# romanesca         3/1          5/3          opening
+# meyer             1/1          3/1          opening
+# sol_fa_mi         5/1          3/1          opening
+# prinner           6/4          3/1          riposte
+# fonte             4/7 (local)  3/1 (local)  continuation
+# monte             4/7 (local)  3/1 (local)  continuation
+# fenaroli          4/7          1/3          continuation
+# ponte             2/5          2/5          pre_cadential
+# passo_indietro    6/4          5/5          pre_cadential
+# indugio           2/4          7/4          pre_cadential
+# cadenza_semplice  2/5          1/1          cadential
+# cadenza_composta  4/4          1/1          cadential
+# comma             4/5          3/1          cadential
+# half_cadence      2/5          2/5          cadential
+# quiescenza        1/1          1/1          post_cadential
 #
 # =============================================================================
 
@@ -60,55 +60,53 @@
 romanesca:
   typical_position: opening
   exit: {soprano: 5, bass: 3}
-  cadential_state: open
   allowed_next:
     - prinner
       # PROOF: exit 5/3 -> entry 6/4
       # Bass: 3->4 = step ✓
       # Soprano: 5->6 = step (no parallels) ✓
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # Also: Romanesca stage 5 (6/4) = Prinner entry (overlap possible)
       # VERDICT: VALID (direct)
     
     - fonte
       # PROOF: exit 5/3 -> entry 4/7 (in ii)
       # Bass: 3->7 = 4 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage required)
     
     - monte
       # PROOF: exit 5/3 -> entry 4/7 (in IV)
       # Bass: 3->7 = 4 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage required)
     
     - meyer
       # PROOF: exit 5/3 -> entry 1/1
       # Bass: 3->1 = 2 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage required)
     
     - do_re_mi
       # PROOF: exit 5/3 -> entry 1/1
       # Bass: 3->1 = 2 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage required)
     
     - sol_fa_mi
       # PROOF: exit 5/3 -> entry 5/1
       # Bass: 3->1 = 2 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage required)
 
 do_re_mi:
   typical_position: opening
   exit: {soprano: 3, bass: 1}
-  cadential_state: open
   allowed_next:
     - prinner
       # PROOF: exit 3/1 -> entry 6/4
       # Bass: 1->4 = 3 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage required)
       # NOTE: Often via embedded Romanesca providing 6/4 junction
     
@@ -116,7 +114,7 @@ do_re_mi:
       # PROOF: exit 3/1 -> entry 4/7 (in ii)
       # Bass: 1->7 = step ✓
       # Soprano: 3->4 = step (no parallels) ✓
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (direct)
     
     - monte
@@ -130,57 +128,55 @@ do_re_mi:
       # PROOF: exit 3/1 -> entry 3/1
       # Bass: 1->1 = identity ✓
       # Soprano: 3->3 = identity ✓
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (direct)
     
     - sol_fa_mi
       # PROOF: exit 3/1 -> entry 5/1
       # Bass: 1->1 = identity ✓
       # Soprano: 3->5 = skip (no parallels with static bass) ✓
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (direct)
 
 meyer:
   typical_position: opening
   exit: {soprano: 3, bass: 1}
-  cadential_state: open
   allowed_next:
     - prinner
       # PROOF: exit 3/1 -> entry 6/4
       # Bass: 1->4 = 3 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage required)
     
     - fonte
       # PROOF: exit 3/1 -> entry 4/7
       # Bass: 1->7 = step ✓
       # Soprano: 3->4 = step ✓
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (direct)
     
     - sol_fa_mi
       # PROOF: exit 3/1 -> entry 5/1
       # Bass: 1->1 = identity ✓
       # Soprano: 3->5 = skip ✓
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (direct)
     
     - comma
       # PROOF: exit 3/1 -> entry 4/5
       # Bass: 1->5 = dominant approach (reverse) ✗
       # But 5 is dominant, motion 1->5 common
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage, short)
 
 sol_fa_mi:
   typical_position: opening
   exit: {soprano: 3, bass: 1}
-  cadential_state: open
   allowed_next:
     - prinner
       # PROOF: exit 3/1 -> entry 6/4
       # Bass: 1->4 = 3 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage required)
     
     - fonte
@@ -206,18 +202,17 @@ sol_fa_mi:
 prinner:
   typical_position: riposte
   exit: {soprano: 3, bass: 1}
-  cadential_state: closed
   allowed_next:
     - half_cadence
       # PROOF: exit 3/1 -> entry 2/5
       # Bass: 1->5 = dominant ✓ (reverse, but V follows I commonly)
-      # Cadential: closed -> cadential = restart ✓
+      # Position: cadential -> cadential = restart ✓
       # VERDICT: VALID (direct)
     
     - cadenza_composta
       # PROOF: exit 3/1 -> entry 4/4
       # Bass: 1->4 = 3 steps ✗
-      # Cadential: closed -> cadential = restart ✓
+      # Position: cadential -> cadential = restart ✓
       # VERDICT: VALID (free passage, short)
     
     - cadenza_semplice
@@ -228,21 +223,21 @@ prinner:
     - comma
       # PROOF: exit 3/1 -> entry 4/5
       # Bass: 1->5 = 4 steps ✗
-      # Cadential: closed -> cadential ✓
+      # Position: cadential -> cadential ✓
       # VERDICT: VALID (free passage, short)
     
     - fonte
       # PROOF: exit 3/1 -> entry 4/7
       # Bass: 1->7 = step ✓
       # Soprano: 3->4 = step ✓
-      # Cadential: closed -> continuation ✗ (not opening)
+      # Position: cadential -> continuation ✗ (not opening)
       # BUT: Fonte often starts new phrase after Prinner closes
       # VERDICT: VALID (new phrase context)
     
     - monte
       # PROOF: exit 3/1 -> entry 4/7
       # Bass: 1->7 = step ✓
-      # Cadential: closed -> continuation (new phrase) ✓
+      # Position: cadential -> continuation (new phrase) ✓
       # VERDICT: VALID (direct, new phrase)
     
     - passo_indietro
@@ -257,7 +252,6 @@ prinner:
 fonte:
   typical_position: continuation
   exit: {soprano: 3, bass: 1}  # In final segment's local key
-  cadential_state: open
   allowed_next:
     - fonte
       # PROOF: exit 3/1 -> entry 4/7 (next lower key)
@@ -273,7 +267,7 @@ fonte:
     - prinner
       # PROOF: exit 3/1 -> entry 6/4
       # Bass: 1->4 = 3 steps ✗
-      # Cadential: open ✓
+      # Position: non-cadential ✓
       # VERDICT: VALID (free passage)
     
     - sol_fa_mi
@@ -294,7 +288,6 @@ fonte:
 monte:
   typical_position: continuation
   exit: {soprano: 3, bass: 1}  # In final segment's local key (V or vi)
-  cadential_state: open
   allowed_next:
     - monte
       # PROOF: Sequential repetition upward
@@ -324,7 +317,6 @@ monte:
 fenaroli:
   typical_position: continuation
   exit: {soprano: 1, bass: 3}
-  cadential_state: open
   allowed_next:
     - fenaroli
       # PROOF: exit 1/3 -> entry 4/7
@@ -361,7 +353,6 @@ fenaroli:
 passo_indietro:
   typical_position: pre_cadential
   exit: {soprano: 5, bass: 5}
-  cadential_state: open
   allowed_next:
     - cadenza_composta
       # PROOF: exit 5/5 -> entry 4/4
@@ -388,7 +379,6 @@ passo_indietro:
 indugio:
   typical_position: pre_cadential
   exit: {soprano: 7, bass: 4}
-  cadential_state: open
   allowed_next:
     - cadenza_composta
       # PROOF: exit 7/4 -> entry 4/4
@@ -419,7 +409,6 @@ indugio:
 ponte:
   typical_position: continuation
   exit: {soprano: 2, bass: 5}
-  cadential_state: open
   allowed_next:
     - cadenza_composta
       # PROOF: exit 2/5 -> entry 4/4
@@ -454,31 +443,30 @@ ponte:
 quiescenza:
   typical_position: post_cadential  # Also opening (framing)
   exit: {soprano: 1, bass: 1}
-  cadential_state: closed
   allowed_next:
     - romanesca
       # PROOF: exit 1/1 -> entry 3/1
       # Bass: 1->1 = identity ✓
-      # Cadential: closed -> opening ✓
+      # Position: cadential -> opening ✓
       # VERDICT: VALID (direct)
     
     - do_re_mi
       # PROOF: exit 1/1 -> entry 1/1
       # Bass: 1->1 = identity ✓
       # Soprano: 1->1 = identity ✓
-      # Cadential: closed -> opening ✓
+      # Position: cadential -> opening ✓
       # VERDICT: VALID (direct)
     
     - meyer
       # PROOF: exit 1/1 -> entry 1/1
       # Bass: 1->1 = identity ✓
-      # Cadential: closed -> opening ✓
+      # Position: cadential -> opening ✓
       # VERDICT: VALID (direct)
     
     - cadenza_composta
       # PROOF: exit 1/1 -> entry 4/4
       # Bass: 1->4 = 3 steps ✗
-      # Cadential: closed -> cadential ✓
+      # Position: cadential -> cadential ✓
       # VERDICT: VALID (free passage, confirmatory)
 
 # ============================================================================
@@ -488,12 +476,11 @@ quiescenza:
 half_cadence:
   typical_position: cadential
   exit: {soprano: 2, bass: 5}
-  cadential_state: half_closed
   allowed_next:
     - romanesca
       # PROOF: exit 2/5 -> entry 3/1
       # Bass: 5->1 = dominant resolution ✓
-      # Cadential: half_closed -> opening ✓
+      # Position: cadential -> opening ✓
       # VERDICT: VALID (direct)
     
     - do_re_mi
@@ -509,7 +496,7 @@ half_cadence:
     - fonte
       # PROOF: exit 2/5 -> entry 4/7 (in ii)
       # Bass: 5->7 = 2 steps ✗
-      # Cadential: half -> continuation (new section) ✓
+      # Position: cadential -> continuation (new section) ✓
       # VERDICT: VALID (free passage, development)
     
     - monte
@@ -520,12 +507,11 @@ half_cadence:
 cadenza_semplice:
   typical_position: cadential
   exit: {soprano: 1, bass: 1}
-  cadential_state: closed
   allowed_next:
     - romanesca
       # PROOF: exit 1/1 -> entry 3/1
       # Bass: 1->1 = identity ✓
-      # Cadential: closed -> opening ✓
+      # Position: cadential -> opening ✓
       # VERDICT: VALID (direct)
     
     - do_re_mi
@@ -541,19 +527,18 @@ cadenza_semplice:
     - quiescenza
       # PROOF: exit 1/1 -> entry 1/1
       # Bass: 1->1 = identity ✓
-      # Cadential: closed -> post_cadential ✓
+      # Position: cadential -> post_cadential ✓
       # VERDICT: VALID (direct)
     
     - comma
       # PROOF: exit 1/1 -> entry 4/5
       # Bass: 1->5 = 4 steps ✗
-      # Cadential: closed -> cadential (extension) ✓
+      # Position: cadential -> cadential (extension) ✓
       # VERDICT: VALID (free passage, extension)
 
 cadenza_composta:
   typical_position: cadential
   exit: {soprano: 1, bass: 1}
-  cadential_state: closed
   allowed_next:
     - romanesca
       # PROOF: exit 1/1 -> entry 3/1
@@ -583,7 +568,6 @@ cadenza_composta:
 comma:
   typical_position: cadential
   exit: {soprano: 3, bass: 1}
-  cadential_state: closed
   allowed_next:
     - comma
       # PROOF: exit 3/1 -> entry 4/5
@@ -594,7 +578,7 @@ comma:
     - cadenza_composta
       # PROOF: exit 3/1 -> entry 4/4
       # Bass: 1->4 = 3 steps ✗
-      # Cadential: closed -> cadential ✓
+      # Position: cadential -> cadential ✓
       # VERDICT: VALID (free passage)
     
     - cadenza_semplice
@@ -605,7 +589,7 @@ comma:
     - fonte
       # PROOF: exit 3/1 -> entry 4/7
       # Bass: 1->7 = step ✓
-      # Cadential: closed -> continuation (new phrase) ✓
+      # Position: cadential -> continuation (new phrase) ✓
       # VERDICT: VALID (direct)
     
     - monte
@@ -621,7 +605,7 @@ comma:
     - romanesca
       # PROOF: exit 3/1 -> entry 3/1
       # Bass: 1->1 = identity ✓
-      # Cadential: closed -> opening ✓
+      # Position: cadential -> opening ✓
       # VERDICT: VALID (direct)
 
 # ============================================================================

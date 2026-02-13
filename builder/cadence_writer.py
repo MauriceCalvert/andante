@@ -18,6 +18,10 @@ from shared.pitch import degree_to_nearest_midi
 
 DATA_DIR: Path = Path(__file__).parent.parent / "data"
 
+# Breath silence after cadential arrival notes
+FULL_CADENCE_BREATH: Fraction = Fraction(1, 4)   # crotchet rest
+HALF_CADENCE_BREATH: Fraction = Fraction(1, 8)   # quaver rest
+
 
 @dataclass(frozen=True)
 class CadenceTemplate:
@@ -229,4 +233,22 @@ def write_cadence(
         ))
         bass_offset += dur
         lower_target = midi
+    # Trim arrival notes to create breath silence between phrases
+    breath: Fraction = (
+        HALF_CADENCE_BREATH if schema_name == "half_cadence"
+        else FULL_CADENCE_BREATH
+    )
+    for notes in (soprano_notes, bass_notes):
+        last: Note = notes[-1]
+        trimmed: Fraction = last.duration - breath
+        assert trimmed > Fraction(0), (
+            f"Cadence '{schema_name}/{metre}': breath {breath} >= "
+            f"arrival duration {last.duration}"
+        )
+        notes[-1] = Note(
+            offset=last.offset,
+            pitch=last.pitch,
+            duration=trimmed,
+            voice=last.voice,
+        )
     return tuple(soprano_notes), tuple(bass_notes)

@@ -29,6 +29,7 @@ def brute_force_cost(
     corridors_list: list,
     n_beats: int,
     contour_targets: list[int] | None = None,
+    chord_pcs_at: list[frozenset[int]] | None = None,
 ) -> float:
     """Compute total path cost with exact run-state tracking."""
     # Precompute nearby leader pitch-class sets for cross-relation detection
@@ -66,6 +67,7 @@ def brute_force_cost(
             run_count=run_count,
             nearby_leader_pcs=nearby_ldr_pcs[t],
             contour_target=ct,
+            chord_pcs=chord_pcs_at[t] if chord_pcs_at else frozenset(),
         )
         total += cost
     return total

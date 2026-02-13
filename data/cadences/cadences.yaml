@@ -3,6 +3,7 @@
 # Single source of truth for all cadence-related data.
 #
 # Sections:
+#   types          - Cadence type definitions with finality and schema mappings
 #   roman_numerals - Simple chord progressions (for phrase harmony)
 #   internal       - Half-bar formulas with voice-leading (mid-piece)
 #   final          - Two-bar formulas with approach + resolution
@@ -15,6 +16,43 @@
 #   bottom  - lowest voice (track N-1)
 #
 # Degrees are relative to tonal target (offset applied at runtime)
+
+# ============================================================================
+# CADENCE TYPES - Identity, finality, and schema mappings
+# ============================================================================
+# Each type defines: harmonic identity, which schema(s) realise it, and
+# whether it can end a piece. The cadence type carries finality — a
+# semplice and composta are different types of authentic cadence.
+
+types:
+  authentic_internal:
+    roman_numerals: [V, I]
+    schemas: [cadenza_semplice]
+    final: false
+  authentic_final:
+    roman_numerals: [V, I]
+    schemas: [cadenza_composta]
+    final: true
+  half:
+    roman_numerals: [V]
+    schemas: [half_cadence]
+    final: false
+  comma:
+    roman_numerals: [V, I]
+    schemas: [comma]
+    final: true
+  deceptive:
+    roman_numerals: [V, vi]
+    schemas: []
+    final: false
+  plagal:
+    roman_numerals: [IV, I]
+    schemas: []
+    final: false
+  phrygian:
+    roman_numerals: [iv, V]
+    schemas: []
+    final: false
 
 # ============================================================================
 # ROMAN NUMERALS - Chord progressions for phrase harmony generation

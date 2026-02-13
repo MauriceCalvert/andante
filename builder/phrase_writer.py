@@ -2,6 +2,7 @@
 from dataclasses import replace
 from fractions import Fraction
 
+from builder.bass_viterbi import generate_bass_viterbi
 from builder.bass_writer import generate_bass_phrase
 from builder.cadence_writer import write_cadence
 from builder.imitation import (
@@ -33,6 +34,34 @@ def _pad_to_offset(
     last: Note = notes[-1]
     return notes[:-1] + (
         replace(last, duration=last.duration + (target_offset - note_end)),
+    )
+
+
+def _is_walking(plan: PhrasePlan) -> bool:
+    """True if plan uses walking bass texture (Viterbi path)."""
+    return (
+        plan.bass_texture == "walking"
+        or (plan.bass_pattern is not None
+            and plan.bass_pattern.startswith("continuo_walking"))
+    )
+
+
+def _bass_for_plan(
+    plan: PhrasePlan,
+    soprano_notes: tuple[Note, ...],
+    prior_bass: tuple[Note, ...],
+) -> tuple[Note, ...]:
+    """Dispatch bass generation: Viterbi for walking, greedy otherwise."""
+    if _is_walking(plan=plan):
+        return generate_bass_viterbi(
+            plan=plan,
+            soprano_notes=soprano_notes,
+            prior_lower=prior_bass,
+        )
+    return generate_bass_phrase(
+        plan=plan,
+        soprano_notes=soprano_notes,
+        prior_bass=prior_bass,
     )
 
 
@@ -105,7 +134,7 @@ def _write_subject_phrase(
             )
 
         # Generate bass against pre-composed soprano (full plan)
-        bass_notes: tuple[Note, ...] = generate_bass_phrase(
+        bass_notes: tuple[Note, ...] = _bass_for_plan(
             plan=plan,
             soprano_notes=prior_upper + soprano_notes,
             prior_bass=prior_lower,
@@ -147,7 +176,7 @@ def _write_subject_phrase(
             prev_exit_upper=structural_soprano[-1].pitch,
             prev_exit_lower=bass_subject[-1].pitch,
         )
-        tail_bass: tuple[Note, ...] = generate_bass_phrase(
+        tail_bass: tuple[Note, ...] = _bass_for_plan(
             plan=tail_plan,
             soprano_notes=prior_upper + structural_soprano,
             prior_bass=bass_subject,
@@ -232,7 +261,7 @@ def _write_answer_phrase(
                 lower_notes=bass_answer,
             )
             soprano_notes: tuple[Note, ...] = soprano_cs + tail_soprano
-            tail_bass: tuple[Note, ...] = generate_bass_phrase(
+            tail_bass: tuple[Note, ...] = _bass_for_plan(
                 plan=tail_plan,
                 soprano_notes=prior_upper + soprano_notes,
                 prior_bass=bass_answer,
@@ -283,7 +312,7 @@ def _write_answer_phrase(
     else:
         soprano_notes = soprano_answer
 
-    bass_notes = generate_bass_phrase(
+    bass_notes = _bass_for_plan(
         plan=plan,
         soprano_notes=prior_upper + soprano_notes,
         prior_bass=prior_lower,
@@ -354,7 +383,7 @@ def write_phrase(
             plan=plan,
             prev_exit_midi=prev_exit_upper,
         )
-        bass_notes = generate_bass_phrase(
+        bass_notes = _bass_for_plan(
             plan=plan,
             soprano_notes=prior_upper + structural_soprano,
             prior_bass=prior_lower,

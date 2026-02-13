@@ -56,10 +56,6 @@ VALID_SCHEMA_POSITIONS: frozenset[str] = frozenset({
     "pre_cadential", "cadential", "post_cadential",
 })
 
-VALID_CADENTIAL_STATES: frozenset[str] = frozenset({
-    "open", "closed", "half", "preparing", "half_closed",
-})
-
 VALID_FIGURATION_METRICS: frozenset[str] = frozenset({
     "strong", "weak", "across", "any",
 })
@@ -104,7 +100,6 @@ VALID_TREATMENT_SOURCES: frozenset[str] = frozenset({
 VALID_TREATMENT_TRANSFORMS: frozenset[str] = frozenset({
     "none", "invert", "retrograde", "head", "tail", "augment", "diminish",
 })
-
 
 # =============================================================================
 # YAML load cache
@@ -306,6 +301,26 @@ def validate_genre_field_types() -> list[str]:
                 for schema_name in ss:
                     if schema_name not in schemas_data:
                         errors.append(f"{rel}: genre '{name}' section '{sec_name}' references unknown schema '{schema_name}' -- check data/schemas/schemas.yaml")
+            # Final section's last schema must be in a final-eligible cadence type
+            cadences_data = _load(path=DATA_DIR / "cadences" / "cadences.yaml")
+            cadence_types = cadences_data.get("types", {})
+            final_schemas: set[str] = set()
+            for ct in cadence_types.values():
+                if isinstance(ct, dict) and ct.get("final", False):
+                    for s in ct.get("schemas", []):
+                        final_schemas.add(s)
+            if sections:
+                last_sec = sections[-1]
+                last_ss = last_sec.get("schema_sequence", [])
+                last_sec_name = last_sec.get("name", "last")
+                if last_ss:
+                    final_schema: str = last_ss[-1]
+                    if final_schema not in final_schemas:
+                        errors.append(
+                            f"{rel}: genre '{name}' section '{last_sec_name}' "
+                            f"ends with '{final_schema}' which is not final-eligible "
+                            f"-- use one of {sorted(final_schemas)}"
+                        )
 
     return errors
 
@@ -330,10 +345,13 @@ def validate_schemas() -> list[str]:
         if pos is not None and pos not in VALID_SCHEMA_POSITIONS:
             errors.append(f"{rel}: schema '{name}' position '{pos}' -- expected one of {sorted(VALID_SCHEMA_POSITIONS)}")
 
-        # cadential_state
-        cs = schema.get("cadential_state")
-        if cs is not None and cs not in VALID_CADENTIAL_STATES:
-            errors.append(f"{rel}: schema '{name}' cadential_state '{cs}' -- expected one of {sorted(VALID_CADENTIAL_STATES)}")
+        # cadence_type cross-ref against cadences.yaml types
+        ct = schema.get("cadence_type")
+        if ct is not None:
+            cadences_data = _load(path=DATA_DIR / "cadences" / "cadences.yaml")
+            valid_cadence_types = set(cadences_data.get("types", {}).keys())
+            if ct not in valid_cadence_types:
+                errors.append(f"{rel}: schema '{name}' cadence_type '{ct}' not in cadences.yaml types -- available: {sorted(valid_cadence_types)}")
 
         # figuration_profile cross-ref
         fp = schema.get("figuration_profile")
@@ -806,11 +824,20 @@ def validate_cadences() -> list[str]:
     path = DATA_DIR / "cadences" / "cadences.yaml"
     data = _load(path=path)
     rel = _rel(path)
-
-    for section in ("internal", "final"):
+    schemas_data = _load(path=DATA_DIR / "schemas" / "schemas.yaml")
+    for section in ("types", "internal", "final"):
         if section not in data:
             errors.append(f"{rel}: missing required section '{section}' -- add it")
-
+    # Validate types section
+    types = data.get("types", {})
+    for type_name, type_def in types.items():
+        if not isinstance(type_def, dict):
+            continue
+        if "final" not in type_def:
+            errors.append(f"{rel}: type '{type_name}' missing 'final' field -- add it")
+        for schema_name in type_def.get("schemas", []):
+            if schema_name not in schemas_data:
+                errors.append(f"{rel}: type '{type_name}' references unknown schema '{schema_name}' -- check schemas.yaml")
     return errors
 
 
@@ -1103,7 +1130,7 @@ def validate_rules() -> list[str]:
 VALID_GENRE_KEYS: frozenset[str] = frozenset({
     "name", "voices", "form", "metre", "rhythmic_unit", "tempo",
     "bass_treatment", "bass_mode", "bass_pattern", "sections", "upbeat",
-    "instruments", "scoring", "tracks", "affect",
+    "instruments", "scoring", "tracks", "affect", "tension",
 })
 VALID_GENRE_SECTION_KEYS: frozenset[str] = frozenset({
     "name", "schema_sequence", "lead_voice", "lead_material",

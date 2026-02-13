@@ -7,14 +7,15 @@ form: binary
 metre: "4/4"
 rhythmic_unit: "1/8"
 tempo: 90
+tension: dance
 upbeat: "1/4"
 bass_treatment: patterned
 bass_pattern: continuo_walking
 
 sections:
   - name: A
-    character: energetic
+    character: plain
     schema_sequence: [do_re_mi, fenaroli, prinner]
   - name: B
-    character: bold
-    schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_semplice]
+    character: expressive
+    schema_sequence: [fonte, fenaroli, passo_indietro, cadenza_composta]
