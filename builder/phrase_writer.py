@@ -22,6 +22,7 @@ from builder.soprano_writer import (
 from builder.types import Note
 from motifs.fugue_loader import LoadedFugue
 from planner.schema_loader import get_schema
+from planner.thematic import BeatRole
 from shared.key import Key
 from shared.music_math import parse_metre
 
@@ -70,7 +71,79 @@ def _bass_for_plan(
     )
 
 
-def _write_subject_phrase(
+def _segment_into_entries(thematic_roles: tuple[BeatRole, ...]) -> list[dict]:
+    """Segment BeatRoles into entries.
+
+    An entry is a contiguous run of bars where each voice maintains the same role.
+    Detects role changes by comparing voice roles between consecutive bars.
+
+    Returns:
+        List of entry dicts with:
+        - first_bar: int (1-based)
+        - bar_count: int
+        - voice0_role: ThematicRole
+        - voice1_role: ThematicRole
+        - beat_role_v0: BeatRole | None (first beat of voice 0)
+        - beat_role_v1: BeatRole | None (first beat of voice 1)
+    """
+    from planner.thematic import ThematicRole
+
+    # Group by bar, extract first beat role for each voice
+    bars: dict[int, dict[int, BeatRole]] = {}
+    for role in thematic_roles:
+        if role.bar not in bars:
+            bars[role.bar] = {}
+        # Collect only beat-0 roles (first beat of bar determines entry)
+        if role.beat == Fraction(0):
+            bars[role.bar][role.voice] = role
+
+    # Sort bars
+    sorted_bars: list[int] = sorted(bars.keys())
+
+    # Segment into entries
+    entries: list[dict] = []
+    current_entry: dict | None = None
+
+    for bar in sorted_bars:
+        voice0_beat_role: BeatRole | None = bars[bar].get(0)
+        voice1_beat_role: BeatRole | None = bars[bar].get(1)
+        voice0_role: ThematicRole = voice0_beat_role.role if voice0_beat_role else ThematicRole.FREE
+        voice1_role: ThematicRole = voice1_beat_role.role if voice1_beat_role else ThematicRole.FREE
+
+        if current_entry is None:
+            # Start first entry
+            current_entry = {
+                "first_bar": bar,
+                "bar_count": 1,
+                "voice0_role": voice0_role,
+                "voice1_role": voice1_role,
+                "beat_role_v0": voice0_beat_role,
+                "beat_role_v1": voice1_beat_role,
+            }
+        elif (voice0_role != current_entry["voice0_role"] or
+              voice1_role != current_entry["voice1_role"]):
+            # Role pattern changed, close current entry and start new one
+            entries.append(current_entry)
+            current_entry = {
+                "first_bar": bar,
+                "bar_count": 1,
+                "voice0_role": voice0_role,
+                "voice1_role": voice1_role,
+                "beat_role_v0": voice0_beat_role,
+                "beat_role_v1": voice1_beat_role,
+            }
+        else:
+            # Same role pattern, extend current entry
+            current_entry["bar_count"] += 1
+
+    # Close last entry
+    if current_entry is not None:
+        entries.append(current_entry)
+
+    return entries
+
+
+def _write_thematic(
     plan: PhrasePlan,
     fugue: LoadedFugue,
     prior_upper: tuple[Note, ...],
@@ -78,328 +151,251 @@ def _write_subject_phrase(
     next_phrase_entry_degree: int | None,
     next_phrase_entry_key: Key | None,
 ) -> PhraseResult:
-    """Write subject entry: lead voice gets subject, tail bars get schema-based generation."""
-    subj_bars: int = subject_bar_count(fugue=fugue)
-    assert subj_bars <= plan.bar_span, (
-        f"Subject occupies {subj_bars} bars but phrase only has {plan.bar_span} bars"
-    )
-    lead_voice: int = plan.lead_voice if plan.lead_voice is not None else 0
-    is_monophonic: bool = lead_voice == 0 and len(prior_lower) == 0
-    needs_tail: bool = subj_bars < plan.bar_span
-    tail_start_bar: int = subj_bars + 1
+    """Write phrase using thematic renderer (TD-3).
+
+    Unified dispatcher for all thematic material: SUBJECT, ANSWER, CS, EPISODE, STRETTO.
+    Segments phrase into entries, renders each entry's material within a time window,
+    and generates FREE tail bars using galant order (structural soprano → bass → soprano).
+    """
+    from builder.thematic_renderer import render_thematic_beat, _render_episode_fragment
+    from planner.thematic import ThematicRole
+
+    assert plan.thematic_roles is not None, "thematic_roles must be populated"
+
+    # Segment phrase into entries
+    entries: list[dict] = _segment_into_entries(plan.thematic_roles)
+
+    # Filter entries: skip all-FREE entries (will be handled by tail logic)
+    material_entries: list[dict] = []
+    for entry in entries:
+        v0_role: ThematicRole = entry["voice0_role"]
+        v1_role: ThematicRole = entry["voice1_role"]
+        # Keep entry if either voice has material
+        if (v0_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS, ThematicRole.EPISODE) or
+            v1_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS, ThematicRole.EPISODE)):
+            material_entries.append(entry)
 
     bar_length: Fraction = parse_metre(metre=plan.metre)[0]
+    phrase_end: Fraction = plan.start_offset + plan.phrase_duration
 
-    if lead_voice == 0:
-        # Soprano leads with subject transposed to local key
-        soprano_subject: tuple[Note, ...] = subject_to_voice_notes(
-            fugue=fugue,
-            start_offset=plan.start_offset,
-            target_key=plan.local_key,
-            target_track=TRACK_SOPRANO,
-            target_range=plan.upper_range,
-        )
-        soprano_subject = (replace(soprano_subject[0], lyric="subject"),) + soprano_subject[1:]
+    # Track accumulated notes per voice
+    soprano_notes: tuple[Note, ...] = ()
+    bass_notes: tuple[Note, ...] = ()
 
-        if needs_tail:
-            tail_offset: Fraction = phrase_bar_start(
-                plan=plan, bar_num=tail_start_bar, bar_length=bar_length,
+    # Render each entry
+    for entry_idx, entry in enumerate(material_entries):
+        entry_first_bar: int = entry["first_bar"]
+        entry_bar_count: int = entry["bar_count"]
+        voice0_role: ThematicRole = entry["voice0_role"]
+        voice1_role: ThematicRole = entry["voice1_role"]
+        beat_role_v0: BeatRole | None = entry["beat_role_v0"]
+        beat_role_v1: BeatRole | None = entry["beat_role_v1"]
+
+        # Compute entry start offset from phrase start
+        phrase_first_bar: int = plan.thematic_roles[0].bar
+        bars_from_phrase_start: int = entry_first_bar - phrase_first_bar
+        entry_start_offset: Fraction = plan.start_offset + bars_from_phrase_start * bar_length
+
+        # Compute next entry start (end of this entry's time window)
+        is_last_entry: bool = entry_idx == len(material_entries) - 1
+        if not is_last_entry:
+            next_entry_first_bar: int = material_entries[entry_idx + 1]["first_bar"]
+            next_entry_start_offset: Fraction = (
+                plan.start_offset + (next_entry_first_bar - phrase_first_bar) * bar_length
             )
-            soprano_subject = _pad_to_offset(notes=soprano_subject, target_offset=tail_offset)
+        else:
+            # Last entry: time window extends to phrase end
+            next_entry_start_offset = phrase_end
+
+        # Render voice 0 (soprano)
+        if voice0_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS):
+            assert beat_role_v0 is not None, f"No BeatRole for voice 0 at entry bar {entry_first_bar}"
+
+            voice0_notes: tuple[Note, ...] | None = render_thematic_beat(
+                role=beat_role_v0,
+                fugue=fugue,
+                start_offset=entry_start_offset,
+                target_range=plan.upper_range,
+                end_offset=next_entry_start_offset,
+            )
+            if voice0_notes:
+                # Label first note
+                lyric: str = {
+                    ThematicRole.SUBJECT: "subject",
+                    ThematicRole.ANSWER: "answer",
+                    ThematicRole.CS: "cs",
+                }[voice0_role]
+                voice0_notes = (replace(voice0_notes[0], lyric=lyric),) + voice0_notes[1:]
+                soprano_notes = soprano_notes + voice0_notes
+
+        elif voice0_role == ThematicRole.EPISODE:
+            assert beat_role_v0 is not None, f"No BeatRole for voice 0 EPISODE at entry bar {entry_first_bar}"
+            # Render episode fragment
+            voice0_notes_raw: tuple[Note, ...] = _render_episode_fragment(
+                role=beat_role_v0,
+                fugue=fugue,
+                start_offset=entry_start_offset,
+                target_track=TRACK_SOPRANO,
+                target_range=plan.upper_range,
+            )
+            # Apply time window
+            voice0_notes_windowed: list[Note] = []
+            for n in voice0_notes_raw:
+                if n.offset >= next_entry_start_offset:
+                    break
+                note_end: Fraction = n.offset + n.duration
+                if note_end > next_entry_start_offset:
+                    voice0_notes_windowed.append(replace(n, duration=next_entry_start_offset - n.offset))
+                else:
+                    voice0_notes_windowed.append(n)
+            soprano_notes = soprano_notes + tuple(voice0_notes_windowed)
+
+        # Render voice 1 (bass)
+        if voice1_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS):
+            assert beat_role_v1 is not None, f"No BeatRole for voice 1 at entry bar {entry_first_bar}"
+
+            voice1_notes: tuple[Note, ...] | None = render_thematic_beat(
+                role=beat_role_v1,
+                fugue=fugue,
+                start_offset=entry_start_offset,
+                target_range=plan.lower_range,
+                end_offset=next_entry_start_offset,
+            )
+            if voice1_notes:
+                # Label first note
+                lyric: str = {
+                    ThematicRole.SUBJECT: "subject",
+                    ThematicRole.ANSWER: "answer",
+                    ThematicRole.CS: "cs",
+                }[voice1_role]
+                voice1_notes = (replace(voice1_notes[0], lyric=lyric),) + voice1_notes[1:]
+                bass_notes = bass_notes + voice1_notes
+
+        elif voice1_role == ThematicRole.EPISODE:
+            assert beat_role_v1 is not None, f"No BeatRole for voice 1 EPISODE at entry bar {entry_first_bar}"
+            # Render episode fragment
+            voice1_notes_raw: tuple[Note, ...] = _render_episode_fragment(
+                role=beat_role_v1,
+                fugue=fugue,
+                start_offset=entry_start_offset,
+                target_track=TRACK_BASS,
+                target_range=plan.lower_range,
+            )
+            # Apply time window
+            voice1_notes_windowed: list[Note] = []
+            for n in voice1_notes_raw:
+                if n.offset >= next_entry_start_offset:
+                    break
+                note_end: Fraction = n.offset + n.duration
+                if note_end > next_entry_start_offset:
+                    voice1_notes_windowed.append(replace(n, duration=next_entry_start_offset - n.offset))
+                else:
+                    voice1_notes_windowed.append(n)
+            bass_notes = bass_notes + tuple(voice1_notes_windowed)
+
+    # Handle FREE tail bars after last material entry
+    if material_entries:
+        last_material_bar: int = material_entries[-1]["first_bar"] + material_entries[-1]["bar_count"] - 1
+        phrase_first_bar: int = plan.thematic_roles[0].bar
+        phrase_last_bar: int = plan.thematic_roles[-1].bar
+
+        if last_material_bar < phrase_last_bar:
+            # There are tail bars: generate Viterbi fill (galant order)
+            tail_start_bar_absolute: int = last_material_bar + 1
+            tail_start_bar: int = tail_start_bar_absolute - phrase_first_bar + 1
+            bars_from_phrase_start: int = tail_start_bar_absolute - phrase_first_bar
+            tail_start_offset: Fraction = plan.start_offset + bars_from_phrase_start * bar_length
+
+            # Build tail plan
             tail_plan: PhrasePlan = make_tail_plan(
                 plan=plan,
                 tail_start_bar=tail_start_bar,
-                tail_start_offset=tail_offset,
-                prev_exit_upper=soprano_subject[-1].pitch,
-                prev_exit_lower=plan.prev_exit_lower,
+                tail_start_offset=tail_start_offset,
+                prev_exit_upper=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper,
+                prev_exit_lower=bass_notes[-1].pitch if bass_notes else plan.prev_exit_lower,
             )
+
+            # Galant order: structural soprano → bass Viterbi → soprano Viterbi
+            structural_tail: tuple[Note, ...] = build_structural_soprano(
+                plan=tail_plan,
+                prev_exit_midi=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper,
+            )
+
+            tail_bass: tuple[Note, ...] = generate_bass_viterbi(
+                plan=tail_plan,
+                soprano_notes=prior_upper + soprano_notes + structural_tail,
+                prior_lower=bass_notes,
+                harmonic_grid=None,
+            )
+            bass_notes = bass_notes + tail_bass
+
             tail_soprano: tuple[Note, ...]
-            tail_soprano, _ = generate_soprano_phrase(
+            tail_soprano, _ = generate_soprano_viterbi(
                 plan=tail_plan,
-                prior_upper=soprano_subject,
+                bass_notes=bass_notes,
+                prior_upper=soprano_notes,
+                next_phrase_entry_degree=next_phrase_entry_degree,
+                next_phrase_entry_key=next_phrase_entry_key,
+                harmonic_grid=None,
             )
-            soprano_notes: tuple[Note, ...] = soprano_subject + tail_soprano
-        else:
-            soprano_notes = soprano_subject
+            soprano_notes = soprano_notes + tail_soprano
 
-        if is_monophonic:
-            exit_upper: int = soprano_notes[-1].pitch
-            exit_lower: int = max(
-                plan.lower_range.low,
-                min(exit_upper - 12, plan.lower_range.high),
-            )
-            return PhraseResult(
-                upper_notes=soprano_notes,
-                lower_notes=(),
-                exit_upper=exit_upper,
-                exit_lower=exit_lower,
-                schema_name=plan.schema_name,
-                soprano_figures=(),
-                bass_pattern_name=None,
-            )
-
-        # Non-monophonic: place countersubject in bass (INV-1)
-        bass_cs: tuple[Note, ...] = countersubject_to_voice_notes(
-            fugue=fugue,
-            start_offset=plan.start_offset,
-            target_key=plan.local_key,
-            target_track=TRACK_BASS,
-            target_range=plan.lower_range,
-        )
-        bass_cs = (replace(bass_cs[0], lyric="cs"),) + bass_cs[1:]
-
-        if needs_tail:
-            tail_offset: Fraction = phrase_bar_start(
-                plan=plan, bar_num=tail_start_bar, bar_length=bar_length,
-            )
-            bass_cs = _pad_to_offset(notes=bass_cs, target_offset=tail_offset)
-            tail_plan: PhrasePlan = make_tail_plan(
-                plan=plan,
-                tail_start_bar=tail_start_bar,
-                tail_start_offset=tail_offset,
-                prev_exit_upper=soprano_notes[-1].pitch,
-                prev_exit_lower=bass_cs[-1].pitch,
-            )
-            tail_bass: tuple[Note, ...] = _bass_for_plan(
-                plan=tail_plan,
-                soprano_notes=prior_upper + soprano_notes,
-                prior_bass=bass_cs,
-            )
-            bass_notes: tuple[Note, ...] = bass_cs + tail_bass
-        else:
-            bass_notes = bass_cs
-
-        return PhraseResult(
-            upper_notes=soprano_notes,
-            lower_notes=bass_notes,
-            exit_upper=soprano_notes[-1].pitch,
-            exit_lower=bass_notes[-1].pitch,
-            schema_name=plan.schema_name,
-            soprano_figures=(),
-            bass_pattern_name=None,
-        )
-
-    # lead_voice == 1: Bass leads with subject, soprano gets CS (INV-1)
-    bass_subject: tuple[Note, ...] = subject_to_voice_notes(
-        fugue=fugue,
-        start_offset=plan.start_offset,
-        target_key=plan.local_key,
-        target_track=TRACK_BASS,
-        target_range=plan.lower_range,
-    )
-    bass_subject = (replace(bass_subject[0], lyric="subject"),) + bass_subject[1:]
-
-    # Generate countersubject in soprano
-    soprano_cs: tuple[Note, ...] = countersubject_to_voice_notes(
-        fugue=fugue,
-        start_offset=plan.start_offset,
-        target_key=plan.local_key,
-        target_track=TRACK_SOPRANO,
-        target_range=plan.upper_range,
-    )
-    soprano_cs = (replace(soprano_cs[0], lyric="cs"),) + soprano_cs[1:]
-
-    if needs_tail:
-        tail_offset: Fraction = phrase_bar_start(
-            plan=plan, bar_num=tail_start_bar, bar_length=bar_length,
-        )
-        bass_subject = _pad_to_offset(notes=bass_subject, target_offset=tail_offset)
-        soprano_cs = _pad_to_offset(notes=soprano_cs, target_offset=tail_offset)
-        tail_plan: PhrasePlan = make_tail_plan(
-            plan=plan,
-            tail_start_bar=tail_start_bar,
-            tail_start_offset=tail_offset,
-            prev_exit_upper=soprano_cs[-1].pitch,
-            prev_exit_lower=bass_subject[-1].pitch,
-        )
-        tail_soprano: tuple[Note, ...]
-        tail_soprano, _ = generate_soprano_viterbi(
-            plan=tail_plan,
-            bass_notes=bass_subject,
-            prior_upper=soprano_cs,
-            next_phrase_entry_degree=next_phrase_entry_degree,
-            next_phrase_entry_key=next_phrase_entry_key,
-        )
-        soprano_notes: tuple[Note, ...] = soprano_cs + tail_soprano
-        tail_bass: tuple[Note, ...] = _bass_for_plan(
-            plan=tail_plan,
-            soprano_notes=prior_upper + soprano_notes,
-            prior_bass=bass_subject,
-        )
-        full_bass: tuple[Note, ...] = bass_subject + tail_bass
-    else:
-        soprano_notes = soprano_cs
-        full_bass = bass_subject
-
+    # Return phrase result
     return PhraseResult(
         upper_notes=soprano_notes,
-        lower_notes=full_bass,
-        exit_upper=soprano_notes[-1].pitch,
-        exit_lower=full_bass[-1].pitch,
+        lower_notes=bass_notes,
+        exit_upper=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper or 60,
+        exit_lower=bass_notes[-1].pitch if bass_notes else plan.prev_exit_lower or 48,
         schema_name=plan.schema_name,
         soprano_figures=(),
         bass_pattern_name=None,
     )
 
 
-def _write_stretto_phrase(
+def _write_schematic(
     plan: PhrasePlan,
-    fugue: LoadedFugue,
     prior_upper: tuple[Note, ...],
     prior_lower: tuple[Note, ...],
+    next_phrase_entry_degree: int | None,
+    next_phrase_entry_key: Key | None,
+    is_final: bool,
 ) -> PhraseResult:
-    """Write stretto phrase: both voices state subject with delay.
+    """Write schematic phrase using galant order (structural soprano → bass → soprano).
 
-    Voice A (lead) states subject at phrase start. Voice B (follower) enters
-    1 bar later with the same subject. During overlap, both voices carry
-    pre-composed material. After overlap, remaining bars are Viterbi fill.
+    For non-thematic, non-cadential phrases. Builds structural soprano from schema degrees,
+    generates bass (Viterbi or pattern), then Viterbi soprano with diminution.
     """
-    bar_length: Fraction = parse_metre(metre=plan.metre)[0]
-    lead_voice: int = plan.lead_voice if plan.lead_voice is not None else 0
-    follow_voice: int = 1 - lead_voice
-
-    # Stretto parameters (close stretto: 1 beat delay to fit in short phrases)
-    # For 4/4 time, 1 beat = 0.25 bars
-    STRETTO_DELAY_BEATS: int = 1
-    beat_duration: Fraction = parse_metre(metre=plan.metre)[1]
-    delay_offset: Fraction = STRETTO_DELAY_BEATS * beat_duration
-
-    # Subject duration
-    subject_duration: Fraction = sum(
-        Fraction(d).limit_denominator(DURATION_DENOMINATOR_LIMIT)
-        for d in fugue.subject.durations
-    )
-
-    # Validate stretto fits in phrase
-    assert delay_offset < subject_duration, (
-        f"Stretto delay ({delay_offset}) must be less than subject duration ({subject_duration})"
-    )
-
-    stretto_end: Fraction = delay_offset + subject_duration
-    if stretto_end > plan.phrase_duration:
-        # Phrase too short for stretto — fall back to subject entry
-        from shared.errors import brief_warning
-        brief_warning(
-            what_failed=f"Stretto in {plan.schema_name} ({plan.phrase_duration} bars)",
-            why=f"needs {stretto_end} bars but the phrase only has {plan.phrase_duration}",
-            suggestion="give the peroratio a longer non-cadential schema so stretto has room to breathe",
-        )
-        return _write_subject_phrase(
+    # Build harmonic grid from schema annotations (HRL-2)
+    schema = get_schema(name=plan.schema_name)
+    harmonic_grid: HarmonicGrid | None = None
+    if schema.harmony is not None:
+        harmonic_grid = build_harmonic_grid(
             plan=plan,
-            fugue=fugue,
-            prior_upper=prior_upper,
-            prior_lower=prior_lower,
-            next_phrase_entry_degree=None,
-            next_phrase_entry_key=None,
+            schema_harmony=schema.harmony,
         )
 
-    # Place voice A (lead) subject
-    if lead_voice == 0:
-        lead_track = TRACK_SOPRANO
-        lead_range = plan.upper_range
-        follow_track = TRACK_BASS
-        follow_range = plan.lower_range
-    else:
-        lead_track = TRACK_BASS
-        lead_range = plan.lower_range
-        follow_track = TRACK_SOPRANO
-        follow_range = plan.upper_range
-
-    voice_a_subject: tuple[Note, ...] = subject_to_voice_notes(
-        fugue=fugue,
-        start_offset=plan.start_offset,
-        target_key=plan.local_key,
-        target_track=lead_track,
-        target_range=lead_range,
+    prev_exit_upper: int | None = prior_upper[-1].pitch if prior_upper else None
+    structural_soprano: tuple[Note, ...] = build_structural_soprano(
+        plan=plan,
+        prev_exit_midi=prev_exit_upper,
     )
-    voice_a_subject = (replace(voice_a_subject[0], lyric="stretto"),) + voice_a_subject[1:]
-
-    # Place voice B (follower) subject with delay
-    voice_b_subject: tuple[Note, ...] = subject_to_voice_notes(
-        fugue=fugue,
-        start_offset=plan.start_offset + delay_offset,
-        target_key=plan.local_key,
-        target_track=follow_track,
-        target_range=follow_range,
+    bass_notes: tuple[Note, ...] = _bass_for_plan(
+        plan=plan,
+        soprano_notes=prior_upper + structural_soprano,
+        prior_bass=prior_lower,
+        harmonic_grid=harmonic_grid,
     )
-    voice_b_subject = (replace(voice_b_subject[0], lyric="stretto-2"),) + voice_b_subject[1:]
-
-    # Before voice B's entry: hold exit pitch from prior notes
-    voice_b_pre_notes: tuple[Note, ...] = ()
-    if lead_voice == 0:
-        # Voice B is bass
-        prior_bass_pitch: int | None = prior_lower[-1].pitch if prior_lower else None
-        if prior_bass_pitch is not None:
-            voice_b_pre_notes = (Note(
-                offset=plan.start_offset,
-                pitch=prior_bass_pitch,
-                duration=delay_offset,
-                voice=TRACK_BASS,
-            ),)
-    else:
-        # Voice B is soprano
-        prior_soprano_pitch: int | None = prior_upper[-1].pitch if prior_upper else None
-        if prior_soprano_pitch is not None:
-            voice_b_pre_notes = (Note(
-                offset=plan.start_offset,
-                pitch=prior_soprano_pitch,
-                duration=delay_offset,
-                voice=TRACK_SOPRANO,
-            ),)
-
-    # Combine pre-entry hold + subject for voice B
-    voice_b_notes: tuple[Note, ...] = voice_b_pre_notes + voice_b_subject
-
-    # Assign to soprano/bass based on lead_voice
-    if lead_voice == 0:
-        soprano_notes = voice_a_subject
-        bass_notes = voice_b_notes
-    else:
-        soprano_notes = voice_b_notes
-        bass_notes = voice_a_subject
-
-    # After both subjects end: generate Viterbi tail if needed
-    voice_a_end: Fraction = plan.start_offset + subject_duration
-    voice_b_end: Fraction = plan.start_offset + delay_offset + subject_duration
-    final_end: Fraction = max(voice_a_end, voice_b_end)
-    # Gap zone: voice A ends before voice B (always, since B is delayed).
-    # Pad voice A's last note to bridge the gap.
-    if voice_a_end < final_end:
-        if lead_voice == 0:
-            soprano_notes = _pad_to_offset(notes=soprano_notes, target_offset=final_end)
-        else:
-            bass_notes = _pad_to_offset(notes=bass_notes, target_offset=final_end)
-    if final_end < plan.start_offset + plan.phrase_duration:
-        # Build tail plan for remaining bars
-        tail_plan: PhrasePlan = make_tail_plan(
-            plan=plan,
-            tail_start_bar=int((final_end - plan.start_offset) // bar_length) + 1,
-            tail_start_offset=final_end,
-            prev_exit_upper=soprano_notes[-1].pitch,
-            prev_exit_lower=bass_notes[-1].pitch,
-        )
-        # Galant order: structural soprano → bass → Viterbi soprano
-        structural_tail: tuple[Note, ...] = build_structural_soprano(
-            plan=tail_plan,
-            prev_exit_midi=soprano_notes[-1].pitch,
-        )
-        tail_bass: tuple[Note, ...] = generate_bass_viterbi(
-            plan=tail_plan,
-            soprano_notes=soprano_notes + structural_tail,
-            prior_lower=bass_notes,
-            harmonic_grid=None,
-        )
-        bass_notes = bass_notes + tail_bass
-        tail_soprano: tuple[Note, ...]
-        tail_soprano, _ = generate_soprano_viterbi(
-            plan=tail_plan,
-            bass_notes=bass_notes,
-            prior_upper=soprano_notes,
-            next_phrase_entry_degree=None,
-            next_phrase_entry_key=None,
-            harmonic_grid=None,
-        )
-        soprano_notes = soprano_notes + tail_soprano
+    soprano_notes: tuple[Note, ...]
+    soprano_figures: tuple[str, ...]
+    soprano_notes, soprano_figures = generate_soprano_viterbi(
+        plan=plan,
+        bass_notes=bass_notes,
+        prior_upper=prior_upper,
+        next_phrase_entry_degree=next_phrase_entry_degree,
+        next_phrase_entry_key=next_phrase_entry_key,
+        harmonic_grid=harmonic_grid,
+    )
+    bass_pattern_name: str | None = plan.bass_pattern
 
     return PhraseResult(
         upper_notes=soprano_notes,
@@ -407,123 +403,42 @@ def _write_stretto_phrase(
         exit_upper=soprano_notes[-1].pitch,
         exit_lower=bass_notes[-1].pitch,
         schema_name=plan.schema_name,
-        soprano_figures=(),
-        bass_pattern_name=None,
+        soprano_figures=soprano_figures,
+        bass_pattern_name=bass_pattern_name,
     )
 
 
-def _write_answer_phrase(
+def _has_material(thematic_roles: tuple[BeatRole, ...]) -> bool:
+    """Check if thematic_roles contains any non-FREE material."""
+    from planner.thematic import ThematicRole
+    return any(
+        role.role in (ThematicRole.SUBJECT, ThematicRole.ANSWER,
+                     ThematicRole.CS, ThematicRole.EPISODE)
+        for role in thematic_roles
+    )
+
+
+def _write_cadential(
     plan: PhrasePlan,
-    fugue: LoadedFugue,
     prior_upper: tuple[Note, ...],
     prior_lower: tuple[Note, ...],
-    next_phrase_entry_degree: int | None,
-    next_phrase_entry_key: Key | None,
+    is_final: bool,
 ) -> PhraseResult:
-    """Write answer entry: subject at dominant, tail bars get schema-based generation."""
-    lead_voice: int = plan.lead_voice if plan.lead_voice is not None else 0
-    dominant_key: Key = plan.local_key.modulate_to(target="V")
-    subj_bars: int = subject_bar_count(fugue=fugue)
-    needs_tail: bool = subj_bars < plan.bar_span
-    tail_start_bar: int = subj_bars + 1
-    bar_length: Fraction = parse_metre(metre=plan.metre)[0]
-
-    if lead_voice == 0:
-        # Bass gets the answer (subject at dominant)
-        bass_answer: tuple[Note, ...] = subject_to_voice_notes(
-            fugue=fugue,
-            start_offset=plan.start_offset,
-            target_key=dominant_key,
-            target_track=TRACK_BASS,
-            target_range=plan.lower_range,
-        )
-        bass_answer = (replace(bass_answer[0], lyric="answer"),) + bass_answer[1:]
-
-        # Soprano gets the countersubject (at tonic, not dominant)
-        soprano_cs: tuple[Note, ...] = countersubject_to_voice_notes(
-            fugue=fugue,
-            start_offset=plan.start_offset,
-            target_key=plan.local_key,
-            target_track=TRACK_SOPRANO,
-            target_range=plan.upper_range,
-        )
-        soprano_cs = (replace(soprano_cs[0], lyric="cs"),) + soprano_cs[1:]
-
-        if needs_tail:
-            tail_offset: Fraction = phrase_bar_start(
-                plan=plan, bar_num=tail_start_bar, bar_length=bar_length,
-            )
-            bass_answer = _pad_to_offset(notes=bass_answer, target_offset=tail_offset)
-            soprano_cs = _pad_to_offset(notes=soprano_cs, target_offset=tail_offset)
-            tail_plan: PhrasePlan = make_tail_plan(
-                plan=plan,
-                tail_start_bar=tail_start_bar,
-                tail_start_offset=tail_offset,
-                prev_exit_upper=soprano_cs[-1].pitch,
-                prev_exit_lower=bass_answer[-1].pitch,
-            )
-            tail_soprano: tuple[Note, ...]
-            tail_soprano, _ = generate_soprano_phrase(
-                plan=tail_plan,
-                prior_upper=soprano_cs,
-                lower_notes=bass_answer,
-            )
-            soprano_notes: tuple[Note, ...] = soprano_cs + tail_soprano
-            tail_bass: tuple[Note, ...] = _bass_for_plan(
-                plan=tail_plan,
-                soprano_notes=prior_upper + soprano_notes,
-                prior_bass=bass_answer,
-            )
-            bass_notes: tuple[Note, ...] = bass_answer + tail_bass
-        else:
-            soprano_notes = soprano_cs
-            bass_notes = bass_answer
-
-        return PhraseResult(
-            upper_notes=soprano_notes,
-            lower_notes=bass_notes,
-            exit_upper=soprano_notes[-1].pitch,
-            exit_lower=bass_notes[-1].pitch,
-            schema_name=plan.schema_name,
-            soprano_figures=(),
-            bass_pattern_name=None,
-        )
-
-    # lead_voice == 1: Soprano gets the answer (subject at dominant), bass generates
-    soprano_answer: tuple[Note, ...] = subject_to_voice_notes(
-        fugue=fugue,
+    """Write cadential phrase using fixed templates."""
+    soprano_notes: tuple[Note, ...]
+    bass_notes: tuple[Note, ...]
+    soprano_notes, bass_notes = write_cadence(
+        schema_name=plan.schema_name,
+        metre=plan.metre,
+        local_key=plan.local_key,
         start_offset=plan.start_offset,
-        target_key=dominant_key,
-        target_track=TRACK_SOPRANO,
-        target_range=plan.upper_range,
-    )
-    soprano_answer = (replace(soprano_answer[0], lyric="answer"),) + soprano_answer[1:]
-
-    if needs_tail:
-        tail_offset = phrase_bar_start(
-            plan=plan, bar_num=tail_start_bar, bar_length=bar_length,
-        )
-        soprano_answer = _pad_to_offset(notes=soprano_answer, target_offset=tail_offset)
-        tail_plan = make_tail_plan(
-            plan=plan,
-            tail_start_bar=tail_start_bar,
-            tail_start_offset=tail_offset,
-            prev_exit_upper=soprano_answer[-1].pitch,
-            prev_exit_lower=plan.prev_exit_lower,
-        )
-        tail_soprano: tuple[Note, ...]
-        tail_soprano, _ = generate_soprano_phrase(
-            plan=tail_plan,
-            prior_upper=soprano_answer,
-        )
-        soprano_notes = soprano_answer + tail_soprano
-    else:
-        soprano_notes = soprano_answer
-
-    bass_notes = _bass_for_plan(
-        plan=plan,
-        soprano_notes=prior_upper + soprano_notes,
-        prior_bass=prior_lower,
+        prior_upper=prior_upper,
+        prior_lower=prior_lower,
+        upper_range=(plan.upper_range.low, plan.upper_range.high),
+        lower_range=(plan.lower_range.low, plan.lower_range.high),
+        upper_median=plan.upper_median,
+        lower_median=plan.lower_median,
+        is_final=is_final,
     )
     return PhraseResult(
         upper_notes=soprano_notes,
@@ -546,107 +461,40 @@ def write_phrase(
     fugue: LoadedFugue | None = None,
     is_final: bool = False,
 ) -> PhraseResult:
-    """Write complete phrase (soprano + bass) and return result."""
-    soprano_figures: tuple[str, ...] = ()
-    bass_pattern_name: str | None = None
-    # Imitation dispatch: pre-composed material from FugueTriple
-    if (plan.imitation_role is not None
-            and fugue is not None
-            and not plan.is_cadential):
-        if plan.imitation_role == "subject":
-            return _write_subject_phrase(
-                plan=plan,
-                fugue=fugue,
-                prior_upper=prior_upper,
-                prior_lower=prior_lower,
-                next_phrase_entry_degree=next_phrase_entry_degree,
-                next_phrase_entry_key=next_phrase_entry_key,
-            )
-        if plan.imitation_role == "answer":
-            return _write_answer_phrase(
-                plan=plan,
-                fugue=fugue,
-                prior_upper=prior_upper,
-                prior_lower=prior_lower,
-                next_phrase_entry_degree=next_phrase_entry_degree,
-                next_phrase_entry_key=next_phrase_entry_key,
-            )
-        if plan.imitation_role == "episode":
-            if plan.degree_keys and len(plan.degree_keys) > 0:
-                from builder.episode_writer import write_episode
-                return write_episode(
-                    plan=plan,
-                    fugue=fugue,
-                    prior_upper=prior_upper,
-                    prior_lower=prior_lower,
-                )
-            from shared.errors import brief_warning
-            brief_warning(
-                what_failed=f"Episode on schema '{plan.schema_name}'",
-                why="schema has no degree_keys so there is nothing to sequence the fragment through",
-                suggestion="use a sequential schema (fonte, monte) for episode phrases, or don't assign imitation_role='episode' here",
-            )
-            # fall through to galant path below
-        if plan.imitation_role == "stretto":
-            return _write_stretto_phrase(
-                plan=plan,
-                fugue=fugue,
-                prior_upper=prior_upper,
-                prior_lower=prior_lower,
-            )
-        if plan.imitation_role not in ("episode",):
-            assert False, f"Unknown imitation_role: {plan.imitation_role!r}"
+    """Write complete phrase (soprano + bass) and return result.
+
+    Three-way dispatcher (TD-3):
+    - Cadential: fixed templates from cadence writer
+    - Thematic: subject/answer/CS/episode/stretto from thematic renderer
+    - Schematic: galant order (structural soprano → bass → soprano)
+    """
+    # Path 1: Cadential
     if plan.is_cadential:
-        soprano_notes, bass_notes = write_cadence(
-            schema_name=plan.schema_name,
-            metre=plan.metre,
-            local_key=plan.local_key,
-            start_offset=plan.start_offset,
+        return _write_cadential(
+            plan=plan,
             prior_upper=prior_upper,
             prior_lower=prior_lower,
-            upper_range=(plan.upper_range.low, plan.upper_range.high),
-            lower_range=(plan.lower_range.low, plan.lower_range.high),
-            upper_median=plan.upper_median,
-            lower_median=plan.lower_median,
             is_final=is_final,
         )
-    else:
-        # Galant path: build structural soprano, generate bass, then Viterbi soprano
-        # HRL-2: Build harmonic grid from schema annotations
-        schema = get_schema(name=plan.schema_name)
-        harmonic_grid: HarmonicGrid | None = None
-        if schema.harmony is not None:
-            harmonic_grid = build_harmonic_grid(
-                plan=plan,
-                schema_harmony=schema.harmony,
-            )
 
-        prev_exit_upper: int | None = prior_upper[-1].pitch if prior_upper else None
-        structural_soprano: tuple[Note, ...] = build_structural_soprano(
+    # Path 2: Thematic
+    if plan.thematic_roles is not None and _has_material(plan.thematic_roles):
+        assert fugue is not None, "Thematic phrase requires fugue data"
+        return _write_thematic(
             plan=plan,
-            prev_exit_midi=prev_exit_upper,
-        )
-        bass_notes = _bass_for_plan(
-            plan=plan,
-            soprano_notes=prior_upper + structural_soprano,
-            prior_bass=prior_lower,
-            harmonic_grid=harmonic_grid,
-        )
-        soprano_notes, soprano_figures = generate_soprano_viterbi(
-            plan=plan,
-            bass_notes=bass_notes,
+            fugue=fugue,
             prior_upper=prior_upper,
+            prior_lower=prior_lower,
             next_phrase_entry_degree=next_phrase_entry_degree,
             next_phrase_entry_key=next_phrase_entry_key,
-            harmonic_grid=harmonic_grid,
         )
-        bass_pattern_name = plan.bass_pattern
-    return PhraseResult(
-        upper_notes=soprano_notes,
-        lower_notes=bass_notes,
-        exit_upper=soprano_notes[-1].pitch,
-        exit_lower=bass_notes[-1].pitch,
-        schema_name=plan.schema_name,
-        soprano_figures=soprano_figures,
-        bass_pattern_name=bass_pattern_name,
+
+    # Path 3: Schematic (galant)
+    return _write_schematic(
+        plan=plan,
+        prior_upper=prior_upper,
+        prior_lower=prior_lower,
+        next_phrase_entry_degree=next_phrase_entry_degree,
+        next_phrase_entry_key=next_phrase_entry_key,
+        is_final=is_final,
     )

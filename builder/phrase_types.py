@@ -63,7 +63,7 @@ class PhrasePlan:
     registral_bias: int = 0
     recall_motif: bool = False
     lead_voice: int | None = None
-    imitation_role: str | None = None  # "subject", "answer", or None
+    thematic_roles: tuple | None = None  # BeatRole slice for this phrase (TP-A)
 
 
 @dataclass(frozen=True)
@@ -207,5 +207,4 @@ def make_tail_plan(
         registral_bias=plan.registral_bias,
         recall_motif=False,
         lead_voice=None,
-        imitation_role=None,
     )

@@ -36,7 +36,10 @@ def _structural_offsets_for_plan(plan: PhrasePlan) -> tuple[frozenset[Fraction],
 
 
 def _stamp_lyrics(plan: PhrasePlan, result: PhraseResult) -> tuple[Note, ...]:
-    """Annotate soprano notes with schema/section/character/figuration lyrics."""
+    """Annotate soprano notes with schema/section/character/figuration lyrics.
+
+    Preserves existing thematic lyrics (subject, answer, cs) from thematic phrases.
+    """
     if not result.upper_notes:
         return result.upper_notes
 
@@ -59,6 +62,9 @@ def _stamp_lyrics(plan: PhrasePlan, result: PhraseResult) -> tuple[Note, ...]:
         for fig_idx, fig_name in enumerate(result.soprano_figures):
             offset_to_figure[structural_offsets[fig_idx]] = fig_name
         for j, sn in enumerate(notes):
+            # Preserve existing thematic lyrics
+            if sn.lyric and sn.lyric in ("subject", "answer", "cs", "stretto", "stretto-2", "episode"):
+                continue
             parts: list[str] = []
             if j == 0:
                 parts.append(first_lyric)
@@ -67,7 +73,9 @@ def _stamp_lyrics(plan: PhrasePlan, result: PhraseResult) -> tuple[Note, ...]:
             if parts:
                 notes[j] = replace(sn, lyric="/".join(parts))
     else:
-        notes[0] = replace(notes[0], lyric=first_lyric)
+        # Only stamp first note if it doesn't have a thematic lyric
+        if notes[0].lyric not in ("subject", "answer", "cs", "stretto", "stretto-2", "episode"):
+            notes[0] = replace(notes[0], lyric=first_lyric)
 
     return tuple(notes)
 
