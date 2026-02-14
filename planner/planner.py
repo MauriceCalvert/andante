@@ -193,30 +193,41 @@ def generate_to_files(
     """Generate composition and write to files."""
     # For invention genre: generate or load cached fugue triple
     if genre == "invention" and fugue is None and key is not None:
-        fugue_path: Path = output_dir / f"{name}.fugue"
-        if fugue_path.exists():
-            fugue = load_fugue_path(path=fugue_path)
-            print(f"  Loaded cached fugue: {fugue_path.name}")
-        else:
-            mode, tonic_midi = _parse_key_string(key=key)
-            # Read metre from genre YAML
-            genre_yaml_path: Path = Path(__file__).parent.parent / "data" / "genres" / f"{genre}.yaml"
-            assert genre_yaml_path.exists(), f"Genre YAML not found: {genre_yaml_path}"
-            with open(genre_yaml_path, encoding="utf-8") as f:
-                genre_data: dict = yaml.safe_load(f)
-            metre_str: str = genre_data["metre"]
-            metre_parts: list[str] = metre_str.split("/")
-            metre_tuple: tuple[int, int] = (int(metre_parts[0]), int(metre_parts[1]))
-            triple = generate_fugue_triple(
-                mode=mode,
-                metre=metre_tuple,
-                seed=seed,
-                tonic_midi=tonic_midi,
-                verbose=True,
+        # Read genre YAML for metre and optional subject name
+        genre_yaml_path: Path = Path(__file__).parent.parent / "data" / "genres" / f"{genre}.yaml"
+        assert genre_yaml_path.exists(), f"Genre YAML not found: {genre_yaml_path}"
+        with open(genre_yaml_path, encoding="utf-8") as f:
+            genre_data: dict = yaml.safe_load(f)
+        metre_str: str = genre_data["metre"]
+        metre_parts: list[str] = metre_str.split("/")
+        metre_tuple: tuple[int, int] = (int(metre_parts[0]), int(metre_parts[1]))
+        # Priority: 1) library subject from YAML, 2) cached output, 3) generate
+        subject_name: str | None = genre_data.get("subject")
+        library_dir: Path = Path(__file__).parent.parent / "motifs" / "library"
+        if subject_name is not None:
+            library_path: Path = library_dir / f"{subject_name}.fugue"
+            assert library_path.exists(), (
+                f"Subject '{subject_name}' not found at {library_path}"
             )
-            write_fugue_file(triple=triple, path=fugue_path)
-            fugue = load_fugue_path(path=fugue_path)
-            print(f"  Generated fugue: {fugue_path.name}")
+            fugue = load_fugue_path(path=library_path)
+            print(f"  Loaded library subject: {subject_name}")
+        else:
+            fugue_path: Path = output_dir / f"{name}.fugue"
+            if fugue_path.exists():
+                fugue = load_fugue_path(path=fugue_path)
+                print(f"  Loaded cached fugue: {fugue_path.name}")
+            else:
+                mode, tonic_midi = _parse_key_string(key=key)
+                triple = generate_fugue_triple(
+                    mode=mode,
+                    metre=metre_tuple,
+                    seed=seed,
+                    tonic_midi=tonic_midi,
+                    verbose=True,
+                )
+                write_fugue_file(triple=triple, path=fugue_path)
+                fugue = load_fugue_path(path=fugue_path)
+                print(f"  Generated fugue: {fugue_path.name}")
         # Print summary
         print(f"  Subject: {len(fugue.subject.degrees)} notes, {fugue.subject.bars} bars, "
               f"leap {fugue.subject.leap_direction} {fugue.subject.leap_size}, "

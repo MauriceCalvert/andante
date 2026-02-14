@@ -1,32 +1,42 @@
-# Continue: Post-BV1 — Listening Gate Passed
+# Continue: Post-INV
 
-## Current state (2026-02-13)
+## Current state (2026-02-14)
 
-**BV1 complete and approved by ear.** Walking-bass phrases now use Viterbi
-pathfinding against the soprano. Pillar/patterned textures unchanged.
-Human verdict: "brilliant, not Bach yet but much closer."
+**INV complete.** All three phases implemented and passing:
+- INV-1: Countersubject in all subject entries ✓
+- INV-2: Episodes from subject fragments ✓
+- INV-3: Stretto in peroratio ✓
+
+**Stretto bug fixed.** CC's original peroratio YAML (passo_indietro +
+cadenza_composta = 3 bars) was too short for stretto. Fixed by
+prepending fenaroli (4 bars) to the peroratio schema_sequence.
+Also fixed stretto tail crash: voice A gap-zone pad + galant-order
+tail generation (structural soprano → bass → Viterbi soprano).
+
+**Brief fallback law added.** When a composition falls back because
+the genre YAML or brief made something impossible, `brief_warning()`
+from `shared/errors.py` emits a kind sarcastic warning with
+what_failed, why, and suggestion. Algorithmic fallbacks (Viterbi
+soft-only, stepwise fill) are normal runtime and do NOT use this.
+Four sites converted.
+
+**Listening gate pending.** Maurice needs to listen to
+`output/invention_c_major.midi` to confirm INV sounds right.
 
 ## What to do next
 
-Pick from remaining work. Priorities by likely musical impact:
+See `workflow/todo.md` for full list. Next candidates:
+1. Exordium answer gap (invention YAML only has one non-cadential
+   phrase in exordium — answer+CS never fires)
+2. Structural knot consonance — tritones between voice knots
+3. VG4 — Rewrite phrase_writer composition order
+4. VG5 — Style as weights from YAML
 
-1. **Dead code cleanup** — remove the walking branch from bass_writer.py.
-   Quick housekeeping, no musical effect. Reduces bass_writer by ~300 lines.
+## Read at chat start
 
-2. **Accented neighbour fix** — cost function tweak in viterbi/costs.py.
-   Small change, unlocks a class of idiomatic dissonance for soprano Viterbi.
-
-3. **Motivic coherence** — cost function addition to echo leader material.
-   Largest musical impact of the deferred items but also the most complex.
-
-4. **BV2: pillar/patterned bass Viterbi** — extend Viterbi to gavotte A
-   (half_bar), minuet (arpeggiated_3_4), sarabande (continuo_sustained).
-   Requires chord-tone incentive costs or pattern-as-knot constraints.
-
-5. **Subject development** — inversion, augmentation, stretto for invention.
-
-## Recommendation
-
-Dead code cleanup first (quick win), then accented neighbour fix (small,
-testable), then decide between motivic coherence and BV2 based on what
-sounds weakest after listening.
+- `workflow/conductor.md` (always)
+- `docs/Tier1_Normative/laws.md`
+- `docs/knowledge.md`
+- `completed.md`
+- `workflow/todo.md`
+- This file

@@ -244,13 +244,11 @@ def _generate_section_schemas(
         while non_cad_count < min_non_cad:
             remaining: int = bar_budget - bars_used
             if remaining <= 0:
-                logger.warning(
-                    "Section '%s' bar budget exhausted before reaching "
-                    "min_non_cadential=%d (current=%d). "
-                    "Consider expanding schema_sequence.",
-                    section_plan.name,
-                    min_non_cad,
-                    non_cad_count,
+                from shared.errors import brief_warning
+                brief_warning(
+                    what_failed=f"Section '{section_plan.name}' min_non_cadential={min_non_cad}",
+                    why=f"bar budget ran out with only {non_cad_count} non-cadential schemas",
+                    suggestion="add a longer schema to the schema_sequence so there are enough bars to work with",
                 )
                 break
             continuation_schema: str | None = _select_next_schema(
@@ -264,12 +262,11 @@ def _generate_section_schemas(
                 genre_name=genre_name,
             )
             if continuation_schema is None:
-                logger.warning(
-                    "Section '%s' no continuation schema available to reach "
-                    "min_non_cadential=%d (current=%d)",
-                    section_plan.name,
-                    min_non_cad,
-                    non_cad_count,
+                from shared.errors import brief_warning
+                brief_warning(
+                    what_failed=f"Section '{section_plan.name}' min_non_cadential={min_non_cad}",
+                    why=f"no continuation schema can follow '{result[-1]}' with {remaining} bars left",
+                    suggestion="check schema_transitions.yaml — the last schema in the sequence may be a dead end",
                 )
                 break
             result.append(continuation_schema)

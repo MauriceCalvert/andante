@@ -7,7 +7,7 @@ voices: 2
 form: binary
 metre: "4/4"
 rhythmic_unit: "1/16"
-tempo: 66
+tempo: 126
 tension: dance
 upbeat: "1/2"
 bass_treatment: patterned

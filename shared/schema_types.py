@@ -41,6 +41,7 @@ class Schema:
     figuration_profile: str  # figuration profile name from figuration_profiles.yaml
     cadence_approach: bool  # whether final connection uses cadential patterns
     typical_keys: tuple[str, ...] | None  # key journey for sequential schemas
+    harmony: tuple[str, ...] | None  # Roman numeral per degree position, or None if unannotated
 
     @property
     def stage_count(self) -> int:

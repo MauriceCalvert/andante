@@ -1130,7 +1130,7 @@ def validate_rules() -> list[str]:
 VALID_GENRE_KEYS: frozenset[str] = frozenset({
     "name", "voices", "form", "metre", "rhythmic_unit", "tempo",
     "bass_treatment", "bass_mode", "bass_pattern", "sections", "upbeat",
-    "instruments", "scoring", "tracks", "affect", "tension",
+    "instruments", "scoring", "tracks", "affect", "tension", "subject",
 })
 VALID_GENRE_SECTION_KEYS: frozenset[str] = frozenset({
     "name", "schema_sequence", "lead_voice", "lead_material",

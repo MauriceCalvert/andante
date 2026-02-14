@@ -22,6 +22,7 @@ do_re_mi:
   description: Opening gambit with stepwise soprano ascent
   soprano_degrees: ["1", "+2", "+3"]
   bass_degrees: ["1", "-7", "+1"]
+  harmony: ["I", "V", "I"]
   bass_alt: [1, 5, 1]
   bars: [1, 2]
   position: opening
@@ -34,6 +35,7 @@ romanesca:
   description: Six-stage opening with alternating strong/weak
   soprano_degrees: ["3", "+5", "-1", "+3", "+6", "-5"]
   bass_degrees: ["1", "-7", "-6", "-5", "-4", "-3"]
+  harmony: ["I", "V", "vi", "III", "IV", "I"]
   bars: [2, 4]
   position: opening
   figuration_profile: stepwise_mixed
@@ -46,6 +48,7 @@ meyer:
   description: Two dyads with accented dissonance on scale-degree 7
   soprano_degrees: ["1", "-7", "-4", "-3"]
   bass_degrees: ["1", "+2", "-7", "+1"]
+  harmony: ["I", "V", "viio", "I"]
   structure: two_dyads
   bars: [1, 2]
   position: opening
@@ -58,6 +61,7 @@ sol_fa_mi:
   description: Lyrical opening, less bold than Meyer
   soprano_degrees: ["5", "-4", "4", "-3"]
   bass_degrees: ["1", "+2", "-7", "+1"]
+  harmony: ["I", "ii", "viio", "I"]
   structure: two_dyads
   bars: [1, 2]
   position: opening
@@ -74,6 +78,7 @@ prinner:
   description: Archetypal riposte; parallel tenths descending
   soprano_degrees: ["6", "-5", "-4", "-3"]
   bass_degrees: ["4", "-3", "-2", "-1"]
+  harmony: ["IV", "I", "ii", "I"]
   bass_alt: [4, 3, 2, 5, 1]
   bars: [1, 2]
   position: riposte
@@ -92,6 +97,7 @@ fonte:
   segment:
     soprano_degrees: ["4", "-3"]
     bass_degrees: ["7", "+1"]
+    harmony: ["V", "i"]
   segments: 2
   segment_direction: down
   direction: descending
@@ -109,6 +115,7 @@ monte:
   segment:
     soprano_degrees: ["4", "-3"]
     bass_degrees: ["7", "+1"]
+    harmony: ["V", "I"]
   segments: [2, 3]
   segment_direction: up
   direction: ascending
@@ -126,6 +133,7 @@ fenaroli:
   description: Interior schema; bass 7-1-2-3 with soprano 4-3-7-1
   soprano_degrees: ["4", "-3", "-7", "+1"]
   bass_degrees: ["7", "+1", "+2", "+3"]
+  harmony: ["viio", "I", "ii", "I"]
   bars: [1, 2]
   position: continuation
   repeatable: true
@@ -142,6 +150,7 @@ ponte:
   description: Dominant pedal prolongation
   soprano_degrees: ["2", "2", "2"]
   bass_degrees: ["5", "5", "5"]
+  harmony: ["V", "V", "V"]
   bars: [1, 2]
   position: pre_cadential
   pedal: dominant
@@ -154,6 +163,7 @@ passo_indietro:
   description: Pre-cadential approach; first two stages of Prinner
   soprano_degrees: ["6", "-5"]
   bass_degrees: ["4", "+5"]
+  harmony: ["IV", "V"]
   bars: [1, 2]
   position: pre_cadential
   chromatic: true
@@ -167,6 +177,7 @@ indugio:
   description: Pre-cadential delay; prolongs 4
   soprano_degrees: ["2", "-1", "-7"]
   bass_degrees: ["4", "4", "4"]
+  harmony: ["IV", "IV", "IV"]
   bars: [1, 2]
   position: pre_cadential
   pedal: subdominant
@@ -184,6 +195,7 @@ cadenza_semplice:
   description: Simple authentic cadence
   soprano_degrees: ["2", "-7", "+1"]
   bass_degrees: ["5", "5", "-1"]
+  harmony: ["V", "V7", "I"]
   bars: [1, 1]
   cadence_type: authentic_internal
   position: cadential
@@ -196,6 +208,7 @@ cadenza_composta:
   description: Strong authentic cadence with IV-V-I
   soprano_degrees: ["4", "-3", "-2", "-1"]
   bass_degrees: ["4", "+5", "5", "-1"]
+  harmony: ["IV", "V", "V7", "I"]
   bars: [1, 2]
   cadence_type: authentic_final
   position: cadential
@@ -208,6 +221,7 @@ comma:
   description: Brief cadential gesture
   soprano_degrees: ["4", "-3"]
   bass_degrees: ["5", "-1"]
+  harmony: ["V", "I"]
   bars: [1, 1]
   cadence_type: comma
   position: cadential
@@ -221,6 +235,7 @@ half_cadence:
   description: Cadence on dominant
   soprano_degrees: ["2", "2"]
   bass_degrees: ["5", "5"]
+  harmony: ["V", "V"]
   bars: [1, 1]
   cadence_type: half
   position: cadential
@@ -237,6 +252,7 @@ quiescenza:
   description: Tonic pedal with chromatic neighbour motion
   soprano_degrees: ["1", "-7", "-6", "+7", "+1"]
   bass_degrees: ["1", "1", "1", "1", "1"]
+  harmony: ["I", "I", "I", "I", "I"]
   bars: [1, 2]
   position: post_cadential
   pedal: tonic

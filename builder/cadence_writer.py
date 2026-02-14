@@ -165,6 +165,7 @@ def write_cadence(
     lower_range: tuple[int, int],
     upper_median: int,
     lower_median: int,
+    is_final: bool = False,
 ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
     """Write soprano and bass notes for a cadential schema."""
     prev_upper_midi: int | None = prior_upper[-1].pitch if prior_upper else None
@@ -234,21 +235,23 @@ def write_cadence(
         bass_offset += dur
         lower_target = midi
     # Trim arrival notes to create breath silence between phrases
-    breath: Fraction = (
-        HALF_CADENCE_BREATH if schema_name == "half_cadence"
-        else FULL_CADENCE_BREATH
-    )
-    for notes in (soprano_notes, bass_notes):
-        last: Note = notes[-1]
-        trimmed: Fraction = last.duration - breath
-        assert trimmed > Fraction(0), (
-            f"Cadence '{schema_name}/{metre}': breath {breath} >= "
-            f"arrival duration {last.duration}"
+    # Final cadence: no breath — hold to bar end
+    if not is_final:
+        breath: Fraction = (
+            HALF_CADENCE_BREATH if schema_name == "half_cadence"
+            else FULL_CADENCE_BREATH
         )
-        notes[-1] = Note(
-            offset=last.offset,
-            pitch=last.pitch,
-            duration=trimmed,
-            voice=last.voice,
-        )
+        for notes in (soprano_notes, bass_notes):
+            last: Note = notes[-1]
+            trimmed: Fraction = last.duration - breath
+            assert trimmed > Fraction(0), (
+                f"Cadence '{schema_name}/{metre}': breath {breath} >= "
+                f"arrival duration {last.duration}"
+            )
+            notes[-1] = Note(
+                offset=last.offset,
+                pitch=last.pitch,
+                duration=trimmed,
+                voice=last.voice,
+            )
     return tuple(soprano_notes), tuple(bass_notes)

@@ -3,9 +3,30 @@ import sys
 from fractions import Fraction
 from pathlib import Path
 
+from io import BytesIO
+
 from mido import MidiFile
 
 from shared.constants import NOTE_NAMES, VALID_DURATIONS_SORTED
+
+
+# MIDI meta-event: FF 59 02 sf mode  (key signature)
+KEY_SIG_META_TYPE = 0x59
+KEY_SIG_LENGTH = 0x02
+
+
+def _sanitise_midi_bytes(data: bytearray) -> bytearray:
+    """Fix corrupt key-signature mode bytes in raw MIDI data."""
+    i = 0
+    while i < len(data) - 4:
+        if (data[i] == 0xFF
+                and data[i + 1] == KEY_SIG_META_TYPE
+                and data[i + 2] == KEY_SIG_LENGTH):
+            mode_byte = data[i + 4]
+            if mode_byte not in (0, 1):
+                data[i + 4] = 0  # default to major
+        i += 1
+    return data
 
 
 def quantize_duration(duration: float) -> Fraction:
@@ -30,7 +51,9 @@ def midi_to_note_name(midi_num: int) -> str:
 
 def convert_midi_to_note(midi_path: Path) -> None:
     """Convert MIDI file to .note CSV file."""
-    mid = MidiFile(str(midi_path))
+    raw: bytearray = bytearray(midi_path.read_bytes())
+    raw = _sanitise_midi_bytes(data=raw)
+    mid = MidiFile(file=BytesIO(raw))
     ticks_per_beat = mid.ticks_per_beat
 
     # Collect all note events per track

@@ -13,7 +13,7 @@ from builder.phrase_types import PhrasePlan
 from builder.types import Composition, Note
 from shared.key import Key
 
-HEADER: str = "offset,midinote,duration,track,bar,beat,notename,degree,harmony,phrase,cadence"
+HEADER: str = "offset,midinote,duration,track,bar,beat,notename,degree,harmony,phrase,cadence,lyric"
 
 # Degree labels for all 12 pitch classes relative to tonic
 # Index = semitones above tonic
@@ -169,7 +169,8 @@ def _format_row(
         f"{degree},"
         f"{harmony},"
         f"{phrase},"
-        f"{cadence}"
+        f"{cadence},"
+        f"{note.lyric}"
     )
 
 

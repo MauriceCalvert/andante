@@ -37,8 +37,11 @@ Defer updates. Track what needs changing, execute only when explicitly told.
 
 Don't test after each change, test once when all changes have been made.
 Only test changed code.
-Pipeline checkpoint runs (Bob/Chaz evaluation) must use `-o tests/output`.
+Pipeline checkpoint: `python -m scripts.run_tests`. Always. No exceptions.
+This runs all 8 genres with fixed seed to `tests/output/`.
 The `output/` directory is reserved for the user's brief runs.
+NEVER create output2, output3, output_vg3, or any other output variant.
+NEVER invent your own test runner. Use `scripts/run_tests.py`.
 
 ---
 

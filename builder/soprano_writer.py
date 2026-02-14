@@ -13,8 +13,8 @@ from shared.constants import MIN_SOPRANO_MIDI, TRACK_SOPRANO, TRACK_BASS, VALID_
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
-from viterbi.mtypes import Knot, LeaderNote
-from viterbi.pipeline import solve_phrase
+from viterbi.generate import generate_voice
+from viterbi.mtypes import ExistingVoice, Knot
 from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
 
 logger = logging.getLogger(__name__)
@@ -202,6 +202,7 @@ def generate_soprano_viterbi(
     prior_upper: tuple[Note, ...] = (),
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
+    harmonic_grid: "HarmonicGrid | None" = None,
 ) -> tuple[tuple[Note, ...], tuple[str, ...]]:
     """Generate soprano notes using Viterbi pathfinding against finished bass.
 
@@ -269,8 +270,9 @@ def generate_soprano_viterbi(
             # Add phrase_end as final onset; use NEGATIVE duration as marker (will extend previous note)
             grid_positions.append((final_offset, Fraction(-1)))
 
-    # Step 3: Extract leader surface (bass notes at each grid position)
-    leader_notes: list[LeaderNote] = []
+    # Step 3: Build bass ExistingVoice at each grid position
+    beat_grid: list[float] = [float(onset) for onset, _ in grid_positions]
+    bass_pitches_at_beat: dict[float, int] = {}
     prev_bass_pitch: int | None = None
     for onset, _ in grid_positions:
         # Find bass note sounding at this onset
@@ -285,8 +287,12 @@ def generate_soprano_viterbi(
                 f"No bass note at grid position {onset} and no previous bass to sustain"
             )
             bass_pitch = prev_bass_pitch
-        leader_notes.append(LeaderNote(beat=float(onset), midi_pitch=bass_pitch))
+        bass_pitches_at_beat[float(onset)] = bass_pitch
         prev_bass_pitch = bass_pitch
+    bass_voice: ExistingVoice = ExistingVoice(
+        pitches_at_beat=bass_pitches_at_beat,
+        is_above=False,
+    )
 
     # Step 4: Build KeyInfo from plan.local_key
     tonic_pc: int = plan.local_key.degree_to_midi(degree=1, octave=0) % 12
@@ -295,92 +301,78 @@ def generate_soprano_viterbi(
         tonic_pc=tonic_pc,
     )
 
-    # Step 4b: Build chord grid from schema bass degrees
-    assert len(plan.degrees_lower) == len(plan.degree_positions), (
-        f"degrees_lower ({len(plan.degrees_lower)}) and degree_positions "
-        f"({len(plan.degree_positions)}) length mismatch"
-    )
-    bass_degree_offsets: list[tuple[Fraction, int, Key]] = []
-    for i, degree in enumerate(plan.degrees_lower):
-        pos = plan.degree_positions[i]
-        offset: Fraction = phrase_degree_offset(
-            plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
+    # Step 4b: Build chord grid from harmonic grid or fallback to H3
+    chord_pcs_per_beat: list[frozenset[int]]
+    if harmonic_grid is not None:
+        # HRL-2: Use schema-annotated Roman numerals (primary path)
+        chord_pcs_per_beat = harmonic_grid.to_beat_list(beat_grid)
+    else:
+        # H3 fallback: derive chord from surface bass (deprecated path)
+        logger.warning("No harmonic grid for %s; falling back to H3 surface inference", plan.schema_name)
+        assert len(plan.degrees_lower) == len(plan.degree_positions), (
+            f"degrees_lower ({len(plan.degrees_lower)}) and degree_positions "
+            f"({len(plan.degree_positions)}) length mismatch"
         )
-        key_for_deg: Key = plan.degree_keys[i]
-        bass_midi_for_chord: int = key_for_deg.degree_to_midi(
-            degree=degree,
-            octave=0,
-        )
-        bass_degree_offsets.append((offset, bass_midi_for_chord, key_for_deg))
+        bass_degree_offsets: list[tuple[Fraction, int, Key]] = []
+        for i, degree in enumerate(plan.degrees_lower):
+            pos = plan.degree_positions[i]
+            offset: Fraction = phrase_degree_offset(
+                plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
+            )
+            key_for_deg: Key = plan.degree_keys[i]
+            bass_midi_for_chord: int = key_for_deg.degree_to_midi(
+                degree=degree,
+                octave=0,
+            )
+            bass_degree_offsets.append((offset, bass_midi_for_chord, key_for_deg))
 
-    # Pre-build KeyInfo + fallback triad for each schema degree position
-    degree_key_infos: list[KeyInfo] = []
-    degree_triads: list[frozenset[int]] = []
-    for _, bass_midi, deg_key in bass_degree_offsets:
-        deg_key_info: KeyInfo = KeyInfo(
-            pitch_class_set=deg_key.pitch_class_set,
-            tonic_pc=deg_key.degree_to_midi(degree=1, octave=0) % 12,
-        )
-        degree_key_infos.append(deg_key_info)
-        degree_triads.append(viterbi_triad_pcs(bass_midi=bass_midi, key=deg_key_info))
+        # Pre-build KeyInfo + fallback triad for each schema degree position
+        degree_key_infos: list[KeyInfo] = []
+        degree_triads: list[frozenset[int]] = []
+        for _, bass_midi, deg_key in bass_degree_offsets:
+            deg_key_info: KeyInfo = KeyInfo(
+                pitch_class_set=deg_key.pitch_class_set,
+                tonic_pc=deg_key.degree_to_midi(degree=1, octave=0) % 12,
+            )
+            degree_key_infos.append(deg_key_info)
+            degree_triads.append(viterbi_triad_pcs(bass_midi=bass_midi, key=deg_key_info))
 
-    # H3: derive chord from surface bass at each grid position.
-    # If surface bass is diatonic in the active key, build a triad from it
-    # (per-beat harmonic awareness). Otherwise fall back to the most recent
-    # schema degree's triad (H2 behaviour).
-    chord_pcs_per_beat: list[frozenset[int]] = []
-    for i, (grid_onset, _) in enumerate(grid_positions):
-        # Find most recent schema degree index
-        active_idx: int = 0
-        for j in range(len(bass_degree_offsets) - 1, -1, -1):
-            if bass_degree_offsets[j][0] <= grid_onset:
-                active_idx = j
-                break
-        fallback_chord: frozenset[int] = degree_triads[active_idx] if degree_triads else frozenset()
-        active_key: KeyInfo = degree_key_infos[active_idx] if degree_key_infos else key_info
-        # Surface bass triad if diatonic, else schema degree fallback
-        surface_bass_pc: int = leader_notes[i].midi_pitch % 12
-        if surface_bass_pc in active_key.pitch_class_set:
-            chord_pcs_per_beat.append(viterbi_triad_pcs(bass_midi=leader_notes[i].midi_pitch, key=active_key))
-        else:
-            chord_pcs_per_beat.append(fallback_chord)
+        # H3: derive chord from surface bass at each grid position.
+        # If surface bass is diatonic in the active key, build a triad from it
+        # (per-beat harmonic awareness). Otherwise fall back to the most recent
+        # schema degree's triad (H2 behaviour).
+        chord_pcs_per_beat = []
+        for i, (grid_onset, _) in enumerate(grid_positions):
+            # Find most recent schema degree index
+            active_idx: int = 0
+            for j in range(len(bass_degree_offsets) - 1, -1, -1):
+                if bass_degree_offsets[j][0] <= grid_onset:
+                    active_idx = j
+                    break
+            fallback_chord: frozenset[int] = degree_triads[active_idx] if degree_triads else frozenset()
+            active_key: KeyInfo = degree_key_infos[active_idx] if degree_key_infos else key_info
+            # Surface bass triad if diatonic, else schema degree fallback
+            surface_bass_midi: int = bass_pitches_at_beat[beat_grid[i]]
+            surface_bass_pc: int = surface_bass_midi % 12
+            if surface_bass_pc in active_key.pitch_class_set:
+                chord_pcs_per_beat.append(viterbi_triad_pcs(bass_midi=surface_bass_midi, key=active_key))
+            else:
+                chord_pcs_per_beat.append(fallback_chord)
 
-    # Step 5: Run Viterbi solver
-    result = solve_phrase(
-        leader_notes=leader_notes,
-        follower_knots=knots,
-        follower_low=plan.upper_range.low,
-        follower_high=plan.upper_range.high,
-        verbose=False,
+    # Step 5: Generate voice via Viterbi
+    notes_tuple = generate_voice(
+        structural_knots=knots,
+        rhythm_grid=grid_positions,
+        existing_voices=[bass_voice],
+        range_low=plan.upper_range.low,
+        range_high=plan.upper_range.high,
         key=key_info,
+        voice_id=TRACK_SOPRANO,
+        beats_per_bar=float(bar_length),
         chord_pcs_per_beat=chord_pcs_per_beat,
     )
 
-    # Step 6: Convert solver output to Notes
-    notes: list[Note] = []
-    for i, ((onset, dur), pitch) in enumerate(zip(grid_positions, result.pitches)):
-        # Handle final marker (duration < 0): extend previous note instead of creating new one
-        if dur < 0:
-            # This is the final endpoint marker; extend the previous note to phrase_end
-            if len(notes) > 0:
-                prev_note = notes[-1]
-                extended_dur: Fraction = onset - prev_note.offset
-                notes[-1] = Note(
-                    offset=prev_note.offset,
-                    pitch=prev_note.pitch,
-                    duration=extended_dur,
-                    voice=TRACK_SOPRANO,
-                )
-            # Don't create a new note for the marker
-            continue
-        notes.append(Note(
-            offset=onset,
-            pitch=pitch,
-            duration=dur,
-            voice=TRACK_SOPRANO,
-        ))
-
-    # Step 7: Validate and audit
+    # Step 6: Validate and audit
     # Build VoiceConfig (same pattern as generate_soprano_phrase)
     voice_config: VoiceConfig = VoiceConfig(
         voice_id=TRACK_SOPRANO,
@@ -403,7 +395,7 @@ def generate_soprano_viterbi(
 
     # Validate (hard invariants)
     validate_voice(
-        notes=tuple(notes),
+        notes=notes_tuple,
         config=voice_config,
         phrase_start=plan.start_offset,
         phrase_duration=plan.phrase_duration,
@@ -413,7 +405,7 @@ def generate_soprano_viterbi(
     structural_offsets: frozenset[Fraction] = frozenset(st[0] for st in structural_tones)
     prior_phrase_tail: Note | None = prior_upper[-1] if prior_upper else None
     violations = audit_voice(
-        notes=tuple(notes),
+        notes=notes_tuple,
         other_voices=other_voices,
         structural_offsets=structural_offsets,
         config=voice_config,
@@ -426,4 +418,4 @@ def generate_soprano_viterbi(
         logger.warning("viterbi soprano audit: %s at offset %s", v.detail, v.offset)
 
     # Return (notes, empty figure_names)
-    return tuple(notes), ()
+    return notes_tuple, ()

@@ -23,8 +23,9 @@ tracks:
 
 form: through_composed
 metre: "4/4"
+subject: call_response
 rhythmic_unit: "1/16"
-tempo: 100
+tempo: 120
 bass_treatment: contrapuntal
 tension: arch
 
@@ -50,6 +51,6 @@ sections:
 
   - name: peroratio
     character: ornate
-    schema_sequence: [passo_indietro, cadenza_composta]
+    schema_sequence: [fenaroli, passo_indietro, cadenza_composta]
     accompany_texture: chordal
     lead_voice: 1

@@ -33,6 +33,13 @@ class LeaderNote:
     midi_pitch: int
 
 
+@dataclass(frozen=True)
+class ExistingVoice:
+    """One already-composed voice for pairwise evaluation."""
+    pitches_at_beat: dict[float, int]   # beat -> MIDI pitch
+    is_above: bool                       # True if this voice is registrally above the follower
+
+
 @dataclass
 class Corridor:
     """Legal follower pitches at one grid position."""

@@ -17,6 +17,7 @@ from viterbi.costs import transition_cost, ARC_PEAK_POSITION, ARC_SIGMA, ARC_REA
 from viterbi.scale import interval_name, is_consonant, scale_degree_distance, KeyInfo, CMAJ
 from viterbi.mtypes import (
     Corridor,
+    ExistingVoice,
     Knot,
     PhraseResult,
     pitch_name,
@@ -111,9 +112,11 @@ def find_path(
     knots: list[Knot],
     final_pitch: int,
     phrase_length: int,
+    existing_voices: list[ExistingVoice],
     verbose: bool = False,
     key: KeyInfo = CMAJ,
     chord_pcs_at: list[frozenset[int]] | None = None,
+    hard_constraints: bool = True,
 ) -> tuple[list[float], list[int], float]:
     """Find minimum-cost path through corridors with knot constraints."""
     knot_map = {k.beat: k.midi_pitch for k in knots}
@@ -127,15 +130,28 @@ def find_path(
             legal.append([knot_map[c.beat]])
         else:
             legal.append(list(c.legal_pitches))
-    # Precompute nearby leader pitch-class sets for cross-relation detection
-    nearby_ldr_pcs: list[frozenset[int]] = []
+
+    # Precompute per-voice nearby pitch-class sets for cross-relation detection
+    n_voices = len(existing_voices)
+    nearby_pcs: list[list[frozenset[int]]] = []  # [beat_index][voice_index]
     for t in range(n_beats):
-        pcs = frozenset(
-            leader_map[beats[j]] % 12
-            for j in range(n_beats)
-            if abs(beats[j] - beats[t]) <= CROSS_RELATION_BEAT_WINDOW
-        )
-        nearby_ldr_pcs.append(pcs)
+        per_voice: list[frozenset[int]] = []
+        for v in existing_voices:
+            pcs = frozenset(
+                v.pitches_at_beat[beats[j]] % 12
+                for j in range(n_beats)
+                if abs(beats[j] - beats[t]) <= CROSS_RELATION_BEAT_WINDOW
+            )
+            per_voice.append(pcs)
+        nearby_pcs.append(per_voice)
+
+    # Pre-resolve voice pitches per beat: voice_pitches[t][v] = MIDI pitch
+    voice_pitches: list[list[int]] = [
+        [v.pitches_at_beat[beats[t]] for v in existing_voices]
+        for t in range(n_beats)
+    ]
+    is_above_list: list[bool] = [v.is_above for v in existing_voices]
+
     contour_targets = compute_contour_targets(corridors, legal)
 
     # DP tables: dp[t] maps State -> cost, bt[t] maps State -> predecessor State or None
@@ -154,29 +170,55 @@ def find_path(
         cost, bd = transition_cost(
             prev_pitch=start_pitch,
             curr_pitch=curr_p,
-            prev_leader=leader_map[beats[0]],
-            curr_leader=leader_map[beats[1]],
             prev_beat_strength=corridors[0].beat_strength,
             curr_beat_strength=corridors[1].beat_strength,
+            prev_others=voice_pitches[0],
+            curr_others=voice_pitches[1],
+            nearby_pcs_per_voice=nearby_pcs[1],
+            is_above_per_voice=is_above_list,
             prev_prev_pitch=None,
             phrase_position=phrase_pos,
             target_pitch=final_pitch,
             run_count=1,
             key=key,
-            nearby_leader_pcs=nearby_ldr_pcs[1],
             contour_target=contour_targets[1],
             chord_pcs=chord_pcs_at[1] if chord_pcs_at else frozenset(),
+            hard_constraints=hard_constraints,
         )
+        if cost == INF:
+            continue
         state: State = (start_pitch, curr_p, new_dir, 1)
         if state not in dp[1] or cost < dp[1][state]:
             dp[1][state] = cost
             bt[1][state] = None
             if details is not None:
                 details[1][state] = bd
+    # Check if beat 1 has no valid states due to hard constraints
+    if hard_constraints and not dp[1]:
+        import logging
+        logging.getLogger("andante.viterbi").warning(
+            "Hard constraints blocked all paths at beat %s — "
+            "falling back to soft-only for this phrase",
+            beats[1],
+        )
+        return find_path(
+            corridors=corridors,
+            knots=knots,
+            final_pitch=final_pitch,
+            phrase_length=phrase_length,
+            existing_voices=existing_voices,
+            verbose=verbose,
+            key=key,
+            chord_pcs_at=chord_pcs_at,
+            hard_constraints=False,
+        )
     # Beats 2..n-1: full second-order transitions
     for t in range(2, n_beats):
         phrase_pos = t / max(n_beats - 1, 1)
         prev_dp = dp[t - 1]
+        t_prev_others = voice_pitches[t - 1]
+        t_curr_others = voice_pitches[t]
+        t_nearby_pcs = nearby_pcs[t]
         for curr_p in legal[t]:
             for prev_state, prev_cost in prev_dp.items():
                 pp, prev_p, rd, rc = prev_state
@@ -185,19 +227,23 @@ def find_path(
                 cost, bd = transition_cost(
                     prev_pitch=prev_p,
                     curr_pitch=curr_p,
-                    prev_leader=leader_map[beats[t - 1]],
-                    curr_leader=leader_map[beats[t]],
                     prev_beat_strength=corridors[t - 1].beat_strength,
                     curr_beat_strength=corridors[t].beat_strength,
+                    prev_others=t_prev_others,
+                    curr_others=t_curr_others,
+                    nearby_pcs_per_voice=t_nearby_pcs,
+                    is_above_per_voice=is_above_list,
                     prev_prev_pitch=pp,
                     phrase_position=phrase_pos,
                     target_pitch=final_pitch,
                     run_count=new_rc,
                     key=key,
-                    nearby_leader_pcs=nearby_ldr_pcs[t],
                     contour_target=contour_targets[t],
                     chord_pcs=chord_pcs_at[t] if chord_pcs_at else frozenset(),
+                    hard_constraints=hard_constraints,
                 )
+                if cost == INF:
+                    continue
                 total = prev_cost + cost
                 state = (prev_p, curr_p, new_rd, new_rc)
                 if state not in dp[t] or total < dp[t][state]:
@@ -207,6 +253,25 @@ def find_path(
                         details[t][state] = bd
         # Beam prune to keep DP tractable
         _beam_prune(dp[t], bt[t], details[t] if details is not None else None, BEAM_WIDTH)
+        # Infeasibility fallback: if all transitions were hard-blocked, retry with soft-only
+        if hard_constraints and not dp[t]:
+            import logging
+            logging.getLogger("andante.viterbi").warning(
+                "Hard constraints blocked all paths at beat %s — "
+                "falling back to soft-only for this phrase",
+                beats[t],
+            )
+            return find_path(
+                corridors=corridors,
+                knots=knots,
+                final_pitch=final_pitch,
+                phrase_length=phrase_length,
+                existing_voices=existing_voices,
+                verbose=verbose,
+                key=key,
+                chord_pcs_at=chord_pcs_at,
+                hard_constraints=False,
+            )
     # Find best final state
     end_pitch = knot_map[beats[-1]]
     best_cost = INF
@@ -279,8 +344,9 @@ def _print_path(
                       f"lr={bd.get('leap_rec', 0):.0f} z={bd.get('zigzag', 0):.0f} "
                       f"r={bd.get('run', 0):.0f} d={bd.get('diss', 0):.0f} "
                       f"p={bd.get('phrase', 0):.1f} xr={bd.get('cross_rel', 0):.0f} "
-                      f"sp={bd.get('spacing', 0):.0f} iq={bd.get('iv_qual', 0):.1f} "
-                      f"ct={bd.get('contour', 0):.1f} ch={bd.get('chord', 0):.1f}]"
+                      f"sp={bd.get('spacing', 0):.0f} vc={bd.get('crossing', 0):.0f} "
+                      f"iq={bd.get('iv_qual', 0):.1f} ct={bd.get('contour', 0):.1f} "
+                      f"ch={bd.get('chord', 0):.1f}]"
                       f"{'  run=' + str(rc) if rc > 2 else ''}")
         strength = corridors[i].beat_strength
         ct_str = ""

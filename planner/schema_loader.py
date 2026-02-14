@@ -53,11 +53,20 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
         segment = data["segment"]
         raw_soprano = segment.get("soprano_degrees", [])
         raw_bass = segment.get("bass_degrees", [])
+        raw_harmony = segment.get("harmony")
     else:
         raw_soprano = data.get("soprano_degrees", [])
         raw_bass = data.get("bass_degrees", [])
+        raw_harmony = data.get("harmony")
     soprano_degrees, soprano_directions = parse_signed_degrees(raw_list=raw_soprano)
     bass_degrees, bass_directions = parse_signed_degrees(raw_list=raw_bass)
+    # Parse harmony and validate length
+    harmony: tuple[str, ...] | None = None
+    if raw_harmony is not None:
+        harmony = tuple(raw_harmony) if isinstance(raw_harmony, list) else (raw_harmony,)
+        assert len(harmony) == len(soprano_degrees), (
+            f"Schema '{name}': harmony length {len(harmony)} != soprano_degrees length {len(soprano_degrees)}"
+        )
     min_bars, max_bars = _parse_bars(data=data["bars"])
     # Derive entry/exit from first/last degrees
     entry = Arrival(soprano=soprano_degrees[0], bass=bass_degrees[0])
@@ -83,6 +92,7 @@ def _parse_schema(name: str, data: dict[str, Any]) -> Schema:
         figuration_profile=data.get("figuration_profile", "galant_general"),
         cadence_approach=data.get("cadence_approach", False),
         typical_keys=parse_typical_keys(raw=data.get("typical_keys")),
+        harmony=harmony,
     )
 
 

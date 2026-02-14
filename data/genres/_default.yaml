@@ -6,7 +6,7 @@ voices: 2
 form: binary
 metre: "4/4"
 rhythmic_unit: "1/8"
-tempo: 80
+tempo: 100
 bass_treatment: contrapuntal
 
 sections:

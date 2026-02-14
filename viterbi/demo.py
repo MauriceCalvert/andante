@@ -11,8 +11,22 @@ import os
 import sys
 from viterbi.midi_out import write_midi
 from viterbi.pipeline import solve_phrase
-from viterbi.mtypes import Knot, LeaderNote, pitch_name
+from viterbi.mtypes import ExistingVoice, Knot, LeaderNote, pitch_name
 from viterbi.scale import CMAJ
+
+
+def _solve_with_leader(
+    leader: list[LeaderNote],
+    knots: list[Knot],
+    **kwargs,
+) -> object:
+    """Convenience: convert LeaderNote list to new solve_phrase API."""
+    beat_grid = [ln.beat for ln in leader]
+    voice = ExistingVoice(
+        pitches_at_beat={ln.beat: ln.midi_pitch for ln in leader},
+        is_above=False,
+    )
+    return solve_phrase(beat_grid, [voice], knots, **kwargs)
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
 
@@ -49,7 +63,7 @@ def example_1_rising_scale() -> None:
         Knot(beat=7, midi_pitch=72),   # C5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=CMAJ)
+    result = _solve_with_leader(leader, knots, verbose=True, key=CMAJ)
     _write_output(result, "example_1.mid")
 
 
@@ -83,7 +97,7 @@ def example_2_descending_bass() -> None:
         Knot(beat=7, midi_pitch=79),   # G5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True)
+    result = _solve_with_leader(leader, knots, verbose=True)
     _write_output(result, "example_2.mid")
 
 
@@ -119,7 +133,7 @@ def example_3_tight_knots() -> None:
         Knot(beat=7, midi_pitch=76),   # E5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True)
+    result = _solve_with_leader(leader, knots, verbose=True)
     _write_output(result, "example_3.mid")
 
 
@@ -160,7 +174,7 @@ def example_4_realistic_bass() -> None:
         Knot(beat=11, midi_pitch=72),   # C5  (home)
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, follower_low=60, follower_high=84, verbose=True)
+    result = _solve_with_leader(leader, knots, follower_low=60, follower_high=84, verbose=True)
     _write_output(result, "example_4.mid")
 
 
@@ -199,7 +213,7 @@ def example_5_sixteen_beats() -> None:
         Knot(beat=15, midi_pitch=72),   # C5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=CMAJ)
+    result = _solve_with_leader(leader, knots, verbose=True, key=CMAJ)
     _write_output(result, "example_5.mid")
 
 
@@ -238,7 +252,7 @@ def example_6_quaver_grid() -> None:
         Knot(beat=7.5, midi_pitch=72),    # C5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=CMAJ)
+    result = _solve_with_leader(leader, knots, verbose=True, key=CMAJ)
     _write_output(result, "example_6.mid")
 
 
@@ -273,7 +287,7 @@ def example_7_g_major_gavotte() -> None:
         Knot(beat=11, midi_pitch=67),   # G4
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=g_major)
+    result = _solve_with_leader(leader, knots, verbose=True, key=g_major)
     _write_output(result, "example_7.mid")
 
 
@@ -313,7 +327,7 @@ def example_8_d_minor_sarabande() -> None:
         Knot(beat=15, midi_pitch=74),   # D5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=d_minor)
+    result = _solve_with_leader(leader, knots, verbose=True, key=d_minor)
     _write_output(result, "example_8.mid")
 
 
@@ -358,7 +372,7 @@ def example_9_f_major_longer() -> None:
         Knot(beat=19, midi_pitch=77),   # F5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=f_major)
+    result = _solve_with_leader(leader, knots, verbose=True, key=f_major)
     _write_output(result, "example_9.mid")
 
 
@@ -399,7 +413,7 @@ def example_10_a_minor_invention() -> None:
         Knot(beat=15, midi_pitch=69),   # A4
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=a_minor)
+    result = _solve_with_leader(leader, knots, verbose=True, key=a_minor)
     _write_output(result, "example_10.mid")
 
 
@@ -429,7 +443,7 @@ def example_11_bb_major_short() -> None:
         Knot(beat=7, midi_pitch=70),    # Bb4
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=bb_major)
+    result = _solve_with_leader(leader, knots, verbose=True, key=bb_major)
     _write_output(result, "example_11.mid")
 
 
@@ -469,7 +483,7 @@ def example_12_eb_major_walking() -> None:
         Knot(beat=15, midi_pitch=75),   # Eb5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=eb_major)
+    result = _solve_with_leader(leader, knots, verbose=True, key=eb_major)
     _write_output(result, "example_12.mid")
 
 
@@ -530,7 +544,7 @@ def example_13_c_minor_quaver() -> None:
         Knot(beat=15.5, midi_pitch=72),   # C5
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=c_minor)
+    result = _solve_with_leader(leader, knots, verbose=True, key=c_minor)
     _write_output(result, "example_13.mid")
 
 
@@ -570,7 +584,7 @@ def example_14_g_major_cadence() -> None:
         Knot(beat=7.5, midi_pitch=67),    # G4
     ]
     _describe_inputs(leader, knots)
-    result = solve_phrase(leader, knots, verbose=True, key=g_major)
+    result = _solve_with_leader(leader, knots, verbose=True, key=g_major)
     _write_output(result, "example_14.mid")
 
 

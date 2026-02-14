@@ -15,9 +15,8 @@ from builder.types import Note
 from shared.constants import STRONG_BEAT_DISSONANT, TRACK_BASS
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
-from viterbi.corridors import build_corridors
-from viterbi.mtypes import Knot, LeaderNote
-from viterbi.pathfinder import find_path
+from viterbi.generate import generate_voice
+from viterbi.mtypes import ExistingVoice, Knot
 from viterbi.scale import KeyInfo
 
 logger = logging.getLogger(__name__)
@@ -38,6 +37,7 @@ def generate_bass_viterbi(
     plan: PhrasePlan,
     soprano_notes: tuple[Note, ...],
     prior_lower: tuple[Note, ...] = (),
+    harmonic_grid: "HarmonicGrid | None" = None,
 ) -> tuple[Note, ...]:
     """Generate walking bass via Viterbi pathfinding against soprano.
 
@@ -186,9 +186,10 @@ def generate_bass_viterbi(
         knots.insert(0, Knot(beat=first_beat, midi_pitch=start_midi))
 
     # ================================================================
-    # Step 3 — Build leader notes (soprano at each grid position)
+    # Step 3 — Build soprano ExistingVoice at each grid position
     # ================================================================
-    leader_notes: list[LeaderNote] = []
+    beat_grid: list[float] = [float(onset) for onset, _ in grid_positions]
+    soprano_pitches_at_beat: dict[float, int] = {}
     prev_sop: int | None = None
     for onset, _ in grid_positions:
         sp: int | None = _soprano_at(
@@ -199,86 +200,41 @@ def generate_bass_viterbi(
                 f"No soprano at bass grid offset {onset} and no previous to sustain"
             )
             sp = prev_sop
-        leader_notes.append(LeaderNote(beat=float(onset), midi_pitch=sp))
+        soprano_pitches_at_beat[float(onset)] = sp
         prev_sop = sp
+    soprano_voice: ExistingVoice = ExistingVoice(
+        pitches_at_beat=soprano_pitches_at_beat,
+        is_above=True,
+    )
 
     # ================================================================
-    # Step 4 — Build corridors with voice-crossing post-filter
+    # Step 4 — Generate voice via Viterbi
     # ================================================================
     key_info: KeyInfo = KeyInfo(
         pitch_class_set=plan.local_key.pitch_class_set,
         tonic_pc=plan.local_key.degree_to_midi(degree=1, octave=0) % 12,
     )
-    corridors = build_corridors(
-        leader_notes=leader_notes,
-        follower_low=plan.lower_range.low,
-        follower_high=plan.lower_range.high,
+
+    # HRL-2: Build chord awareness from harmonic grid
+    chord_pcs: list[frozenset[int]] | None = None
+    if harmonic_grid is not None:
+        chord_pcs = harmonic_grid.to_beat_list(beat_grid)
+
+    notes_tuple = generate_voice(
+        structural_knots=knots,
+        rhythm_grid=grid_positions,
+        existing_voices=[soprano_voice],
+        range_low=plan.lower_range.low,
+        range_high=plan.lower_range.high,
         key=key_info,
+        voice_id=TRACK_BASS,
         beats_per_bar=float(bar_length),
-    )
-    # L004: remove bass pitches above soprano (leader_pitch)
-    for corridor in corridors:
-        corridor.legal_pitches = [
-            p for p in corridor.legal_pitches
-            if p <= corridor.leader_pitch
-        ]
-        assert len(corridor.legal_pitches) > 0, (
-            f"No legal bass pitch at beat {corridor.beat} below soprano "
-            f"{corridor.leader_pitch} in range "
-            f"[{plan.lower_range.low}, {plan.lower_range.high}]"
-        )
-
-    # ================================================================
-    # Step 5 — Solve
-    # ================================================================
-    assert len(knots) >= 2, f"Need >= 2 bass knots, got {len(knots)}"
-    assert abs(knots[0].beat - leader_notes[0].beat) < 1e-6, (
-        f"First knot {knots[0].beat} != first leader {leader_notes[0].beat}"
-    )
-    assert abs(knots[-1].beat - leader_notes[-1].beat) < 1e-6, (
-        f"Last knot {knots[-1].beat} != last leader {leader_notes[-1].beat}"
-    )
-
-    _beats, pitches, total_cost = find_path(
-        corridors=corridors,
-        knots=knots,
-        final_pitch=knots[-1].midi_pitch,
-        phrase_length=len(leader_notes),
-        verbose=False,
-        key=key_info,
-        chord_pcs_at=None,
-    )
-    logger.debug(
-        "bass_viterbi: phrase at %s, cost=%.2f, %d notes",
-        plan.start_offset, total_cost, len(pitches),
+        chord_pcs_per_beat=chord_pcs,
     )
 
     # ================================================================
-    # Step 6 — Convert solver output to Notes
+    # Step 5 — Validate
     # ================================================================
-    notes: list[Note] = []
-    for (onset, dur), pitch in zip(grid_positions, pitches):
-        # Negative duration = final endpoint marker; extend previous note
-        if dur < 0:
-            if notes:
-                prev_note: Note = notes[-1]
-                notes[-1] = Note(
-                    offset=prev_note.offset,
-                    pitch=prev_note.pitch,
-                    duration=onset - prev_note.offset,
-                    voice=TRACK_BASS,
-                )
-            continue
-        notes.append(Note(
-            offset=onset,
-            pitch=pitch,
-            duration=dur,
-            voice=TRACK_BASS,
-        ))
+    validate_bass_notes(notes=list(notes_tuple), plan=plan, soprano_notes=soprano_notes)
 
-    # ================================================================
-    # Step 7 — Validate
-    # ================================================================
-    validate_bass_notes(notes=notes, plan=plan, soprano_notes=soprano_notes)
-
-    return tuple(notes)
+    return notes_tuple

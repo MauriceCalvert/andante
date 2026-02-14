@@ -13,7 +13,7 @@ import random
 import sys
 from viterbi.corridors import build_corridors
 from viterbi.costs import transition_cost
-from viterbi.mtypes import Knot, LeaderNote
+from viterbi.mtypes import ExistingVoice, Knot, LeaderNote
 from viterbi.pathfinder import find_path, _sign, _next_run, CROSS_RELATION_BEAT_WINDOW, compute_contour_targets
 from viterbi.scale import build_pitch_set, is_consonant
 
@@ -28,21 +28,33 @@ def brute_force_cost(
     path: list[int],
     corridors_list: list,
     n_beats: int,
+    existing_voices: list[ExistingVoice],
     contour_targets: list[int] | None = None,
     chord_pcs_at: list[frozenset[int]] | None = None,
 ) -> float:
     """Compute total path cost with exact run-state tracking."""
-    # Precompute nearby leader pitch-class sets for cross-relation detection
     beats = [c.beat for c in corridors_list]
-    leader_map = {c.beat: c.leader_pitch for c in corridors_list}
-    nearby_ldr_pcs: list[frozenset[int]] = []
+
+    # Precompute per-voice nearby pitch-class sets for cross-relation detection
+    nearby_pcs: list[list[frozenset[int]]] = []
     for t in range(n_beats):
-        pcs = frozenset(
-            leader_map[beats[j]] % 12
-            for j in range(n_beats)
-            if abs(beats[j] - beats[t]) <= CROSS_RELATION_BEAT_WINDOW
-        )
-        nearby_ldr_pcs.append(pcs)
+        per_voice: list[frozenset[int]] = []
+        for v in existing_voices:
+            pcs = frozenset(
+                v.pitches_at_beat[beats[j]] % 12
+                for j in range(n_beats)
+                if abs(beats[j] - beats[t]) <= CROSS_RELATION_BEAT_WINDOW
+            )
+            per_voice.append(pcs)
+        nearby_pcs.append(per_voice)
+
+    # Pre-resolve voice pitches per beat
+    voice_pitches: list[list[int]] = [
+        [v.pitches_at_beat[beats[t]] for v in existing_voices]
+        for t in range(n_beats)
+    ]
+    is_above_list: list[bool] = [v.is_above for v in existing_voices]
+
     total = 0.0
     run_dir = 0
     run_count = 1
@@ -57,15 +69,16 @@ def brute_force_cost(
         cost, _ = transition_cost(
             prev_pitch=prev_p,
             curr_pitch=curr_p,
-            prev_leader=corridors_list[t - 1].leader_pitch,
-            curr_leader=corridors_list[t].leader_pitch,
             prev_beat_strength=corridors_list[t - 1].beat_strength,
             curr_beat_strength=corridors_list[t].beat_strength,
+            prev_others=voice_pitches[t - 1],
+            curr_others=voice_pitches[t],
+            nearby_pcs_per_voice=nearby_pcs[t],
+            is_above_per_voice=is_above_list,
             prev_prev_pitch=prev_prev_p,
             phrase_position=phrase_pos,
             target_pitch=path[-1],
             run_count=run_count,
-            nearby_leader_pcs=nearby_ldr_pcs[t],
             contour_target=ct,
             chord_pcs=chord_pcs_at[t] if chord_pcs_at else frozenset(),
         )
@@ -85,6 +98,16 @@ def random_leader(
         candidates = [q for q in pitches if abs(q - p) <= 5]
         p = random.choice(candidates)
     return leader
+
+
+def leader_to_existing_voice(
+    leader_notes: list[LeaderNote],
+) -> ExistingVoice:
+    """Convert LeaderNote list to ExistingVoice (is_above=False for bass)."""
+    return ExistingVoice(
+        pitches_at_beat={ln.beat: ln.midi_pitch for ln in leader_notes},
+        is_above=False,
+    )
 
 
 def random_knots(
@@ -126,8 +149,11 @@ def run_one_trial(
     leader = random_leader(n_beats)
     knots = random_knots(n_beats, leader)
     knot_map = {k.beat: k.midi_pitch for k in knots}
+    existing_voice = leader_to_existing_voice(leader)
+    beat_grid = [float(b) for b in range(n_beats)]
     corridors = build_corridors(
-        leader,
+        beat_grid=beat_grid,
+        existing_voices=[existing_voice],
         follower_low=FOLLOWER_LOW,
         follower_high=FOLLOWER_HIGH,
     )
@@ -136,6 +162,7 @@ def run_one_trial(
         knots=knots,
         final_pitch=knots[-1].midi_pitch,
         phrase_length=n_beats,
+        existing_voices=[existing_voice],
         verbose=False,
     )
     if viterbi_cost == INF:
@@ -152,7 +179,11 @@ def run_one_trial(
     best_cost = INF
     best_path = None
     for path in all_paths:
-        cost = brute_force_cost(path, corridors, n_beats, contour_targets=ct)
+        cost = brute_force_cost(
+            path, corridors, n_beats,
+            existing_voices=[existing_voice],
+            contour_targets=ct,
+        )
         if cost < best_cost:
             best_cost = cost
             best_path = path
@@ -175,8 +206,11 @@ def main() -> None:
     print(f"Brute-force optimality test: {n_beats} beats, {n_trials} trials")
     print(f"  Follower range: {FOLLOWER_LOW}-{FOLLOWER_HIGH}")
     sample_leader = random_leader(n_beats)
+    sample_voice = leader_to_existing_voice(sample_leader)
+    sample_beat_grid = [float(b) for b in range(n_beats)]
     sample_corridors = build_corridors(
-        sample_leader,
+        beat_grid=sample_beat_grid,
+        existing_voices=[sample_voice],
         follower_low=FOLLOWER_LOW,
         follower_high=FOLLOWER_HIGH,
     )

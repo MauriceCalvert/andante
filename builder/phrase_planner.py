@@ -496,8 +496,9 @@ def _assign_imitation_roles(
 
     Exordium (sec_idx 0): first non-cadential phrase with lead_voice gets
     "subject", second gets "answer" (with countersubject).
-    Later sections: only the first non-cadential phrase gets "subject";
-    remaining phrases are episodes (imitation_role=None).
+    Peroratio (last section): first non-cadential phrase gets "stretto".
+    Other sections: first non-cadential phrase gets "subject";
+    remaining phrases get "episode" (subject-fragment sequences).
     """
     boundaries: tuple[int, ...] = schema_chain.section_boundaries
     if not boundaries:
@@ -505,22 +506,31 @@ def _assign_imitation_roles(
     # Build section ranges: [(start, end), ...]
     section_starts: list[int] = [0] + list(boundaries[:-1])
     section_ends: list[int] = list(boundaries)
+    last_section_idx: int = len(section_starts) - 1
     for sec_idx in range(len(section_starts)):
         start: int = section_starts[sec_idx]
         end: int = section_ends[sec_idx]
         assigned: int = 0
+        is_peroratio: bool = (sec_idx == last_section_idx)
         for i in range(start, end):
             if plans[i].is_cadential:
                 continue
             if plans[i].lead_voice is None:
                 continue
             if assigned == 0:
-                plans[i] = replace(plans[i], imitation_role="subject")
+                if is_peroratio:
+                    # Peroratio: first non-cadential phrase is stretto (INV-3)
+                    plans[i] = replace(plans[i], imitation_role="stretto")
+                else:
+                    plans[i] = replace(plans[i], imitation_role="subject")
                 assigned += 1
             elif assigned == 1 and sec_idx == 0:
                 # Only the exordium gets both subject + answer
                 plans[i] = replace(plans[i], imitation_role="answer")
                 assigned += 1
+            else:
+                # Remaining non-cadential phrases with lead_voice are episodes (INV-2)
+                plans[i] = replace(plans[i], imitation_role="episode")
     return plans
 
 

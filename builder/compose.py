@@ -152,6 +152,7 @@ def compose_phrases(
         recall_figure: str | None = None
         if plan.recall_motif and head_motif is not None:
             recall_figure = head_motif.figure_name
+        is_last_phrase: bool = plan_idx == len(phrase_plans) - 1
         result: PhraseResult = write_phrase(
             plan=plan,
             prior_upper=tuple(upper_notes),
@@ -160,6 +161,7 @@ def compose_phrases(
             next_phrase_entry_key=next_entry_key,
             recall_figure_name=recall_figure,
             fugue=fugue,
+            is_final=is_last_phrase,
         )
         # Extract head motif after first non-cadential phrase
         if head_motif is None and not plan.is_cadential:

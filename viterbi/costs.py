@@ -18,8 +18,11 @@ from viterbi.scale import (
 # Cost weights
 # ---------------------------------------------------------------------------
 
+# Hard constraint sentinel — transition is forbidden
+HARD = float("inf")
+
 # Step size (interval between consecutive follower pitches)
-COST_STEP_UNISON = 8.0        # stasis: must exceed third to prevent plateaus
+COST_STEP_UNISON = 15.0       # stasis: must exceed third to prevent plateaus
 COST_STEP_SECOND = 0.0        # stepwise: the ideal motion
 COST_STEP_THIRD = 1.5         # small leap: routine arpeggio interval
 COST_STEP_FOURTH = 5.0        # normal working leap
@@ -34,7 +37,6 @@ COST_STEP_BEYOND_OCTAVE_PER = 5.0    # per additional degree beyond octave
 COST_CONTRARY_BONUS = -2.0    # reward contrary motion
 COST_OBLIQUE_BONUS = -0.5     # slight reward for oblique
 COST_SIMILAR_PENALTY = 1.0    # slight cost for similar motion
-COST_PARALLEL_PERFECT = 25.0  # parallel 5ths/octaves: severe
 
 # Melodic shape
 COST_LEAP_NO_RECOVERY = 20.0  # leap not followed by step in opposite direction
@@ -50,7 +52,7 @@ COST_UNRESOLVED_DISS = 50.0   # neither approach nor departure by step
 # Strong-beat dissonance classification
 COST_SUSPENSION = 2.0                  # prepared dissonance resolving down by step
 COST_ACCENTED_PASSING_TONE = 6.0       # stepwise through-motion on strong beat
-COST_UNPREPARED_STRONG_DISS = 50.0     # unprepared strong-beat dissonance
+COST_UNPREPARED_STRONG_DISS = 120.0    # unprepared strong-beat dissonance
 
 # Phrase position
 COST_CADENCE_BONUS = -2.5     # discount for stepwise approach near end
@@ -76,6 +78,13 @@ COST_PERFECT_ON_STRONG = 1.5
 
 # Chord-tone preference (schema-derived)
 COST_NON_CHORD_TONE = 5.0     # non-chord-tone on strong beat
+
+# Tritone surcharge (ic=6 is uniquely harsh in two-part texture)
+COST_TRITONE = 80.0
+
+# Voice crossing
+COST_VOICE_CROSSING_BASE = 15.0           # flat penalty when follower enters other voice's register
+COST_VOICE_CROSSING_PER_SEMITONE = 3.0    # additional cost per semitone of crossing depth
 
 # Local replica of CROSS_RELATION_PAIRS from shared/constants.py
 # Pairs of pitch classes that form chromatic cross-relations
@@ -120,15 +129,9 @@ def motion_cost(
     prev_leader: int,
     curr_leader: int,
 ) -> float:
-    """Cost based on relative motion between voices."""
+    """Cost based on relative motion between voices (contrary/oblique/similar)."""
     f_dir = curr_follower - prev_follower
     l_dir = curr_leader - prev_leader
-    if f_dir != 0 and l_dir != 0:
-        interval = abs(curr_follower - curr_leader)
-        if is_perfect(interval):
-            prev_interval = abs(prev_follower - prev_leader)
-            if is_perfect(prev_interval) and (interval % 12) == (prev_interval % 12):
-                return COST_PARALLEL_PERFECT
     if f_dir * l_dir < 0:
         return COST_CONTRARY_BONUS
     if f_dir == 0 or l_dir == 0:
@@ -213,13 +216,14 @@ def dissonance_at_departure(
     interval = abs(pitch - leader_pitch)
     if is_consonant(interval):
         return 0.0
+    tritone_surcharge: float = COST_TRITONE if (interval % 12) == 6 else 0.0
     if beat_strength == "strong":
         # Suspension: prepared (held from previous beat) + resolved down by step
         is_prepared = (approach_pitch is not None and approach_pitch == pitch)
         resolves_down = (departure_pitch < pitch
                          and scale_degree_distance(pitch, departure_pitch, key) == 1)
         if is_prepared and resolves_down:
-            return COST_SUSPENSION
+            return COST_SUSPENSION + tritone_surcharge
         # Accented passing tone: step approach + step departure, same direction
         approached_by_step = (approach_pitch is not None
                               and scale_degree_distance(approach_pitch, pitch, key) == 1)
@@ -228,9 +232,9 @@ def dissonance_at_departure(
             approach_dir = pitch - approach_pitch
             departure_dir = departure_pitch - pitch
             if approach_dir * departure_dir > 0:
-                return COST_ACCENTED_PASSING_TONE
+                return COST_ACCENTED_PASSING_TONE + tritone_surcharge
         # Anything else: unprepared / unresolved strong-beat dissonance
-        return COST_UNPREPARED_STRONG_DISS
+        return COST_UNPREPARED_STRONG_DISS + tritone_surcharge
     approached_by_step = (approach_pitch is not None
                           and scale_degree_distance(approach_pitch, pitch, key) == 1)
     left_by_step = scale_degree_distance(pitch, departure_pitch, key) == 1
@@ -242,8 +246,8 @@ def dissonance_at_departure(
         base_cost = COST_UNRESOLVED_DISS
     # Moderate beats: 3× the weak-beat cost
     if beat_strength == "moderate":
-        return base_cost * 3.0
-    return base_cost
+        return base_cost * 3.0 + tritone_surcharge
+    return base_cost + tritone_surcharge
 
 
 def phrase_position_cost(
@@ -344,52 +348,245 @@ def chord_tone_cost(
     return COST_NON_CHORD_TONE
 
 
+def voice_crossing_cost(
+    follower_pitch: int,
+    other_pitch: int,
+    is_above: bool,
+) -> float:
+    """Cost when follower crosses into other voice's register.
+
+    is_above=True means the other voice is above the follower
+    (e.g. soprano above bass). Crossing = follower above other.
+    Graduated: deeper crossing costs more.
+    """
+    if is_above and follower_pitch > other_pitch:
+        depth = follower_pitch - other_pitch
+        return COST_VOICE_CROSSING_BASE + COST_VOICE_CROSSING_PER_SEMITONE * depth
+    if not is_above and follower_pitch < other_pitch:
+        depth = other_pitch - follower_pitch
+        return COST_VOICE_CROSSING_BASE + COST_VOICE_CROSSING_PER_SEMITONE * depth
+    return 0.0
+
+
+def hard_constraint_cost(
+    prev_prev_pitch: int | None,
+    prev_pitch: int,
+    curr_pitch: int,
+    curr_others: list[int],
+    prev_others: list[int],
+    curr_beat_strength: str,
+    key: KeyInfo,
+    is_above_per_voice: list[bool],
+) -> float:
+    """Hard constraints: return HARD (inf) if any rule is violated, else 0.0.
+
+    Six rules enforcing fundamental counterpoint correctness:
+    - HC1: Anti-stasis (three consecutive identical pitches)
+    - HC2: Spacing ceiling (>24 semitones)
+    - HC3: Parallel perfects (5ths/octaves)
+    - HC4: Tritone on strong beat
+    - HC5: Leap recovery (step back after leap ≥4th)
+    - HC6: Similar-motion leaps (both voices leap ≥3rd in same direction)
+    """
+    # HC1 — Anti-stasis: three consecutive identical pitches
+    if prev_prev_pitch is not None:
+        if prev_prev_pitch == prev_pitch == curr_pitch:
+            return HARD
+
+    # HC2 — Spacing ceiling: >24 semitones (2 octaves)
+    for i in range(len(curr_others)):
+        if abs(curr_pitch - curr_others[i]) > 24:
+            return HARD
+
+    # HC3 — Parallel perfects: parallel 5ths/octaves
+    for i in range(len(curr_others)):
+        # Both voices must move
+        if prev_pitch != curr_pitch and prev_others[i] != curr_others[i]:
+            curr_interval = abs(curr_pitch - curr_others[i])
+            prev_interval = abs(prev_pitch - prev_others[i])
+            # Both intervals must be perfect and same interval class mod 12
+            if is_perfect(curr_interval) and is_perfect(prev_interval):
+                if (curr_interval % 12) == (prev_interval % 12):
+                    return HARD
+
+    # HC4 — Tritone on strong beat: ic=6 between only two voices
+    if curr_beat_strength == "strong":
+        for i in range(len(curr_others)):
+            if abs(curr_pitch - curr_others[i]) % 12 == 6:
+                return HARD
+
+    # HC5 — Leap recovery: leap ≥5th must be followed by step in opposite direction
+    if prev_prev_pitch is not None:
+        prev_leap = scale_degree_distance(prev_prev_pitch, prev_pitch, key)
+        if prev_leap >= 4:  # fifth or larger (relaxed from 3 to reduce fallback rate)
+            curr_dist = scale_degree_distance(prev_pitch, curr_pitch, key)
+            prev_dir = prev_pitch - prev_prev_pitch
+            curr_dir = curr_pitch - prev_pitch
+            # Recovery: must be stepwise AND in opposite direction
+            if not (curr_dist == 1 and curr_dir * prev_dir < 0):
+                return HARD
+
+    # HC6 — Similar-motion leaps: both voices leap ≥3rd in same direction
+    for i in range(len(curr_others)):
+        f_interval = scale_degree_distance(prev_pitch, curr_pitch, key)
+        l_interval = scale_degree_distance(prev_others[i], curr_others[i], key)
+        f_dir = curr_pitch - prev_pitch
+        l_dir = curr_others[i] - prev_others[i]
+        # Both leap a third or more in the same direction
+        if f_interval >= 2 and l_interval >= 2 and f_dir * l_dir > 0:
+            return HARD
+
+    return 0.0
+
+
+def pairwise_cost(
+    prev_pitch: int,
+    curr_pitch: int,
+    prev_other: int,
+    curr_other: int,
+    prev_beat_strength: str,
+    curr_beat_strength: str,
+    prev_prev_pitch: int | None,
+    key: KeyInfo,
+    nearby_other_pcs: frozenset[int],
+    is_above: bool,
+) -> dict[str, float]:
+    """Cost terms between the follower and one existing voice.
+
+    Evaluated once per existing voice, then summed by transition_cost.
+    """
+    mc = motion_cost(
+        prev_follower=prev_pitch,
+        curr_follower=curr_pitch,
+        prev_leader=prev_other,
+        curr_leader=curr_other,
+    )
+    dc = dissonance_at_departure(
+        pitch=prev_pitch,
+        leader_pitch=prev_other,
+        beat_strength=prev_beat_strength,
+        approach_pitch=prev_prev_pitch,
+        departure_pitch=curr_pitch,
+        key=key,
+    )
+    xrc = cross_relation_cost(
+        curr_pitch=curr_pitch,
+        nearby_leader_pcs=nearby_other_pcs,
+    )
+    spc = spacing_cost(
+        follower_pitch=curr_pitch,
+        leader_pitch=curr_other,
+    )
+    iqc = interval_quality_cost(
+        follower_pitch=curr_pitch,
+        leader_pitch=curr_other,
+        beat_strength=curr_beat_strength,
+    )
+    vcc = voice_crossing_cost(
+        follower_pitch=curr_pitch,
+        other_pitch=curr_other,
+        is_above=is_above,
+    )
+    return {
+        "motion": mc,
+        "diss": dc,
+        "cross_rel": xrc,
+        "spacing": spc,
+        "iv_qual": iqc,
+        "crossing": vcc,
+    }
+
+
 def transition_cost(
     prev_pitch: int,
     curr_pitch: int,
-    prev_leader: int,
-    curr_leader: int,
     prev_beat_strength: str,
     curr_beat_strength: str,
+    prev_others: list[int],
+    curr_others: list[int],
+    nearby_pcs_per_voice: list[frozenset[int]],
+    is_above_per_voice: list[bool],
     prev_prev_pitch: int | None = None,
     phrase_position: float = 0.0,
     target_pitch: int = 0,
     run_count: int = 1,
     key: KeyInfo = CMAJ,
-    nearby_leader_pcs: frozenset[int] = frozenset(),
     contour_target: int = 0,
     chord_pcs: frozenset[int] = frozenset(),
+    hard_constraints: bool = True,
 ) -> tuple[float, dict[str, float]]:
-    """Total cost of one transition, with itemised breakdown."""
+    """Total cost of one transition, with itemised breakdown.
+
+    Melodic terms depend on the follower only.  Pairwise terms are
+    evaluated once per existing voice and summed.
+    """
+    # Hard constraints check (short-circuits if violated)
+    if hard_constraints:
+        hc = hard_constraint_cost(
+            prev_prev_pitch=prev_prev_pitch,
+            prev_pitch=prev_pitch,
+            curr_pitch=curr_pitch,
+            curr_others=curr_others,
+            prev_others=prev_others,
+            curr_beat_strength=curr_beat_strength,
+            key=key,
+            is_above_per_voice=is_above_per_voice,
+        )
+        if hc == HARD:
+            return HARD, {"hard": HARD, "total": HARD}
+
+    # Melodic terms (follower only)
     sc = step_cost(prev_pitch, curr_pitch, key)
-    mc = motion_cost(prev_pitch, curr_pitch, prev_leader, curr_leader)
     lrc = leap_recovery_cost(prev_prev_pitch, prev_pitch, curr_pitch, key)
     zc = zigzag_cost(prev_prev_pitch, prev_pitch, curr_pitch, key)
     prc = pitch_return_cost(prev_prev_pitch, curr_pitch)
     rp = run_penalty(run_count)
-    dc = dissonance_at_departure(
-        prev_pitch, prev_leader, prev_beat_strength,
-        prev_prev_pitch, curr_pitch, key,
-    )
     pp = phrase_position_cost(curr_pitch, target_pitch, phrase_position, key)
-    xrc = cross_relation_cost(curr_pitch, nearby_leader_pcs)
-    spc = spacing_cost(curr_pitch, curr_leader)
-    iqc = interval_quality_cost(curr_pitch, curr_leader, curr_beat_strength)
     cc = contour_cost(curr_pitch, contour_target, key)
     ctc = chord_tone_cost(curr_pitch, chord_pcs, curr_beat_strength)
-    total = sc + mc + lrc + zc + prc + rp + dc + pp + xrc + spc + iqc + cc + ctc
+
+    # Pairwise terms (sum over all existing voices)
+    mc_total = 0.0
+    dc_total = 0.0
+    xrc_total = 0.0
+    spc_total = 0.0
+    iqc_total = 0.0
+    vcc_total = 0.0
+    for i in range(len(prev_others)):
+        pw = pairwise_cost(
+            prev_pitch=prev_pitch,
+            curr_pitch=curr_pitch,
+            prev_other=prev_others[i],
+            curr_other=curr_others[i],
+            prev_beat_strength=prev_beat_strength,
+            curr_beat_strength=curr_beat_strength,
+            prev_prev_pitch=prev_prev_pitch,
+            key=key,
+            nearby_other_pcs=nearby_pcs_per_voice[i],
+            is_above=is_above_per_voice[i],
+        )
+        mc_total += pw["motion"]
+        dc_total += pw["diss"]
+        xrc_total += pw["cross_rel"]
+        spc_total += pw["spacing"]
+        iqc_total += pw["iv_qual"]
+        vcc_total += pw["crossing"]
+
+    total = (sc + mc_total + lrc + zc + prc + rp + dc_total
+             + pp + xrc_total + spc_total + iqc_total + vcc_total + cc + ctc)
     breakdown = {
         "step": sc,
-        "motion": mc,
+        "motion": mc_total,
         "leap_rec": lrc,
         "zigzag": zc,
         "pitch_ret": prc,
         "run": rp,
-        "diss": dc,
+        "diss": dc_total,
         "phrase": pp,
-        "cross_rel": xrc,
-        "spacing": spc,
-        "iv_qual": iqc,
+        "cross_rel": xrc_total,
+        "spacing": spc_total,
+        "iv_qual": iqc_total,
+        "crossing": vcc_total,
         "contour": cc,
         "chord": ctc,
         "total": total,

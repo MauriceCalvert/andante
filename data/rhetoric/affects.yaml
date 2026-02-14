@@ -29,6 +29,7 @@ affects:
     description: "Yearning, reaching, unresolved longing"
     mode: minor
     tempo: adagio
+    tempo_modifier: -12
     key_character: dark
     archetype: quest_to_discovery
     interval_profile: leaps
@@ -41,6 +42,7 @@ affects:
     description: "Grief, lament, heavy sorrow"
     mode: minor
     tempo: adagio
+    tempo_modifier: -16
     key_character: dark
     archetype: lament_to_acceptance
     interval_profile: stepwise
@@ -53,6 +55,7 @@ affects:
     description: "Joy, brightness, energetic happiness"
     mode: major
     tempo: allegro
+    tempo_modifier: 10
     key_character: bright
     archetype: playful_dialogue
     interval_profile: mixed
@@ -65,6 +68,7 @@ affects:
     description: "Majesty, grandeur, ceremonial nobility"
     mode: major
     tempo: allegro
+    tempo_modifier: 5
     key_character: dark
     archetype: assertion_confirmation
     interval_profile: leaps
@@ -77,6 +81,7 @@ affects:
     description: "Tenderness, gentleness, intimate affection"
     mode: major
     tempo: andante
+    tempo_modifier: -8
     key_character: bright
     archetype: meditation_deepening
     interval_profile: stepwise
@@ -89,6 +94,7 @@ affects:
     description: "Graceful, elegant, refined charm"
     mode: major
     tempo: moderato
+    tempo_modifier: 0
     key_character: bright
     archetype: playful_dialogue
     interval_profile: stepwise
@@ -103,6 +109,7 @@ affects:
     description: "Anger, fury, violent agitation"
     mode: minor
     tempo: presto
+    tempo_modifier: 16
     key_character: dark
     archetype: storm_to_calm
     interval_profile: leaps
@@ -115,6 +122,7 @@ affects:
     description: "Wonder, amazement, questioning surprise"
     mode: major
     tempo: andante
+    tempo_modifier: -6
     key_character: bright
     archetype: quest_to_discovery
     interval_profile: leaps
@@ -127,6 +135,7 @@ affects:
     description: "Resolution, determination, firm decisiveness"
     mode: major
     tempo: allegro
+    tempo_modifier: 6
     key_character: bright
     archetype: assertion_confirmation
     interval_profile: mixed
@@ -139,6 +148,7 @@ affects:
     description: "Pain, suffering, acute sorrow"
     mode: minor
     tempo: adagio
+    tempo_modifier: -16
     key_character: dark
     archetype: lament_to_acceptance
     interval_profile: stepwise

@@ -6,7 +6,7 @@ from fractions import Fraction
 from collections import Counter
 
 from viterbi.pipeline import solve_phrase
-from viterbi.mtypes import Knot, LeaderNote, pitch_name
+from viterbi.mtypes import ExistingVoice, Knot, LeaderNote, pitch_name
 from viterbi.scale import KeyInfo, is_consonant, scale_degree_distance, CMAJ
 
 
@@ -420,9 +420,11 @@ def compare_piece(note_path: Path, output_dir: Path) -> dict | None:
         # Extract knots
         knots = extract_knots(grid_beats, bach_bass, notes, bass_track)
 
-        # Build leader notes
-        leader_notes = [LeaderNote(beat=b, midi_pitch=p)
-                       for b, p in zip(grid_beats, soprano_line)]
+        # Build ExistingVoice from soprano
+        soprano_voice = ExistingVoice(
+            pitches_at_beat={b: p for b, p in zip(grid_beats, soprano_line)},
+            is_above=True,
+        )
 
         # Determine bass range
         bass_low = min(bach_bass) - 2
@@ -441,7 +443,11 @@ def compare_piece(note_path: Path, output_dir: Path) -> dict | None:
                 remaining = len(grid_beats) - end
                 if 0 < remaining < 3:
                     end = len(grid_beats)
-                seg_leader = leader_notes[i:end]
+                seg_beats = grid_beats[i:end]
+                seg_voice = ExistingVoice(
+                    pitches_at_beat={b: soprano_voice.pitches_at_beat[b] for b in seg_beats},
+                    is_above=True,
+                )
                 seg_knots = [k for k in knots if grid_beats[i] <= k.beat <= grid_beats[end - 1]]
                 # Ensure first and last are knots
                 if not seg_knots or seg_knots[0].beat != grid_beats[i]:
@@ -449,7 +455,8 @@ def compare_piece(note_path: Path, output_dir: Path) -> dict | None:
                 if seg_knots[-1].beat != grid_beats[end - 1]:
                     seg_knots.append(Knot(beat=grid_beats[end - 1], midi_pitch=bach_bass[end - 1]))
                 result = solve_phrase(
-                    seg_leader,
+                    seg_beats,
+                    [seg_voice],
                     seg_knots,
                     bass_low,
                     bass_high,
@@ -464,7 +471,8 @@ def compare_piece(note_path: Path, output_dir: Path) -> dict | None:
                     break
         else:
             result = solve_phrase(
-                leader_notes,
+                grid_beats,
+                [soprano_voice],
                 knots,
                 bass_low,
                 bass_high,

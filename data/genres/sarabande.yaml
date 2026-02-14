@@ -6,7 +6,7 @@ voices: 2
 form: binary
 metre: "3/4"
 rhythmic_unit: "1/8"
-tempo: 58
+tempo: 60
 tension: calm
 bass_treatment: patterned
 bass_pattern: continuo_sustained
