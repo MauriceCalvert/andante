@@ -12,60 +12,6 @@ from shared.constants import (
 from shared.key import Key
 
 
-def find_non_parallel_pitch(
-    pitch: int,
-    offset: Fraction,
-    other_voice_notes: tuple[Note, ...],
-    own_previous_note: Note | None,
-    tolerance: frozenset[int],
-    key: Key,
-    pitch_range: tuple[int, int],
-) -> int | None:
-    """Suggest an alternative pitch that avoids parallel perfects."""
-    if not has_parallel_perfect(
-        pitch=pitch,
-        offset=offset,
-        other_voice_notes=other_voice_notes,
-        own_previous_note=own_previous_note,
-        tolerance=tolerance,
-    ):
-        return pitch
-
-    # Try diatonic ±1, ±2 from key
-    for step_dir in (-1, +1, -2, +2):
-        alt: int = key.diatonic_step(midi=pitch, steps=step_dir)
-
-        if alt < pitch_range[0] or alt > pitch_range[1]:
-            continue
-
-        if not has_parallel_perfect(
-            pitch=alt,
-            offset=offset,
-            other_voice_notes=other_voice_notes,
-            own_previous_note=own_previous_note,
-            tolerance=tolerance,
-        ):
-            return alt
-
-    # Try octave ±12
-    for octave_shift in (-12, +12):
-        alt = pitch + octave_shift
-
-        if alt < pitch_range[0] or alt > pitch_range[1]:
-            continue
-
-        if not has_parallel_perfect(
-            pitch=alt,
-            offset=offset,
-            other_voice_notes=other_voice_notes,
-            own_previous_note=own_previous_note,
-            tolerance=tolerance,
-        ):
-            return alt
-
-    return None
-
-
 def has_consecutive_leaps(
     prev_prev_pitch: int | None,
     prev_pitch: int,

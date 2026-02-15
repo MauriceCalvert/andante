@@ -1,12 +1,9 @@
 """Tests for extended counterpoint detection and prevention functions."""
 from fractions import Fraction
 
-import pytest
-
 from builder.types import Note
-from shared.constants import SKIP_SEMITONES, STEP_SEMITONES
+from shared.constants import SKIP_SEMITONES
 from shared.counterpoint import (
-    find_non_parallel_pitch,
     has_consecutive_leaps,
     has_parallel_perfect,
     is_cross_bar_repetition,
@@ -14,7 +11,6 @@ from shared.counterpoint import (
     needs_step_recovery,
     would_cross_voice,
 )
-from shared.key import Key
 
 
 def _note(offset: Fraction, pitch: int) -> Note:
@@ -324,64 +320,3 @@ class TestHasConsecutiveLeaps:
         )
 
 
-class TestFindNonParallelPitch:
-    def test_no_parallel_returns_original(self) -> None:
-        """No parallel → return original pitch."""
-        other_notes = (_note(Fraction(0), 60),)
-        own_previous = _note(Fraction(0), 64)  # M3 above C4
-        key = Key(tonic="C", mode="major")
-        result = find_non_parallel_pitch(
-            pitch=65,  # F4 (P4 above C4, no parallel from M3→P4)
-            offset=Fraction(0),
-            other_voice_notes=other_notes,
-            own_previous_note=own_previous,
-            tolerance=frozenset(),
-            key=key,
-            pitch_range=(48, 84),
-        )
-        assert result == 65
-
-    def test_finds_diatonic_alternative(self) -> None:
-        """Parallel detected → find diatonic neighbour."""
-        other_notes = (
-            _note(Fraction(0), 60),  # C4
-            _note(Fraction(1, 2), 62),  # D4
-        )
-        own_previous = _note(Fraction(0), 67)  # G4 (P5 above C4)
-        key = Key(tonic="C", mode="major")
-
-        # pitch=69 (A4) creates P5→P5 parallel with D4
-        result = find_non_parallel_pitch(
-            pitch=69,
-            offset=Fraction(1, 2),
-            other_voice_notes=other_notes,
-            own_previous_note=own_previous,
-            tolerance=frozenset(),
-            key=key,
-            pitch_range=(48, 84),
-        )
-        # Should find alternative (not 69)
-        assert result is not None
-        assert result != 69
-
-    def test_no_alternative_found(self) -> None:
-        """All alternatives out of range → None."""
-        other_notes = (
-            _note(Fraction(0), 60),
-            _note(Fraction(1, 2), 62),
-        )
-        own_previous = _note(Fraction(0), 67)
-        key = Key(tonic="C", mode="major")
-
-        # Very narrow range where no alternative exists
-        result = find_non_parallel_pitch(
-            pitch=69,
-            offset=Fraction(1, 2),
-            other_voice_notes=other_notes,
-            own_previous_note=own_previous,
-            tolerance=frozenset(),
-            key=key,
-            pitch_range=(69, 69),  # Only pitch=69 allowed
-        )
-        # Should return None (no alternative in range)
-        assert result is None

@@ -1,16 +1,15 @@
 """Corridor builder: given existing voices, compute legal follower pitches per beat."""
-from viterbi.scale import (
-    build_pitch_set,
-    is_consonant,
-    KeyInfo,
-    CMAJ,
-)
 from viterbi.mtypes import (
     Corridor,
     ExistingVoice,
     STRONG_BEAT,
     MODERATE_BEAT,
     WEAK_BEAT,
+)
+from viterbi.scale import (
+    build_pitch_set,
+    KeyInfo,
+    CMAJ,
 )
 
 # Follower pitch range (soprano)

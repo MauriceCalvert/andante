@@ -10,8 +10,6 @@ from random import Random
 
 from builder.types import AffectConfig, GenreConfig, SectionTonalPlan, TonalPlan
 from planner.variety import validate_cadence_variety, validate_tonal_path_variety
-from shared.constants import TONAL_CADENCE_TYPES, VALID_KEY_AREAS
-
 
 # Key area candidates by section position
 _FIRST_KEY: str = "I"

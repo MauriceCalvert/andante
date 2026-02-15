@@ -1124,6 +1124,122 @@ def validate_rules() -> list[str]:
 
 
 # =============================================================================
+# 21. Thematic entry_sequence (invention genres)
+# =============================================================================
+
+def validate_thematic_entry_sequence() -> list[str]:
+    """Validate entry_sequence within thematic sections of genre files."""
+    errors: list[str] = []
+    valid_materials: frozenset[str] = frozenset({"subject", "answer", "cs", "stretto"})
+    valid_key_labels: frozenset[str] = frozenset({"I", "V", "IV", "vi", "iii", "ii", "III", "VI"})
+
+    for gf in _genre_files():
+        rel = _rel(gf)
+        data = _load(path=gf)
+        name = data.get("name", gf.stem)
+
+        thematic = data.get("thematic")
+        if thematic is None or not isinstance(thematic, dict):
+            continue
+
+        entry_sequence = thematic.get("entry_sequence")
+        if entry_sequence is None:
+            continue
+
+        if not isinstance(entry_sequence, list):
+            errors.append(f"{rel}: genre '{name}' thematic.entry_sequence must be a list -- got {type(entry_sequence).__name__}")
+            continue
+
+        for i, entry in enumerate(entry_sequence):
+            # Entry is either "cadence" (string), episode dict, or regular dict with upper/lower
+            if entry == "cadence":
+                # Valid cadence marker
+                continue
+
+            if not isinstance(entry, dict):
+                errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] must be 'cadence' or dict -- got {type(entry).__name__}")
+                continue
+
+            # Episode entry
+            if entry.get("type") == "episode":
+                # Validate episode-specific fields
+                if "bars" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] episode missing 'bars' field -- add it")
+                if "lead_voice" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] episode missing 'lead_voice' field -- add it")
+                elif entry["lead_voice"] not in ("upper", "lower"):
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] episode lead_voice must be 'upper' or 'lower', got '{entry['lead_voice']}'")
+                if "fragment" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] episode missing 'fragment' field -- add it")
+                elif entry["fragment"] != "head":
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] episode fragment must be 'head' (IMP-4), got '{entry['fragment']}'")
+                continue
+
+            # Pedal entry
+            if entry.get("type") == "pedal":
+                # Validate pedal-specific fields
+                if "degree" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] pedal missing 'degree' field -- add it")
+                elif not isinstance(entry["degree"], int) or not (1 <= entry["degree"] <= 7):
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] pedal degree must be int 1-7, got {entry.get('degree')}")
+                if "bars" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] pedal missing 'bars' field -- add it")
+                elif not isinstance(entry["bars"], int) or entry["bars"] <= 0:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] pedal bars must be int > 0, got {entry.get('bars')}")
+                continue
+
+            # Stretto entry
+            if entry.get("type") == "stretto":
+                # Validate stretto-specific fields
+                if "key" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] stretto missing 'key' field -- add it")
+                elif not isinstance(entry["key"], str):
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] stretto key must be string, got {type(entry.get('key')).__name__}")
+                if "delay" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] stretto missing 'delay' field -- add it")
+                elif not isinstance(entry["delay"], int) or entry["delay"] <= 0:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] stretto delay must be int > 0, got {entry.get('delay')}")
+                continue
+
+            # Regular entry: check for upper and lower keys
+            if "upper" not in entry:
+                errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] missing 'upper' key -- add it")
+            if "lower" not in entry:
+                errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] missing 'lower' key -- add it")
+
+            # Validate voice slots
+            for voice_slot in ("upper", "lower"):
+                if voice_slot not in entry:
+                    continue
+
+                slot_value = entry[voice_slot]
+
+                # Slot is either "none" or [material, key_label]
+                if slot_value == "none":
+                    continue
+
+                if not isinstance(slot_value, list):
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}].{voice_slot} must be 'none' or [material, key_label] -- got {type(slot_value).__name__}")
+                    continue
+
+                if len(slot_value) != 2:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}].{voice_slot} must be [material, key_label] with 2 elements -- got {len(slot_value)}")
+                    continue
+
+                material, key_label = slot_value
+
+                # Validate material
+                if material not in valid_materials:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}].{voice_slot} material '{material}' -- expected one of {sorted(valid_materials)}")
+
+                # Validate key_label
+                if key_label not in valid_key_labels:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}].{voice_slot} key_label '{key_label}' -- expected one of {sorted(valid_key_labels)}")
+
+    return errors
+
+
+# =============================================================================
 # Legacy: required fields, unknown keys, genre sections, brief files
 # =============================================================================
 
@@ -1131,6 +1247,7 @@ VALID_GENRE_KEYS: frozenset[str] = frozenset({
     "name", "voices", "form", "metre", "rhythmic_unit", "tempo",
     "bass_treatment", "bass_mode", "bass_pattern", "sections", "upbeat",
     "instruments", "scoring", "tracks", "affect", "tension", "subject",
+    "thematic", "composition_model",
 })
 VALID_GENRE_SECTION_KEYS: frozenset[str] = frozenset({
     "name", "schema_sequence", "lead_voice", "lead_material",
@@ -1508,7 +1625,10 @@ def validate_all(force: bool = False) -> ValidationResult:
     errors.extend(validate_humanisation())
     errors.extend(validate_rules())
 
-    # Phase 4: Cross-references
+    # Phase 4: Thematic entry_sequence validation
+    errors.extend(validate_thematic_entry_sequence())
+
+    # Phase 5: Cross-references
     errors.extend(validate_cross_references())
 
     # Build usages and orphaned

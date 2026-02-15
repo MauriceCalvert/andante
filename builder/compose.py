@@ -153,7 +153,8 @@ def compose_phrases(
                 )
                 next_entry_degree = templates[tpl_key].soprano_degrees[0]
                 next_entry_key = next_plan.local_key
-            else:
+            elif next_plan.degrees_upper and next_plan.degree_keys:
+                # Guard for imitative phrases with empty degree arrays
                 next_entry_degree = next_plan.degrees_upper[0]
                 next_entry_key = next_plan.degree_keys[0]
         # Determine recall figure name for motivic return

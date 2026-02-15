@@ -131,6 +131,21 @@ Both are bugs of equal severity:
 
 Bob catches all of them. Chaz traces the causes. Both are blocking.
 
+## Test Execution
+
+When running the pipeline for testing or evaluation, output files go to
+`andante/output` with the genre name only — no key suffix.
+
+Example for invention:
+```
+python -m scripts.run_pipeline invention default c_major -o output
+```
+Produces: `output/invention.mid`, `output/invention.note`, etc.
+Not: `output/invention_c_major.mid`.
+
+If the CLI appends the key to filenames by default, override or rename
+so the output uses the bare genre name.
+
 ## Session Discipline
 
 - If you notice your evaluation mixing Bob and Chaz vocabulary in the

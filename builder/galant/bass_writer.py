@@ -20,7 +20,7 @@ from shared.constants import (
     UGLY_INTERVALS,
     VALID_DURATIONS_SET,
 )
-from shared.counterpoint import has_cross_relation, prevent_cross_relation
+from shared.counterpoint import prevent_cross_relation
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi

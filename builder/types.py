@@ -6,113 +6,9 @@ Durations are Fraction. Pitches are MIDI integers.
 from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import TYPE_CHECKING, Any
-from shared.constants import INTERVAL_DISPLAY_NAMES
-from shared.voice_types import (
-    Actuator,
-    Instrument,
-    InstrumentDef,
-    Range,
-    Role,
-    ScoringAssignment,
-    TrackAssignment,
-    Voice,
-)
+
 if TYPE_CHECKING:
     from shared.key import Key
-@dataclass
-class FigureRejection:
-    """Record of why a figure was rejected."""
-    figure_name: str
-    note_index: int
-    pitch: str
-    offset: str
-    reason: str
-
-
-def _expand_reason(reason: str) -> str:
-    """Convert terse reason code to readable explanation."""
-    if reason == "voice_overlap":
-        return "voice crossing or overlap with other voice"
-    if reason.startswith("range("):
-        inner: str = reason[6:-1]
-        return f"pitch outside instrument range ({inner})"
-    if reason.startswith("melodic_interval("):
-        inner = reason[17:-1]
-        return f"melodic leap too large: {inner}"
-    if reason.startswith("internal_melodic("):
-        inner = reason[17:-1]
-        return f"internal melodic leap too large: {inner} semitones"
-    if reason.startswith("strong_beat_dissonance("):
-        inner = reason[23:-1]
-        return f"dissonance on strong beat: {inner}"
-    if reason.startswith("parallel("):
-        inner = reason[9:-1]
-        return f"parallel motion to {inner}"
-    if reason.startswith("direct_motion_to("):
-        inner = reason[17:-1]
-        return f"direct (similar) motion to {inner}"
-    if reason.startswith("exit_mismatch("):
-        inner = reason[14:-1]
-        return f"figure exit degree wrong: {inner}"
-    return reason
-
-
-def _format_offset(offset_str: str) -> str:
-    """Convert offset string to readable form."""
-    if offset_str == "end":
-        return "end of figure"
-    if offset_str == "0":
-        return "start of figure"
-    return f"offset {offset_str}"
-
-
-class FigureRejectionError(Exception):
-    """Raised when all figures rejected at a gap."""
-
-    def __init__(
-        self,
-        bar_num: int,
-        interval: str,
-        writing_mode: str,
-        rejections: list[FigureRejection],
-    ) -> None:
-        self.bar_num: int = bar_num
-        self.interval: str = interval
-        self.writing_mode: str = writing_mode
-        self.rejections: list[FigureRejection] = rejections
-        super().__init__(self._format_message())
-
-    def _format_message(self) -> str:
-        interval_readable: str = INTERVAL_DISPLAY_NAMES.get(self.interval, self.interval)
-        lines: list[str] = [
-            "",
-            "=" * 70,
-            f"FIGURE REJECTION at bar {self.bar_num}",
-            f"  Mode: {self.writing_mode}",
-            f"  Interval: {interval_readable}",
-            f"  Attempted {len(self.rejections)} figure(s), all rejected:",
-            "-" * 70,
-        ]
-        reason_groups: dict[str, list[FigureRejection]] = {}
-        for rej in self.rejections:
-            expanded: str = _expand_reason(reason=rej.reason)
-            reason_groups.setdefault(expanded, []).append(rej)
-        for reason, group in reason_groups.items():
-            lines.append(f"\n  {reason}:")
-            shown: int = 0
-            for rej in group:
-                if shown >= 5:
-                    remaining: int = len(group) - shown
-                    lines.append(f"      ... and {remaining} more with this reason")
-                    break
-                offset_readable: str = _format_offset(offset_str=rej.offset)
-                lines.append(
-                    f"    - {rej.figure_name}: note {rej.note_index} "
-                    f"({rej.pitch}) at {offset_readable}"
-                )
-                shown += 1
-        lines.append("=" * 70)
-        return "\n".join(lines)
 
 
 
@@ -129,15 +25,6 @@ class Note:
     duration: Fraction
     voice: int
     lyric: str = ""
-
-
-@dataclass(frozen=True)
-class CollectedNote:
-    """Note collected for dissonance analysis."""
-    offset: Fraction
-    duration: Fraction
-    diatonic: int
-    role: str
 
 
 @dataclass(frozen=True)
@@ -185,23 +72,6 @@ class MotiveWeights:
 
 
 @dataclass(frozen=True)
-class Solution:
-    """Solver output with pitch sequences and cost."""
-    soprano_pitches: tuple[int, ...]
-    bass_pitches: tuple[int, ...]
-    soprano_durations: tuple[Fraction, ...]
-    bass_durations: tuple[Fraction, ...]
-    cost: float
-
-
-@dataclass(frozen=True)
-class RhythmState:
-    """Rhythmic state machine state."""
-    state: str  # RUN, HOLD, CADENCE, TRANSITION
-    density: float  # 0.0 to 1.0
-
-
-@dataclass(frozen=True)
 class GenreConfig:
     """Genre definition from YAML."""
     name: str
@@ -214,6 +84,7 @@ class GenreConfig:
     bass_mode: str  # 'schema' or 'pattern'
     bass_pattern: str | None
     sections: tuple[dict[str, Any], ...]
+    composition_model: str = "galant"  # "galant" or "imitative"
     tension: str | None = None  # Named tension curve, or None (no curve)
     upbeat: Fraction = Fraction(0)  # Anacrusis duration in whole notes
 

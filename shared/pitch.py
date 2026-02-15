@@ -1,61 +1,10 @@
-"""Pitch representation for scale degrees and rests."""
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+"""Pitch placement utilities for scale degrees."""
+from typing import TYPE_CHECKING
 
 from shared.constants import SKIP_SEMITONES, UGLY_INTERVALS
 
 if TYPE_CHECKING:
     from shared.key import Key
-
-
-@dataclass(frozen=True)
-class FloatingNote:
-    """Scale degree without octave. Realiser chooses placement."""
-    degree: int  # 1-7
-    exempt: bool = False
-    alter: int = 0
-
-    def __post_init__(self) -> None:
-        assert 1 <= self.degree <= 7, f"degree must be 1-7, got {self.degree}"
-        assert -2 <= self.alter <= 2, f"alter must be -2 to +2, got {self.alter}"
-
-    def shift(self, interval: int) -> "FloatingNote":
-        """Shift by interval, wrapping to 1-7."""
-        return FloatingNote(degree=wrap_degree(deg=self.degree + interval), exempt=self.exempt, alter=self.alter)
-
-    def as_exempt(self) -> "FloatingNote":
-        """Return copy marked as guard-exempt."""
-        return FloatingNote(degree=self.degree, exempt=True, alter=self.alter)
-
-    def with_alter(self, alter: int) -> "FloatingNote":
-        """Return copy with specified chromatic alteration."""
-        return FloatingNote(degree=self.degree, exempt=self.exempt, alter=alter)
-
-    def flatten(self) -> "FloatingNote":
-        """Return copy lowered by a semitone."""
-        return FloatingNote(degree=self.degree, exempt=self.exempt, alter=self.alter - 1)
-
-    def sharpen(self) -> "FloatingNote":
-        """Return copy raised by a semitone."""
-        return FloatingNote(degree=self.degree, exempt=self.exempt, alter=self.alter + 1)
-
-
-@dataclass(frozen=True)
-class Rest:
-    """Represents silence for a duration."""
-    pass
-
-
-@dataclass(frozen=True)
-class MidiPitch:
-    """Direct MIDI pitch. No conversion needed in realiser."""
-    midi: int
-
-    def __post_init__(self) -> None:
-        assert 0 <= self.midi <= 127, f"MIDI must be 0-127, got {self.midi}"
-
-
-Pitch = Union[FloatingNote, MidiPitch, Rest]
 
 
 def degree_to_nearest_midi(
@@ -104,14 +53,6 @@ def degree_to_nearest_midi(
     # Secondary sort: among equidistant candidates, prefer upper (keeps
     # soprano in register, prevents bass diving to range floor).
     return min(pool, key=lambda m: (abs(m - target_midi), -m))
-
-
-def wrap_degree(deg: int) -> int:
-    """Wrap degree to 1-7 range."""
-    assert isinstance(deg, int), f"wrap_degree requires int, got {type(deg).__name__}"
-    result: int = ((deg - 1) % 7) + 1
-    assert 1 <= result <= 7, f"wrap_degree failed: {deg} -> {result}"
-    return result
 
 
 def place_degree(
@@ -168,7 +109,6 @@ def place_degree(
         return below
 
 
-
 def select_octave(
     key: "Key",
     degree: int,
@@ -194,4 +134,3 @@ def select_octave(
     if pitch < low:
         pitch = low
     return pitch
-

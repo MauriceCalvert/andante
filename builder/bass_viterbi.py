@@ -2,7 +2,7 @@
 import logging
 from fractions import Fraction
 
-from builder.bass_writer import validate_bass_notes
+from builder.galant.bass_writer import validate_bass_notes
 from builder.phrase_types import (
     PhrasePlan,
     phrase_bar_duration,

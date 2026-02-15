@@ -1,42 +1,20 @@
-# Continue: Post-INV
+# Continue
 
-## Current state (2026-02-14)
+## Current state
 
-**INV complete.** All three phases implemented and passing:
-- INV-1: Countersubject in all subject entries ✓
-- INV-2: Episodes from subject fragments ✓
-- INV-3: Stretto in peroratio ✓
+IMP complete. Invention has 20 bars: subject/answer/CS entries,
+auto-inserted double episodes, stretto, dominant pedal, 2-bar
+cadence. Maurice listened, accepted.
 
-**Stretto bug fixed.** CC's original peroratio YAML (passo_indietro +
-cadenza_composta = 3 bars) was too short for stretto. Fixed by
-prepending fenaroli (4 bars) to the peroratio schema_sequence.
-Also fixed stretto tail crash: voice A gap-zone pad + galant-order
-tail generation (structural soprano → bass → Viterbi soprano).
+## What's next
 
-**Brief fallback law added.** When a composition falls back because
-the genre YAML or brief made something impossible, `brief_warning()`
-from `shared/errors.py` emits a kind sarcastic warning with
-what_failed, why, and suggestion. Algorithmic fallbacks (Viterbi
-soft-only, stepwise fill) are normal runtime and do NOT use this.
-Four sites converted.
+Bach Invention Targets (B1–B8) in `workflow/todo.md`. B1 (texture
+rotation) is the biggest audible gap. See BWV 772 analysis in
+`viterbi/bachsamples/bwv0772_analysis.md`.
 
-**Listening gate pending.** Maurice needs to listen to
-`output/invention_c_major.midi` to confirm INV sounds right.
+## Key files
 
-## What to do next
-
-See `workflow/todo.md` for full list. Next candidates:
-1. Exordium answer gap (invention YAML only has one non-cadential
-   phrase in exordium — answer+CS never fires)
-2. Structural knot consonance — tritones between voice knots
-3. VG4 — Rewrite phrase_writer composition order
-4. VG5 — Style as weights from YAML
-
-## Read at chat start
-
-- `workflow/conductor.md` (always)
-- `docs/Tier1_Normative/laws.md`
-- `docs/knowledge.md`
-- `completed.md`
-- `workflow/todo.md`
-- This file
+- `workflow/imitative_design.md` — IMP design (reference)
+- `workflow/todo.md` — all open work
+- `completed.md` — implementation log
+- `data/genres/invention.yaml` — current invention config

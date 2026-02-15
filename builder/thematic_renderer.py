@@ -125,7 +125,7 @@ def _render_episode_fragment(
     """Render an episode fragment transposed down by fragment_iteration steps.
 
     Args:
-        role: BeatRole with role=EPISODE, material="head", fragment_iteration=N
+        role: BeatRole with role=EPISODE, material="head" or "tail", fragment_iteration=N
         fugue: LoadedFugue containing the subject
         start_offset: Absolute offset where this beat starts
         target_track: Track number for the notes
@@ -134,13 +134,22 @@ def _render_episode_fragment(
     Returns:
         Tuple of notes for this episode fragment
     """
-    from motifs.fragment_catalogue import extract_head
+    from motifs.fragment_catalogue import extract_head, extract_tail
     from motifs.head_generator import degrees_to_midi
     from shared.music_math import parse_metre
 
-    # Extract head fragment
+    # Extract fragment based on material
     bar_length: Fraction = parse_metre(metre=f"{fugue.metre[0]}/{fugue.metre[1]}")[0]
-    fragment = extract_head(fugue=fugue, bar_length=bar_length)
+    if role.material == "head":
+        fragment = extract_head(fugue=fugue, bar_length=bar_length)
+    elif role.material == "tail":
+        fragment = extract_tail(fugue=fugue, bar_length=bar_length)
+    else:
+        assert False, f"Episode role must have material 'head' or 'tail', got '{role.material}'"
+
+    # If fragment is empty (tail of 1-bar subject), return no notes
+    if len(fragment.degrees) == 0:
+        return ()
 
     # Transpose fragment degrees down by fragment_iteration diatonic steps
     transposed_degrees: tuple[int, ...] = tuple(

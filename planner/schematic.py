@@ -24,10 +24,8 @@ from planner.schema_loader import (
     can_connect_direct,
     get_allowed_next,
     get_genre_preferred,
-    get_schema,
     get_schemas_by_position,
     load_schemas as load_schema_defs,
-    schema_fits_bars,
 )
 from planner.variety import (
     OPENING_SCHEMAS,
@@ -244,11 +242,9 @@ def _generate_section_schemas(
         while non_cad_count < min_non_cad:
             remaining: int = bar_budget - bars_used
             if remaining <= 0:
-                from shared.errors import brief_warning
-                brief_warning(
-                    what_failed=f"Section '{section_plan.name}' min_non_cadential={min_non_cad}",
-                    why=f"bar budget ran out with only {non_cad_count} non-cadential schemas",
-                    suggestion="add a longer schema to the schema_sequence so there are enough bars to work with",
+                logger.warning(
+                    "Section '%s' min_non_cadential=%d: bar budget ran out with only %d non-cadential schemas",
+                    section_plan.name, min_non_cad, non_cad_count,
                 )
                 break
             continuation_schema: str | None = _select_next_schema(
@@ -262,11 +258,9 @@ def _generate_section_schemas(
                 genre_name=genre_name,
             )
             if continuation_schema is None:
-                from shared.errors import brief_warning
-                brief_warning(
-                    what_failed=f"Section '{section_plan.name}' min_non_cadential={min_non_cad}",
-                    why=f"no continuation schema can follow '{result[-1]}' with {remaining} bars left",
-                    suggestion="check schema_transitions.yaml — the last schema in the sequence may be a dead end",
+                logger.warning(
+                    "Section '%s' min_non_cadential=%d: no continuation schema can follow '%s' with %d bars left",
+                    section_plan.name, min_non_cad, result[-1], remaining,
                 )
                 break
             result.append(continuation_schema)

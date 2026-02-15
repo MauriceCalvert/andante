@@ -21,7 +21,7 @@ from builder.voice_types import (
     VoiceConfig,
     VoiceContext,
 )
-from shared.constants import TRACK_SOPRANO, VALID_DURATIONS_SET
+from shared.constants import VALID_DURATIONS_SET
 from shared.counterpoint import (
     has_consecutive_leaps,
     has_cross_relation,
@@ -184,7 +184,6 @@ class DiminutionFill:
         pool: list = diminutions[interval]
 
         # Filter to matching note count (exact or chainable)
-        from builder.figuration.soprano import fit_degrees_to_count
 
         candidates = [
             f for f in pool

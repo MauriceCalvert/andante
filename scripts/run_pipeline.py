@@ -83,8 +83,6 @@ def run_from_args(
         seed = hash((genre, affect, key or "", int(time.time()))) % (2**31)
     if output_name:
         name = output_name
-    elif affect == "default" and key:
-        name = f"{genre}_{key}"
     elif affect == "default":
         name = genre
     elif key:

@@ -13,7 +13,8 @@ from builder.phrase_types import PhrasePlan
 from builder.types import Composition, Note
 from shared.key import Key
 
-HEADER: str = "offset,midinote,duration,track,bar,beat,notename,degree,harmony,phrase,cadence,lyric"
+HEADER: str = "offset,midinote,duration,track,bar,beat,notename,degree,harmony,phrase,cadence"
+LABELS_HEADER: str = "offset,track,bar,beat,label"
 
 # Degree labels for all 12 pitch classes relative to tonic
 # Index = semitones above tonic
@@ -169,8 +170,7 @@ def _format_row(
         f"{degree},"
         f"{harmony},"
         f"{phrase},"
-        f"{cadence},"
-        f"{note.lyric}"
+        f"{cadence}"
     )
 
 
@@ -238,3 +238,13 @@ def write_note_file(
             cadence=cadence,
         ))
     path.write_text("\n".join(lines), encoding="utf-8")
+    # Write separate .labels file for Chaz (thematic role labels)
+    label_lines: list[str] = [LABELS_HEADER]
+    for note in all_notes_sorted(comp=comp):
+        if note.lyric:
+            bar_num, beat_val = bar_beat(offset=note.offset, metre=comp.metre, upbeat=comp.upbeat)
+            label_lines.append(
+                f"{float(note.offset)},{note.voice},{bar_num},{float(beat_val)},{note.lyric}"
+            )
+    labels_path: Path = path.with_suffix(".labels")
+    labels_path.write_text("\n".join(label_lines), encoding="utf-8")

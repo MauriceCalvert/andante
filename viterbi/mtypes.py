@@ -6,10 +6,6 @@ from dataclasses import dataclass, field
 # Musical constants
 # ---------------------------------------------------------------------------
 
-MIDI_C3 = 48
-MIDI_C4 = 60
-MIDI_C5 = 72
-
 # Beat strength: downbeats/half-bars are strong, beat boundaries moderate, sub-beats weak
 STRONG_BEAT = "strong"
 MODERATE_BEAT = "moderate"

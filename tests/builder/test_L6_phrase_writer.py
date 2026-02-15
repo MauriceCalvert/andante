@@ -3,8 +3,10 @@
 Tests soprano, bass, counterpoint, and result postconditions for write_phrase().
 Parametrised over every genre — first occurrence of each schema per genre.
 """
-import pytest
 from fractions import Fraction
+
+import pytest
+
 from builder.config_loader import load_configs
 from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan, PhraseResult, phrase_degree_offset
@@ -16,7 +18,6 @@ from planner.tonal import layer_2_tonal
 from shared.constants import STRONG_BEAT_DISSONANT, TRACK_BASS, TRACK_SOPRANO, VALID_DURATIONS
 from shared.key import Key
 from tests.helpers import (
-    bar_of,
     check_no_parallel,
     check_no_voice_overlap,
     degree_at,

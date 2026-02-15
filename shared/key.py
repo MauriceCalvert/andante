@@ -16,7 +16,6 @@ from shared.constants import (
     NOTE_NAMES_SHARP,
 )
 from shared.diatonic_pitch import DiatonicPitch
-from shared.pitch import FloatingNote
 
 
 @dataclass(frozen=True)
@@ -50,12 +49,6 @@ class Key:
         pentatonic_intervals: Tuple[int, ...] = (0, 2, 4, 7, 9) if self.mode == "major" else (0, 3, 5, 7, 10)
         return frozenset((self.tonic_pc + interval) % 12 for interval in pentatonic_intervals)
 
-    def get_scale_for_context(self, tonal_target: str | None) -> Tuple[int, ...]:
-        """Return scale appropriate for harmonic context."""
-        if self.mode == "major":
-            return MAJOR_SCALE
-        return NATURAL_MINOR_SCALE
-
     def uses_flats(self) -> bool:
         """Determine if this key uses flat spelling."""
         if self.mode == "minor":
@@ -77,40 +70,6 @@ class Key:
         """Convert scale degree to MIDI pitch."""
         semitones: int = self.scale[degree - 1]
         return self.tonic_pc + (octave + 1) * 12 + semitones
-
-    def floating_to_midi(
-        self,
-        note: FloatingNote,
-        prev_midi: int,
-        median: int,
-        voice_range: tuple[int, int] | None = None,
-    ) -> int:
-        """Convert FloatingNote to MIDI using voice-leading heuristics.
-
-        Chooses octave by minimizing distance to prev_midi with bias toward median.
-        If voice_range is provided, strongly penalizes pitches outside the range.
-
-        Args:
-            note: FloatingNote to convert
-            prev_midi: Previous MIDI pitch (for voice leading)
-            median: Voice tessitura median (gravity center)
-            voice_range: Optional (min, max) MIDI range for voice
-        """
-        semitones: int = self.scale[note.degree - 1]
-        pc: int = (self.tonic_pc + semitones) % 12
-        candidates: list[int] = [pc + (oct * 12) for oct in range(0, 10)]
-
-        def score(m: int) -> float:
-            base_score = abs(m - prev_midi) + abs(m - median) * 0.5
-            # Strongly penalize out-of-range pitches
-            if voice_range is not None:
-                if m < voice_range[0]:
-                    base_score += (voice_range[0] - m) * 10  # Heavy penalty per semitone below
-                elif m > voice_range[1]:
-                    base_score += (m - voice_range[1]) * 10  # Heavy penalty per semitone above
-            return base_score
-
-        return min(candidates, key=score)
 
     def diatonic_step(self, midi: int, steps: int) -> int:
         """Move MIDI pitch by diatonic steps within scale."""
@@ -171,10 +130,4 @@ class Key:
                 best_degree = i + 1
         return best_degree
 
-    def midi_to_floating(self, midi: int) -> FloatingNote:
-        """Convert MIDI pitch to FloatingNote.
 
-        FOR EXTERNAL MIDI INPUT ONLY (e.g., figured bass, MIDI file import).
-        Internal solvers should work in degree space directly.
-        """
-        return FloatingNote(degree=self.midi_to_degree(midi=midi))

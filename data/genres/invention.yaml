@@ -2,6 +2,7 @@
 # Bach-style two-voice imitative counterpoint
 
 name: invention
+composition_model: imitative
 
 voices:
   - id: upper
@@ -28,6 +29,29 @@ rhythmic_unit: "1/16"
 tempo: 120
 bass_treatment: contrapuntal
 tension: arch
+
+thematic:
+  voice_count: 2
+  invertible_counterpoint: true
+  entry_sequence:
+    # Exposition (I → V: answer handles transition, no episode)
+    - upper: [subject, I]
+      lower: none
+    - upper: [cs, I]
+      lower: [answer, V]
+    # --- section boundary: V → vi --- episode auto-inserted if needed
+    # Development
+    - upper: [subject, vi]
+      lower: [cs, vi]
+    - upper: [cs, IV]
+      lower: [subject, IV]
+    # --- section boundary: IV → V --- episode auto-inserted if needed
+    # Recapitulation
+    - upper: [subject, V]
+      lower: [cs, V]
+    - {type: stretto, key: I, delay: 2}
+    - {type: pedal, degree: 5, bars: 2}
+    - cadence
 
 sections:
   - name: exordium

@@ -189,6 +189,11 @@ def _validate_genre(data: dict) -> GenreConfig:
     upbeat_raw = data.get("upbeat", 0)
     upbeat = Fraction(upbeat_raw) if isinstance(upbeat_raw, str) else Fraction(upbeat_raw)
     tension: str | None = data.get("tension")
+    composition_model: str = data.get("composition_model", "galant")
+    assert composition_model in ("galant", "imitative"), (
+        f"Genre '{genre_name}': composition_model must be 'galant' or 'imitative', "
+        f"got '{composition_model}'"
+    )
     return GenreConfig(
         name=genre_name,
         voices=data["voices"],
@@ -199,6 +204,7 @@ def _validate_genre(data: dict) -> GenreConfig:
         bass_treatment=bass_treatment,
         bass_mode=bass_mode,
         bass_pattern=bass_pattern,
+        composition_model=composition_model,
         sections=tuple(data.get("sections", [])),
         tension=tension,
         upbeat=upbeat,

@@ -71,7 +71,7 @@ class Figurae:
         """Load figurae from YAML."""
         self._figurae: dict[str, Figura] = {}
         self._by_category: dict[str, list[str]] = {}
-        self._by_affect: dict[str, list[str]] = {}
+
         self._load()
 
     def _load(self) -> None:
@@ -148,26 +148,14 @@ class Figurae:
                 self._figurae[name] = figura
                 self._by_category[category].append(name)
 
-                # Index by affect
-                for affect in affects:
-                    self._by_affect.setdefault(affect, []).append(name)
 
     def get(self, name: str) -> Optional[Figura]:
         """Get a figura by name."""
         return self._figurae.get(name)
 
-    def all_names(self) -> list[str]:
-        """Get all figura names."""
-        return list(self._figurae.keys())
-
     def by_category(self, category: str) -> list[Figura]:
         """Get all figurae in a category."""
         names = self._by_category.get(category, [])
-        return [self._figurae[n] for n in names]
-
-    def by_affect(self, affect: str) -> list[Figura]:
-        """Get all figurae appropriate for an affect."""
-        names = self._by_affect.get(affect, [])
         return [self._figurae[n] for n in names]
 
     def melodic_figurae(self) -> list[Figura]:

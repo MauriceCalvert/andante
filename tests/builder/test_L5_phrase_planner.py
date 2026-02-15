@@ -1,7 +1,9 @@
 """L5 Phrase Planner contract tests."""
-import pytest
 from fractions import Fraction
 from typing import Any
+
+import pytest
+
 from builder.config_loader import load_configs
 from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import BeatPosition, PhrasePlan
@@ -11,7 +13,7 @@ from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
 from shared.constants import CADENTIAL_POSITION
 from shared.key import Key
-from tests.conftest import AFFECTS, GENRES, KEYS
+from tests.conftest import GENRES, KEYS
 
 # L5 uses 2 affects: Zierlich (light) and Dolore (dark) per remediation plan 4.2
 _L5_AFFECTS: tuple[str, ...] = ("Zierlich", "Dolore")

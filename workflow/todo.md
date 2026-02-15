@@ -1,77 +1,78 @@
 # TODO
 
-Items tracked here, ticked off when done. Conductor reads at chat start.
+Conductor reads at chat start.
 
-## Blocking
+---
 
-- [x] **Listening gate** — Maurice listened, accepted (2026-02-13). Proceed to structural knot consonance.
+## Bach Invention Targets (from BWV 772 analysis)
 
-## In progress
+See `viterbi/bachsamples/bwv0772_analysis.md` for full analysis.
+Priority order by audible impact.
 
-- [x] **HRL-1 — Harmonic Grid Infrastructure** — harmony.py, Schema.harmony field, parse_roman, HarmonicGrid. Done.
-- [x] **HRL-2 — Harmonic Grid Integration** — grid wired into phrase_writer, H3 bypassed in soprano_writer, chord_pcs wired to bass_viterbi. Done.
+- [ ] **B1 — Texture rotation** — Bach changes texture every 2–4 bars: subject+free, run/slow, hold/run, dense-both. Our invention has one texture throughout. Needs half-note exchange (one voice sustains, other runs subject head, swap every half bar) and voice-density contrast. Biggest audible gap.
+- [ ] **B2 — Contrary-motion episodes** — Bach's episodes move both voices in opposite directions with subject-derived material. Ours transpose head and tail in the same direction, producing parallel motion.
+- [ ] **B3 — Rhythmic independence** — Bach uses 2:1 ratio: subject voice in sixteenths, companion in eighths. Our voices always run at the same density.
+- [ ] **B4 — Thematically-derived free counterpoint** — Bach's "free" voices play recognisable subject fragments (inverted scale-run, sequenced mordent, truncated tail). Ours is Viterbi scale-fill with no motivic relation.
+- [ ] **B5 — Chromatic approach tones** — Secondary leading tones (raised 7th of each new key area) before cadential arrivals. Constrained by L007. Needs L007 relaxation or secondary-dominant infrastructure.
+- [ ] **B6 — Variable note density** — Bach's bars range from 7 to 19 notes per voice. Ours are uniform. Largely fixed by B1.
+- [ ] **B7 — Cadence grows from material** — Bach weaves subject fragments into the cadential descent. Our cadence is a formulaic template with no thematic connection.
+- [ ] **B8 — Mid-bar answer entry** — Bach's answer enters at beat 3 of bar 2, during the subject. Our entries are aligned to bar boundaries.
 
-## Next — Invention Imitative Architecture (INV)
+## Must-do
 
-Three-phase plan to fill invention compositional gaps. Each phase
-is self-contained with a listening gate. Briefs in `workflow/inv[1-3]_brief.md`.
-
-- [x] **INV-1 — Countersubject in all subject entries** — CS wired into
-  every non-monophonic subject entry. Done 2026-02-14.
-- [x] **INV-2 — Episodes from subject fragments** — head fragment
-  placed in lead voice during sequential schemas. Done 2026-02-14.
-- [x] **INV-3 — Stretto** — both voices state subject with 1-beat
-  delay in peroratio. Done 2026-02-14. Peroratio YAML expanded
-  (fenaroli prepended) to give stretto enough bars.
+- [ ] **Cadence length reform (remaining)** — cadenza_composta 4/4 done (IMP-6). Still needed: cadenza_semplice, half_cadence, comma in 4/4; all types in 3/4 (except cadenza_composta 3/4 already 2 bars). Hemiola variant for sarabande/courante. Grand cadence (4+ bars) for invention peroratio and fantasia.
+- [ ] **Structural knot consonance** — schema degree + octave selection produces tritones between voice knots. Affects gavotte (6), minuet (5), chorale (3), sarabande (3), trio_sonata (3), invention (3), fantasia (2). Upstream of solver.
 
 ## Later
 
-- [ ] **Subject generator reform** — current generator produces rhythmically flat subjects (uniform eighths/quarters). Subjects need both rhythmic and pitch drama: long notes that build anticipation, bursts of sixteenths that release it, dotted rhythms for character. Curated subjects in output/subjects/ demonstrate the target quality. Generator should produce subjects with comparable rhythmic contrast and melodic arc.
-- [ ] **Structural knot consonance** — schema degree + octave selection produces tritones between voice knots at the same offset. Affects gavotte (6), minuet (5), chorale (3), sarabande (3), trio_sonata (3), invention (3), fantasia (2). Upstream of solver; HC4 blocks fill tritones but cannot override pinned knots.
+- [ ] **Subject generator reform** — current generator produces rhythmically flat subjects (uniform eighths/quarters). Needs rhythmic and pitch drama: long notes, sixteenth bursts, dotted rhythms.
+- [ ] **Viterbi fallback warning improvement** — report which constraints fired, against which voice/pitch, and upstream cause.
 - [ ] **VG4 — Rewrite phrase_writer** — call `generate_voice()` in genre-determined composition order. Delete bass_writer.py, soprano_writer.py, bass_viterbi.py.
 - [ ] **VG5 — Style as weights from YAML** — cost weights externalised, weight envelopes from phrase position / affect / genre.
-
-## Deferred work
-
-- [ ] Exordium answer gap — prinner is cadential, so exordium has only one non-cadential phrase (do_re_mi = subject). Answer+CS never fires. Fix: add non-cadential schema to invention.yaml exordium sequence.
-- [ ] Cadence breath rests (non-final): arrival note should be shorter with a rest filling the remainder, so phrases have audible silence between them. Final cadence breath fixed (VG3.1 session); intermediate cadences still hold to bar end.
-- [ ] HRL Phase 2: Harmonic interpolation — densify_grid inserts conventional approach chords when gap between schema positions exceeds one bar.
-- [ ] HRL Phase 3: Cadential acceleration — one chord per beat in cadential approach zones.
-- [ ] HRL Phase 4: Bass inversion preference — derive inversion from bass degree vs chord root, apply as cost bonus.
+- [ ] Cadence breath rests (non-final): arrival note shorter with rest, so phrases have audible silence between them.
+- [ ] HRL Phase 2: Harmonic interpolation — densify_grid for gaps exceeding one bar.
+- [ ] HRL Phase 3: Cadential acceleration — one chord per beat in cadential approach.
+- [ ] HRL Phase 4: Bass inversion preference — derive inversion from bass degree vs chord root.
 - [ ] HRL Phase 5: Secondary dominants — V/x for sequential schemas with local tonicisations.
 - [ ] HRL Phase 6: Note writer integration — chord + chord_role columns in .note file.
-- [ ] Viterbi cost function future: motivic coherence (echo leader material), suspension preparation discount, period-3 oscillation suppression
-- [ ] Subject development (inversion, augmentation, stretto)
-- [ ] Episode derivation from subject fragments
-- [ ] CS in later invention entries
-- [ ] Inner voices
-- [ ] Figurenlehre labelling for training data
-- [ ] Figuration strong-beat consonance: coordinate generated degrees with accent patterns
-- [ ] Figuration metric alignment: chord roots on strong beats when arpeggiating large intervals
-- [ ] Whole-note held structural tones (gavotte bar 18) — single structural tone spanning full bar
-- [ ] Add mixed-rhythm semiquaver templates (dotted 16th + 32nd, Lombard patterns) for note counts 10-16
-- [ ] Restore validate_voice melodic interval assert (relaxed to warning in V6; V9 added graduated leap costs but octave+ intervals may still occur at phrase boundaries)
-- [ ] Bass stasis in chorale bars 1–3: 4× D3 quarter notes from rhythm cells expanding a single structural pitch. HC1 fires in Viterbi fill but stasis comes from upstream.
-- [ ] Sarabande spacing bar 5: gap of 40 semitones (G2 vs B5). HC2 blocks in fill but positions are structural knots.
-- [ ] Mechanical figuration: invention bars 11–16, fantasia bars 1–13 — relentless sixteenths, no rhythmic relief. Rhythm cell / phrase arc problem.
+- [ ] Viterbi cost function: motivic coherence, suspension preparation discount, period-3 oscillation suppression.
+- [ ] Exordium answer gap — prinner is cadential, so exordium has only one non-cadential phrase.
+- [ ] Bass stasis in chorale bars 1–3.
+- [ ] Sarabande spacing bar 5: gap of 40 semitones.
+- [ ] Mechanical figuration: invention bars 11–16, fantasia bars 1–13 — relentless sixteenths.
+- [ ] Whole-note held structural tones (gavotte bar 18).
+- [ ] Mixed-rhythm semiquaver templates (dotted 16th + 32nd, Lombard patterns) for note counts 10–16.
+- [ ] Restore validate_voice melodic interval assert.
+- [ ] Inner voices.
+- [ ] Figurenlehre labelling for training data.
+- [ ] Figuration strong-beat consonance.
+- [ ] Figuration metric alignment.
 
-## Done
+---
 
-- [x] VG3.1 — Hard counterpoint constraints in Viterbi solver (HC1–HC6), zero fallbacks all genres
-- [x] VG3 — Unified `generate_voice()` in `viterbi/generate.py`
-- [x] VG2.1 — COST_UNPREPARED_STRONG_DISS raised to 120.0
-- [x] VG2 — Hard filters removed, soft costs only
-- [x] VG1 — N-voice pairwise solver (LeaderNote → ExistingVoice)
-- [x] BV1 — Bass Viterbi for walking texture
-- [x] Tritone surcharge (COST_TRITONE = 80.0) on weak/moderate beats
-- [x] measure_consonance.py fixed: tritones always classified as unprepared
-- [x] Final cadence breath fix (hold to bar end, no rest)
-- [x] COST_STEP_UNISON raised to 15.0
-- [x] Viterbi cost function V9: zigzag/leap rebalancing, contour shaping, dissonance classification, anti-oscillation (V9a–V9d)
-- [x] Semiquaver runs (Phase 12)
-- [x] Figuration padding / sparse melodic material (Phase 12)
-- [x] Low soprano register in gavottes (Phase 12)
-- [x] Sarabande beat-2 weight (Phase 11c)
-- [x] Parallel octave gavotte bar 19.1 (Phase 11b)
-- [x] Invention exordium min_non_cadential (Phase 11a)
-- [x] Cross-relation prevention in soprano (Phase 10)
+## Completed
+
+### IMP — Imitative Composition Path (2026-02-15)
+
+Separate pipeline for subject-driven genres. Design: `workflow/imitative_design.md`.
+
+- [x] IMP-1: Infrastructure (composition_model field, folder, branch)
+- [x] IMP-2: Subject Planner (entry_sequence → SubjectPlan)
+- [x] IMP-3: Entry Layout (SubjectPlan → PhrasePlans)
+- [x] IMP-4: Episode Auto-Insertion (section boundary detection, key-distance, exposition exemption)
+- [x] IMP-5a.1: Pedal + Double Episodes
+- [x] IMP-5a.2: Stretto
+- [x] IMP-5b: Texture & Pairing — deferred (pairing useless without FREE companions)
+- [x] IMP-6: Cadence Reform (2-bar cadenza_composta 4/4)
+- [x] IMP-7: Listening Gate. Maurice accepted.
+
+### Earlier work
+
+- [x] HRL-1/2 — Harmonic Grid Infrastructure + Integration
+- [x] TD-1 through TD-3 — Thematic Planning Layer (superseded by IMP)
+- [x] TD-1t — Thematic Trace Instrumentation
+- [x] INV-1/2/3 — Countersubject, Episodes, Stretto (superseded by IMP)
+- [x] VG1/2/3 — Viterbi voice generation, soft costs, hard constraints
+- [x] BV1 — Bass Viterbi
+- [x] V9 — Viterbi cost function rebalancing
+- [x] Phases 10–12 — Cross-relation prevention, sarabande weight, figuration fixes

@@ -3,9 +3,9 @@
 Verifies invariants that span phrase boundaries (XP-01 to XP-06).
 These catch issues the per-phrase L6 tests cannot detect.
 """
-import pytest
 from fractions import Fraction
-from typing import Any
+
+import pytest
 
 from builder.compose import compose_phrases
 from builder.config_loader import load_configs
@@ -22,7 +22,6 @@ from tests.helpers import (
     get_phrase_genres,
     parse_metre,
 )
-
 
 # Genres with rhythm cells for their metre — computed dynamically
 PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()

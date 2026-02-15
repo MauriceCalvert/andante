@@ -11,10 +11,13 @@ Usage:
 """
 import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Tuple
 
 import yaml
 
+from motifs.affect_loader import get_affect_profile, score_subject_affect
+from motifs.figurae import get_figurae, score_motif_figurae, Figura
 from motifs.head_generator import (
     get_rhythm_cells,
     degrees_to_midi,
@@ -25,17 +28,13 @@ from motifs.head_generator import (
     MAX_INTERVAL,
     MIN_LEAP,
 )
-from shared.constants import NOTE_NAMES, TONIC_TRIAD_DEGREES
 from motifs.tail_generator import (
     generate_tails_for_head,
     tail_to_degrees,
     Tail,
 )
-from motifs.figurae import get_figurae, score_motif_figurae, Figura
-from motifs.affect_loader import get_affect_profile, score_subject_affect
-from pathlib import Path
+from shared.constants import NOTE_NAMES, TONIC_TRIAD_DEGREES
 from shared.midi_writer import write_midi_notes, SimpleNote
-
 
 SUPPORTED_METRES: tuple[tuple[int, int], ...] = tuple(RHYTHM_CELLS_BY_METRE.keys())
 
@@ -431,8 +430,8 @@ def generate_fugue_triple(
     verbose: bool = False,
 ) -> FugueTriple:
     """Generate coordinated subject, answer, and countersubject."""
-    from motifs.answer_generator import generate_answer, GeneratedAnswer
-    from motifs.countersubject_generator import generate_countersubject, GeneratedCountersubject
+    from motifs.answer_generator import generate_answer
+    from motifs.countersubject_generator import generate_countersubject
     subject = generate_subject(
         mode=mode,
         metre=metre,

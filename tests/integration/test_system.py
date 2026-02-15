@@ -3,9 +3,10 @@
 These are coarser than contract tests and verify emergent properties
 of the complete output.
 """
-import pytest
 from fractions import Fraction
 from typing import Any
+
+import pytest
 
 from builder.compose import compose_phrases
 from builder.config_loader import load_configs
@@ -18,8 +19,7 @@ from planner.schematic import layer_3_schematic
 from planner.tonal import layer_2_tonal
 from shared.key import Key
 from tests.conftest import KEYS
-from tests.helpers import degree_at, get_phrase_genres, parse_metre
-
+from tests.helpers import degree_at, get_phrase_genres
 
 # Genres with rhythm cells for their metre — computed dynamically
 PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()

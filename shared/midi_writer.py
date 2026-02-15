@@ -3,7 +3,7 @@
 No dependencies on datalayer - works with simple pitch/duration lists or Note dataclasses.
 """
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Sequence
 
 try:
     import mido

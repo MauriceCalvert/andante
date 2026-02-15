@@ -49,15 +49,6 @@ CADENCE_DEGREES: dict[str, tuple[int, int]] = {
     "open": (3, 1),
 }
 
-# Cadence types for schema-first planning
-CADENCE_TYPES: tuple[str, ...] = (
-    "authentic",
-    "deceptive",
-    "half",
-    "phrygian",
-    "plagal",
-)
-
 # Valid cadence types for tonal planning
 TONAL_CADENCE_TYPES: frozenset[str] = frozenset({
     "authentic", "half", "deceptive", "open",
@@ -69,30 +60,8 @@ VALID_KEY_AREAS: frozenset[str] = frozenset({
     "ii", "iii", "iv", "v", "vi",
 })
 
-# Interval names that trigger cadential writing mode
-CADENTIAL_INTERVALS: frozenset[str] = frozenset({
-    "step_down", "step_up", "third_down", "third_up", "unison",
-})
-
-# Cadential schema names - schemas that resolve a section
-CADENTIAL_SCHEMA_NAMES: frozenset[str] = frozenset({
-    "cadenza_composta",
-    "cadenza_semplice",
-    "comma",
-    "half_cadence",
-})
-
 # Cadential states that indicate a phrase is cadential
 CADENTIAL_POSITION: str = "cadential"
-
-# Cadential target degree by approach interval
-CADENTIAL_TARGET_DEGREE: dict[str, str] = {
-    "step_down": "target_1",
-    "step_up": "target_5",
-    "third_down": "target_1",
-    "third_up": "target_5",
-    "unison": "target_1",
-}
 
 # Clausula cantizans pattern (scale degrees)
 CLAUSULA_APPROACH_BASS: int = 7
@@ -112,16 +81,6 @@ CONSONANT_INTERVALS: frozenset[int] = frozenset({0, 3, 4, 5, 7, 8, 9})
 # Two-voice consonances: P4 excluded (dissonant when above bass voice)
 CONSONANT_INTERVALS_ABOVE_BASS: frozenset[int] = frozenset({0, 3, 4, 7, 8, 9})
 
-# Consonant intervals including octave (for invertibility checks)
-CONSONANT_INTERVALS_WITH_OCTAVE: frozenset[int] = frozenset({0, 3, 4, 5, 7, 8, 9, 12})
-
-# Consonant pitch offsets in diatonic steps, ordered by preference
-# Used for pillar fallback when anchor pitch fails candidate filter
-CONSONANT_PITCH_OFFSETS: tuple[int, ...] = (0, -7, 7, -2, 2, -4, 4, -5, 5, -3, 3)
-
-# Dissonant intervals (semitones): m2 (1), M7 (11) are harsh
-DISSONANT_INTERVALS: frozenset[int] = frozenset({1, 11})
-
 # Imperfect consonances (semitones): 3rds and 6ths
 IMPERFECT_CONSONANCES: frozenset[int] = frozenset({3, 4, 8, 9})
 
@@ -131,9 +90,6 @@ INVERTIBLE_CONSONANCES: frozenset[int] = IMPERFECT_CONSONANCES
 
 # Perfect intervals (semitones): unison (0), P5 (7) - forbidden in parallel motion
 PERFECT_INTERVALS: frozenset[int] = frozenset({0, 7})
-
-# All consonances excluding P4: perfect + imperfect (for counterpoint)
-ALL_CONSONANCES: frozenset[int] = PERFECT_INTERVALS | IMPERFECT_CONSONANCES
 
 # Strong-beat dissonant intervals (semitones, reduced to single octave)
 # Forbidden on downbeats without preparation: m2, M2, tritone, m7, M7
@@ -162,18 +118,6 @@ CROSS_RELATION_PAIRS: frozenset[tuple[int, int]] = frozenset({
 # Degrees
 # =============================================================================
 
-# Degrees consonant with bass degree 1 (tonic triad: 1, 3, 5)
-CONSONANT_DEGREES_WITH_TONIC: frozenset[int] = frozenset({1, 3, 5})
-
-# Valid scale degrees in diatonic system (both major and minor)
-DIATONIC_DEGREES: frozenset[int] = frozenset({1, 2, 3, 4, 5, 6, 7})
-
-# Number of scale degrees in diatonic system
-SCALE_DEGREES: int = 7
-
-# Stable resolution target degrees (tonic triad across two octaves, 0-indexed)
-STABLE_DEGREES: frozenset[int] = frozenset({0, 2, 4, 7, 9, 11, 14})
-
 # Starting degrees for subjects (tonic triad, 0-indexed)
 TONIC_TRIAD_DEGREES: tuple[int, ...] = (0, 2, 4)
 
@@ -189,17 +133,8 @@ DENSITY_RHYTHMIC_UNIT: dict[str, Fraction] = {
     "medium": Fraction(1, 8),
 }
 
-# MIDI gate factor per L013: notes shortened to 95% of notated duration
-GATE_FACTOR: Fraction = Fraction(19, 20)
-
 # Maximum consecutive simultaneous attacks before parallel_rhythm fault
 MAX_PARALLEL_RHYTHM_ATTACKS: int = 5
-
-# Maximum sequence repetitions before fragmentation (Rule of Three)
-MAX_SEQUENCE_REPETITIONS: int = 2
-
-# Rhythmic contrast threshold: if soprano has <= this many notes, bass maintains density
-RHYTHMIC_CONTRAST_THRESHOLD: int = 4
 
 # Strong beat offsets within a bar, keyed by metre string
 # Beat 1 is always strong; 4/4 also has beat 3 (offset 1/2)
@@ -207,14 +142,6 @@ STRONG_BEAT_OFFSETS: dict[str, tuple[Fraction, ...]] = {
     "3/4": (Fraction(0),),
     "4/4": (Fraction(0), Fraction(1, 2)),
 }
-
-# Duration threshold for articulation tagging (eighth note)
-STACCATO_DURATION_THRESHOLD: Fraction = Fraction(1, 8)
-
-# Valid musical duration denominators (powers of 2, with triplet variants)
-VALID_DENOMINATORS: frozenset[int] = frozenset({
-    1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64,
-})
 
 # Valid note durations as fractions of a whole note (descending)
 VALID_DURATIONS: tuple[Fraction, ...] = (
@@ -233,25 +160,12 @@ METRE_BAR_LENGTH: dict[str, Fraction] = {
 
 # Melodic interval thresholds (semitones)
 MAX_MELODIC_INTERVAL: int = 12
-LEAP_THRESHOLD: int = 4
-
 # Sentinel durations for bass patterns: "bar" and "half" tokens in YAML
 DURATION_SENTINEL_BAR: Fraction = Fraction(-1)
 DURATION_SENTINEL_HALF: Fraction = Fraction(-2)
 
 # Sentinel beat position for "half" token when metre is unknown at parse time
 BEAT_SENTINEL_HALF: Fraction = Fraction(-3)
-
-
-# Valid density trajectory types
-VALID_DENSITY_TRAJECTORIES: frozenset[str] = frozenset({
-    "constant", "rising", "falling", "arc",
-})
-
-# Valid development plan types
-VALID_DEVELOPMENT_PLANS: frozenset[str] = frozenset({
-    "intensifying", "relaxing", "contrasting",
-})
 
 
 # Valid motif character types
@@ -264,9 +178,6 @@ VALID_MOTIF_CHARACTERS: frozenset[str] = frozenset({
 VALID_PHRASE_POSITIONS: frozenset[str] = frozenset({
     "opening", "interior", "cadential",
 })
-
-# Climax position within section (fraction of section length)
-SECTION_CLIMAX_POSITION: float = 0.67
 
 
 # =============================================================================
@@ -305,32 +216,6 @@ INTERVAL_DIATONIC_SIZE: dict[str, int] = {
     "unison": 0,
 }
 
-# Exit degree offset by interval name (signed diatonic steps)
-INTERVAL_EXIT_DEGREES: dict[str, int] = {
-    "fifth_down": -4,
-    "fifth_up": 4,
-    "fourth_down": -3,
-    "fourth_up": 3,
-    "octave_down": -7,
-    "octave_up": 7,
-    "sixth_down": -5,
-    "sixth_up": 5,
-    "step_down": -1,
-    "step_up": 1,
-    "third_down": -2,
-    "third_up": 2,
-    "unison": 0,
-}
-
-# Minimum notes for a figuration gap
-MIN_FIGURATION_NOTES: int = 2
-
-# Note count reduction from base, keyed by diatonic interval size.
-# Removed: small intervals in baroque music are filled with running passages
-# and neighbour-tone figurations that need MORE notes, not fewer.
-# Kept as empty dict for backward compatibility.
-SMALL_INTERVAL_NOTE_REDUCTION: dict[int, int] = {}
-
 
 # =============================================================================
 # Intervals
@@ -339,34 +224,8 @@ SMALL_INTERVAL_NOTE_REDUCTION: dict[int, int] = {}
 # Only >M3 counts as leap for direct 5ths/8ves (semitones)
 DIRECT_MOTION_LEAP_SEMITONES: int = 4
 
-# Step threshold for direct motion rule (semitones)
-DIRECT_MOTION_STEP_THRESHOLD: int = 2
-
 # Octave + fifth: error threshold (semitones)
 GROTESQUE_LEAP_SEMITONES: int = 19
-
-# Interval names by semitone count
-INTERVAL_NAMES: dict[int, str] = {
-    0: "unison",
-    1: "minor_2nd",
-    2: "major_2nd",
-    3: "minor_3rd",
-    4: "major_3rd",
-    5: "perfect_4th",
-    6: "tritone",
-    7: "perfect_5th",
-    8: "minor_6th",
-    9: "major_6th",
-    10: "minor_7th",
-    11: "major_7th",
-    12: "octave",
-}
-
-# Short interval names indexed by semitone (0-11)
-INTERVAL_NAMES_SHORT: tuple[str, ...] = (
-    "unison", "m2", "M2", "m3", "M3", "P4",
-    "tritone", "P5", "m6", "M6", "m7", "M7",
-)
 
 # Key area transpositions in semitones from tonic
 KEY_AREA_SEMITONES: dict[str, int] = {
@@ -385,9 +244,6 @@ KEY_AREA_SEMITONES: dict[str, int] = {
     "vii": 11,
 }
 
-# Maximum leap between consecutive gaps (octave, semitones)
-MAX_LEAP_SEMITONES: int = 12
-
 # Major third: small skip threshold (semitones)
 SKIP_SEMITONES: int = 4
 
@@ -396,9 +252,6 @@ STEP_SEMITONES: int = 2
 
 # Tritone interval (semitones)
 TRITONE_SEMITONES: int = 6
-
-# Minor 7th: maximum internal figure leap (semitones)
-UGLY_LEAP_SEMITONES: int = 10
 
 
 # =============================================================================
@@ -420,14 +273,8 @@ MINOR_SCALE: Tuple[int, ...] = NATURAL_MINOR_SCALE  # alias
 # MIDI pitch threshold for bass clef assignment
 BASS_CLEF_THRESHOLD: int = 60
 
-# Voice index into VOICE_RANGES for bass
-BASS_VOICE_IDX: int = 3
-
 # Lowest acceptable soprano pitch (C4, MIDI) — practical floor for voice separation
 MIN_SOPRANO_MIDI: int = 60
-
-# Voice index into VOICE_RANGES for soprano
-SOPRANO_VOICE_IDX: int = 0
 
 # Tonic note name to MIDI pitch (octave 4)
 TONIC_TO_MIDI: dict[str, int] = {
@@ -514,39 +361,6 @@ NOTE_NAMES: Tuple[str, ...] = NOTE_NAMES_SHARP
 
 
 # =============================================================================
-# Schema & Planning
-# =============================================================================
-
-# Dux voice options for schema slots (voice that presents subject first)
-DUX_VOICES: tuple[str, ...] = (
-    "bass",
-    "soprano",
-)
-
-# Misbehaviour probability for controlled violations
-MISBEHAVIOUR_PROBABILITY: float = 0.05
-
-# Texture types for schema slots
-SCHEMA_TEXTURES: tuple[str, ...] = (
-    "free",         # Counterpoint fills (inner voices in 4-part)
-    "imitative",    # Both voices derive from schema (invention, fugue)
-    "melody_bass",  # Soprano realizes, bass supports (minuet, dance)
-)
-
-# Treatment vocabulary for schema-first planning (5 contrapuntal treatments only)
-SCHEMA_TREATMENTS: tuple[str, ...] = (
-    "imitation",     # Answer at octave/fifth
-    "inversion",     # Melodic mirror
-    "statement",     # Literal subject presentation
-    "stretto",       # Overlapped entries
-    "transposition", # Transposed repetition
-)
-
-# Valid direction types for schema degrees
-VALID_DIRECTIONS: frozenset[str] = frozenset({"down", "same", "up"})
-
-
-# =============================================================================
 # Registral Bias
 # =============================================================================
 
@@ -593,28 +407,6 @@ DESCENT_BIAS_STEP: int = 2
 # =============================================================================
 # Tessitura
 # =============================================================================
-
-# Headroom (semitones) to leave for figuration departure direction
-# Ascending figuration needs room above; descending needs room below
-ANCHOR_DEPARTURE_HEADROOM: int = 12
-
-# Default tessitura medians by voice index (MIDI pitch)
-# Voice 0 = soprano, 1 = alto, 2 = tenor, 3 = bass
-DEFAULT_TESSITURA_MEDIANS: dict[int, int] = {
-    0: 70,  # Bb4 - soprano
-    1: 60,  # C4 - alto
-    2: 54,  # F#3 - tenor
-    3: 48,  # C3 - bass
-}
-
-# Soft tessitura span: semitones from median before cost increases
-TESSITURA_COMFORTABLE_SPAN: int = 7
-
-# Cost multiplier for notes beyond comfortable span (per semitone)
-TESSITURA_DEVIATION_COST: float = 2.0
-
-# Cost for notes far beyond comfortable range (>2x comfortable span from median)
-TESSITURA_EXTREME_COST: float = 100.0
 
 # Voice ranges (MIDI pitch): (low, high) - standard Baroque ranges
 VOICE_RANGES: dict[int, tuple[int, int]] = {

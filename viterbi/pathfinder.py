@@ -14,14 +14,13 @@ optimal because the penalty already exceeds alternative costs.
 import math
 
 from viterbi.costs import transition_cost, ARC_PEAK_POSITION, ARC_SIGMA, ARC_REACH
-from viterbi.scale import interval_name, is_consonant, scale_degree_distance, KeyInfo, CMAJ
 from viterbi.mtypes import (
     Corridor,
     ExistingVoice,
     Knot,
-    PhraseResult,
     pitch_name,
 )
+from viterbi.scale import interval_name, is_consonant, scale_degree_distance, KeyInfo, CMAJ
 
 INF = float("inf")
 MAX_RUN = 6

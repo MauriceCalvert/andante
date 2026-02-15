@@ -4,7 +4,6 @@ import pytest
 from shared.constants import MAJOR_SCALE, NATURAL_MINOR_SCALE
 from shared.diatonic_pitch import DiatonicPitch
 from shared.key import Key
-from shared.pitch import FloatingNote
 
 
 # =========================================================================
@@ -250,32 +249,3 @@ def test_uses_flats(tonic: str, mode: str, expected: bool) -> None:
     k: Key = Key(tonic=tonic, mode=mode)
     assert k.uses_flats() is expected
 
-
-# =========================================================================
-# floating_to_midi
-# =========================================================================
-
-
-def test_floating_to_midi_prefers_voice_leading() -> None:
-    """FloatingNote resolves close to prev_midi."""
-    k: Key = Key(tonic="C", mode="major")
-    note: FloatingNote = FloatingNote(degree=5)  # G
-    midi: int = k.floating_to_midi(
-        note=note,
-        prev_midi=65,   # F4
-        median=60,
-    )
-    assert midi == 67  # G4 — closest G to F4
-
-
-def test_floating_to_midi_respects_range() -> None:
-    """FloatingNote penalises out-of-range pitches."""
-    k: Key = Key(tonic="C", mode="major")
-    note: FloatingNote = FloatingNote(degree=1)  # C
-    midi: int = k.floating_to_midi(
-        note=note,
-        prev_midi=60,
-        median=60,
-        voice_range=(55, 72),
-    )
-    assert 55 <= midi <= 72

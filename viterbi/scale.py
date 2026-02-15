@@ -16,9 +16,6 @@ class KeyInfo:
 # C major scale — the only scale in this prototype
 # ---------------------------------------------------------------------------
 
-# Semitone offsets within one octave for C major (deprecated: use KeyInfo)
-CMAJ_OFFSETS = [0, 2, 4, 5, 7, 9, 11]  # C D E F G A B
-
 # Default key for all operations
 CMAJ = KeyInfo(pitch_class_set=frozenset({0, 2, 4, 5, 7, 9, 11}), tonic_pc=0)
 

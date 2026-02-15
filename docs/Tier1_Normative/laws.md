@@ -35,7 +35,7 @@ L017 Single source of truth, inherit not repeat
 L018 __init__.py must be empty, no re-exports
 L019 ASCII only, no UTF8 symbols
 L020 All arguments passed by keyword, no positional calls
-L021 Brief fallback warning: when YAML/brief config makes something impossible, use brief_warning() from shared/errors.py (kind sarcastic: what_failed, why, suggestion). Algorithmic fallbacks are normal runtime and do not use this.
+L021 Brief fallback warning: when YAML/brief config makes something impossible, show warning (sarcastic but kind: what_failed, why, suggestion). Algorithmic fallbacks are normal runtime and do not use this.
 S001 Performance practice out of scope; score notation only
 V001 Generators vary via phrase_index, bar_idx, segment offsets
 V002 Tremolo max 6 notes

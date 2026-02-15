@@ -122,54 +122,6 @@ def get_schemas_by_position(position: str) -> list[str]:
     schemas = load_schemas()
     return [name for name, s in schemas.items() if s.position == position]
 
-
-def get_opening_schemas() -> list[str]:
-    """Return schema names valid for opening."""
-    return get_schemas_by_position(position="opening")
-
-
-def get_riposte_schemas() -> list[str]:
-    """Return schema names valid for riposte."""
-    return get_schemas_by_position(position="riposte")
-
-
-def get_continuation_schemas() -> list[str]:
-    """Return schema names valid for continuation."""
-    return get_schemas_by_position(position="continuation")
-
-
-def get_pre_cadential_schemas() -> list[str]:
-    """Return schema names valid for pre-cadential."""
-    return get_schemas_by_position(position="pre_cadential")
-
-
-def get_cadential_schemas() -> list[str]:
-    """Return schema names valid for cadence."""
-    return get_schemas_by_position(position="cadential")
-
-
-def get_sequential_schemas() -> list[str]:
-    """Return sequential schema names (Monte, Fonte)."""
-    schemas = load_schemas()
-    return [name for name, s in schemas.items() if s.sequential]
-
-
-def get_typical_position(schema_name: str) -> str:
-    """Get the typical formal position for a schema."""
-    schema = get_schema(name=schema_name)
-    return schema.position
-
-
-def schema_fits_bars(schema_name: str, available_bars: int) -> bool:
-    """Check if schema can fit within available bars.
-
-    A schema fits if its min_bars <= available_bars.
-    The schema will use between min_bars and min(max_bars, available_bars).
-    """
-    schema = get_schema(name=schema_name)
-    return schema.min_bars <= available_bars
-
-
 def can_connect_direct(from_schema: str, to_schema: str) -> bool:
     """Check if two schemas can connect directly (no free passage).
 
@@ -211,53 +163,6 @@ def get_allowed_next(schema_name: str) -> list[str]:
     )
     allowed = schema_data["allowed_next"]
     return [s for s in allowed if isinstance(s, str) and not s.startswith("#")]
-
-
-def get_schema_figuration_profile(schema_name: str) -> str:
-    """Get figuration profile name for a schema."""
-    schema = get_schema(name=schema_name)
-    return schema.figuration_profile
-
-
-def get_schema_profiles() -> dict[str, str]:
-    """Get mapping of all schema names to their figuration profiles."""
-    schemas = load_schemas()
-    return {name: s.figuration_profile for name, s in schemas.items()}
-
-
-def get_arrival_beats(schema_name: str, bars: int, metre: tuple[int, int] = (4, 4)) -> list[float]:
-    """Calculate arrival beat positions for a schema.
-
-    Arrivals fall on strong beats, distributed evenly.
-    In 4/4: beats 1 and 3 are strong.
-    In 3/4: beat 1 is strong.
-
-    Args:
-        schema_name: Name of schema.
-        bars: Number of bars allocated.
-        metre: Time signature as (numerator, denominator).
-
-    Returns:
-        List of beat positions as bar.beat (e.g., 1.1, 1.3, 2.1).
-    """
-    schema = get_schema(name=schema_name)
-    num_arrivals = schema.stage_count
-    if metre[0] == 4:
-        strong_beats = [1, 3]
-    elif metre[0] == 3:
-        strong_beats = [1]
-    else:
-        strong_beats = [1]
-    positions: list[float] = []
-    for bar in range(1, bars + 1):
-        for beat in strong_beats:
-            if len(positions) < num_arrivals:
-                positions.append(float(f"{bar}.{beat}"))
-    # If still need arrivals, use beat 4 of last bar for cadential
-    while len(positions) < num_arrivals:
-        positions.append(float(f"{bars}.4"))
-    return positions[:num_arrivals]
-
 
 def get_typical_keys(schema_name: str) -> tuple[str, ...] | None:
     """Get key journey for a sequential schema."""

@@ -131,10 +131,17 @@ Bob reads the enriched .note file only. Each note carries:
 - **phrase** — phrase number and schema name
 - **cadence** — cadence type (if cadential phrase)
 
+The .note file does **not** contain thematic labels ("subject", "answer",
+"cs", etc.). Those are written to a separate `.labels` file that only
+Chaz reads. Bob identifies thematic material from pitch contour and
+rhythm alone, the way a musician reads a score. If Bob cannot recognise
+the subject from the notes, that is a valid musical observation, not a
+gap to be filled by reading metadata.
+
 This is Bob's complete score. He does not read YAML configuration files,
-Python source, or any other system artefact. If Bob needs information
-that is not in the .note file, the .note file is incomplete — that is a
-system problem for Chaz, not a gap for Bob to fill.
+Python source, `.labels` files, or any other system artefact. If Bob
+needs information that is not in the .note file, the .note file is
+incomplete — that is a system problem for Chaz, not a gap for Bob to fill.
 
 Bob reads bar numbers as musical bar numbers (the bar column + 1, since
 the file is 0-indexed).

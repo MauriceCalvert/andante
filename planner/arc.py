@@ -3,17 +3,9 @@ from pathlib import Path
 
 import yaml
 
-from planner.plannertypes import Brief, MacroForm, TensionCurve, TensionPoint
+from planner.plannertypes import TensionCurve, TensionPoint
 
 DATA_DIR = Path(__file__).parent.parent / "data"
-TENSION_TO_ENERGY: dict[str, str] = {
-    "low": "low",
-    "moderate": "moderate",
-    "high": "rising",
-    "peak": "peak",
-    "falling": "falling",
-}
-
 
 def load_yaml(name: str) -> dict:
     """Load YAML file from data directory."""
@@ -45,38 +37,6 @@ def load_named_curve(name: str) -> TensionCurve:
     )
 
 
-def select_tension_curve(brief: Brief) -> str:
-    """Select tension curve template based on affect."""
-    affect_to_curve: dict[str, str] = {
-        "maestoso": "arch",
-        "giocoso": "cumulative",
-        "dolore": "dramatic",
-        "grazioso": "calm",
-        "furioso": "episodic",
-    }
-    return affect_to_curve.get(brief.affect, "arch")
-
-
-def build_tension_curve(brief: Brief, macro_form: MacroForm | None = None) -> TensionCurve:
-    """Build tension curve from template."""
-    curves: dict = load_yaml(name="rhetoric/tension_curves.yaml")
-    curve_name: str = select_tension_curve(brief=brief)
-    assert curve_name in curves, f"Unknown tension curve: {curve_name}"
-    curve_def: dict = curves[curve_name]
-    raw_points: list[list[float]] = curve_def["points"]
-    points: list[TensionPoint] = []
-    max_level: float = 0.0
-    max_position: float = 0.5
-    for pos, level in raw_points:
-        points.append(TensionPoint(position=pos, level=level))
-        if level > max_level:
-            max_level = level
-            max_position = pos
-    return TensionCurve(
-        points=tuple(points),
-        climax_position=max_position,
-        climax_level=max_level,
-    )
 
 
 def get_tension_at_position(curve: TensionCurve, position: float) -> float:

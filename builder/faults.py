@@ -675,7 +675,6 @@ def find_faults_from_composition(
     Returns:
         List of Fault objects sorted by bar_beat.
     """
-    from builder.types import Composition
     voice_data: list[tuple[int, str, Sequence[Note]]] = []
     for name, notes in composition.voices.items():
         track: int = notes[0].voice if notes else 0

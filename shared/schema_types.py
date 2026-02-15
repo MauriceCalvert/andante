@@ -4,7 +4,6 @@ Single source of truth (L017) for schema definitions loaded from
 data/schemas/schemas.yaml.
 """
 from dataclasses import dataclass
-from fractions import Fraction
 
 
 @dataclass(frozen=True)

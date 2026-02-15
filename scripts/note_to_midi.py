@@ -1,5 +1,4 @@
 """Convert .note CSV file to MIDI format."""
-import csv
 import sys
 from fractions import Fraction
 from pathlib import Path

@@ -65,6 +65,7 @@ contaminated output. Return to the boundary.
 | Can | Cannot |
 |-----|--------|
 | Read Python, trace data flow, find root causes | Judge whether music sounds good |
+| Read .trace files for pipeline diagnostic data | Treat .trace data as musical judgment |
 | Map Bob's observations to code locations | Produce perceptual statements |
 | Identify unwired/dead systems in the codebase | Override or qualify Bob's verdicts |
 | Propose minimal fixes (wire before invent) | Say "the output is correct" |
@@ -128,6 +129,16 @@ Chaz builds a downbeat audit table from the enriched .note file. The
 per note — Chaz reads these columns directly rather than computing them
 from external sources.
 
+**Thematic labels** ("subject", "answer", "cs", "stretto", "episode")
+are written to a separate `.labels` file alongside the `.note` file.
+Bob never sees `.labels` — he must identify thematic material from
+pitch contour and rhythm alone, the way a musician reads a score. Chaz
+reads `.labels` to cross-reference Bob's material identifications with
+the builder's actual assignments. If Bob says "the opening call returns
+in bar 5" and `.labels` shows a "subject" label at bar 5, the claim is
+confirmed. If Bob misidentifies material, that is diagnostic information
+about whether the material is recognisable from the score data alone.
+
 ```
 | Bar | Beat | Soprano | Bass | Interval (st) | Degree | Schema | Consonant? |
 ```
@@ -149,7 +160,7 @@ cross-relations, leaps, and tessitura. It does NOT check:
 Chaz's table catches what the fault checker misses. But "zero faults in
 the table" is not "good music." Only Bob determines that.
 
-### RULE 7: Configuration Is Chaz's Domain
+### RULE 8: Configuration Is Chaz's Domain
 
 YAML files (genre configs, schema definitions, figuration tables,
 transition graphs) are system configuration. Bob never reads them.
@@ -160,7 +171,34 @@ value (e.g., wrong schema_sequence, missing bass_treatment), Chaz
 identifies this and proposes the fix. Bob sees only the .note output;
 Chaz sees everything behind it.
 
-### RULE 6: Check the Endings
+### RULE 6: Read the Trace File
+
+When `-trace` is enabled, the pipeline writes a `<piece>.trace` file alongside
+the `.note` and `.midi` outputs. This file contains dense, per-layer diagnostic
+data that Chaz should read before building the downbeat audit table:
+
+| Section | Contents |
+|---------|----------|
+| L1 | Trajectory, tempo, metre, rhythmic unit |
+| L2 | Tonal plan (key areas, cadences) |
+| L3 | Schema chain (selected schemas per section) |
+| L4 | Bar assignments, anchors, total bars |
+| L4b | Thematic entry sequence, beat-role plan, coverage |
+| IMP-2 | SubjectPlan bar map (imitative path) |
+| L5 | PhrasePlan summaries (schema, bars, key, degrees) |
+| L6t | Per-entry render dispatch (voice, role, key, note count, range) |
+| L6 | Per-phrase result (note counts, exit pitches, bass patterns) |
+| Faults | Full fault list from post-composition scan |
+
+The trace file is data, not music. It tells Chaz what the pipeline *decided*
+at each layer. When Bob reports a problem, Chaz cross-references the trace to
+find where the pipeline made the wrong decision — which layer, which schema,
+which bar assignment — before diving into Python source.
+
+**Always read the .trace file first when one is available.** It is faster and
+more reliable than grepping source to reconstruct what happened.
+
+### RULE 7: Check the Endings
 
 For every section, Chaz verifies structurally:
 - Does the final schema produce a cadential resolution?

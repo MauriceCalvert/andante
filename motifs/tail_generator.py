@@ -8,9 +8,8 @@ A tail continues from the head with:
 """
 from dataclasses import dataclass
 from itertools import product
-from motifs.head_generator import Head
-from shared.constants import STABLE_DEGREES
 
+from motifs.head_generator import Head
 
 # Interval cells for tails - each has a net direction
 # (intervals, name, net_direction)

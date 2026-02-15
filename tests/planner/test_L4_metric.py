@@ -1,6 +1,6 @@
 """L4 Metric layer contract tests."""
 import pytest
-from typing import Any
+
 from builder.config_loader import load_configs
 from builder.types import Anchor, GenreConfig, KeyConfig
 from planner.metric.layer import layer_4_metric

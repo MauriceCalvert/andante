@@ -510,13 +510,17 @@ not the Model.]
 - Before proposing any new mechanism, grep for existing code first
 
 ### Checkpoint (mandatory)
-After implementation, run the pipeline. Evaluate as Bob first, then
-diagnose as Chaz. The boundary is absolute: no code in Bob's output,
-no perceptual language in Chaz's.
+After implementation, run the pipeline with `-trace` enabled. Read the
+`.trace` file before evaluating. Evaluate as Bob first, then diagnose as
+Chaz. The boundary is absolute: no code in Bob's output, no perceptual
+language in Chaz's.
 
 Bob reads the enriched .note file only (pitch, degree, harmony, phrase,
-schema, cadence type). He does not read YAML or Python. If the .note
-file lacks information Bob needs, that is a system gap for Chaz.
+schema, cadence type). The .note file contains no thematic labels —
+those are in the `.labels` file that only Chaz reads. Bob identifies
+thematic material by its pitch contour and rhythm, not by metadata.
+He does not read YAML, Python, or `.labels`. If the .note file lacks
+information Bob needs, that is a system gap for Chaz.
 
 Bob:
 1. What changed musically? (cite specific bars, perceptual terms only)

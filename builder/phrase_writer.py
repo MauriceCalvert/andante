@@ -3,42 +3,22 @@ from dataclasses import replace
 from fractions import Fraction
 
 from builder.bass_viterbi import generate_bass_viterbi
-from builder.bass_writer import generate_bass_phrase
 from builder.cadence_writer import write_cadence
-from builder.harmony import build_harmonic_grid, HarmonicGrid
+from builder.galant.bass_writer import generate_bass_phrase
+from builder.galant.harmony import build_harmonic_grid, HarmonicGrid
+from builder.galant.soprano_writer import build_structural_soprano
 from builder.imitation import (
-    countersubject_to_voice_notes,
-    DURATION_DENOMINATOR_LIMIT,
-    subject_bar_count,
     subject_to_voice_notes,
 )
-from shared.constants import TRACK_BASS, TRACK_SOPRANO
-from builder.phrase_types import PhrasePlan, PhraseResult, make_tail_plan, phrase_bar_start
-from builder.soprano_writer import (
-    build_structural_soprano,
-    generate_soprano_phrase,
-    generate_soprano_viterbi,
-)
+from builder.phrase_types import PhrasePlan, PhraseResult, make_tail_plan
+from builder.soprano_viterbi import generate_soprano_viterbi
 from builder.types import Note
 from motifs.fugue_loader import LoadedFugue
 from planner.schema_loader import get_schema
 from planner.thematic import BeatRole
+from shared.constants import TRACK_BASS, TRACK_SOPRANO
 from shared.key import Key
 from shared.music_math import parse_metre
-
-
-def _pad_to_offset(
-    notes: tuple[Note, ...],
-    target_offset: Fraction,
-) -> tuple[Note, ...]:
-    """Extend last note to reach target_offset (subject-to-tail boundary)."""
-    note_end: Fraction = notes[-1].offset + notes[-1].duration
-    if note_end >= target_offset:
-        return notes
-    last: Note = notes[-1]
-    return notes[:-1] + (
-        replace(last, duration=last.duration + (target_offset - note_end)),
-    )
 
 
 def _is_walking(plan: PhrasePlan) -> bool:
@@ -159,6 +139,7 @@ def _write_thematic(
     """
     from builder.thematic_renderer import render_thematic_beat, _render_episode_fragment
     from planner.thematic import ThematicRole
+    from shared.tracer import get_tracer, _key_str
 
     assert plan.thematic_roles is not None, "thematic_roles must be populated"
 
@@ -171,8 +152,8 @@ def _write_thematic(
         v0_role: ThematicRole = entry["voice0_role"]
         v1_role: ThematicRole = entry["voice1_role"]
         # Keep entry if either voice has material
-        if (v0_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS, ThematicRole.EPISODE) or
-            v1_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS, ThematicRole.EPISODE)):
+        if (v0_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS, ThematicRole.EPISODE, ThematicRole.STRETTO) or
+            v1_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS, ThematicRole.EPISODE, ThematicRole.STRETTO)):
             material_entries.append(entry)
 
     bar_length: Fraction = parse_metre(metre=plan.metre)[0]
@@ -228,19 +209,62 @@ def _write_thematic(
                 voice0_notes = (replace(voice0_notes[0], lyric=lyric),) + voice0_notes[1:]
                 soprano_notes = soprano_notes + voice0_notes
 
+                # Trace render
+                tracer = get_tracer()
+                note_pitches: list[int] = [n.pitch for n in voice0_notes]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="U",
+                    role_name=voice0_role.value.upper(),
+                    key_str=_key_str(key=beat_role_v0.material_key),
+                    note_count=len(voice0_notes),
+                    low_pitch=min(note_pitches),
+                    high_pitch=max(note_pitches),
+                )
+            else:
+                # No notes rendered for this voice
+                tracer = get_tracer()
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="U",
+                    role_name=voice0_role.value.upper(),
+                    key_str=_key_str(key=beat_role_v0.material_key),
+                    note_count=0,
+                    low_pitch=0,
+                    high_pitch=0,
+                )
+
         elif voice0_role == ThematicRole.EPISODE:
-            assert beat_role_v0 is not None, f"No BeatRole for voice 0 EPISODE at entry bar {entry_first_bar}"
-            # Render episode fragment
-            voice0_notes_raw: tuple[Note, ...] = _render_episode_fragment(
-                role=beat_role_v0,
-                fugue=fugue,
-                start_offset=entry_start_offset,
-                target_track=TRACK_SOPRANO,
-                target_range=plan.upper_range,
-            )
+            # Render all episode fragments (one per bar with incrementing iteration)
+            all_episode_notes: list[Note] = []
+            for bar_offset in range(entry_bar_count):
+                bar_num: int = entry_first_bar + bar_offset
+                bar_start_offset: Fraction = entry_start_offset + Fraction(bar_offset)
+
+                # Find BeatRole for this bar and voice 0
+                bar_beat_role: BeatRole | None = None
+                for role in plan.thematic_roles:
+                    if role.bar == bar_num and role.voice == 0 and role.beat == Fraction(0):
+                        bar_beat_role = role
+                        break
+
+                assert bar_beat_role is not None, (
+                    f"No BeatRole for voice 0 EPISODE at bar {bar_num}"
+                )
+
+                # Render this bar's fragment
+                fragment_notes: tuple[Note, ...] = _render_episode_fragment(
+                    role=bar_beat_role,
+                    fugue=fugue,
+                    start_offset=bar_start_offset,
+                    target_track=TRACK_SOPRANO,
+                    target_range=plan.upper_range,
+                )
+                all_episode_notes.extend(fragment_notes)
+
             # Apply time window
             voice0_notes_windowed: list[Note] = []
-            for n in voice0_notes_raw:
+            for n in all_episode_notes:
                 if n.offset >= next_entry_start_offset:
                     break
                 note_end: Fraction = n.offset + n.duration
@@ -249,6 +273,97 @@ def _write_thematic(
                 else:
                     voice0_notes_windowed.append(n)
             soprano_notes = soprano_notes + tuple(voice0_notes_windowed)
+
+            # Trace render (only for first bar)
+            if voice0_notes_windowed:
+                tracer = get_tracer()
+                note_pitches = [n.pitch for n in voice0_notes_windowed]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="U",
+                    role_name="EPISODE",
+                    key_str=_key_str(key=beat_role_v0.material_key) if beat_role_v0 else "",
+                    note_count=len(voice0_notes_windowed),
+                    low_pitch=min(note_pitches),
+                    high_pitch=max(note_pitches),
+                )
+
+        elif voice0_role == ThematicRole.STRETTO:
+            # STRETTO: follower voice plays subject with delay (upper voice case)
+            assert beat_role_v0 is not None, f"No BeatRole for voice 0 at entry bar {entry_first_bar}"
+            assert beat_role_v0.material is not None, "STRETTO BeatRole missing material (delay)"
+
+            # Parse delay from material field (string -> int)
+            delay_beats: int = int(beat_role_v0.material)
+
+            # Compute delay_offset: delay in beats × beat_unit
+            bar_length: Fraction
+            beat_unit: Fraction
+            bar_length, beat_unit = parse_metre(metre=plan.metre)
+            delay_offset: Fraction = Fraction(delay_beats) * beat_unit
+
+            # Render subject at delayed start
+            voice0_notes_stretto: tuple[Note, ...] = subject_to_voice_notes(
+                fugue=fugue,
+                start_offset=entry_start_offset + delay_offset,
+                target_key=beat_role_v0.material_key,
+                target_track=TRACK_SOPRANO,
+                target_range=plan.upper_range,
+            )
+
+            # Apply time window: drop/truncate notes outside [entry_start_offset, next_entry_start_offset)
+            voice0_notes_windowed: list[Note] = []
+            for n in voice0_notes_stretto:
+                if n.offset >= next_entry_start_offset:
+                    break
+                note_end: Fraction = n.offset + n.duration
+                if note_end > next_entry_start_offset:
+                    voice0_notes_windowed.append(replace(n, duration=next_entry_start_offset - n.offset))
+                else:
+                    voice0_notes_windowed.append(n)
+
+            # Label first note
+            if voice0_notes_windowed:
+                voice0_notes_windowed[0] = replace(voice0_notes_windowed[0], lyric="stretto")
+                soprano_notes = soprano_notes + tuple(voice0_notes_windowed)
+
+                # Trace render
+                tracer = get_tracer()
+                note_pitches = [n.pitch for n in voice0_notes_windowed]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="U",
+                    role_name="STRETTO",
+                    key_str=_key_str(key=beat_role_v0.material_key),
+                    note_count=len(voice0_notes_windowed),
+                    low_pitch=min(note_pitches),
+                    high_pitch=max(note_pitches),
+                )
+            else:
+                # No notes rendered (fully truncated)
+                tracer = get_tracer()
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="U",
+                    role_name="STRETTO",
+                    key_str=_key_str(key=beat_role_v0.material_key),
+                    note_count=0,
+                    low_pitch=0,
+                    high_pitch=0,
+                )
+
+        elif voice0_role == ThematicRole.FREE:
+            # FREE voice within material entry
+            tracer = get_tracer()
+            tracer.trace_thematic_render(
+                bar=entry_first_bar,
+                voice_name="U",
+                role_name="FREE",
+                key_str="",
+                note_count=0,
+                low_pitch=0,
+                high_pitch=0,
+            )
 
         # Render voice 1 (bass)
         if voice1_role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS):
@@ -271,19 +386,62 @@ def _write_thematic(
                 voice1_notes = (replace(voice1_notes[0], lyric=lyric),) + voice1_notes[1:]
                 bass_notes = bass_notes + voice1_notes
 
+                # Trace render
+                tracer = get_tracer()
+                note_pitches = [n.pitch for n in voice1_notes]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="L",
+                    role_name=voice1_role.value.upper(),
+                    key_str=_key_str(key=beat_role_v1.material_key),
+                    note_count=len(voice1_notes),
+                    low_pitch=min(note_pitches),
+                    high_pitch=max(note_pitches),
+                )
+            else:
+                # No notes rendered for this voice
+                tracer = get_tracer()
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="L",
+                    role_name=voice1_role.value.upper(),
+                    key_str=_key_str(key=beat_role_v1.material_key),
+                    note_count=0,
+                    low_pitch=0,
+                    high_pitch=0,
+                )
+
         elif voice1_role == ThematicRole.EPISODE:
-            assert beat_role_v1 is not None, f"No BeatRole for voice 1 EPISODE at entry bar {entry_first_bar}"
-            # Render episode fragment
-            voice1_notes_raw: tuple[Note, ...] = _render_episode_fragment(
-                role=beat_role_v1,
-                fugue=fugue,
-                start_offset=entry_start_offset,
-                target_track=TRACK_BASS,
-                target_range=plan.lower_range,
-            )
+            # Render all episode fragments (one per bar with incrementing iteration)
+            all_episode_notes: list[Note] = []
+            for bar_offset in range(entry_bar_count):
+                bar_num: int = entry_first_bar + bar_offset
+                bar_start_offset: Fraction = entry_start_offset + Fraction(bar_offset)
+
+                # Find BeatRole for this bar and voice 1
+                bar_beat_role: BeatRole | None = None
+                for role in plan.thematic_roles:
+                    if role.bar == bar_num and role.voice == 1 and role.beat == Fraction(0):
+                        bar_beat_role = role
+                        break
+
+                assert bar_beat_role is not None, (
+                    f"No BeatRole for voice 1 EPISODE at bar {bar_num}"
+                )
+
+                # Render this bar's fragment
+                fragment_notes: tuple[Note, ...] = _render_episode_fragment(
+                    role=bar_beat_role,
+                    fugue=fugue,
+                    start_offset=bar_start_offset,
+                    target_track=TRACK_BASS,
+                    target_range=plan.lower_range,
+                )
+                all_episode_notes.extend(fragment_notes)
+
             # Apply time window
             voice1_notes_windowed: list[Note] = []
-            for n in voice1_notes_raw:
+            for n in all_episode_notes:
                 if n.offset >= next_entry_start_offset:
                     break
                 note_end: Fraction = n.offset + n.duration
@@ -292,6 +450,97 @@ def _write_thematic(
                 else:
                     voice1_notes_windowed.append(n)
             bass_notes = bass_notes + tuple(voice1_notes_windowed)
+
+            # Trace render (only for first bar)
+            if voice1_notes_windowed:
+                tracer = get_tracer()
+                note_pitches = [n.pitch for n in voice1_notes_windowed]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="L",
+                    role_name="EPISODE",
+                    key_str=_key_str(key=beat_role_v1.material_key) if beat_role_v1 else "",
+                    note_count=len(voice1_notes_windowed),
+                    low_pitch=min(note_pitches),
+                    high_pitch=max(note_pitches),
+                )
+
+        elif voice1_role == ThematicRole.STRETTO:
+            # STRETTO: follower voice plays subject with delay
+            assert beat_role_v1 is not None, f"No BeatRole for voice 1 at entry bar {entry_first_bar}"
+            assert beat_role_v1.material is not None, "STRETTO BeatRole missing material (delay)"
+
+            # Parse delay from material field (string -> int)
+            delay_beats: int = int(beat_role_v1.material)
+
+            # Compute delay_offset: delay in beats × beat_unit
+            bar_length: Fraction
+            beat_unit: Fraction
+            bar_length, beat_unit = parse_metre(metre=plan.metre)
+            delay_offset: Fraction = Fraction(delay_beats) * beat_unit
+
+            # Render subject at delayed start
+            voice1_notes_stretto: tuple[Note, ...] = subject_to_voice_notes(
+                fugue=fugue,
+                start_offset=entry_start_offset + delay_offset,
+                target_key=beat_role_v1.material_key,
+                target_track=TRACK_BASS,
+                target_range=plan.lower_range,
+            )
+
+            # Apply time window: drop/truncate notes outside [entry_start_offset, next_entry_start_offset)
+            voice1_notes_windowed: list[Note] = []
+            for n in voice1_notes_stretto:
+                if n.offset >= next_entry_start_offset:
+                    break
+                note_end: Fraction = n.offset + n.duration
+                if note_end > next_entry_start_offset:
+                    voice1_notes_windowed.append(replace(n, duration=next_entry_start_offset - n.offset))
+                else:
+                    voice1_notes_windowed.append(n)
+
+            # Label first note
+            if voice1_notes_windowed:
+                voice1_notes_windowed[0] = replace(voice1_notes_windowed[0], lyric="stretto")
+                bass_notes = bass_notes + tuple(voice1_notes_windowed)
+
+                # Trace render
+                tracer = get_tracer()
+                note_pitches = [n.pitch for n in voice1_notes_windowed]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="L",
+                    role_name="STRETTO",
+                    key_str=_key_str(key=beat_role_v1.material_key),
+                    note_count=len(voice1_notes_windowed),
+                    low_pitch=min(note_pitches),
+                    high_pitch=max(note_pitches),
+                )
+            else:
+                # No notes rendered (fully truncated)
+                tracer = get_tracer()
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="L",
+                    role_name="STRETTO",
+                    key_str=_key_str(key=beat_role_v1.material_key),
+                    note_count=0,
+                    low_pitch=0,
+                    high_pitch=0,
+                )
+
+        elif voice1_role == ThematicRole.FREE:
+            # FREE voice within material entry
+            tracer = get_tracer()
+            tracer.trace_thematic_render(
+                bar=entry_first_bar,
+                voice_name="L",
+                role_name="FREE",
+                key_str="",
+                note_count=0,
+                low_pitch=0,
+                high_pitch=0,
+            )
 
     # Handle FREE tail bars after last material entry
     if material_entries:
@@ -413,8 +662,133 @@ def _has_material(thematic_roles: tuple[BeatRole, ...]) -> bool:
     from planner.thematic import ThematicRole
     return any(
         role.role in (ThematicRole.SUBJECT, ThematicRole.ANSWER,
-                     ThematicRole.CS, ThematicRole.EPISODE)
+                     ThematicRole.CS, ThematicRole.EPISODE, ThematicRole.STRETTO)
         for role in thematic_roles
+    )
+
+
+def _has_pedal(thematic_roles: tuple[BeatRole, ...]) -> bool:
+    """Check if thematic_roles contains a PEDAL role."""
+    from planner.thematic import ThematicRole
+    return any(r.role == ThematicRole.PEDAL for r in thematic_roles)
+
+
+def _write_pedal(
+    plan: PhrasePlan,
+    prior_upper: tuple[Note, ...],
+    prior_lower: tuple[Note, ...],
+) -> PhraseResult:
+    """Write pedal phrase: held bass note + Viterbi soprano.
+
+    Args:
+        plan: PhrasePlan with thematic_roles containing PEDAL role
+        prior_upper: Prior soprano notes
+        prior_lower: Prior bass notes
+
+    Returns:
+        PhraseResult with held bass and Viterbi soprano
+    """
+    from planner.thematic import ThematicRole
+    from shared.music_math import parse_metre
+
+    assert plan.thematic_roles is not None, "Pedal phrase requires thematic_roles"
+
+    # Find the PEDAL BeatRole (voice 1, beat 0 of first bar)
+    pedal_beat_role: BeatRole | None = None
+    for role in plan.thematic_roles:
+        if role.role == ThematicRole.PEDAL and role.voice == 1 and role.beat == Fraction(0):
+            pedal_beat_role = role
+            break
+
+    assert pedal_beat_role is not None, "No PEDAL BeatRole found in thematic_roles"
+    assert pedal_beat_role.material is not None, "PEDAL BeatRole missing material (degree)"
+
+    # Parse degree from material field
+    pedal_degree: int = int(pedal_beat_role.material)
+
+    # Compute MIDI pitch for pedal degree in octave 4 (middle octave)
+    pedal_midi: int = plan.local_key.degree_to_midi(degree=pedal_degree, octave=4)
+
+    # Octave-shift to fit within lower_range, preferring octave closest to lower_median
+    while pedal_midi < plan.lower_range.low:
+        pedal_midi += 12
+    while pedal_midi - 12 >= plan.lower_range.low:
+        if abs(pedal_midi - 12 - plan.lower_median) < abs(pedal_midi - plan.lower_median):
+            pedal_midi -= 12
+        else:
+            break
+
+    assert plan.lower_range.low <= pedal_midi <= plan.lower_range.high, (
+        f"Pedal pitch {pedal_midi} (degree {pedal_degree}) outside lower range "
+        f"[{plan.lower_range.low}, {plan.lower_range.high}]"
+    )
+
+    # Generate bass held notes: one per bar
+    bar_length: Fraction = parse_metre(metre=plan.metre)[0]
+    bass_notes: list[Note] = []
+    for bar_offset in range(plan.bar_span):
+        bass_notes.append(Note(
+            offset=plan.start_offset + bar_offset * bar_length,
+            pitch=pedal_midi,
+            duration=bar_length,
+            voice=TRACK_BASS,
+        ))
+
+    # Build a minimal pedal plan with structural degrees for soprano anchors
+    # Provide tonic (degree 1) at start and end to give Viterbi solver boundary knots
+    from builder.phrase_types import BeatPosition
+    pedal_plan = replace(plan,
+        degrees_upper=(1, 1),
+        degrees_lower=(pedal_degree, pedal_degree),
+        degree_positions=(
+            BeatPosition(bar=1, beat=1),
+            BeatPosition(bar=plan.bar_span, beat=1),
+        ),
+        degree_keys=(plan.local_key, plan.local_key),
+    )
+
+    # Generate soprano using Viterbi (no harmonic grid, scale-only mode)
+    soprano_notes: tuple[Note, ...]
+    soprano_notes, _ = generate_soprano_viterbi(
+        plan=pedal_plan,
+        bass_notes=tuple(bass_notes),
+        prior_upper=prior_upper,
+        next_phrase_entry_degree=None,
+        next_phrase_entry_key=None,
+        harmonic_grid=None,
+    )
+
+    # Trace pedal rendering
+    from shared.tracer import get_tracer, _key_str
+    tracer = get_tracer()
+    first_bar: int = plan.thematic_roles[0].bar if plan.thematic_roles else plan.start_bar
+    tracer.trace_thematic_render(
+        bar=first_bar,
+        voice_name="L",
+        role_name="PEDAL",
+        key_str=_key_str(key=plan.local_key),
+        note_count=len(bass_notes),
+        low_pitch=pedal_midi,
+        high_pitch=pedal_midi,
+    )
+    tracer.trace_thematic_render(
+        bar=first_bar,
+        voice_name="U",
+        role_name="FREE",
+        key_str="",
+        note_count=len(soprano_notes),
+        low_pitch=min(n.pitch for n in soprano_notes) if soprano_notes else 0,
+        high_pitch=max(n.pitch for n in soprano_notes) if soprano_notes else 0,
+    )
+
+    return PhraseResult(
+        upper_notes=soprano_notes,
+        lower_notes=tuple(bass_notes),
+        exit_upper=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper or 60,
+        exit_lower=bass_notes[-1].pitch if bass_notes else plan.prev_exit_lower or 48,
+        schema_name=plan.schema_name,
+        soprano_figures=(),
+        bass_pattern_name=None,
     )
 
 
@@ -475,6 +849,14 @@ def write_phrase(
             prior_upper=prior_upper,
             prior_lower=prior_lower,
             is_final=is_final,
+        )
+
+    # Path 1.5: Pedal
+    if plan.thematic_roles is not None and _has_pedal(plan.thematic_roles):
+        return _write_pedal(
+            plan=plan,
+            prior_upper=prior_upper,
+            prior_lower=prior_lower,
         )
 
     # Path 2: Thematic
