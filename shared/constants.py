@@ -264,6 +264,7 @@ FLAT_KEYS_MINOR: frozenset[str] = frozenset({"Ab", "Bb", "C", "D", "Eb", "F", "G
 MAJOR_SCALE: Tuple[int, ...] = (0, 2, 4, 5, 7, 9, 11)
 NATURAL_MINOR_SCALE: Tuple[int, ...] = (0, 2, 3, 5, 7, 8, 10)
 MINOR_SCALE: Tuple[int, ...] = NATURAL_MINOR_SCALE  # alias
+HARMONIC_MINOR_SCALE: Tuple[int, ...] = (0, 2, 3, 5, 7, 8, 11)
 
 
 # =============================================================================

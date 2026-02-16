@@ -38,12 +38,18 @@ def generate_bass_viterbi(
     soprano_notes: tuple[Note, ...],
     prior_lower: tuple[Note, ...] = (),
     harmonic_grid: "HarmonicGrid | None" = None,
+    density_override: str | None = None,
 ) -> tuple[Note, ...]:
     """Generate walking bass via Viterbi pathfinding against soprano.
 
     Soprano is the leader; bass is the follower.  Structural bass knots
     (schema degrees) are pinned; between them the solver finds the
     optimal diatonic bass line minimising counterpoint cost.
+
+    Args:
+        density_override: Optional density level ("high", "medium", "low") that
+            biases rhythm cell selection toward appropriate note counts.
+            Used in B1 to reduce companion voice density alongside thematic material.
     """
     assert not plan.is_cadential, (
         f"generate_bass_viterbi called with cadential plan '{plan.schema_name}'"
@@ -166,6 +172,7 @@ def generate_bass_viterbi(
             avoid_name=prev_cell_name,
             required_onsets=bar_struct_fsets.get(bar_num),
             avoid_onsets=sop_onset_fsets.get(bar_num),
+            prefer_density=density_override,
         )
         note_offset: Fraction = bar_start
         for dur in cell.durations:
@@ -210,8 +217,13 @@ def generate_bass_viterbi(
     # ================================================================
     # Step 4 — Generate voice via Viterbi
     # ================================================================
+    pitch_classes: frozenset[int] = (
+        plan.local_key.cadential_pitch_class_set
+        if plan.cadential_approach
+        else plan.local_key.pitch_class_set
+    )
     key_info: KeyInfo = KeyInfo(
-        pitch_class_set=plan.local_key.pitch_class_set,
+        pitch_class_set=pitch_classes,
         tonic_pc=plan.local_key.degree_to_midi(degree=1, octave=0) % 12,
     )
 

@@ -36,3 +36,4 @@ class SubjectPlan:
     total_bars: int
     home_key: Key
     metre: str
+    answer_offset_beats: int = 0

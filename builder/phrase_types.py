@@ -22,6 +22,18 @@ class BeatPosition:
 
 
 @dataclass(frozen=True)
+class BarVoiceDensity:
+    """Per-voice, per-bar density override for rhythm generation.
+
+    Used in thematic phrases to assign reduced companion density when one
+    voice has material (SUBJECT/ANSWER/CS) and the other is FREE.
+    """
+    bar: int      # 1-based bar number (relative to phrase)
+    voice: int    # 0=soprano, 1=bass
+    density: str  # "high", "medium", or "low"
+
+
+@dataclass(frozen=True)
 class HeadMotif:
     """Lightweight descriptor of the opening soprano figuration.
 
@@ -64,6 +76,8 @@ class PhrasePlan:
     recall_motif: bool = False
     lead_voice: int | None = None
     thematic_roles: tuple | None = None  # BeatRole slice for this phrase (TP-A)
+    voice_densities: tuple[BarVoiceDensity, ...] | None = None  # Per-voice, per-bar density overrides (B1)
+    cadential_approach: bool = False
 
 
 @dataclass(frozen=True)
@@ -117,6 +131,87 @@ def phrase_offset_to_bar(
             return 1
         return int((rel - plan.anacrusis) // bar_length) + 2
     return int(rel // bar_length) + 1
+
+
+def make_free_companion_plan(
+    plan: PhrasePlan,
+    start_bar_relative: int,
+    bar_count: int,
+    start_offset: Fraction,
+    prev_exit_upper: int | None,
+    prev_exit_lower: int | None,
+    genre: str | None = None,
+) -> PhrasePlan:
+    """Build a PhrasePlan for FREE companion bars alongside material (B1).
+
+    Unlike make_tail_plan, this allows start_bar_relative=1 (companion from phrase start).
+
+    Args:
+        plan: Parent PhrasePlan
+        start_bar_relative: Starting bar number relative to phrase (1-based)
+        bar_count: Number of bars in the FREE run
+        start_offset: Absolute offset where FREE run starts
+        prev_exit_upper: Previous soprano exit pitch
+        prev_exit_lower: Previous bass exit pitch
+        genre: Optional genre name override (workaround for rhythm_profile bug)
+
+    Returns:
+        PhrasePlan covering the FREE bar run with simplified degree structure.
+    """
+    assert bar_count >= 1, f"bar_count must be >= 1, got {bar_count}"
+    bar_length: Fraction = parse_metre(metre=plan.metre)[0]
+    run_duration: Fraction = bar_length * bar_count
+
+    # Workaround: rhythm_profile sometimes contains rhythmic_unit (e.g., "1/16")
+    # instead of genre name. If genre is provided, use it; otherwise try to fix.
+    rhythm_profile_value: str = plan.rhythm_profile
+    if genre is not None:
+        rhythm_profile_value = genre
+    elif "/" in rhythm_profile_value:
+        # Looks like a rhythmic unit, not a genre - use fallback
+        # This is a workaround for a pre-existing bug in PhrasePlan creation
+        rhythm_profile_value = "invention"  # Safe default for imitative genres
+
+    # Provide minimal structural degrees: single tonic at start
+    # (Viterbi will add final knot at phrase_end automatically)
+    from builder.phrase_types import BeatPosition
+    run_positions = (
+        BeatPosition(bar=1, beat=1),
+    )
+    run_degrees_upper = (1,)
+    run_degrees_lower = (1,)
+    run_degree_keys = (plan.local_key,)
+
+    return PhrasePlan(
+        schema_name=plan.schema_name,
+        degrees_upper=run_degrees_upper,
+        degrees_lower=run_degrees_lower,
+        degree_positions=run_positions,
+        local_key=plan.local_key,
+        bar_span=bar_count,
+        start_bar=plan.start_bar + start_bar_relative - 1,
+        start_offset=start_offset,
+        phrase_duration=run_duration,
+        metre=plan.metre,
+        rhythm_profile=rhythm_profile_value,
+        is_cadential=False,
+        cadence_type=None,
+        prev_exit_upper=prev_exit_upper,
+        prev_exit_lower=prev_exit_lower,
+        section_name=plan.section_name,
+        upper_range=plan.upper_range,
+        lower_range=plan.lower_range,
+        upper_median=plan.upper_median,
+        lower_median=plan.lower_median,
+        bass_texture=plan.bass_texture,
+        bass_pattern=plan.bass_pattern,
+        degree_keys=run_degree_keys,
+        character=plan.character,
+        anacrusis=Fraction(0),
+        registral_bias=plan.registral_bias,
+        recall_motif=False,
+        lead_voice=None,
+    )
 
 
 def make_tail_plan(

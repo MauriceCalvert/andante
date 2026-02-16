@@ -15,6 +15,7 @@ D006 Motifs must be asymmetric
 D008 No downstream fixes
 D009 Generators must use phrase_index
 D010 Guards detect, generators prevent
+D011 Voice-agnostic generation: no soprano/bass branching in generators. A voice is defined by its role and its pair, not its register name
 L001 Try blocks forbidden
 L002 Magic numbers forbidden, use constants
 L003 Hard range constraints forbidden, soft hints only
@@ -24,7 +25,7 @@ L006 Durations must be in VALID_DURATIONS
 L007 Natural minor for melody, raised 6/7 cadential only
 L008 Tonal targets = harmonic functions, not scale selection
 L009 Tonal targets = functions not modulations, use home_key
-L010 Leading tone for subject cadences only, filter in bass
+L010 Leading tone in cadential context only (pre-cadential approach phrases in minor keys)
 L011 While loops need guards and max_iterations
 L012 Quantization forbidden, fix upstream
 L013 MIDI gate time 95%

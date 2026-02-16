@@ -157,6 +157,12 @@ def compose_phrases(
                 # Guard for imitative phrases with empty degree arrays
                 next_entry_degree = next_plan.degrees_upper[0]
                 next_entry_key = next_plan.degree_keys[0]
+        # B5: Flag pre-cadential phrases in minor keys for raised 7th
+        if (plan_idx < len(phrase_plans) - 1
+            and next_plan.is_cadential
+            and plan.local_key.mode == "minor"
+            and plan.thematic_roles is None):  # schematic only, not thematic
+            plan = replace(plan, cadential_approach=True)
         # Determine recall figure name for motivic return
         recall_figure: str | None = None
         if plan.recall_motif and head_motif is not None:

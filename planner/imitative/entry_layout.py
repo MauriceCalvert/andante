@@ -28,6 +28,7 @@ _ROLE_MAP: dict[str, ThematicRole] = {
     "episode": ThematicRole.EPISODE,
     "pedal": ThematicRole.PEDAL,
     "stretto": ThematicRole.STRETTO,
+    "hold": ThematicRole.HOLD,
 }
 
 _MATERIAL_MAP: dict[str, str | None] = {
@@ -39,6 +40,7 @@ _MATERIAL_MAP: dict[str, str | None] = {
     "episode": "head",
     "pedal": None,
     "stretto": "subject",
+    "hold": None,
 }
 
 
@@ -71,8 +73,30 @@ def build_imitative_plans(
     upper_median: int = (upper_range.low + upper_range.high) // 2
     lower_median: int = (lower_range.low + lower_range.high) // 2
 
-    # Group consecutive BarAssignments by (function, voice role pattern)
-    groups: list[dict] = _group_bar_assignments(bars=subject_plan.bars)
+    # Stamp ALL BeatRoles from ALL BarAssignments first
+    all_beat_roles: tuple[BeatRole, ...] = _build_thematic_roles(
+        bar_assignments=list(subject_plan.bars),
+        beats_per_bar=beats_per_bar,
+        beat_unit=beat_unit,
+        answer_offset_beats=0,  # Don't apply overlap yet
+    )
+
+    # Apply answer overlap post-processing across all bars
+    if subject_plan.answer_offset_beats > 0:
+        all_beat_roles = _apply_answer_overlap_to_beat_roles(
+            beat_roles=all_beat_roles,
+            answer_offset_beats=subject_plan.answer_offset_beats,
+            beats_per_bar=beats_per_bar,
+            beat_unit=beat_unit,
+        )
+
+    # Group BeatRoles into phrase-level entries
+    bar_to_section: dict[int, str] = {ba.bar: ba.section for ba in subject_plan.bars}
+    groups: list[dict] = _group_beat_roles(
+        beat_roles=all_beat_roles,
+        bar_length=bar_length,
+        bar_to_section=bar_to_section,
+    )
 
     # Build PhrasePlan for each group
     phrase_plans: list[PhrasePlan] = []
@@ -82,10 +106,16 @@ def build_imitative_plans(
         bar_count: int = group["bar_count"]
         local_key: Key = group["local_key"]
         section_name: str = group["section_name"]
-        bar_assignments: list[BarAssignment] = group["bar_assignments"]
 
         start_offset: Fraction = (first_bar - 1) * bar_length
         phrase_duration: Fraction = bar_count * bar_length
+
+        # Extract BeatRoles for this group's bar range
+        last_bar: int = first_bar + bar_count - 1
+        group_beat_roles: tuple[BeatRole, ...] = tuple(
+            r for r in all_beat_roles
+            if first_bar <= r.bar <= last_bar
+        )
 
         if function == "cadence":
             # Cadential phrase: use cadenza_composta schema
@@ -119,12 +149,8 @@ def build_imitative_plans(
                 thematic_roles=None,
             ))
         else:
-            # Entry phrase: populate thematic_roles
-            thematic_roles: tuple[BeatRole, ...] = _build_thematic_roles(
-                bar_assignments=bar_assignments,
-                beats_per_bar=beats_per_bar,
-                beat_unit=beat_unit,
-            )
+            # Entry phrase: use the extracted BeatRoles (already have overlap applied)
+            thematic_roles: tuple[BeatRole, ...] = group_beat_roles
             phrase_plans.append(PhrasePlan(
                 schema_name="subject_entry",
                 degrees_upper=(),
@@ -151,6 +177,94 @@ def build_imitative_plans(
             ))
 
     return tuple(phrase_plans)
+
+
+def _group_beat_roles(
+    beat_roles: tuple[BeatRole, ...],
+    bar_length: Fraction,
+    bar_to_section: dict[int, str],
+) -> list[dict]:
+    """Group BeatRoles into phrase-level entries.
+
+    An entry is a contiguous run of bars where each voice maintains the same role pattern.
+    Detects role changes at bar boundaries (checks beat 0 of each bar).
+
+    Returns list of group dicts similar to _group_bar_assignments.
+    """
+    if not beat_roles:
+        return []
+
+    # Extract bar-level role pattern (check beat 0 for each bar/voice)
+    bars_data: dict[int, dict] = {}
+    for role in beat_roles:
+        if role.beat == Fraction(0):
+            if role.bar not in bars_data:
+                bars_data[role.bar] = {"roles": {}, "section": None, "local_key": None}
+            bars_data[role.bar]["roles"][role.voice] = role.role
+            bars_data[role.bar]["section"] = bar_to_section.get(role.bar, "unknown")
+            if bars_data[role.bar]["local_key"] is None:
+                bars_data[role.bar]["local_key"] = role.material_key
+
+    sorted_bars: list[int] = sorted(bars_data.keys())
+
+    # Determine function from role pattern
+    def get_function(roles_dict: dict[int, ThematicRole]) -> str:
+        if ThematicRole.CADENCE in roles_dict.values():
+            return "cadence"
+        if ThematicRole.HOLD in roles_dict.values():
+            return "hold_exchange"
+        if ThematicRole.PEDAL in roles_dict.values():
+            return "pedal"
+        if ThematicRole.STRETTO in roles_dict.values():
+            return "stretto"
+        if ThematicRole.EPISODE in roles_dict.values():
+            return "episode"
+        return "entry"
+
+    # Group bars by (function, voice role pattern)
+    groups: list[dict] = []
+    current_group: dict | None = None
+
+    for bar_num in sorted_bars:
+        bar_data: dict = bars_data[bar_num]
+        voice_roles: frozenset[ThematicRole] = frozenset(bar_data["roles"].values())
+        function: str = get_function(bar_data["roles"])
+        local_key: Key = bar_data["local_key"]
+        section_name: str = bar_data["section"]
+
+        if current_group is None:
+            # Start first group
+            current_group = {
+                "function": function,
+                "first_bar": bar_num,
+                "bar_count": 1,
+                "local_key": local_key,
+                "section_name": section_name,
+                "voice_roles": voice_roles,
+                "bar_assignments": [],  # Not needed for BeatRole-based groups
+            }
+        elif (function != current_group["function"] or
+              voice_roles != current_group["voice_roles"]):
+            # Pattern changed, close current group and start new one
+            groups.append(current_group)
+            current_group = {
+                "function": function,
+                "first_bar": bar_num,
+                "bar_count": 1,
+                "local_key": local_key,
+                "section_name": section_name,
+                "voice_roles": voice_roles,
+                "bar_assignments": [],
+            }
+        else:
+            # Same pattern, extend current group
+            current_group["bar_count"] += 1
+
+    # Close last group
+    if current_group is not None:
+        groups.append(current_group)
+
+    return groups
 
 
 def _group_bar_assignments(bars: tuple[BarAssignment, ...]) -> list[dict]:
@@ -237,6 +351,7 @@ def _build_thematic_roles(
     bar_assignments: list[BarAssignment],
     beats_per_bar: int,
     beat_unit: Fraction,
+    answer_offset_beats: int = 0,
 ) -> tuple[BeatRole, ...]:
     """Build BeatRole tuple for an entry group.
 
@@ -286,3 +401,68 @@ def _build_thematic_roles(
                 ))
 
     return tuple(roles)
+
+
+def _apply_answer_overlap_to_beat_roles(
+    beat_roles: tuple[BeatRole, ...],
+    answer_offset_beats: int,
+    beats_per_bar: int,
+    beat_unit: Fraction,
+) -> tuple[BeatRole, ...]:
+    """Apply answer overlap: extend first answer entry backwards by answer_offset_beats.
+
+    Finds the first ANSWER role in voice 1 at beat 0, computes the overlap bar and beat offset,
+    and replaces FREE roles in the overlap region with ANSWER roles.
+    """
+    # Find first BeatRole where voice == 1, role == ANSWER, beat == 0
+    nominal_answer_role: BeatRole | None = None
+    for role in beat_roles:
+        if role.voice == 1 and role.role == ThematicRole.ANSWER and role.beat == Fraction(0):
+            nominal_answer_role = role
+            break
+
+    if nominal_answer_role is None:
+        return beat_roles
+
+    answer_bar: int = nominal_answer_role.bar
+    overlap_bar: int = answer_bar - 1
+    overlap_beat_offset: Fraction = Fraction(beats_per_bar - answer_offset_beats) * beat_unit
+
+    # Guard: check if voice 1 in overlap bar at overlap beats is FREE
+    overlap_eligible: bool = True
+    for role in beat_roles:
+        if (role.bar == overlap_bar and
+            role.voice == 1 and
+            role.beat >= overlap_beat_offset and
+            role.role != ThematicRole.FREE):
+            overlap_eligible = False
+            break
+
+    if not overlap_eligible:
+        return beat_roles
+
+    # Replace FREE → ANSWER for overlap beats
+    new_roles: list[BeatRole] = []
+    for role in beat_roles:
+        if (role.bar == overlap_bar and
+            role.voice == 1 and
+            role.beat >= overlap_beat_offset and
+            role.role == ThematicRole.FREE):
+            # Replace with ANSWER role
+            new_roles.append(BeatRole(
+                bar=role.bar,
+                beat=role.beat,
+                voice=role.voice,
+                role=ThematicRole.ANSWER,
+                material="answer",
+                material_key=nominal_answer_role.material_key,
+                sequence_type=nominal_answer_role.sequence_type,
+                pairing=nominal_answer_role.pairing,
+                texture=nominal_answer_role.texture,
+                fragment_iteration=nominal_answer_role.fragment_iteration,
+                anchor_pitch=None,
+            ))
+        else:
+            new_roles.append(role)
+
+    return tuple(new_roles)

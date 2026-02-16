@@ -44,6 +44,14 @@ class Key:
         return frozenset((self.tonic_pc + interval) % 12 for interval in self.scale)
 
     @property
+    def cadential_pitch_class_set(self) -> frozenset[int]:
+        """Pitch classes with raised 7th for cadential context (minor keys only)."""
+        if self.mode == "minor":
+            from shared.constants import HARMONIC_MINOR_SCALE
+            return frozenset((self.tonic_pc + interval) % 12 for interval in HARMONIC_MINOR_SCALE)
+        return self.pitch_class_set
+
+    @property
     def bridge_pitch_set(self) -> frozenset[int]:
         """Return pentatonic subset for bridges (omits 4th and 7th degrees)."""
         pentatonic_intervals: Tuple[int, ...] = (0, 2, 4, 7, 9) if self.mode == "major" else (0, 3, 5, 7, 10)

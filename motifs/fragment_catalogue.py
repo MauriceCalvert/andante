@@ -108,3 +108,58 @@ def extract_tail(fugue: LoadedFugue, bar_length: Fraction) -> Fragment:
         durations=tail_durations,
         bar_span=bar_span,
     )
+
+
+def extract_sixteenth_cell(fugue: LoadedFugue, bar_length: Fraction) -> Fragment:
+    """Extract the initial run of sixteenth-note durations from the subject's tail.
+
+    For subjects with rhythmic unit 1/16, this extracts the ascending cell used
+    for hold-exchange sequencing (e.g., degrees 0,1,2,3 with durations 1/16 each).
+
+    Args:
+        fugue: LoadedFugue containing the subject
+        bar_length: Length of one bar as a Fraction
+
+    Returns:
+        Fragment containing the sixteenth-note cell from the tail.
+        If the tail has no sixteenths, returns the first 4 notes of the tail.
+    """
+    tail: Fragment = extract_tail(fugue=fugue, bar_length=bar_length)
+
+    if len(tail.degrees) == 0:
+        # Subject is exactly one bar, no tail
+        return Fragment(degrees=(), durations=(), bar_span=0)
+
+    # Determine rhythmic unit (assume 1/16 for invention genre)
+    rhythmic_unit: Fraction = Fraction(1, 16)
+
+    # Extract initial run of notes with duration == rhythmic_unit
+    cell_degrees: list[int] = []
+    cell_durations: list[Fraction] = []
+
+    for degree, dur in zip(tail.degrees, tail.durations):
+        if dur == rhythmic_unit:
+            cell_degrees.append(degree)
+            cell_durations.append(dur)
+        else:
+            # Stop at first note with different duration
+            break
+
+    # Fallback: if no sixteenths found, take first 4 notes of tail regardless of duration
+    if len(cell_degrees) == 0:
+        cell_degrees = list(tail.degrees[:4])
+        cell_durations = list(tail.durations[:4])
+
+    assert len(cell_degrees) > 0, (
+        f"Sixteenth cell is empty. Tail degrees: {tail.degrees}, durations: {tail.durations}"
+    )
+
+    # Calculate bar span
+    total_duration: Fraction = sum(cell_durations) if cell_durations else Fraction(0)
+    bar_span: int = ceil(total_duration / bar_length) if total_duration > 0 else 0
+
+    return Fragment(
+        degrees=tuple(cell_degrees),
+        durations=tuple(cell_durations),
+        bar_span=bar_span,
+    )

@@ -155,6 +155,51 @@ def _onset_overlap(
     return len((cell_onsets - frozenset({Fraction(0)})) & (avoid_onsets - frozenset({Fraction(0)})))
 
 
+def _density_mismatch(
+    cell: RhythmCell,
+    prefer_density: str,
+) -> int:
+    """Score how far cell's note count is from preferred density.
+
+    Returns distance penalty:
+    - 0 if cell note count matches density target
+    - Positive integer for mismatch (higher = worse match)
+
+    Density targets for 4/4 (derived from DENSITY_RHYTHMIC_UNIT):
+    - "high": 16 notes/bar (sixteenths, 1/16 unit)
+    - "medium": 8 notes/bar (eighths, 1/8 unit)
+    - "low": 4 notes/bar (quarters, 1/4 unit)
+    """
+    note_count: int = len(cell.durations)
+
+    if prefer_density == "high":
+        # Prefer 16, then 8, then penalize distance from 16
+        if note_count == 16:
+            return 0
+        if note_count == 8:
+            return 1
+        return abs(note_count - 16)
+
+    if prefer_density == "medium":
+        # Prefer 8, then 4, then penalize distance from 8
+        if note_count == 8:
+            return 0
+        if note_count == 4:
+            return 1
+        return abs(note_count - 8)
+
+    if prefer_density == "low":
+        # Prefer 4, then 2, then penalize distance from 4
+        if note_count == 4:
+            return 0
+        if note_count == 2:
+            return 1
+        return abs(note_count - 4)
+
+    # Unknown density: no preference
+    return 0
+
+
 def select_cell(
     genre: str,
     metre: str,
@@ -163,8 +208,18 @@ def select_cell(
     avoid_name: str | None = None,
     required_onsets: frozenset[Fraction] | None = None,
     avoid_onsets: frozenset[Fraction] | None = None,
+    prefer_density: str | None = None,
 ) -> RhythmCell:
-    """Select a rhythm cell for one bar. Deterministic (A005)."""
+    """Select a rhythm cell for one bar. Deterministic (A005).
+
+    Args:
+        prefer_density: Optional density level ("high", "medium", "low") that
+            biases selection toward cells with appropriate note counts:
+            - "high": ≥ 8 notes per bar (4/4)
+            - "medium": 4 notes per bar
+            - "low": 1-2 notes per bar
+            Sort-key preference, not a hard filter (B1).
+    """
     candidates: list[RhythmCell] = get_cells_for_genre(genre=genre, metre=metre)
     assert len(candidates) > 0, (
         f"No rhythm cells for genre '{genre}' in metre '{metre}'"
@@ -181,16 +236,25 @@ def select_cell(
     if avoid_name is not None and len(candidates) > 1:
         candidates = [c for c in candidates if c.name != avoid_name] or candidates
     # When selecting complementary rhythm, onset independence outranks
-    # character preference (use full candidate pool)
+    # density and character preference (use full candidate pool)
     if avoid_onsets is not None and len(candidates) > 1:
         pool: list[RhythmCell] = sorted(candidates, key=lambda c: (
             _onset_overlap(cell=c, avoid_onsets=avoid_onsets),
+            _density_mismatch(cell=c, prefer_density=prefer_density) if prefer_density else 0,
             0 if c.character == prefer_character else 1,
             c.name,
         ))
     else:
-        preferred: list[RhythmCell] = [
-            c for c in candidates if c.character == prefer_character
-        ]
-        pool = preferred if preferred else candidates
+        # Density preference ranks before character preference
+        if prefer_density is not None and len(candidates) > 1:
+            pool: list[RhythmCell] = sorted(candidates, key=lambda c: (
+                _density_mismatch(cell=c, prefer_density=prefer_density),
+                0 if c.character == prefer_character else 1,
+                c.name,
+            ))
+        else:
+            preferred: list[RhythmCell] = [
+                c for c in candidates if c.character == prefer_character
+            ]
+            pool = preferred if preferred else candidates
     return pool[bar_index % len(pool)]

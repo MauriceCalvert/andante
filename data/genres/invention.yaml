@@ -33,6 +33,7 @@ tension: arch
 thematic:
   voice_count: 2
   invertible_counterpoint: true
+  answer_offset_beats: 2
   entry_sequence:
     # Exposition (I → V: answer handles transition, no episode)
     - upper: [subject, I]
@@ -45,6 +46,8 @@ thematic:
       lower: [cs, vi]
     - upper: [cs, IV]
       lower: [subject, IV]
+    # Hold-exchange: textural contrast before recap
+    - {type: hold_exchange, key: IV, bars: 4}
     # --- section boundary: IV → V --- episode auto-inserted if needed
     # Recapitulation
     - upper: [subject, V]

@@ -9,14 +9,14 @@ Conductor reads at chat start.
 See `viterbi/bachsamples/bwv0772_analysis.md` for full analysis.
 Priority order by audible impact.
 
-- [ ] **B1 — Texture rotation** — Bach changes texture every 2–4 bars: subject+free, run/slow, hold/run, dense-both. Our invention has one texture throughout. Needs half-note exchange (one voice sustains, other runs subject head, swap every half bar) and voice-density contrast. Biggest audible gap.
-- [ ] **B2 — Contrary-motion episodes** — Bach's episodes move both voices in opposite directions with subject-derived material. Ours transpose head and tail in the same direction, producing parallel motion.
-- [ ] **B3 — Rhythmic independence** — Bach uses 2:1 ratio: subject voice in sixteenths, companion in eighths. Our voices always run at the same density.
-- [ ] **B4 — Thematically-derived free counterpoint** — Bach's "free" voices play recognisable subject fragments (inverted scale-run, sequenced mordent, truncated tail). Ours is Viterbi scale-fill with no motivic relation.
+- [x] **B1 — Texture rotation** — Hold-exchange (B2 impl) + density contrast (B1 impl). Done 2026-02-15. Remaining: run/slow episode texture, dense-both.
+- [x] **B2 — Contrary-motion episodes** — Done 2026-02-15. Episode voices now move in opposite directions (convergent funnel). Remaining: downbeat dissonances in episode bars (unprepared 4ths/9ths from mechanical transposition).
+- [x] **B3 — Rhythmic independence** — CS rhythm aggregated (10→8 notes for call_response). Done 2026-02-15.
+- [x] **B4 — Thematically-derived free counterpoint** — Hold-exchange running voice uses subject cell. Done 2026-02-15. Superseded by B9 (Viterbi counterpoint). Remaining: other FREE bars still Viterbi.
 - [ ] **B5 — Chromatic approach tones** — Secondary leading tones (raised 7th of each new key area) before cadential arrivals. Constrained by L007. Needs L007 relaxation or secondary-dominant infrastructure.
-- [ ] **B6 — Variable note density** — Bach's bars range from 7 to 19 notes per voice. Ours are uniform. Largely fixed by B1.
+- [x] **B6 — Variable note density** — Largely addressed by B1/B2 (density contrast + hold-exchange). Done 2026-02-15.
 - [ ] **B7 — Cadence grows from material** — Bach weaves subject fragments into the cadential descent. Our cadence is a formulaic template with no thematic connection.
-- [ ] **B8 — Mid-bar answer entry** — Bach's answer enters at beat 3 of bar 2, during the subject. Our entries are aligned to bar boundaries.
+- [x] **B8 — Mid-bar answer entry** — Bach's answer enters at beat 3 of bar 2, during the subject. Our entries are aligned to bar boundaries. ✓ Done 2026-02-15.
 
 ## Must-do
 
@@ -25,6 +25,7 @@ Priority order by audible impact.
 
 ## Later
 
+- [ ] **Algorithmic answer_offset_beats** — currently a fixed YAML value per genre. Should analyse the subject's rhythm at the candidate overlap beat and choose the entry point where the subject is rhythmically calm (held note, slow figure). Avoids muddy overlap when subject has busy material at beat 3.
 - [ ] **Subject generator reform** — current generator produces rhythmically flat subjects (uniform eighths/quarters). Needs rhythmic and pitch drama: long notes, sixteenth bursts, dotted rhythms.
 - [ ] **Viterbi fallback warning improvement** — report which constraints fired, against which voice/pitch, and upstream cause.
 - [ ] **VG4 — Rewrite phrase_writer** — call `generate_voice()` in genre-determined composition order. Delete bass_writer.py, soprano_writer.py, bass_viterbi.py.

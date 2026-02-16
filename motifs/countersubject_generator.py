@@ -16,8 +16,10 @@ from ortools.sat.python import cp_model
 from motifs.head_generator import degrees_to_midi
 from motifs.subject_generator import GeneratedSubject
 from shared.constants import TONIC_TRIAD_DEGREES
+from shared.music_math import VALID_DURATIONS
 
 
+CS_MIN_DURATION: Fraction = Fraction(1, 8)
 MIN_CS_DEGREE = -7
 MAX_CS_DEGREE = 14
 INVERTIBLE_CONSONANCES = frozenset({0, 2, 5})
@@ -79,6 +81,41 @@ def _interval_mod7(diff: int) -> int:
     return abs(diff) % 7
 
 
+def _aggregate_cs_rhythm(
+    subject_durations: tuple[float, ...],
+) -> tuple[tuple[Fraction, ...], tuple[int, ...]]:
+    """Aggregate subject durations into longer CS notes.
+
+    Returns:
+        cs_durations: CS note durations (fewer, longer than subject)
+        onset_indices: Subject-note index at the start of each CS note
+    """
+    cs_durations: list[Fraction] = []
+    onset_indices: list[int] = []
+    accumulator = Fraction(0)
+    group_start = 0
+
+    for i, dur in enumerate(subject_durations):
+        if accumulator == 0:
+            group_start = i
+        accumulator += Fraction(dur).limit_denominator(64)
+        if accumulator >= CS_MIN_DURATION:
+            assert accumulator in VALID_DURATIONS, (
+                f"Aggregated duration {accumulator} not valid. "
+                f"Subject durations {subject_durations[group_start:i+1]} sum to {accumulator}"
+            )
+            cs_durations.append(accumulator)
+            onset_indices.append(group_start)
+            accumulator = Fraction(0)
+
+    assert accumulator == 0, (
+        f"Leftover duration {accumulator} after aggregation. "
+        f"Subject durations do not aggregate evenly into CS_MIN_DURATION units"
+    )
+
+    return tuple(cs_durations), tuple(onset_indices)
+
+
 def generate_countersubject(
     subject: GeneratedSubject,
     metre: tuple[int, int] = (4, 4),
@@ -99,24 +136,31 @@ def generate_countersubject(
         assert len(answer_degrees) == n, (
             f"answer_degrees length {len(answer_degrees)} != subject length {n}"
         )
+
+    # Aggregate subject rhythm into longer CS notes
+    cs_durations, onset_indices = _aggregate_cs_rhythm(subject.durations)
+    m = len(cs_durations)
+    assert m >= 2, f"CS too short after aggregation: {m} notes"
+
     subj_degrees = subject.scale_indices
     beat_positions = _compute_beat_positions(
-        durations=subject.durations,
+        durations=tuple(float(d) for d in cs_durations),
         metre=metre,
     )
     strong_beats = _get_strong_beats(metre=metre)
     model = cp_model.CpModel()
-    cs = [model.NewIntVar(min_degree, max_degree, f"cs_{i}") for i in range(n)]
+    cs = [model.NewIntVar(min_degree, max_degree, f"cs_{i}") for i in range(m)]
     interval_mod7 = []
-    for i in range(n):
+    for i in range(m):
         imod = model.NewIntVar(0, 6, f"imod_{i}")
         diff = model.NewIntVar(-28, 28, f"diff_{i}")
-        model.Add(diff == cs[i] - subj_degrees[i])
+        subj_idx = onset_indices[i]
+        model.Add(diff == cs[i] - subj_degrees[subj_idx])
         abs_diff = model.NewIntVar(0, 28, f"abs_{i}")
         model.AddAbsEquality(abs_diff, diff)
         model.AddModuloEquality(imod, abs_diff, 7)
         interval_mod7.append(imod)
-    for i in range(n):
+    for i in range(m):
         is_strong = beat_positions[i] in strong_beats
         if is_strong:
             model.AddAllowedAssignments([interval_mod7[i]], [(0,), (2,), (5,)])
@@ -125,15 +169,16 @@ def generate_countersubject(
     # --- Answer interval variables and constraints (dual validation) ---
     answer_imod7: list[cp_model.IntVar] = []
     if answer_degrees is not None:
-        for i in range(n):
+        for i in range(m):
             aimod = model.NewIntVar(0, 6, f"aimod_{i}")
             adiff = model.NewIntVar(-28, 28, f"adiff_{i}")
-            model.Add(adiff == cs[i] - answer_degrees[i])
+            subj_idx = onset_indices[i]
+            model.Add(adiff == cs[i] - answer_degrees[subj_idx])
             aabs = model.NewIntVar(0, 28, f"aabs_{i}")
             model.AddAbsEquality(aabs, adiff)
             model.AddModuloEquality(aimod, aabs, 7)
             answer_imod7.append(aimod)
-        for i in range(n):
+        for i in range(m):
             is_strong = beat_positions[i] in strong_beats
             if is_strong:
                 model.AddAllowedAssignments([answer_imod7[i]], [(0,), (2,), (5,)])
@@ -141,7 +186,7 @@ def generate_countersubject(
                 model.AddAllowedAssignments([answer_imod7[i]], [(0,), (1,), (2,), (4,), (5,), (6,)])
     penalties = []
     rewards = []
-    for i in range(n):
+    for i in range(m):
         is_strong = beat_positions[i] in strong_beats
         if not is_strong:
             is_fifth = model.NewBoolVar(f"fifth_{i}")
@@ -156,14 +201,14 @@ def generate_countersubject(
             model.Add(interval_mod7[i] != 6).OnlyEnforceIf(is_dissonant6.Not())
             penalties.append((is_dissonant, PENALTY_WEAK_BEAT_DISSONANCE))
             penalties.append((is_dissonant6, PENALTY_WEAK_BEAT_DISSONANCE))
-        if 0 < i < n - 1:
+        if 0 < i < m - 1:
             is_unison = model.NewBoolVar(f"uni_{i}")
             model.Add(interval_mod7[i] == 0).OnlyEnforceIf(is_unison)
             model.Add(interval_mod7[i] != 0).OnlyEnforceIf(is_unison.Not())
             penalties.append((is_unison, PENALTY_INTERIOR_UNISON))
     # --- Answer weak-beat penalties (parallel to subject penalties) ---
     if answer_degrees is not None:
-        for i in range(n):
+        for i in range(m):
             is_strong = beat_positions[i] in strong_beats
             if not is_strong:
                 a_fifth = model.NewBoolVar(f"afifth_{i}")
@@ -178,7 +223,7 @@ def generate_countersubject(
                 model.Add(answer_imod7[i] != 6).OnlyEnforceIf(a_diss6.Not())
                 penalties.append((a_diss, PENALTY_WEAK_BEAT_DISSONANCE))
                 penalties.append((a_diss6, PENALTY_WEAK_BEAT_DISSONANCE))
-    for i in range(n - 1):
+    for i in range(m - 1):
         uni_i = model.NewBoolVar(f"u_{i}")
         uni_j = model.NewBoolVar(f"u_{i + 1}")
         model.Add(interval_mod7[i] == 0).OnlyEnforceIf(uni_i)
@@ -186,10 +231,13 @@ def generate_countersubject(
         model.Add(interval_mod7[i + 1] == 0).OnlyEnforceIf(uni_j)
         model.Add(interval_mod7[i + 1] != 0).OnlyEnforceIf(uni_j.Not())
         model.AddBoolOr([uni_i.Not(), uni_j.Not()])
-    for i in range(n - 1):
+    for i in range(m - 1):
         cs_mot = model.NewIntVar(-28, 28, f"csmot_{i}")
         model.Add(cs_mot == cs[i + 1] - cs[i])
-        subj_mot = subj_degrees[i + 1] - subj_degrees[i]
+        # Compare CS motion to subject motion at CS onset points
+        subj_idx = onset_indices[i]
+        subj_idx_next = onset_indices[i + 1]
+        subj_mot = subj_degrees[subj_idx_next] - subj_degrees[subj_idx]
         if subj_mot != 0:
             same_dir = model.NewBoolVar(f"same_{i}")
             if subj_mot > 0:
@@ -226,7 +274,7 @@ def generate_countersubject(
         model.Add(cs_mot != 0).OnlyEnforceIf(repeated.Not())
         penalties.append((repeated, PENALTY_REPEATED_PITCH))
     stable_degrees = [(d % 7) for d in TONIC_TRIAD_DEGREES]
-    for idx in [0, n - 1]:
+    for idx in [0, m - 1]:
         cs_pos = model.NewIntVar(0, max_degree + 7, f"cspos_{idx}")
         model.Add(cs_pos == cs[idx] + 7)
         cs_m7 = model.NewIntVar(0, 6, f"csm7_{idx}")
@@ -243,8 +291,8 @@ def generate_countersubject(
     status = solver.Solve(model)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
-    cs_degrees = tuple(solver.Value(cs[i]) for i in range(n))
-    intervals = tuple(solver.Value(interval_mod7[i]) for i in range(n))
+    cs_degrees = tuple(solver.Value(cs[i]) for i in range(m))
+    intervals = tuple(solver.Value(interval_mod7[i]) for i in range(m))
     midi_pitches = degrees_to_midi(
         degrees=cs_degrees,
         tonic_midi=tonic_midi,
@@ -252,7 +300,7 @@ def generate_countersubject(
     )
     return GeneratedCountersubject(
         scale_indices=cs_degrees,
-        durations=subject.durations,
+        durations=tuple(float(d) for d in cs_durations),
         midi_pitches=midi_pitches,
         vertical_intervals=intervals,
     )
@@ -263,20 +311,31 @@ def verify_countersubject(
     cs: GeneratedCountersubject,
     metre: tuple[int, int],
 ) -> list[str]:
-    """Verify countersubject satisfies all constraints."""
+    """Verify countersubject satisfies all constraints.
+
+    CS has its own rhythm (fewer, longer notes than subject). Intervals
+    are checked at CS onset positions using CS beat positions.
+    """
     violations = []
     beat_positions = _compute_beat_positions(
-        durations=subject.durations,
+        durations=cs.durations,
         metre=metre,
     )
     strong_beats = _get_strong_beats(metre=metre)
+    m = len(cs.scale_indices)
+    assert len(cs.durations) == m, (
+        f"CS durations count {len(cs.durations)} != CS degree count {m}"
+    )
+    assert len(cs.vertical_intervals) == m, (
+        f"CS intervals count {len(cs.vertical_intervals)} != CS degree count {m}"
+    )
     for i, interval in enumerate(cs.vertical_intervals):
         is_strong = beat_positions[i] in strong_beats
         if is_strong and interval not in INVERTIBLE_CONSONANCES:
             violations.append(f"Note {i}: strong-beat interval {interval} not invertible")
         if interval == TRITONE_INTERVAL:
             violations.append(f"Note {i}: tritone interval")
-    for i in range(len(cs.vertical_intervals) - 1):
+    for i in range(m - 1):
         if cs.vertical_intervals[i] == 0 and cs.vertical_intervals[i + 1] == 0:
             violations.append(f"Notes {i}-{i+1}: consecutive unisons")
     return violations
@@ -318,11 +377,16 @@ if __name__ == "__main__":
                 for v in violations:
                     print(f"  {v}")
             else:
-                print("OK")
+                n_subj = len(subject.scale_indices)
+                n_cs = len(cs.scale_indices)
+                ratio = n_cs / n_subj if n_subj > 0 else 0
+                print(f"OK (Subject: {n_subj} notes, CS: {n_cs} notes, ratio {ratio:.2f})")
                 success_count += 1
                 print(f"  Subject:  {subject.scale_indices}")
+                print(f"  Subject durations: {subject.durations}")
                 print(f"  Answer:   {answer.scale_indices} ({answer.answer_type})")
                 print(f"  CS:       {cs.scale_indices}")
+                print(f"  CS durations: {cs.durations}")
                 print(f"  Intervals (vs subj): {cs.vertical_intervals}")
         else:
             print("FAILED (no solution)")

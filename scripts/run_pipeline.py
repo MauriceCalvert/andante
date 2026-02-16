@@ -43,17 +43,44 @@ AFFECT_ALIASES: dict[str, str] = {
     "confident": "Entschlossenheit",
 }
 
+# Bare note names → canonical key strings
+_NOTE_LETTERS: frozenset[str] = frozenset("abcdefg")
+
 KEY_ALIASES: dict[str, str] = {
-    "c": "c_major",
-    "yes. then justidfc_major": "c_major",
     "cmajor": "c_major",
 }
 
 
+def _is_bare_key(candidate: str) -> bool:
+    """True if candidate looks like a bare key name (C, Bb, F#, Am, etc.)."""
+    s: str = candidate.lower().strip()
+    if not s or s[0] not in _NOTE_LETTERS:
+        return False
+    # After the letter: optional accidental (b, #, bb) then optional mode hint (m)
+    rest: str = s[1:]
+    if rest in ("", "b", "bb", "#", "m", "bm", "bbm", "#m"):
+        return True
+    return False
+
+
 def normalize_key(key: str) -> str:
     """Normalize key name to config file name."""
-    normalized = key.lower().replace(" ", "_")
-    return KEY_ALIASES.get(normalized, normalized)
+    normalized: str = key.lower().replace(" ", "_")
+    if normalized in KEY_ALIASES:
+        return KEY_ALIASES[normalized]
+    # Bare note name -> tonic_major or tonic_minor
+    if _is_bare_key(candidate=key):
+        s: str = normalized
+        if s.endswith("m"):
+            tonic: str = s[:-1]
+            mode: str = "minor"
+        else:
+            tonic = s
+            mode = "major"
+        # Normalise accidentals: # -> s (sharp), b stays
+        tonic = tonic.replace("#", "s")
+        return f"{tonic}_{mode}"
+    return normalized
 
 
 def normalize_affect(affect: str) -> str:
@@ -294,8 +321,9 @@ Use -trace to write a <piece>.trace diagnostic file.
     key: str | None = None
     output_name: str | None = None
     if len(args.args) >= 3:
-        if "_" in args.args[2]:
-            key = args.args[2]
+        candidate: str = args.args[2]
+        if "_" in candidate or _is_bare_key(candidate=candidate):
+            key = candidate
             output_name = args.args[3] if len(args.args) > 3 else None
         else:
             output_name = args.args[2]

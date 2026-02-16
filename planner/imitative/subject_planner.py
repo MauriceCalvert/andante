@@ -88,6 +88,9 @@ def plan_subject(
     entry_sequence: list = thematic_config["entry_sequence"]
     assert len(entry_sequence) > 0, "entry_sequence is empty"
 
+    # Read answer_offset_beats (optional, defaults to 0 for bar-aligned entry)
+    answer_offset_beats: int = thematic_config.get("answer_offset_beats", 0)
+
     # ── 1. Compute per-entry bar costs (no episodes yet) ────────────
     entry_costs: list[int] = []
     for entry in entry_sequence:
@@ -97,6 +100,16 @@ def plan_subject(
         assert isinstance(entry, dict), (
             f"entry_sequence element must be dict or 'cadence', got {type(entry).__name__}: {entry}"
         )
+        # Special entry types with explicit bar counts
+        if entry.get("type") == "pedal":
+            entry_costs.append(entry["bars"])
+            continue
+        if entry.get("type") == "hold_exchange":
+            entry_costs.append(entry["bars"])
+            continue
+        if entry.get("type") == "stretto":
+            entry_costs.append(subject_bars)
+            continue
         # Guard against unsupported roles
         for slot_key in ("upper", "lower"):
             slot = entry.get(slot_key)
@@ -126,11 +139,11 @@ def plan_subject(
         # Check if this is a section boundary (and neither side is cadence or pedal)
         prev_is_special = (
             entry_sequence[i - 1] == "cadence"
-            or (isinstance(entry_sequence[i - 1], dict) and entry_sequence[i - 1].get("type") in ("pedal", "stretto"))
+            or (isinstance(entry_sequence[i - 1], dict) and entry_sequence[i - 1].get("type") in ("pedal", "stretto", "hold_exchange"))
         ) if i > 0 else False
         curr_is_special = (
             entry_sequence[i] == "cadence"
-            or (isinstance(entry_sequence[i], dict) and entry_sequence[i].get("type") in ("pedal", "stretto"))
+            or (isinstance(entry_sequence[i], dict) and entry_sequence[i].get("type") in ("pedal", "stretto", "hold_exchange"))
         )
 
         is_boundary = (
@@ -237,6 +250,10 @@ def plan_subject(
                 else:
                     iteration = bar_offset
 
+                # Contrary motion: upper voice descends, lower voice ascends
+                upper_iteration: int = iteration      # positive = descending
+                lower_iteration: int = -iteration     # negated = ascending
+
                 # Lead voice: episode fragment
                 voices[lead_voice_idx] = VoiceAssignment(
                     role="episode",
@@ -244,7 +261,7 @@ def plan_subject(
                     texture="plain",
                     pairing="independent",
                     fragment="head",
-                    fragment_iteration=iteration,
+                    fragment_iteration=upper_iteration if lead_voice_idx == 0 else lower_iteration,
                 )
 
                 # Companion voice: episode tail fragment
@@ -254,7 +271,7 @@ def plan_subject(
                     texture="plain",
                     pairing="independent",
                     fragment="tail",
-                    fragment_iteration=iteration,
+                    fragment_iteration=upper_iteration if companion_voice_idx == 0 else lower_iteration,
                 )
 
                 bar_assignments.append(BarAssignment(
@@ -351,6 +368,54 @@ def plan_subject(
             bar_pointer += pedal_bars
             continue
 
+        # Hold-exchange entry
+        if isinstance(entry, dict) and entry.get("type") == "hold_exchange":
+            he_key_label: str = entry["key"]
+            he_bars: int = entry["bars"]
+            assert he_bars >= 2, f"hold_exchange needs >= 2 bars, got {he_bars}"
+            he_key: Key = home_key.modulate_to(he_key_label)
+
+            for offset in range(he_bars):
+                bar_num = bar_pointer + offset
+                voices = {}
+
+                # Alternate: even offsets = voice 0 holds, voice 1 runs
+                #            odd offsets  = voice 0 runs, voice 1 holds
+                if offset % 2 == 0:
+                    hold_voice = 0
+                    free_voice = 1
+                else:
+                    hold_voice = 1
+                    free_voice = 0
+
+                voices[hold_voice] = VoiceAssignment(
+                    role="hold",
+                    material_key=he_key,
+                    texture="plain",
+                    pairing="independent",
+                    fragment=None,
+                    fragment_iteration=0,
+                )
+                voices[free_voice] = VoiceAssignment(
+                    role="free",
+                    material_key=he_key,
+                    texture="plain",
+                    pairing="independent",
+                    fragment=None,
+                    fragment_iteration=0,
+                )
+
+                bar_assignments.append(BarAssignment(
+                    bar=bar_num,
+                    section=section_name,
+                    function="hold_exchange",
+                    local_key=he_key,
+                    voices=voices,
+                ))
+
+            bar_pointer += he_bars
+            continue
+
         # Dict entry with upper/lower voice slots
         assert "upper" in entry and "lower" in entry, (
             f"Entry must have 'upper' and 'lower' keys, got: {sorted(entry.keys())}"
@@ -433,4 +498,5 @@ def plan_subject(
         total_bars=total_bars,
         home_key=home_key,
         metre=metre,
+        answer_offset_beats=answer_offset_beats,
     )

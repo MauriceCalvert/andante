@@ -67,8 +67,14 @@ def generate_soprano_viterbi(
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
     harmonic_grid: "HarmonicGrid | None" = None,
+    density_override: str | None = None,
 ) -> tuple[tuple[Note, ...], tuple[str, ...]]:
     """Generate soprano notes using Viterbi pathfinding against finished bass.
+
+    Args:
+        density_override: Optional density level ("high", "medium", "low") that
+            overrides character_to_density(plan.character) for rhythm grid.
+            Used in B1 to reduce companion voice density alongside thematic material.
 
     Returns (notes, figure_names) where figure_names is empty (Viterbi doesn't
     use diminution figures).
@@ -101,7 +107,7 @@ def generate_soprano_viterbi(
 
     # Step 2: Build rhythm grid (onset positions with durations)
     bar_length, beat_unit = parse_metre(metre=plan.metre)
-    density: str = character_to_density(plan.character)
+    density: str = density_override if density_override is not None else character_to_density(plan.character)
     grid_positions: list[tuple[Fraction, Fraction]] = []  # (onset, duration) pairs
 
     for i in range(len(structural_tones)):
@@ -160,8 +166,13 @@ def generate_soprano_viterbi(
 
     # Step 4: Build KeyInfo from plan.local_key
     tonic_pc: int = plan.local_key.degree_to_midi(degree=1, octave=0) % 12
+    pitch_classes: frozenset[int] = (
+        plan.local_key.cadential_pitch_class_set
+        if plan.cadential_approach
+        else plan.local_key.pitch_class_set
+    )
     key_info: KeyInfo = KeyInfo(
-        pitch_class_set=plan.local_key.pitch_class_set,
+        pitch_class_set=pitch_classes,
         tonic_pc=tonic_pc,
     )
 
@@ -194,8 +205,13 @@ def generate_soprano_viterbi(
         degree_key_infos: list[KeyInfo] = []
         degree_triads: list[frozenset[int]] = []
         for _, bass_midi, deg_key in bass_degree_offsets:
+            deg_pitch_classes: frozenset[int] = (
+                deg_key.cadential_pitch_class_set
+                if plan.cadential_approach
+                else deg_key.pitch_class_set
+            )
             deg_key_info: KeyInfo = KeyInfo(
-                pitch_class_set=deg_key.pitch_class_set,
+                pitch_class_set=deg_pitch_classes,
                 tonic_pc=deg_key.degree_to_midi(degree=1, octave=0) % 12,
             )
             degree_key_infos.append(deg_key_info)

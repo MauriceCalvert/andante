@@ -1201,6 +1201,19 @@ def validate_thematic_entry_sequence() -> list[str]:
                     errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] stretto delay must be int > 0, got {entry.get('delay')}")
                 continue
 
+            # Hold-exchange entry
+            if entry.get("type") == "hold_exchange":
+                # Validate hold_exchange-specific fields
+                if "key" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] hold_exchange missing 'key' field -- add it")
+                elif not isinstance(entry["key"], str):
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] hold_exchange key must be string, got {type(entry.get('key')).__name__}")
+                if "bars" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] hold_exchange missing 'bars' field -- add it")
+                elif not isinstance(entry["bars"], int) or entry["bars"] < 2:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] hold_exchange bars must be int >= 2, got {entry.get('bars')}")
+                continue
+
             # Regular entry: check for upper and lower keys
             if "upper" not in entry:
                 errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] missing 'upper' key -- add it")

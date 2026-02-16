@@ -30,6 +30,7 @@ class ThematicRole(Enum):
     STRETTO = "stretto"
     LINK = "link"
     PEDAL = "pedal"
+    HOLD = "hold"
     FREE = "free"
 
 
