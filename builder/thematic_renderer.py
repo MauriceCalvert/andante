@@ -64,9 +64,10 @@ def render_thematic_beat(
     elif role.role == ThematicRole.ANSWER:
         # Render answer using answer-specific rendering
         # fugue.answer_midi() internally transposes to dominant (+7)
+        # render_offset shifts start backwards for mid-bar answer entries
         raw_notes = answer_to_voice_notes(
             fugue=fugue,
-            start_offset=start_offset,
+            start_offset=start_offset + role.render_offset,
             target_track=target_track,
             target_range=target_range,
         )

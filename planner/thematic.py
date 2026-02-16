@@ -51,6 +51,7 @@ class BeatRole:
     texture: str  # "plain", "bariolage_single", etc.
     fragment_iteration: int  # 0-based; for fragmentation envelope
     anchor_pitch: int | None  # MIDI pitch for bariolage/pedal anchor
+    render_offset: Fraction = Fraction(0)  # shift start_offset at render time (negative = earlier)
 
 
 def plan_thematic_roles(

@@ -183,7 +183,8 @@ def generate_soprano_viterbi(
         chord_pcs_per_beat = harmonic_grid.to_beat_list(beat_grid)
     else:
         # H3 fallback: derive chord from surface bass (deprecated path)
-        logger.warning("No harmonic grid for %s; falling back to H3 surface inference", plan.schema_name)
+        if plan.thematic_roles is None:
+            logger.warning("No harmonic grid for schematic phrase '%s'; falling back to surface inference", plan.schema_name)
         assert len(plan.degrees_lower) == len(plan.degree_positions), (
             f"degrees_lower ({len(plan.degrees_lower)}) and degree_positions "
             f"({len(plan.degree_positions)}) length mismatch"

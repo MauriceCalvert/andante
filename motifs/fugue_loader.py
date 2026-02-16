@@ -54,13 +54,19 @@ class LoadedFugue:
     tonic_midi: int
     seed: int
 
-    def subject_midi(self, tonic_midi: int | None = None) -> Tuple[int, ...]:
-        """Get subject as MIDI pitches."""
+    def subject_midi(self, tonic_midi: int | None = None, mode: str | None = None) -> Tuple[int, ...]:
+        """Get subject as MIDI pitches.
+
+        Args:
+            tonic_midi: MIDI pitch of tonic (default: self.tonic_midi)
+            mode: "major" or "minor" (default: self.subject.mode)
+        """
         midi = tonic_midi if tonic_midi is not None else self.tonic_midi
+        effective_mode = mode if mode is not None else self.subject.mode
         return degrees_to_midi(
             degrees=self.subject.degrees,
             tonic_midi=midi,
-            mode=self.subject.mode,
+            mode=effective_mode,
         )
 
     def answer_midi(self, tonic_midi: int | None = None) -> Tuple[int, ...]:
@@ -73,13 +79,19 @@ class LoadedFugue:
             mode=self.subject.mode,
         )
 
-    def countersubject_midi(self, tonic_midi: int | None = None) -> Tuple[int, ...]:
-        """Get countersubject as MIDI pitches."""
+    def countersubject_midi(self, tonic_midi: int | None = None, mode: str | None = None) -> Tuple[int, ...]:
+        """Get countersubject as MIDI pitches.
+
+        Args:
+            tonic_midi: MIDI pitch of tonic (default: self.tonic_midi)
+            mode: "major" or "minor" (default: self.subject.mode)
+        """
         midi = tonic_midi if tonic_midi is not None else self.tonic_midi
+        effective_mode = mode if mode is not None else self.subject.mode
         return degrees_to_midi(
             degrees=self.countersubject.degrees,
             tonic_midi=midi,
-            mode=self.subject.mode,
+            mode=effective_mode,
         )
 
 

@@ -10,6 +10,7 @@ from builder.cadence_writer import load_cadence_templates
 from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
+from motifs.fragen import FragenProvider
 from motifs.fugue_loader import LoadedFugue
 from shared.key import Key
 from shared.music_math import parse_metre
@@ -138,6 +139,13 @@ def compose_phrases(
     upper_structural: set[Fraction] = set()
     lower_structural: set[Fraction] = set()
     head_motif: HeadMotif | None = None
+
+    # Create FragenProvider if fugue is present
+    fragen_provider: FragenProvider | None = None
+    if fugue is not None:
+        bar_length, _ = parse_metre(metre=metre)
+        fragen_provider = FragenProvider(fugue=fugue, bar_length=bar_length)
+
     for plan_idx, plan in enumerate(phrase_plans):
         # Compute next phrase's first soprano degree/key for cross-phrase guard
         next_entry_degree: int | None = None
@@ -177,6 +185,7 @@ def compose_phrases(
             recall_figure_name=recall_figure,
             fugue=fugue,
             is_final=is_last_phrase,
+            fragen_provider=fragen_provider,
         )
         # Extract head motif after first non-cadential phrase
         if head_motif is None and not plan.is_cadential:

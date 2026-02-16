@@ -377,18 +377,24 @@ def write_thematic_cadence(
         mode=fugue.subject.mode,
     )
 
-    # Octave-select so cell's first note is within 6 semitones of head's last MIDI pitch
+    # Octave-select so cell's first note is close to head's last MIDI pitch and in range
     head_last_pitch: int = soprano_notes[-1].pitch
     cell_first: int = cell_midi[0]
     cell_shift: int = 0
-    best_cell_distance: int = abs(cell_first - head_last_pitch)
+    best_cell_distance: int = 999
+    best_all_in_range: bool = False
     for candidate_shift in range(-48, 49, 12):
-        shifted_first: int = cell_first + candidate_shift
-        if upper_range[0] <= shifted_first <= upper_range[1]:
-            distance: int = abs(shifted_first - head_last_pitch)
-            if distance < best_cell_distance and distance <= 6:
-                best_cell_distance = distance
-                cell_shift = candidate_shift
+        shifted: tuple[int, ...] = tuple(p + candidate_shift for p in cell_midi)
+        all_in_range: bool = all(upper_range[0] <= p <= upper_range[1] for p in shifted)
+        distance: int = abs(shifted[0] - head_last_pitch)
+        # Prefer: all in range + close; then all in range; then close
+        if all_in_range and not best_all_in_range:
+            best_cell_distance = distance
+            best_all_in_range = True
+            cell_shift = candidate_shift
+        elif all_in_range == best_all_in_range and distance < best_cell_distance:
+            best_cell_distance = distance
+            cell_shift = candidate_shift
 
     cell_midi_shifted: tuple[int, ...] = tuple(p + cell_shift for p in cell_midi)
 

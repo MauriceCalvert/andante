@@ -94,25 +94,30 @@ def _apply_tonal_mutation(
     subject_degrees: tuple[int, ...],
     mutation_indices: list[int],
 ) -> tuple[int, ...]:
-    """Apply tonal mutation at specified indices, real transposition elsewhere."""
+    """Apply tonal mutation at specified indices, identity elsewhere.
+
+    For a real answer, we would just return subject_degrees unchanged.
+    For a tonal answer, we mutate only at boundary crossings.
+    The transposition to dominant happens in degrees_to_midi via dominant_midi.
+    """
     answer = []
     for i, deg in enumerate(subject_degrees):
-        real_transposed = deg + REAL_TRANSPOSITION
         if i > 0 and (i - 1) in mutation_indices:
             mutation = _get_mutation_type(
                 from_degree=subject_degrees[i - 1],
                 to_degree=deg,
             )
             if mutation == "1to5":
-                # Subject 5th up becomes answer 4th up: subtract 1
-                answer.append(real_transposed - 1)
+                # Subject 5th up (1→5) becomes answer 4th up (5→1): shift down 1
+                answer.append(deg - 1)
             elif mutation == "5to1":
-                # Subject 5th down becomes answer 4th down: add 1
-                answer.append(real_transposed + 1)
+                # Subject 5th down (5→1) becomes answer 4th down (1→5): shift up 1
+                answer.append(deg + 1)
             else:
-                answer.append(real_transposed)
+                answer.append(deg)
         else:
-            answer.append(real_transposed)
+            # Not a mutation point: use original degree
+            answer.append(deg)
     return tuple(answer)
 
 
@@ -138,8 +143,9 @@ def generate_answer(
         )
         answer_type = "tonal"
     else:
-        # Real answer: simple transposition
-        answer_degrees = tuple(d + REAL_TRANSPOSITION for d in degrees)
+        # Real answer: use subject degrees unchanged. Transposition happens
+        # in degrees_to_midi by passing dominant_midi as tonic.
+        answer_degrees = degrees
         answer_type = "real"
     # Convert to MIDI (answer is in dominant key, so tonic is a 5th up)
     dominant_midi = tonic_midi + 7  # Up a perfect 5th

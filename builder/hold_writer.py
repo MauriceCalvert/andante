@@ -7,6 +7,7 @@ from fractions import Fraction
 from builder.types import Note
 from motifs.fragment_catalogue import extract_sixteenth_cell
 from motifs.fugue_loader import LoadedFugue
+from motifs.head_generator import degrees_to_midi
 from planner.thematic import BeatRole, ThematicRole
 from shared.constants import TRACK_BASS, TRACK_SOPRANO, STRONG_BEAT_DISSONANT
 from shared.key import Key
@@ -15,6 +16,24 @@ from shared.voice_types import Range
 from viterbi.generate import generate_voice
 from viterbi.mtypes import ExistingVoice, Knot
 from viterbi.scale import KeyInfo
+
+
+def _find_consonant_near(
+    target_midi: int,
+    held_pitch: int,
+    range_low: int,
+    range_high: int,
+) -> int:
+    """Find nearest pitch to target_midi consonant with held_pitch, within range.
+
+    Searches outward ±1..±12. Falls back to range midpoint.
+    """
+    for distance in range(13):
+        for candidate in (target_midi + distance, target_midi - distance):
+            if range_low <= candidate <= range_high:
+                if abs(candidate - held_pitch) % 12 not in STRONG_BEAT_DISSONANT:
+                    return candidate
+    return (range_low + range_high) // 2
 
 
 def _generate_running_voice_bar(
@@ -29,10 +48,16 @@ def _generate_running_voice_bar(
     local_key: Key,
     prior_running_notes: tuple[Note, ...],
     prior_held_notes: tuple[Note, ...],
+    cell_degrees: tuple[int, ...] = (),
+    cell_iteration: int = 0,
+    material_key: Key | None = None,
+    subject_mode: str = "major",
 ) -> tuple[Note, ...]:
     """Generate one bar of running-voice notes against a held pitch.
 
     Voice-agnostic. Uses Viterbi to find consonant counterpoint against the held note.
+    When cell_degrees is provided, builds structural knots from a descending
+    diatonic sequence of the subject cell, giving the running voice motivic identity.
     """
     # Build rhythm grid: onset + duration for each note
     rhythm_grid: list[tuple[Fraction, Fraction]] = []
@@ -60,33 +85,101 @@ def _generate_running_voice_bar(
         tonic_pc=local_key.degree_to_midi(degree=1, octave=0) % 12,
     )
 
-    # Boundary knots: downbeat and bar end, both consonant against held pitch
     running_median: int = (running_range.low + running_range.high) // 2
 
-    # Build list of all consonant pitches in running range
-    consonant_pitches: list[int] = [
-        p for p in range(running_range.low, running_range.high + 1)
-        if abs(p - held_pitch) % 12 not in STRONG_BEAT_DISSONANT
-    ]
-    assert len(consonant_pitches) > 0, "No consonant pitches in running voice range"
+    # -----------------------------------------------------------
+    # Build structural knots from subject cell (descending sequence)
+    # -----------------------------------------------------------
+    if len(cell_degrees) > 0 and material_key is not None:
+        cell_duration: Fraction = sum(rhythm_durations[:len(cell_degrees)])
+        iterations: int = int(bar_length / cell_duration) if cell_duration > 0 else 0
+        tonic_midi: int = 60 + material_key.tonic_pc
 
-    # Start knot at downbeat: prefer previous note if consonant, else nearest consonant
-    candidate_start: int = prior_running_notes[-1].pitch if prior_running_notes else running_median
-    if abs(candidate_start - held_pitch) % 12 in STRONG_BEAT_DISSONANT:
-        start_pitch: int = min(consonant_pitches, key=lambda p: abs(p - candidate_start))
+        # Compute a single octave shift from the first cell degree so all
+        # knots share the same transposition — preserves descending intervals.
+        iters: int = max(iterations, 1)
+        first_step: int = cell_iteration * iters
+        first_degree: int = cell_degrees[0] - first_step
+        first_raw: int = degrees_to_midi(
+            degrees=(first_degree,),
+            tonic_midi=tonic_midi,
+            mode=subject_mode,
+        )[0]
+        # Anchor: prefer prior running pitch, else range median
+        anchor: int = prior_running_notes[-1].pitch if prior_running_notes else running_median
+        common_shift: int = round((anchor - first_raw) / 12) * 12
+
+        structural_knots: list[Knot] = []
+        for r in range(iters):
+            step_count: int = cell_iteration * iters + r
+            transposed_degree: int = cell_degrees[0] - step_count
+
+            raw_midi: int = degrees_to_midi(
+                degrees=(transposed_degree,),
+                tonic_midi=tonic_midi,
+                mode=subject_mode,
+            )[0]
+
+            shifted: int = raw_midi + common_shift
+            # Clamp to running range
+            shifted = max(running_range.low, min(running_range.high, shifted))
+
+            # Consonance-check against held pitch
+            adjusted: int = _find_consonant_near(
+                target_midi=shifted,
+                held_pitch=held_pitch,
+                range_low=running_range.low,
+                range_high=running_range.high,
+            )
+
+            onset_beat: Fraction = bar_start_offset + r * cell_duration
+            structural_knots.append(
+                Knot(beat=float(onset_beat), midi_pitch=adjusted)
+            )
+
+        # End-of-bar knot: derive from last cell repetition's last degree
+        last_r: int = iters - 1
+        end_step: int = cell_iteration * iters + last_r
+        end_degree: int = cell_degrees[-1] - end_step
+        end_raw: int = degrees_to_midi(
+            degrees=(end_degree,),
+            tonic_midi=tonic_midi,
+            mode=subject_mode,
+        )[0]
+        end_shifted: int = end_raw + common_shift
+        end_shifted = max(running_range.low, min(running_range.high, end_shifted))
+        end_adjusted: int = _find_consonant_near(
+            target_midi=end_shifted,
+            held_pitch=held_pitch,
+            range_low=running_range.low,
+            range_high=running_range.high,
+        )
+        structural_knots.append(
+            Knot(beat=float(bar_end_offset), midi_pitch=end_adjusted)
+        )
     else:
-        start_pitch = candidate_start
+        # Fallback: original two-knot behaviour
+        consonant_pitches: list[int] = [
+            p for p in range(running_range.low, running_range.high + 1)
+            if abs(p - held_pitch) % 12 not in STRONG_BEAT_DISSONANT
+        ]
+        assert len(consonant_pitches) > 0, "No consonant pitches in running voice range"
 
-    # End knot at bar end: prefer median if consonant, else nearest consonant
-    if abs(running_median - held_pitch) % 12 in STRONG_BEAT_DISSONANT:
-        end_pitch: int = min(consonant_pitches, key=lambda p: abs(p - running_median))
-    else:
-        end_pitch = running_median
+        candidate_start: int = prior_running_notes[-1].pitch if prior_running_notes else running_median
+        if abs(candidate_start - held_pitch) % 12 in STRONG_BEAT_DISSONANT:
+            start_pitch: int = min(consonant_pitches, key=lambda p: abs(p - candidate_start))
+        else:
+            start_pitch = candidate_start
 
-    structural_knots: list[Knot] = [
-        Knot(beat=float(bar_start_offset), midi_pitch=start_pitch),
-        Knot(beat=float(bar_end_offset), midi_pitch=end_pitch),
-    ]
+        if abs(running_median - held_pitch) % 12 in STRONG_BEAT_DISSONANT:
+            end_pitch: int = min(consonant_pitches, key=lambda p: abs(p - running_median))
+        else:
+            end_pitch = running_median
+
+        structural_knots = [
+            Knot(beat=float(bar_start_offset), midi_pitch=start_pitch),
+            Knot(beat=float(bar_end_offset), midi_pitch=end_pitch),
+        ]
 
     # Call generate_voice
     running_notes: tuple[Note, ...] = generate_voice(
@@ -163,6 +256,13 @@ def render_hold_entry(
         f"Rhythm durations sum to {sum(rhythm_durations)}, expected {bar_length}"
     )
 
+    # Cell data for subject-derived knots
+    cell_degrees: tuple[int, ...] = sixteenth_cell.degrees
+    subject_mode: str = fugue.subject.mode
+
+    # Track running voice notes per bar for held-pitch exchange
+    last_bar_running_notes: tuple[Note, ...] = ()
+
     # Generate bar-by-bar: held voice (whole note) + running voice (Viterbi)
     for bar_offset in range(entry_bar_count):
         bar_start_offset: Fraction = entry_start_offset + Fraction(bar_offset) * bar_length
@@ -172,8 +272,25 @@ def render_hold_entry(
         bass_holds_this_bar: bool = (bar_offset % 2 == 0 and bass_holds) or (bar_offset % 2 == 1 and soprano_holds)
 
         if bass_holds_this_bar:
-            # Bass holds: generate simple held note
-            prev_bass_pitch: int = bass_notes[-1].pitch if bass_notes else plan.prev_exit_lower or plan.lower_median
+            # Bass holds: pick held pitch
+            if bar_offset == 0:
+                # Bar 0: use previous pitch (existing logic)
+                prev_bass_pitch: int = bass_notes[-1].pitch if bass_notes else plan.prev_exit_lower or plan.lower_median
+            else:
+                # Exchange bar: use last running voice's final pitch
+                assert len(last_bar_running_notes) > 0, (
+                    f"No running notes from previous bar at hold bar_offset={bar_offset}"
+                )
+                prev_bass_pitch = last_bar_running_notes[-1].pitch
+                # Ensure consonance with running range median
+                if abs(prev_bass_pitch - ((plan.upper_range.low + plan.upper_range.high) // 2)) % 12 in STRONG_BEAT_DISSONANT:
+                    prev_bass_pitch = _find_consonant_near(
+                        target_midi=prev_bass_pitch,
+                        held_pitch=(plan.upper_range.low + plan.upper_range.high) // 2,
+                        range_low=plan.lower_range.low,
+                        range_high=plan.lower_range.high,
+                    )
+
             bass_note: Note = Note(
                 offset=bar_start_offset,
                 pitch=prev_bass_pitch,
@@ -196,11 +313,33 @@ def render_hold_entry(
                 local_key=hold_beat_role.material_key,
                 prior_running_notes=soprano_notes,
                 prior_held_notes=bass_notes,
+                cell_degrees=cell_degrees,
+                cell_iteration=bar_offset,
+                material_key=hold_beat_role.material_key,
+                subject_mode=subject_mode,
             )
             soprano_notes = soprano_notes + sop_notes
+            last_bar_running_notes = sop_notes
         else:
-            # Soprano holds: generate simple held note
-            prev_sop_pitch: int = soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper or plan.upper_median
+            # Soprano holds: pick held pitch
+            if bar_offset == 0:
+                # Bar 0: use previous pitch (existing logic)
+                prev_sop_pitch: int = soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper or plan.upper_median
+            else:
+                # Exchange bar: use last running voice's final pitch
+                assert len(last_bar_running_notes) > 0, (
+                    f"No running notes from previous bar at hold bar_offset={bar_offset}"
+                )
+                prev_sop_pitch = last_bar_running_notes[-1].pitch
+                # Ensure consonance with running range median
+                if abs(prev_sop_pitch - ((plan.lower_range.low + plan.lower_range.high) // 2)) % 12 in STRONG_BEAT_DISSONANT:
+                    prev_sop_pitch = _find_consonant_near(
+                        target_midi=prev_sop_pitch,
+                        held_pitch=(plan.lower_range.low + plan.lower_range.high) // 2,
+                        range_low=plan.upper_range.low,
+                        range_high=plan.upper_range.high,
+                    )
+
             sop_note: Note = Note(
                 offset=bar_start_offset,
                 pitch=prev_sop_pitch,
@@ -223,8 +362,13 @@ def render_hold_entry(
                 local_key=hold_beat_role.material_key,
                 prior_running_notes=bass_notes,
                 prior_held_notes=soprano_notes,
+                cell_degrees=cell_degrees,
+                cell_iteration=bar_offset,
+                material_key=hold_beat_role.material_key,
+                subject_mode=subject_mode,
             )
             bass_notes = bass_notes + bass_result
+            last_bar_running_notes = bass_result
 
     # Trace first bar only
     if soprano_notes or bass_notes:

@@ -13,6 +13,8 @@ optimal because the penalty already exceeds alternative costs.
 """
 import math
 
+from collections import Counter
+
 from viterbi.costs import transition_cost, ARC_PEAK_POSITION, ARC_SIGMA, ARC_REACH
 from viterbi.mtypes import (
     Corridor,
@@ -163,6 +165,7 @@ def find_path(
     # Beat 1: first real transitions (no prev_prev_pitch)
     if n_beats < 2:
         return beats, [start_pitch], 0.0
+    hc_blocks_1: Counter = Counter()
     for curr_p in legal[1]:
         new_dir = _sign(curr_p - start_pitch)
         phrase_pos = 1 / max(n_beats - 1, 1)
@@ -185,6 +188,7 @@ def find_path(
             hard_constraints=hard_constraints,
         )
         if cost == INF:
+            hc_blocks_1[bd.get("rule", "unknown")] += 1
             continue
         state: State = (start_pitch, curr_p, new_dir, 1)
         if state not in dp[1] or cost < dp[1][state]:
@@ -195,10 +199,11 @@ def find_path(
     # Check if beat 1 has no valid states due to hard constraints
     if hard_constraints and not dp[1]:
         import logging
+        rule_summary = ", ".join(f"{r}={c}" for r, c in hc_blocks_1.most_common())
         logging.getLogger("andante.viterbi").warning(
-            "Hard constraints blocked all paths at beat %s — "
-            "falling back to soft-only for this phrase",
-            beats[1],
+            "Hard constraints blocked all %d candidates at beat %s "
+            "[%s] — falling back to soft-only",
+            sum(hc_blocks_1.values()), beats[1], rule_summary,
         )
         return find_path(
             corridors=corridors,
@@ -218,6 +223,7 @@ def find_path(
         t_prev_others = voice_pitches[t - 1]
         t_curr_others = voice_pitches[t]
         t_nearby_pcs = nearby_pcs[t]
+        hc_blocks_t: Counter = Counter()
         for curr_p in legal[t]:
             for prev_state, prev_cost in prev_dp.items():
                 pp, prev_p, rd, rc = prev_state
@@ -242,6 +248,7 @@ def find_path(
                     hard_constraints=hard_constraints,
                 )
                 if cost == INF:
+                    hc_blocks_t[bd.get("rule", "unknown")] += 1
                     continue
                 total = prev_cost + cost
                 state = (prev_p, curr_p, new_rd, new_rc)
@@ -255,10 +262,11 @@ def find_path(
         # Infeasibility fallback: if all transitions were hard-blocked, retry with soft-only
         if hard_constraints and not dp[t]:
             import logging
+            rule_summary = ", ".join(f"{r}={c}" for r, c in hc_blocks_t.most_common())
             logging.getLogger("andante.viterbi").warning(
-                "Hard constraints blocked all paths at beat %s — "
-                "falling back to soft-only for this phrase",
-                beats[t],
+                "Hard constraints blocked all %d transitions at beat %s "
+                "[%s] — falling back to soft-only",
+                sum(hc_blocks_t.values()), beats[t], rule_summary,
             )
             return find_path(
                 corridors=corridors,

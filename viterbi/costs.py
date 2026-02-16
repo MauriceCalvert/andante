@@ -377,66 +377,48 @@ def hard_constraint_cost(
     curr_beat_strength: str,
     key: KeyInfo,
     is_above_per_voice: list[bool],
-) -> float:
-    """Hard constraints: return HARD (inf) if any rule is violated, else 0.0.
+) -> tuple[float, str]:
+    """Hard constraints: return (HARD, rule_name) if violated, else (0.0, "").
 
-    Six rules enforcing fundamental counterpoint correctness:
+    Five rules enforcing fundamental counterpoint correctness:
     - HC1: Anti-stasis (three consecutive identical pitches)
     - HC2: Spacing ceiling (>24 semitones)
     - HC3: Parallel perfects (5ths/octaves)
     - HC4: Tritone on strong beat
-    - HC5: Leap recovery (step back after leap ≥4th)
     - HC6: Similar-motion leaps (both voices leap ≥3rd in same direction)
     """
     # HC1 — Anti-stasis: three consecutive identical pitches
     if prev_prev_pitch is not None:
         if prev_prev_pitch == prev_pitch == curr_pitch:
-            return HARD
-
-    # HC2 — Spacing ceiling: >24 semitones (2 octaves)
+            return HARD, "HC1_stasis"
+    # HC2 — Spacing ceiling: >36 semitones (3 octaves)
+    # Soft cost (COST_SPACING_TOO_FAR) already penalises >24st;
+    # hard limit only blocks truly absurd gaps.
     for i in range(len(curr_others)):
-        if abs(curr_pitch - curr_others[i]) > 24:
-            return HARD
-
+        if abs(curr_pitch - curr_others[i]) > 36:
+            return HARD, f"HC2_spacing({abs(curr_pitch - curr_others[i])}st)"
     # HC3 — Parallel perfects: parallel 5ths/octaves
     for i in range(len(curr_others)):
-        # Both voices must move
         if prev_pitch != curr_pitch and prev_others[i] != curr_others[i]:
             curr_interval = abs(curr_pitch - curr_others[i])
             prev_interval = abs(prev_pitch - prev_others[i])
-            # Both intervals must be perfect and same interval class mod 12
             if is_perfect(curr_interval) and is_perfect(prev_interval):
                 if (curr_interval % 12) == (prev_interval % 12):
-                    return HARD
-
+                    return HARD, f"HC3_parallel({curr_interval % 12})"
     # HC4 — Tritone on strong beat: ic=6 between only two voices
     if curr_beat_strength == "strong":
         for i in range(len(curr_others)):
             if abs(curr_pitch - curr_others[i]) % 12 == 6:
-                return HARD
-
-    # HC5 — Leap recovery: leap ≥5th must be followed by step in opposite direction
-    if prev_prev_pitch is not None:
-        prev_leap = scale_degree_distance(prev_prev_pitch, prev_pitch, key)
-        if prev_leap >= 4:  # fifth or larger (relaxed from 3 to reduce fallback rate)
-            curr_dist = scale_degree_distance(prev_pitch, curr_pitch, key)
-            prev_dir = prev_pitch - prev_prev_pitch
-            curr_dir = curr_pitch - prev_pitch
-            # Recovery: must be stepwise AND in opposite direction
-            if not (curr_dist == 1 and curr_dir * prev_dir < 0):
-                return HARD
-
+                return HARD, "HC4_tritone"
     # HC6 — Similar-motion leaps: both voices leap ≥3rd in same direction
     for i in range(len(curr_others)):
         f_interval = scale_degree_distance(prev_pitch, curr_pitch, key)
         l_interval = scale_degree_distance(prev_others[i], curr_others[i], key)
         f_dir = curr_pitch - prev_pitch
         l_dir = curr_others[i] - prev_others[i]
-        # Both leap a third or more in the same direction
         if f_interval >= 2 and l_interval >= 2 and f_dir * l_dir > 0:
-            return HARD
-
-    return 0.0
+            return HARD, f"HC6_similar_leap(f={f_interval}d,l={l_interval}d)"
+    return 0.0, ""
 
 
 def pairwise_cost(
@@ -522,7 +504,7 @@ def transition_cost(
     """
     # Hard constraints check (short-circuits if violated)
     if hard_constraints:
-        hc = hard_constraint_cost(
+        hc, hc_rule = hard_constraint_cost(
             prev_prev_pitch=prev_prev_pitch,
             prev_pitch=prev_pitch,
             curr_pitch=curr_pitch,
@@ -533,7 +515,7 @@ def transition_cost(
             is_above_per_voice=is_above_per_voice,
         )
         if hc == HARD:
-            return HARD, {"hard": HARD, "total": HARD}
+            return HARD, {"hard": HARD, "total": HARD, "rule": hc_rule}
 
     # Melodic terms (follower only)
     sc = step_cost(prev_pitch, curr_pitch, key)

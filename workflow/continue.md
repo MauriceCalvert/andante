@@ -2,32 +2,34 @@
 
 ## Current state
 
-B5 brief is in `workflow/task.md`. Raised 7th for minor-key cadential approach.
-Musician review complete (see `workflow/b5_draft.md` for full review).
+CP1–3, F1–F2 complete. Six listening complaints diagnosed:
 
-## What's next
+1. Answer double-transposed (degrees +4 AND tonic +7) — ROOT CAUSE
+2. Minor entries use major scale (mode not propagated) — ROOT CAUSE
+3. Hold-exchange bars 11–12: Viterbi noise, no subject material
+4. Pedal bars 21–22: soprano wanders, no cadential approach
+5. No real final cadence (bars 23–24: three repeated dominants)
+6. Same episode repeated three times
 
-1. Execute B5 — if result.md exists, evaluate it
-2. After B5: cadence length reform or structural knot consonance
+## Active
 
-## Testing B5
+**CP4** — Fix answer transposition + mode propagation. Brief in task.md.
+Fixes root causes 1 and 2. After this, every subject/answer entry will
+have correct pitches.
 
-- D minor test: `python -m scripts.run_pipeline invention contemplative d_minor`
-- Major regression: compare all 8 genres to `tests/output_baseline/`
+## Queued
 
-## Completed this session (reverse chronological)
+**F3** — Fragen as a stateful class. Brief in task_f3_holding.md.
+Fixes complaint 6 (episode repetition). After CP4 completes, move this
+to task.md.
 
-- R1: phrase_writer.py refactoring ✓ (1241 → 643 lines, D011 satisfied)
-- B9: Hold-Exchange Voice V Against Held Pitch ✓ (75% consonance)
-- B2: Contrary-Motion Episodes ✓
-- B3: Rhythmic Independence ✓
-- B4: Thematically-Derived Running Voice ✓ (superseded by B9)
-- B2 (hold-exchange): Hold-Exchange Texture ✓
-- B1: Per-Voice Density Infrastructure ✓
-- B8: Mid-bar Answer Entry ✓
+## After F3
+
+Re-listen. Complaints 3–5 (hold-exchange, pedal, cadence) may improve
+once surrounding material is correct, or may need dedicated phases.
 
 ## Key files
 
-- `workflow/task.md` — B5 brief
-- `workflow/b5_draft.md` — musician review and draft
-- `tests/output_baseline/` — 8 .note files for major-key regression
+- `workflow/task.md` — CP4 brief (active)
+- `workflow/task_f3_holding.md` — F3 brief (queued)
+- `workflow/todo.md` — full plan

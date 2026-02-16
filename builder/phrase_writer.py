@@ -1,4 +1,5 @@
 """Phrase orchestrator: delegates soprano and bass generation to dedicated modules."""
+import logging
 from dataclasses import replace
 from fractions import Fraction
 
@@ -10,6 +11,13 @@ from builder.galant.soprano_writer import build_structural_soprano
 from builder.phrase_types import PhrasePlan, PhraseResult, make_tail_plan, make_free_companion_plan
 from builder.soprano_viterbi import generate_soprano_viterbi
 from builder.types import Note
+from motifs.fragen import (
+    Fragment,
+    FragenProvider,
+    VOICE_BASS as FRAGEN_BASS,
+    VOICE_SOPRANO as FRAGEN_SOPRANO,
+    realise_to_notes,
+)
 from motifs.fugue_loader import LoadedFugue
 from planner.schema_loader import get_schema
 from planner.thematic import BeatRole
@@ -18,6 +26,8 @@ from shared.key import Key
 from shared.music_math import parse_metre
 from shared.tracer import get_tracer, _key_str
 from shared.voice_types import Range
+
+_log: logging.Logger = logging.getLogger(__name__)
 
 
 def _is_walking(plan: PhrasePlan) -> bool:
@@ -48,7 +58,6 @@ def _bass_for_plan(
         soprano_notes=soprano_notes,
         prior_bass=prior_bass,
     )
-
 
 
 
@@ -86,8 +95,13 @@ def _segment_into_entries(thematic_roles: tuple[BeatRole, ...]) -> list[dict]:
     # Build entries with beat-awareness
     entries: list[dict] = []
     current_entry: dict | None = None
+    consumed_bars: set[int] = set()  # Track bars already unified into entries
 
     for bar in sorted_bars:
+        # Skip bars already consumed by hold-exchange continuation
+        if bar in consumed_bars:
+            continue
+
         # Get all beats in this bar, sorted
         beats_in_bar: list[Fraction] = sorted(bar_beat_roles[bar].keys())
 
@@ -110,17 +124,30 @@ def _segment_into_entries(thematic_roles: tuple[BeatRole, ...]) -> list[dict]:
                 }
             elif (voice0_role != current_entry["voice0_role"] or
                   voice1_role != current_entry["voice1_role"]):
-                # Role pattern changed, close current entry and start new one
-                entries.append(current_entry)
-                current_entry = {
-                    "first_bar": bar,
-                    "bar_count": 1 if beat == Fraction(0) else 0,
-                    "start_beat_offset": beat,
-                    "voice0_role": voice0_role,
-                    "voice1_role": voice1_role,
-                    "beat_role_v0": voice0_beat_role,
-                    "beat_role_v1": voice1_beat_role,
-                }
+                # Check if this is hold-exchange continuation (HOLD↔FREE swap)
+                is_hold_exchange_continuation: bool = (
+                    {current_entry["voice0_role"], current_entry["voice1_role"]} == {ThematicRole.HOLD, ThematicRole.FREE} and
+                    {voice0_role, voice1_role} == {ThematicRole.HOLD, ThematicRole.FREE} and
+                    beat == Fraction(0)  # Must be bar-aligned
+                )
+
+                if is_hold_exchange_continuation:
+                    # Hold-exchange: voices swap HOLD↔FREE, keep entry unified
+                    current_entry["bar_count"] += 1
+                    consumed_bars.add(bar)  # Mark this bar as consumed
+                    break  # Skip remaining beats in this bar
+                else:
+                    # Role pattern changed, close current entry and start new one
+                    entries.append(current_entry)
+                    current_entry = {
+                        "first_bar": bar,
+                        "bar_count": 1 if beat == Fraction(0) else 0,
+                        "start_beat_offset": beat,
+                        "voice0_role": voice0_role,
+                        "voice1_role": voice1_role,
+                        "beat_role_v0": voice0_beat_role,
+                        "beat_role_v1": voice1_beat_role,
+                    }
             elif bar > current_entry["first_bar"] + current_entry["bar_count"] - 1:
                 # New bar with same role pattern, extend bar_count
                 current_entry["bar_count"] += 1
@@ -139,6 +166,7 @@ def _write_thematic(
     prior_lower: tuple[Note, ...],
     next_phrase_entry_degree: int | None,
     next_phrase_entry_key: Key | None,
+    fragen_provider: FragenProvider | None,
 ) -> PhraseResult:
     """Write phrase using thematic renderer (TD-3 + R1 refactor).
 
@@ -222,6 +250,89 @@ def _write_thematic(
             )
             continue
 
+        # EPISODE: both voices rendered together via fragen
+        if voice0_role == ThematicRole.EPISODE and voice1_role == ThematicRole.EPISODE:
+            # Determine leader voice from BeatRole.material ("head" = leader)
+            assert beat_role_v0 is not None, f"No BeatRole for voice 0 EPISODE at bar {entry_first_bar}"
+            assert beat_role_v1 is not None, f"No BeatRole for voice 1 EPISODE at bar {entry_first_bar}"
+            lead_voice_idx: int = 0 if beat_role_v0.material == "head" else 1
+            leader_fragen: int = FRAGEN_SOPRANO if lead_voice_idx == 0 else FRAGEN_BASS
+
+            # Step direction from fragment_iteration sign
+            first_bar_role: BeatRole = beat_role_v0 if lead_voice_idx == 0 else beat_role_v1
+            step: int = 1 if first_bar_role.fragment_iteration > 0 else -1
+
+            # Select fragment via provider
+            selected: Fragment | None = None
+            if fragen_provider is not None:
+                selected = fragen_provider.get_fragment(
+                    leader_voice=leader_fragen,
+                    step=step,
+                )
+
+            if selected is not None:
+                episode_key: Key = beat_role_v0.material_key
+                episode_notes: list[Note] | None = realise_to_notes(
+                    fragment=selected,
+                    n_bars=entry_bar_count,
+                    step=step,
+                    bar_length=bar_length,
+                    key=episode_key,
+                    start_offset=entry_start_offset,
+                    prior_upper_pitch=soprano_notes[-1].pitch if soprano_notes else None,
+                    prior_lower_pitch=bass_notes[-1].pitch if bass_notes else None,
+                )
+            else:
+                episode_notes = None
+
+            if episode_notes is not None:
+                # Partition into soprano and bass
+                ep_soprano: list[Note] = [n for n in episode_notes if n.voice == TRACK_SOPRANO]
+                ep_bass: list[Note] = [n for n in episode_notes if n.voice == TRACK_BASS]
+
+                # Label first notes
+                if ep_soprano:
+                    ep_soprano[0] = replace(ep_soprano[0], lyric="episode")
+                if ep_bass:
+                    ep_bass[0] = replace(ep_bass[0], lyric="episode")
+
+                soprano_notes = soprano_notes + tuple(ep_soprano)
+                bass_notes = bass_notes + tuple(ep_bass)
+
+                # Trace both voices
+                tracer = get_tracer()
+                if ep_soprano:
+                    sp: list[int] = [n.pitch for n in ep_soprano]
+                    tracer.trace_thematic_render(
+                        bar=entry_first_bar,
+                        voice_name="U",
+                        role_name="EPISODE",
+                        key_str=_key_str(key=episode_key),
+                        note_count=len(ep_soprano),
+                        low_pitch=min(sp),
+                        high_pitch=max(sp),
+                    )
+                if ep_bass:
+                    bp: list[int] = [n.pitch for n in ep_bass]
+                    tracer.trace_thematic_render(
+                        bar=entry_first_bar,
+                        voice_name="L",
+                        role_name="EPISODE",
+                        key_str=_key_str(key=episode_key),
+                        note_count=len(ep_bass),
+                        low_pitch=min(bp),
+                        high_pitch=max(bp),
+                    )
+                continue
+
+            # Fragen fallback: realise_to_notes returned None
+            _log.warning(
+                "Fragen fallback at bar %d: realise_to_notes returned None, "
+                "falling through to per-voice episode rendering",
+                entry_first_bar,
+            )
+            # Fall through to per-voice rendering below
+
         # PEDAL: voice-1 specific, no duplication — keep inline
         if voice1_role == ThematicRole.PEDAL:
             assert beat_role_v1 is not None, f"No BeatRole for voice 1 PEDAL at entry bar {entry_first_bar}"
@@ -283,6 +394,106 @@ def _write_thematic(
                     metre=plan.metre,
                 )
                 soprano_notes = soprano_notes + voice0_notes
+            continue
+
+        # CP2: CS + companion — render companion first, then Viterbi CS
+        _COMPANION_ROLES = {ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.STRETTO}
+        cs_idx: int | None = None
+        comp_idx: int | None = None
+
+        if voice0_role == ThematicRole.CS and voice1_role in _COMPANION_ROLES:
+            cs_idx, comp_idx = 0, 1
+        elif voice1_role == ThematicRole.CS and voice0_role in _COMPANION_ROLES:
+            cs_idx, comp_idx = 1, 0
+
+        if cs_idx is not None:
+            assert comp_idx is not None
+            # Unpack companion params
+            comp_role: ThematicRole = voice0_role if comp_idx == 0 else voice1_role
+            comp_beat: BeatRole | None = beat_role_v0 if comp_idx == 0 else beat_role_v1
+            comp_track: int = TRACK_SOPRANO if comp_idx == 0 else TRACK_BASS
+            comp_range: Range = plan.upper_range if comp_idx == 0 else plan.lower_range
+            comp_vname: str = "U" if comp_idx == 0 else "L"
+
+            companion_entry_notes: tuple[Note, ...] = render_entry_voice(
+                role=comp_role,
+                beat_role=comp_beat,
+                fugue=fugue,
+                start_offset=entry_start_offset,
+                end_offset=next_entry_start_offset,
+                entry_first_bar=entry_first_bar,
+                entry_bar_count=entry_bar_count,
+                target_track=comp_track,
+                target_range=comp_range,
+                voice_name=comp_vname,
+                plan=plan,
+                thematic_roles=plan.thematic_roles,
+                metre=plan.metre,
+            )
+            if comp_idx == 0:
+                soprano_notes = soprano_notes + companion_entry_notes
+            else:
+                bass_notes = bass_notes + companion_entry_notes
+
+            # CS via Viterbi if companion has notes, else fallback stamp-in
+            cs_beat: BeatRole | None = beat_role_v0 if cs_idx == 0 else beat_role_v1
+            cs_track: int = TRACK_SOPRANO if cs_idx == 0 else TRACK_BASS
+            cs_range: Range = plan.upper_range if cs_idx == 0 else plan.lower_range
+            cs_vname: str = "U" if cs_idx == 0 else "L"
+
+            if companion_entry_notes:
+                from builder.cs_writer import generate_cs_viterbi
+
+                assert cs_beat is not None, f"No BeatRole for CS at entry bar {entry_first_bar}"
+                cs_entry_notes: tuple[Note, ...] = generate_cs_viterbi(
+                    fugue=fugue,
+                    companion_notes=companion_entry_notes,
+                    companion_is_above=(comp_idx == 0),
+                    start_offset=entry_start_offset,
+                    end_offset=next_entry_start_offset,
+                    target_key=cs_beat.material_key,
+                    target_track=cs_track,
+                    target_range=cs_range,
+                    metre=plan.metre,
+                    local_key=plan.local_key,
+                    cadential_approach=plan.cadential_approach,
+                )
+            else:
+                # Fallback: stamp-in CS via render_entry_voice (silent companion)
+                cs_entry_notes = render_entry_voice(
+                    role=ThematicRole.CS,
+                    beat_role=cs_beat,
+                    fugue=fugue,
+                    start_offset=entry_start_offset,
+                    end_offset=next_entry_start_offset,
+                    entry_first_bar=entry_first_bar,
+                    entry_bar_count=entry_bar_count,
+                    target_track=cs_track,
+                    target_range=cs_range,
+                    voice_name=cs_vname,
+                    plan=plan,
+                    thematic_roles=plan.thematic_roles,
+                    metre=plan.metre,
+                )
+
+            # Trace CS render
+            if cs_entry_notes:
+                tracer = get_tracer()
+                cs_pitches: list[int] = [n.pitch for n in cs_entry_notes]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name=cs_vname,
+                    role_name="CS",
+                    key_str=_key_str(key=cs_beat.material_key) if cs_beat else "",
+                    note_count=len(cs_entry_notes),
+                    low_pitch=min(cs_pitches),
+                    high_pitch=max(cs_pitches),
+                )
+
+            if cs_idx == 0:
+                soprano_notes = soprano_notes + cs_entry_notes
+            else:
+                bass_notes = bass_notes + cs_entry_notes
             continue
 
         # All other roles: voice-agnostic loop
@@ -594,6 +805,7 @@ def write_phrase(
     recall_figure_name: str | None = None,
     fugue: LoadedFugue | None = None,
     is_final: bool = False,
+    fragen_provider: FragenProvider | None = None,
 ) -> PhraseResult:
     """Write complete phrase (soprano + bass) and return result.
 
@@ -630,6 +842,7 @@ def write_phrase(
             prior_lower=prior_lower,
             next_phrase_entry_degree=next_phrase_entry_degree,
             next_phrase_entry_key=next_phrase_entry_key,
+            fragen_provider=fragen_provider,
         )
 
     # Path 3: Schematic (galant)

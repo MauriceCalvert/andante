@@ -1,5 +1,37 @@
 # Completed
 
+## CP3.1 -- Unified hold-exchange entries for cross-bar descent (2026-02-16)
+
+**Problem:** Hold-exchange entries were split into separate 1-bar entries when voices swapped HOLD↔FREE roles, preventing cross-bar descent continuation. Example: bars 11-12 rendered as two independent bars, each starting descent from degree 0 (`cell_iteration=0`), instead of one unified 2-bar entry with continuous descent (cell_iteration 0→1). Result: repetitive oscillation instead of motivic descending sequence across the exchange.
+
+**Solution:** Modified `_segment_into_entries` in `builder/phrase_writer.py` to recognize hold-exchange patterns (voices swapping {HOLD, FREE}↔{FREE, HOLD} at bar boundaries) and keep them unified instead of splitting. Added hold-exchange continuation check before role-change split logic (lines 122-129): if current and next bar both have HOLD+FREE roles (in any order) and the change is bar-aligned, extend bar_count instead of starting a new entry.
+
+**Implementation:**
+```python
+# Track consumed bars to prevent duplicate entries
+consumed_bars: set[int] = set()
+
+# Hold-exchange continuation check
+is_hold_exchange_continuation: bool = (
+    {current_entry["voice0_role"], current_entry["voice1_role"]} == {ThematicRole.HOLD, ThematicRole.FREE} and
+    {voice0_role, voice1_role} == {ThematicRole.HOLD, ThematicRole.FREE} and
+    beat == Fraction(0)
+)
+if is_hold_exchange_continuation:
+    current_entry["bar_count"] += 1
+    consumed_bars.add(bar)
+    break  # Skip remaining beats to prevent duplicate processing
+```
+When true, increment bar_count to unify the entry and mark the bar as consumed; when false, split as before.
+
+**Polyphony Fix:** Initial implementation created duplicate entries (bars 11-12 unified + bar 12 separate), causing overlapping soprano notes in bar 12. Added `consumed_bars` set to track bars already unified into entries, with skip check at loop start and break from beat loop when unifying to prevent duplicate processing.
+
+**Results:** Seed 42 invention bars 11-12: now rendered as single 2-bar entry with `cell_iteration` incrementing 0→1. Structural knots create continuous descent: bar 0 degrees (0, -1, -2, -3, 0), bar 1 degrees (-4, -5, -6, -7, -4). Soprano shows 17 continuous notes C5→A4 with descending spine. Bass 17 notes with F3→G3 descent pattern F3-E3-D3-C3...D#3-C3-D3-E3...G3. Some oscillation remains between knots due to Viterbi path-finding, but descending spine is present. All 8 genres pass test suite, no polyphony errors.
+
+**Known limitation:** Viterbi path-finding between structural knots still produces some oscillatory motion. Knots provide the descending framework, but intermediate notes are chosen for consonance and step motion, creating local oscillations around the descent trajectory.
+
+**Files modified:** builder/phrase_writer.py
+
 ## F4 -- Signature-based fragment diversity (2026-02-16)
 
 **Problem:** FragenProvider selected fragments by usage count alone (unused → least-used), treating all fragments as interchangeable. Even with multiple fragments in the catalogue, selection was arbitrary within usage tiers. Result: episodes could use perceptually similar fragments (same melodic contour, same rhythm) just because both were unused, missing opportunities for variety.

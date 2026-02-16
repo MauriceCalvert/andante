@@ -19,7 +19,8 @@ def countersubject_to_voice_notes(
 ) -> tuple[Note, ...]:
     """Place countersubject in any voice at any key, octave-shifted into range."""
     tonic_midi: int = 60 + target_key.tonic_pc
-    midi_pitches: tuple[int, ...] = fugue.countersubject_midi(tonic_midi=tonic_midi)
+    target_mode: str = target_key.mode
+    midi_pitches: tuple[int, ...] = fugue.countersubject_midi(tonic_midi=tonic_midi, mode=target_mode)
     durations: tuple[float, ...] = fugue.countersubject.durations
     assert len(midi_pitches) == len(durations), (
         f"CS pitch count {len(midi_pitches)} != duration count {len(durations)}"
@@ -63,7 +64,8 @@ def subject_to_voice_notes(
 ) -> tuple[Note, ...]:
     """Place subject in any voice at any key, octave-shifted into range."""
     tonic_midi: int = 60 + target_key.tonic_pc
-    midi_pitches: tuple[int, ...] = fugue.subject_midi(tonic_midi=tonic_midi)
+    target_mode: str = target_key.mode
+    midi_pitches: tuple[int, ...] = fugue.subject_midi(tonic_midi=tonic_midi, mode=target_mode)
     durations: tuple[float, ...] = fugue.subject.durations
     assert len(midi_pitches) == len(durations), (
         f"Subject pitch count {len(midi_pitches)} != duration count {len(durations)}"
