@@ -81,6 +81,14 @@ def fill_free_bars(
                 if voice1_role != ThematicRole.FREE:
                     voice_material_map[bar][1] = True
 
+    # Mark silent voices as occupied (solo exposition entries)
+    if plan.thematic_roles:
+        for role in plan.thematic_roles:
+            if role.texture == "silent" and role.beat == Fraction(0):
+                if role.bar not in voice_material_map:
+                    voice_material_map[role.bar] = {0: False, 1: False}
+                voice_material_map[role.bar][role.voice] = True
+
     # Identify FREE bar runs (consecutive bars where exactly one voice is FREE)
     free_runs: list[tuple[int, int, int]] = []
     current_run_voice: int | None = None

@@ -29,12 +29,23 @@ def _extract_lead_voice_and_key(entry: dict | str, home_key: Key) -> tuple[int |
     """Extract which voice has subject/answer and what key it's in.
 
     Returns:
-        (voice_idx, material_key) or (None, None) if entry is cadence or has no thematic material.
+        (voice_idx, material_key) or (None, None) if entry is cadence.
+        For special types (hold_exchange, stretto, pedal), returns the
+        entry's own key and a nominal lead voice for episode insertion.
     """
     if entry == "cadence":
         return (None, None)
 
     assert isinstance(entry, dict), f"entry must be dict or 'cadence', got {type(entry).__name__}"
+
+    # Special entry types: extract key from their own fields
+    entry_type: str | None = entry.get("type")
+    if entry_type == "hold_exchange":
+        return (0, home_key.modulate_to(entry["key"]))
+    if entry_type == "stretto":
+        return (0, home_key.modulate_to(entry["key"]))
+    if entry_type == "pedal":
+        return (0, home_key)
 
     # Check upper voice first (voice 0)
     upper = entry.get("upper")
@@ -137,14 +148,8 @@ def plan_subject(
 
     for i in range(n_entries):
         # Check if this is a section boundary (and neither side is cadence or pedal)
-        prev_is_special = (
-            entry_sequence[i - 1] == "cadence"
-            or (isinstance(entry_sequence[i - 1], dict) and entry_sequence[i - 1].get("type") in ("pedal", "stretto", "hold_exchange"))
-        ) if i > 0 else False
-        curr_is_special = (
-            entry_sequence[i] == "cadence"
-            or (isinstance(entry_sequence[i], dict) and entry_sequence[i].get("type") in ("pedal", "stretto", "hold_exchange"))
-        )
+        prev_is_special = (entry_sequence[i - 1] == "cadence") if i > 0 else False
+        curr_is_special = (entry_sequence[i] == "cadence")
 
         is_boundary = (
             i > 0
@@ -246,9 +251,9 @@ def plan_subject(
 
                 # Fragment iteration: descending = positive (0,1,2), ascending = negative (0,-1,-2)
                 if ascending:
-                    iteration = -bar_offset if bar_offset > 0 else 0
+                    iteration = -(bar_offset + 1)
                 else:
-                    iteration = bar_offset
+                    iteration = bar_offset + 1
 
                 # Contrary motion: upper voice descends, lower voice ascends
                 upper_iteration: int = iteration      # positive = descending
@@ -431,7 +436,7 @@ def plan_subject(
                 voice_assignments[voice_idx] = VoiceAssignment(
                     role="free",
                     material_key=home_key,
-                    texture="plain",
+                    texture="silent",
                     pairing="independent",
                     fragment=None,
                     fragment_iteration=0,
