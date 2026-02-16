@@ -78,17 +78,36 @@ def build_imitative_plans(
         bar_assignments=list(subject_plan.bars),
         beats_per_bar=beats_per_bar,
         beat_unit=beat_unit,
-        answer_offset_beats=0,  # Don't apply overlap yet
+        answer_offset_beats=0,
     )
 
-    # Apply answer overlap post-processing across all bars
+    # Set render_offset on every ANSWER BeatRole so the renderer
+    # shifts it backwards by answer_offset_beats.  The renderer
+    # stamps the full answer once from (start_offset + render_offset)
+    # and windows it, instead of the old approach that stamped
+    # overlapping BeatRoles causing double-rendering.
     if subject_plan.answer_offset_beats > 0:
-        all_beat_roles = _apply_answer_overlap_to_beat_roles(
-            beat_roles=all_beat_roles,
-            answer_offset_beats=subject_plan.answer_offset_beats,
-            beats_per_bar=beats_per_bar,
-            beat_unit=beat_unit,
-        )
+        answer_shift: Fraction = -Fraction(subject_plan.answer_offset_beats) * beat_unit
+        patched: list[BeatRole] = []
+        for role in all_beat_roles:
+            if role.role == ThematicRole.ANSWER:
+                patched.append(BeatRole(
+                    bar=role.bar,
+                    beat=role.beat,
+                    voice=role.voice,
+                    role=role.role,
+                    material=role.material,
+                    material_key=role.material_key,
+                    sequence_type=role.sequence_type,
+                    pairing=role.pairing,
+                    texture=role.texture,
+                    fragment_iteration=role.fragment_iteration,
+                    anchor_pitch=role.anchor_pitch,
+                    render_offset=answer_shift,
+                ))
+            else:
+                patched.append(role)
+        all_beat_roles = tuple(patched)
 
     # Group BeatRoles into phrase-level entries
     bar_to_section: dict[int, str] = {ba.bar: ba.section for ba in subject_plan.bars}
@@ -100,7 +119,7 @@ def build_imitative_plans(
 
     # Build PhrasePlan for each group
     phrase_plans: list[PhrasePlan] = []
-    for group in groups:
+    for group_idx, group in enumerate(groups):
         function: str = group["function"]
         first_bar: int = group["first_bar"]
         bar_count: int = group["bar_count"]
@@ -149,10 +168,13 @@ def build_imitative_plans(
                 thematic_roles=None,
             ))
         else:
-            # Entry phrase: use the extracted BeatRoles (already have overlap applied)
+            # Non-cadential phrase: use function-specific schema name
             thematic_roles: tuple[BeatRole, ...] = group_beat_roles
+            # Map function to schema_name: keep "subject_entry" for actual entries,
+            # use function name directly for episodes/holds/pedals/strettos
+            schema_name: str = "subject_entry" if function == "entry" else function
             phrase_plans.append(PhrasePlan(
-                schema_name="subject_entry",
+                schema_name=schema_name,
                 degrees_upper=(),
                 degrees_lower=(),
                 degree_positions=(),
