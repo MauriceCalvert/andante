@@ -2,26 +2,38 @@
 
 ## Current state
 
-CP1–4, F1–F3 complete. Groups A (I3 + I12), B (I2 + I4 + I6),
-C (I1a + I1b), D (D1 + D2: parametric contour + pedal descent),
-E (I7: rhythmic displacement in episodes) complete.
+All invention improvement phases complete: CP1–4, F1–3, Groups A–E,
+I5+I8. Invention is parked — further refinement deferred.
 
-## Next
+Galant genres closed.
 
-Re-listen. The improve.md plan says:
+## Direction
 
-> Group D:  I5 + I8  Rhythmic texture (lockstep fix + beat-1 gap validation)
+Three-voice fugue chosen as next genre. Before building the fugue
+pipeline, the subject generator needs a redesign:
 
-Our original Group D was repurposed for pedal contour (D1+D2).
-I5 (lockstep homophony) and I8 (beat-1 gaps) remain undone.
+- Current generator is random-search with post-hoc filtering
+- Needs archetype-based generation driven by affect, genre, mode, metre
+- Subject character should flow from the rhetorical framework (L1)
+- Must produce subjects that fragment well for episodes
 
-After that:
-> Group F:  I9, I10, I11  Architectural / depth (separate briefs, deferred)
-> Group G:  I13 + I14  Polish (continuous drive + episode variety)
+Design discussion in progress. Next step: catalogue WTC I subject
+types, distil into archetype vocabulary, design generation chain:
 
-**Action:** Human listens to current output, then we decide what to tackle next.
+```
+affect + genre + mode + metre
+    → archetype selection
+    → contour instantiation
+    → rhythm binding
+    → answer analysis
+    → fragment analysis
+```
 
 ## Key files
 
-- `workflow/improve.md` — full improvement plan
-- `workflow/todo.md` — full plan
+- `workflow/fugue_scoping.md` — three-voice fugue architecture analysis
+- `workflow/improve.md` — invention improvement plan (complete)
+- `workflow/todo.md` — full backlog
+- `motifs/subject_generator.py` — current subject generator (to redesign)
+- `motifs/head_generator.py` — current head generator
+- `motifs/tail_generator.py` — current tail generator
