@@ -1,5 +1,15 @@
 # Completed
 
+## I5+I8 — Rhythmic Independence + Beat-1 Continuity (2026-02-17)
+
+**I5 — Soprano Viterbi rhythmic independence (`builder/soprano_viterbi.py`, `builder/free_fill.py`):**
+Added `avoid_onsets_by_bar` parameter to `generate_soprano_viterbi`. When provided, Step 2 uses bar-by-bar `select_cell` (matching `bass_viterbi.py` pattern) instead of `compute_rhythmic_distribution`. Computes bar-relative structural soprano offsets as `required_onsets` for cell selection. In `free_fill.py`, soprano companion branch (`free_voice_idx == 0`) now computes bar-relative bass onset sets and passes them as `avoid_onsets_by_bar`. When `avoid_onsets_by_bar` is None, existing span-based rhythm grid logic is unchanged.
+
+**I8 — Beat-1 continuity validation (`builder/compose.py`):**
+Added `_ensure_beat1_coverage` function. Per phrase result, checks every bar for beat-1 note coverage across both voices (including prior accumulated notes). If uncovered, extends latest-ending note before bar_start (prefers bass). Called after every `write_phrase` in `compose_phrases`. Seed 42 invention Klage produced no beat-1 gaps (safety net ready but not triggered).
+
+**Evaluation (seed 42, invention Klage):** All bars have beat-1 coverage. Rhythmic independence good in bars with density contrast (bars 2, 5-6, 11-12, 17-18, 19-20). Lockstep fault at bars 7-8 (7 consecutive simultaneous attacks) is thematic CS+subject overlap, not FREE companion — out of scope. I5 soprano companion path not exercised by this seed (all soprano bars are thematic).
+
 ## Group E — I7: Rhythmic displacement in episodes (2026-02-17)
 
 **I7 — Beat displacement for episode fragments (`motifs/fragen.py`):**

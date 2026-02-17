@@ -6,7 +6,13 @@ from fractions import Fraction
 
 from builder.bass_viterbi import generate_bass_viterbi
 from builder.galant.soprano_writer import build_structural_soprano
-from builder.phrase_types import PhrasePlan, make_free_companion_plan, make_tail_plan
+from builder.phrase_types import (
+    PhrasePlan,
+    make_free_companion_plan,
+    make_tail_plan,
+    phrase_bar_start,
+    phrase_offset_to_bar,
+)
 from builder.soprano_viterbi import generate_soprano_viterbi
 from builder.types import Note
 from planner.thematic import BeatRole, ThematicRole
@@ -170,6 +176,22 @@ def fill_free_bars(
                 plan=run_plan,
                 prev_exit_midi=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper,
             )
+            # I5: Compute bar-relative bass onsets for rhythmic independence
+            bass_onsets_by_bar: dict[int, set[Fraction]] = {}
+            run_end: Fraction = run_plan.start_offset + run_plan.phrase_duration
+            for bn in bass_notes:
+                if run_plan.start_offset <= bn.offset < run_end:
+                    bar_num_b: int = phrase_offset_to_bar(
+                        plan=run_plan, offset=bn.offset, bar_length=bar_length,
+                    )
+                    bar_s: Fraction = phrase_bar_start(
+                        plan=run_plan, bar_num=bar_num_b, bar_length=bar_length,
+                    )
+                    bass_onsets_by_bar.setdefault(bar_num_b, set()).add(bn.offset - bar_s)
+            avoid_onsets: dict[int, frozenset[Fraction]] = {
+                k: frozenset(v) for k, v in bass_onsets_by_bar.items()
+            }
+
             free_soprano: tuple[Note, ...]
             free_soprano, _ = generate_soprano_viterbi(
                 plan=run_plan,
@@ -179,6 +201,7 @@ def fill_free_bars(
                 next_phrase_entry_key=None,
                 harmonic_grid=None,
                 density_override=companion_density_level,
+                avoid_onsets_by_bar=avoid_onsets,
             )
             soprano_notes = soprano_notes + free_soprano
         else:

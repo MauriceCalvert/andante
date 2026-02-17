@@ -3,11 +3,12 @@
 Given a sequence of PhrasePlans, composes each phrase in order using
 the phrase writer, threading exit pitches between consecutive phrases.
 """
+import logging
 from dataclasses import replace
 from fractions import Fraction
 
 from builder.cadence_writer import cadence_entry_degree
-from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_degree_offset
+from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_bar_start, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
 from motifs.fragen import FragenProvider
@@ -15,6 +16,8 @@ from motifs.fugue_loader import LoadedFugue
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.tracer import get_tracer
+
+logger = logging.getLogger(__name__)
 
 
 def _structural_offsets_for_plan(plan: PhrasePlan) -> tuple[frozenset[Fraction], frozenset[Fraction]]:
@@ -124,6 +127,81 @@ def _extract_head_motif(
     )
 
 
+def _ensure_beat1_coverage(
+    plan: PhrasePlan,
+    result: PhraseResult,
+    prior_upper: tuple[Note, ...],
+    prior_lower: tuple[Note, ...],
+) -> PhraseResult:
+    """Ensure every bar in this phrase has at least one voice sounding on beat 1 (I8).
+
+    If a bar has no note covering its downbeat in either voice, extend the
+    latest-ending note before that downbeat (prefer bass) to cover beat 1.
+    """
+    bar_length, beat_unit = parse_metre(metre=plan.metre)
+    upper_list: list[Note] = list(result.upper_notes)
+    lower_list: list[Note] = list(result.lower_notes)
+    changed: bool = False
+
+    for bar_num in range(1, plan.bar_span + 1):
+        bar_start: Fraction = phrase_bar_start(
+            plan=plan, bar_num=bar_num, bar_length=bar_length,
+        )
+        # Check coverage across prior + current phrase notes (current may be mutated)
+        covered: bool = any(
+            n.offset <= bar_start < n.offset + n.duration
+            for n in (*prior_upper, *upper_list, *prior_lower, *lower_list)
+        )
+        if covered:
+            continue
+
+        # Find latest-ending bass note before bar_start in current phrase
+        bass_best_idx: int | None = None
+        bass_best_end: Fraction = Fraction(-1)
+        for i, n in enumerate(lower_list):
+            end: Fraction = n.offset + n.duration
+            if end <= bar_start and end > bass_best_end:
+                bass_best_idx = i
+                bass_best_end = end
+
+        # Find latest-ending soprano note before bar_start in current phrase
+        sop_best_idx: int | None = None
+        sop_best_end: Fraction = Fraction(-1)
+        for i, n in enumerate(upper_list):
+            end: Fraction = n.offset + n.duration
+            if end <= bar_start and end > sop_best_end:
+                sop_best_idx = i
+                sop_best_end = end
+
+        # Prefer bass extension (grounding voice)
+        if bass_best_idx is not None:
+            note: Note = lower_list[bass_best_idx]
+            new_duration: Fraction = bar_start + beat_unit - note.offset
+            lower_list[bass_best_idx] = replace(note, duration=new_duration)
+            changed = True
+            logger.warning(
+                "Beat-1 gap filled at bar %d by extending bass voice",
+                plan.start_bar + bar_num - 1,
+            )
+        elif sop_best_idx is not None:
+            note = upper_list[sop_best_idx]
+            new_duration = bar_start + beat_unit - note.offset
+            upper_list[sop_best_idx] = replace(note, duration=new_duration)
+            changed = True
+            logger.warning(
+                "Beat-1 gap filled at bar %d by extending soprano voice",
+                plan.start_bar + bar_num - 1,
+            )
+
+    if not changed:
+        return result
+    return replace(
+        result,
+        upper_notes=tuple(upper_list),
+        lower_notes=tuple(lower_list),
+    )
+
+
 def compose_phrases(
     phrase_plans: tuple[PhrasePlan, ...],
     home_key: Key,
@@ -184,6 +262,13 @@ def compose_phrases(
             fugue=fugue,
             is_final=is_last_phrase,
             fragen_provider=fragen_provider,
+        )
+        # I8: Ensure beat-1 coverage
+        result = _ensure_beat1_coverage(
+            plan=plan,
+            result=result,
+            prior_upper=tuple(upper_notes),
+            prior_lower=tuple(lower_notes),
         )
         # Extract head motif after first non-cadential phrase
         if head_motif is None and not plan.is_cadential:

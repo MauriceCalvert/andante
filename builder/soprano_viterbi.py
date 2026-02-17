@@ -4,7 +4,14 @@ from fractions import Fraction
 
 from builder.figuration.rhythm_calc import compute_rhythmic_distribution
 from builder.figuration.soprano import character_to_density
-from builder.phrase_types import PhrasePlan, phrase_degree_offset
+from builder.phrase_types import (
+    PhrasePlan,
+    phrase_bar_duration,
+    phrase_bar_start,
+    phrase_degree_offset,
+    phrase_offset_to_bar,
+)
+from builder.rhythm_cells import select_cell
 from builder.types import Note
 from builder.voice_types import VoiceConfig
 from builder.voice_writer import validate_voice, audit_voice
@@ -69,6 +76,7 @@ def generate_soprano_viterbi(
     harmonic_grid: "HarmonicGrid | None" = None,
     density_override: str | None = None,
     contour: ContourShape | None = None,
+    avoid_onsets_by_bar: dict[int, frozenset[Fraction]] | None = None,
 ) -> tuple[tuple[Note, ...], tuple[str, ...]]:
     """Generate soprano notes using Viterbi pathfinding against finished bass.
 
@@ -111,27 +119,72 @@ def generate_soprano_viterbi(
     density: str = density_override if density_override is not None else character_to_density(plan.character)
     grid_positions: list[tuple[Fraction, Fraction]] = []  # (onset, duration) pairs
 
-    for i in range(len(structural_tones)):
-        span_start: Fraction = structural_tones[i][0]
-        if i < len(structural_tones) - 1:
-            span_end: Fraction = structural_tones[i + 1][0]
-        else:
-            span_end = plan.start_offset + plan.phrase_duration
-        gap: Fraction = span_end - span_start
-        note_count, note_duration = compute_rhythmic_distribution(gap=gap, density=density)
-        # Generate onset positions for this span
-        for j in range(note_count):
-            onset: Fraction = span_start + j * note_duration
-            grid_positions.append((onset, note_duration))
+    if avoid_onsets_by_bar is not None:
+        # I5: Bar-by-bar rhythm via select_cell for rhythmic independence
+        # Compute bar-relative structural soprano offsets (required_onsets)
+        struct_offsets_by_bar: dict[int, set[Fraction]] = {}
+        for st_offset, _, _ in structural_tones:
+            bn: int = phrase_offset_to_bar(
+                plan=plan, offset=st_offset, bar_length=bar_length,
+            )
+            bs: Fraction = phrase_bar_start(
+                plan=plan, bar_num=bn, bar_length=bar_length,
+            )
+            struct_offsets_by_bar.setdefault(bn, set()).add(st_offset - bs)
+        bar_struct_fsets: dict[int, frozenset[Fraction]] = {
+            k: frozenset(v) for k, v in struct_offsets_by_bar.items()
+        }
 
-    # Deduplicate positions (structural tones appear as both span end and span start)
-    seen_onsets: set[Fraction] = set()
-    unique_grid: list[tuple[Fraction, Fraction]] = []
-    for onset, dur in grid_positions:
-        if onset not in seen_onsets:
-            unique_grid.append((onset, dur))
-            seen_onsets.add(onset)
-    grid_positions = sorted(unique_grid, key=lambda x: x[0])
+        prev_cell_name: str | None = None
+        for bar_num in range(1, plan.bar_span + 1):
+            bar_start: Fraction = phrase_bar_start(
+                plan=plan, bar_num=bar_num, bar_length=bar_length,
+            )
+            bar_dur: Fraction = phrase_bar_duration(
+                plan=plan, bar_num=bar_num, bar_length=bar_length,
+            )
+            # Anacrusis bar: single note for the partial duration
+            if bar_dur < bar_length:
+                grid_positions.append((bar_start, bar_dur))
+                prev_cell_name = None
+                continue
+
+            cell = select_cell(
+                genre=plan.rhythm_profile,
+                metre=plan.metre,
+                bar_index=bar_num - 1,
+                avoid_onsets=avoid_onsets_by_bar.get(bar_num),
+                prefer_density=density,
+                avoid_name=prev_cell_name,
+                required_onsets=bar_struct_fsets.get(bar_num),
+            )
+            note_offset: Fraction = bar_start
+            for dur in cell.durations:
+                grid_positions.append((note_offset, dur))
+                note_offset += dur
+            prev_cell_name = cell.name
+    else:
+        # Original path: compute_rhythmic_distribution per structural span
+        for i in range(len(structural_tones)):
+            span_start: Fraction = structural_tones[i][0]
+            if i < len(structural_tones) - 1:
+                span_end: Fraction = structural_tones[i + 1][0]
+            else:
+                span_end = plan.start_offset + plan.phrase_duration
+            gap: Fraction = span_end - span_start
+            note_count, note_duration = compute_rhythmic_distribution(gap=gap, density=density)
+            for j in range(note_count):
+                onset: Fraction = span_start + j * note_duration
+                grid_positions.append((onset, note_duration))
+
+        # Deduplicate positions (structural tones appear as both span end and span start)
+        seen_onsets: set[Fraction] = set()
+        unique_grid: list[tuple[Fraction, Fraction]] = []
+        for onset, dur in grid_positions:
+            if onset not in seen_onsets:
+                unique_grid.append((onset, dur))
+                seen_onsets.add(onset)
+        grid_positions = sorted(unique_grid, key=lambda x: x[0])
 
     # The last knot must align with the last grid position (Viterbi requirement)
     # If last onset < phrase_end, add phrase_end as final grid position with marker duration
