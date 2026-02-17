@@ -131,14 +131,19 @@ Both are bugs of equal severity:
 
 Bob catches all of them. Chaz traces the causes. Both are blocking.
 
-## Test Execution
+## Workflow
 
-When running the pipeline for testing or evaluation, output files go to
-`andante/output` with the genre name only — no key suffix.
+Run the pipeline, do *NOT* run tests. 
+The user runs tests separately and will report any failures.
+After completing all code changes, and writing `result.md`, 
+delete task.md and stop.
+
+When you run the pipeline, output files go to `andante/output`
+with the genre name only — no key suffix.
 
 Example for invention:
 ```
-python -m scripts.run_pipeline invention default c_major -o output
+python -m scripts.run_pipeline briefs\builder\invention.brief -v -trace -seed 42 -o output
 ```
 Produces: `output/invention.mid`, `output/invention.note`, etc.
 Not: `output/invention_c_major.mid`.

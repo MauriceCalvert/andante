@@ -187,7 +187,7 @@ class PipelineTracer:
             f"S: {s_pitches}"
         )
         self._line(
-            f"       {'':22s} "
+            f"      {'':22s} "
             f"B: {b_pitches}"
         )
         if result.soprano_figures:

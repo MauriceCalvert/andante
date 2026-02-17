@@ -1,13 +1,18 @@
 """Pipeline: validate, build corridors, solve in one Viterbi pass."""
+import logging
+
 from viterbi.corridors import build_corridors
 from viterbi.pathfinder import find_path
 from viterbi.scale import interval_name, is_consonant, KeyInfo, CMAJ
 from viterbi.mtypes import (
+    ContourShape,
     ExistingVoice,
     Knot,
     PhraseResult,
     pitch_name,
 )
+
+_log: logging.Logger = logging.getLogger(__name__)
 
 
 def solve_phrase(
@@ -20,6 +25,7 @@ def solve_phrase(
     key: KeyInfo = CMAJ,
     chord_pcs_per_beat: list[frozenset[int]] | None = None,
     beats_per_bar: float = 4.0,
+    contour: ContourShape | None = None,
 ) -> PhraseResult:
     """Solve a complete phrase: validate, build corridors, pathfind."""
     assert len(follower_knots) >= 2, "Need at least 2 knots"
@@ -62,6 +68,7 @@ def solve_phrase(
         verbose=verbose,
         key=key,
         chord_pcs_at=chord_pcs_per_beat,
+        contour=contour,
     )
     if verbose:
         _print_phrase_summary(beats, pitches, leader_map, follower_knots)
@@ -85,9 +92,10 @@ def _validate_knots(
             continue
         interval = abs(k.midi_pitch - leader_map[k.beat])
         if not is_consonant(interval):
-            print(f"  *** WARNING: knot {k} is dissonant with leader "
-                  f"{pitch_name(leader_map[k.beat])} "
-                  f"(interval {interval_name(interval)}) ***")
+            _log.debug(
+                "knot %s dissonant with leader %s (interval %s)",
+                k, pitch_name(leader_map[k.beat]), interval_name(interval),
+            )
 
 
 def _print_phrase_summary(

@@ -195,11 +195,12 @@ compaction, which is slow and lossy. Keep each brief to ONE concern:
 
 - Code change only (no audit), OR
 - Audit/analysis only (no code change)
-- Max 2 files modified per brief
+- Max 4 files modified per brief
 - If a checkpoint requires a full downbeat audit table, make the audit a
   separate follow-up brief after the code change is verified to run
 - If a task naturally has two parts (e.g., fix + validate), split into
   two briefs: "Phase Xa — implement" then "Phase Xb — audit"
+- The player must not run tests, I will.
 
 ### 3. Musician Review (mandatory gate)
 

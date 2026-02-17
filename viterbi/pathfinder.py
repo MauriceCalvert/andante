@@ -11,12 +11,11 @@ run_dir is -1 (descending), 0 (unison), or +1 (ascending).
 run_count is capped at MAX_RUN (6). Runs longer than this are never
 optimal because the penalty already exceeds alternative costs.
 """
-import math
-
 from collections import Counter
 
-from viterbi.costs import transition_cost, ARC_PEAK_POSITION, ARC_SIGMA, ARC_REACH
+from viterbi.costs import transition_cost
 from viterbi.mtypes import (
+    ContourShape,
     Corridor,
     ExistingVoice,
     Knot,
@@ -26,7 +25,7 @@ from viterbi.scale import interval_name, is_consonant, scale_degree_distance, Ke
 
 INF = float("inf")
 MAX_RUN = 6
-BEAM_WIDTH = 300  # max DP states retained per beat
+BEAM_WIDTH = 500  # max DP states retained per beat
 CROSS_RELATION_BEAT_WINDOW = 0.25  # whole-note units = one crotchet
 
 # State: (prev_pitch, curr_pitch, run_dir, run_count)
@@ -74,36 +73,41 @@ def _beam_prune(
 def compute_contour_targets(
     corridors: list[Corridor],
     legal: list[list[int]],
+    contour: ContourShape | None = None,
+    key: KeyInfo = CMAJ,
 ) -> list[int]:
     """Precompute one contour target pitch per beat for phrase arc shaping.
 
-    Soprano-like followers (above leader) arc upward; bass-like arc downward.
-    The arc peaks at ARC_PEAK_POSITION with a Gaussian envelope.
+    Uses a three-point piecewise-linear contour: start → apex → end.
+    Each value is a degree offset from the corridor midpoint.
+    If contour is None, ContourShape() is used (approximates the former
+    Gaussian arc: rise to +4 degrees at 65%, return to 0).
     """
+    if contour is None:
+        contour = ContourShape()
     n_beats = len(corridors)
-    all_legal_sum = 0
-    all_legal_count = 0
-    all_leader_sum = 0
-    for c in corridors:
-        for p in c.legal_pitches:
-            all_legal_sum += p
-            all_legal_count += 1
-        all_leader_sum += c.leader_pitch
-    follower_avg = all_legal_sum / max(all_legal_count, 1)
-    leader_avg = all_leader_sum / max(n_beats, 1)
-    soprano_like = follower_avg >= leader_avg
+    # Average semitones per scale degree in the current key
+    pc_count: int = len(key.pitch_class_set)
+    avg_step: float = 12.0 / max(pc_count, 1)
 
     targets: list[int] = []
     for t in range(n_beats):
-        p = t / max(n_beats - 1, 1)
-        arc = math.exp(-((p - ARC_PEAK_POSITION) ** 2) / (2 * ARC_SIGMA ** 2))
-        range_low = min(legal[t])
-        range_high = max(legal[t])
-        range_mid = (range_low + range_high) // 2
-        if soprano_like:
-            target = range_mid + round(arc * (range_high - range_mid) * ARC_REACH)
+        p: float = t / max(n_beats - 1, 1)
+        # Piecewise linear interpolation between start, apex, end
+        if contour.apex_pos <= 0.0:
+            # Apex is at the very start: everything maps to the end segment
+            denom: float = 1.0 - contour.apex_pos if contour.apex_pos < 1.0 else 1.0
+            offset: float = contour.apex + (contour.end - contour.apex) * (p / denom)
+        elif p <= contour.apex_pos:
+            denom = contour.apex_pos
+            offset = contour.start + (contour.apex - contour.start) * (p / denom)
         else:
-            target = range_mid - round(arc * (range_mid - range_low) * ARC_REACH)
+            denom = 1.0 - contour.apex_pos if contour.apex_pos < 1.0 else 1.0
+            offset = contour.apex + (contour.end - contour.apex) * ((p - contour.apex_pos) / denom)
+        range_low: int = min(legal[t])
+        range_high: int = max(legal[t])
+        range_mid: int = (range_low + range_high) // 2
+        target: int = range_mid + round(offset * avg_step)
         targets.append(max(range_low, min(range_high, target)))
     return targets
 
@@ -118,6 +122,7 @@ def find_path(
     key: KeyInfo = CMAJ,
     chord_pcs_at: list[frozenset[int]] | None = None,
     hard_constraints: bool = True,
+    contour: ContourShape | None = None,
 ) -> tuple[list[float], list[int], float]:
     """Find minimum-cost path through corridors with knot constraints."""
     knot_map = {k.beat: k.midi_pitch for k in knots}
@@ -153,7 +158,8 @@ def find_path(
     ]
     is_above_list: list[bool] = [v.is_above for v in existing_voices]
 
-    contour_targets = compute_contour_targets(corridors, legal)
+    contour_targets = compute_contour_targets(corridors, legal, contour=contour, key=key)
+    contour_weight: float = contour.weight if contour is not None else 1.0
 
     # DP tables: dp[t] maps State -> cost, bt[t] maps State -> predecessor State or None
     dp: list[dict[State, float]] = [{} for _ in range(n_beats)]
@@ -186,6 +192,7 @@ def find_path(
             contour_target=contour_targets[1],
             chord_pcs=chord_pcs_at[1] if chord_pcs_at else frozenset(),
             hard_constraints=hard_constraints,
+            contour_weight=contour_weight,
         )
         if cost == INF:
             hc_blocks_1[bd.get("rule", "unknown")] += 1
@@ -215,6 +222,7 @@ def find_path(
             key=key,
             chord_pcs_at=chord_pcs_at,
             hard_constraints=False,
+            contour=contour,
         )
     # Beats 2..n-1: full second-order transitions
     for t in range(2, n_beats):
@@ -246,6 +254,7 @@ def find_path(
                     contour_target=contour_targets[t],
                     chord_pcs=chord_pcs_at[t] if chord_pcs_at else frozenset(),
                     hard_constraints=hard_constraints,
+                    contour_weight=contour_weight,
                 )
                 if cost == INF:
                     hc_blocks_t[bd.get("rule", "unknown")] += 1
@@ -278,6 +287,7 @@ def find_path(
                 key=key,
                 chord_pcs_at=chord_pcs_at,
                 hard_constraints=False,
+                contour=contour,
             )
     # Find best final state
     end_pitch = knot_map[beats[-1]]
@@ -352,8 +362,8 @@ def _print_path(
                       f"r={bd.get('run', 0):.0f} d={bd.get('diss', 0):.0f} "
                       f"p={bd.get('phrase', 0):.1f} xr={bd.get('cross_rel', 0):.0f} "
                       f"sp={bd.get('spacing', 0):.0f} vc={bd.get('crossing', 0):.0f} "
-                      f"iq={bd.get('iv_qual', 0):.1f} ct={bd.get('contour', 0):.1f} "
-                      f"ch={bd.get('chord', 0):.1f}]"
+                      f"iq={bd.get('iv_qual', 0):.1f} dp={bd.get('direct_perf', 0):.0f} "
+                      f"ct={bd.get('contour', 0):.1f} ch={bd.get('chord', 0):.1f}]"
                       f"{'  run=' + str(rc) if rc > 2 else ''}")
         strength = corridors[i].beat_strength
         ct_str = ""

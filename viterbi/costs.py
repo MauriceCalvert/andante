@@ -34,9 +34,12 @@ COST_STEP_BEYOND_OCTAVE_BASE = 25.0  # 9th+: virtually unheard of
 COST_STEP_BEYOND_OCTAVE_PER = 5.0    # per additional degree beyond octave
 
 # Relative motion between voices
-COST_CONTRARY_BONUS = -2.0    # reward contrary motion
-COST_OBLIQUE_BONUS = -0.5     # slight reward for oblique
-COST_SIMILAR_PENALTY = 1.0    # slight cost for similar motion
+COST_CONTRARY_BONUS = -4.0    # reward contrary motion (doubled from -2.0)
+COST_OBLIQUE_BONUS = 0.0      # oblique is neutral (was -0.5)
+COST_SIMILAR_PENALTY = 2.5    # similar motion penalised (was 1.0)
+
+# Direct / hidden perfects: similar motion into P1/P5/P8
+COST_DIRECT_PERFECT = 60.0    # approaching perfect consonance by similar motion
 
 # Melodic shape
 COST_LEAP_NO_RECOVERY = 20.0  # leap not followed by step in opposite direction
@@ -60,18 +63,20 @@ CADENCE_ONSET = 0.65          # phrase position where cadence shaping begins
 
 # Contour shaping (registral arc)
 COST_CONTOUR = 1.5            # per scale-degree distance from contour target
-ARC_PEAK_POSITION = 0.65      # phrase fraction where arc peaks
-ARC_SIGMA = 0.25              # width of the bell curve
-ARC_REACH = 0.5               # how far toward the range extreme (0=midpoint, 1=extreme)
 
 # Cross-relations
 COST_CROSS_RELATION = 30.0
 
-# Voice spacing
-COST_SPACING_TOO_CLOSE = 8.0    # interval < 5 semitones (< P4)
-COST_SPACING_TOO_FAR = 4.0      # interval > 26 semitones (> 2 octaves + M2)
-IDEAL_SPACING_LOW = 7            # P5
-IDEAL_SPACING_HIGH = 24          # 2 octaves
+# Voice spacing (graduated ramp)
+SPACING_CRITICAL = 7            # below this: voices merge (severe)
+SPACING_TIGHT = 10              # below this: uncomfortable
+IDEAL_SPACING_LOW = 12          # lower edge of comfort zone (a 10th)
+IDEAL_SPACING_HIGH = 24         # upper edge of comfort zone (2 octaves)
+SPACING_WIDE = 28               # above this: losing connection
+COST_SPACING_CRITICAL = 25.0    # per semitone below SPACING_CRITICAL
+COST_SPACING_TIGHT = 10.0       # per semitone below SPACING_TIGHT
+COST_SPACING_WIDE = 3.0         # per semitone above IDEAL_SPACING_HIGH
+COST_SPACING_EXTREME = 6.0      # per semitone above SPACING_WIDE
 
 # Interval quality on strong beats
 COST_PERFECT_ON_STRONG = 1.5
@@ -137,6 +142,33 @@ def motion_cost(
     if f_dir == 0 or l_dir == 0:
         return COST_OBLIQUE_BONUS
     return COST_SIMILAR_PENALTY
+
+
+def direct_perfect_cost(
+    prev_follower: int,
+    curr_follower: int,
+    prev_other: int,
+    curr_other: int,
+) -> float:
+    """Penalise approaching a perfect consonance (P1/P5/P8) by similar motion.
+
+    This catches both literal parallels (same interval class → same interval
+    class) and hidden/direct perfects (any interval → perfect consonance) by
+    similar motion.  Oblique motion into a perfect consonance is fine and
+    returns 0.0.
+    """
+    f_dir = curr_follower - prev_follower
+    l_dir = curr_other - prev_other
+    # Oblique or contrary: no penalty
+    if f_dir == 0 or l_dir == 0:
+        return 0.0
+    if f_dir * l_dir < 0:
+        return 0.0
+    # Similar motion: check whether arrival interval is a perfect consonance
+    curr_interval = abs(curr_follower - curr_other)
+    if is_perfect(curr_interval):
+        return COST_DIRECT_PERFECT
+    return 0.0
 
 
 def leap_recovery_cost(
@@ -269,12 +301,13 @@ def contour_cost(
     curr_pitch: int,
     contour_target: int,
     key: KeyInfo = CMAJ,
+    contour_weight: float = 1.0,
 ) -> float:
     """Cost of deviating from the phrase contour target pitch."""
     if contour_target == 0:
         return 0.0
     dist = scale_degree_distance(curr_pitch, contour_target, key)
-    return COST_CONTOUR * dist
+    return COST_CONTOUR * contour_weight * dist
 
 
 def cross_relation_cost(
@@ -300,17 +333,30 @@ def spacing_cost(
 ) -> float:
     """Cost of voice spacing (interval between follower and leader).
 
-    Returns 0 if spacing is ideal (between P5 and 2 octaves).
-    Penalizes voices that are too close or too far apart.
+    Graduated ramp: steep penalty for very close voices, 0 in the ideal
+    zone (12–24st), mild penalty for wide spacing.
     """
     interval = abs(follower_pitch - leader_pitch)
 
+    if interval < SPACING_CRITICAL:
+        # Steep ramp below 7st stacked on top of moderate ramp below 10st
+        return (COST_SPACING_CRITICAL * (SPACING_CRITICAL - interval)
+                + COST_SPACING_TIGHT * (SPACING_TIGHT - SPACING_CRITICAL))
+    if interval < SPACING_TIGHT:
+        # Moderate ramp between 7st and 10st
+        return COST_SPACING_TIGHT * (SPACING_TIGHT - interval)
     if interval < IDEAL_SPACING_LOW:
-        return COST_SPACING_TOO_CLOSE
-    if interval > IDEAL_SPACING_HIGH:
-        return COST_SPACING_TOO_FAR
-
-    return 0.0
+        # Mild cost between 10st and 12st
+        return 2.0 * (IDEAL_SPACING_LOW - interval)
+    if interval <= IDEAL_SPACING_HIGH:
+        # Ideal zone: 12–24st
+        return 0.0
+    if interval <= SPACING_WIDE:
+        # Mild penalty above 2 octaves
+        return COST_SPACING_WIDE * (interval - IDEAL_SPACING_HIGH)
+    # Steep penalty above 28st
+    return (COST_SPACING_WIDE * (SPACING_WIDE - IDEAL_SPACING_HIGH)
+            + COST_SPACING_EXTREME * (interval - SPACING_WIDE))
 
 
 def interval_quality_cost(
@@ -410,14 +456,17 @@ def hard_constraint_cost(
         for i in range(len(curr_others)):
             if abs(curr_pitch - curr_others[i]) % 12 == 6:
                 return HARD, "HC4_tritone"
-    # HC6 — Similar-motion leaps: both voices leap ≥3rd in same direction
+    # HC6 — Similar-motion leaps into perfect consonance
+    # Both voices leap ≥3rd in same direction AND arrive at P1/P5/P8
     for i in range(len(curr_others)):
         f_interval = scale_degree_distance(prev_pitch, curr_pitch, key)
         l_interval = scale_degree_distance(prev_others[i], curr_others[i], key)
         f_dir = curr_pitch - prev_pitch
         l_dir = curr_others[i] - prev_others[i]
         if f_interval >= 2 and l_interval >= 2 and f_dir * l_dir > 0:
-            return HARD, f"HC6_similar_leap(f={f_interval}d,l={l_interval}d)"
+            arrival_interval = abs(curr_pitch - curr_others[i])
+            if is_perfect(arrival_interval):
+                return HARD, f"HC6_similar_leap(f={f_interval}d,l={l_interval}d)"
     return 0.0, ""
 
 
@@ -469,6 +518,12 @@ def pairwise_cost(
         other_pitch=curr_other,
         is_above=is_above,
     )
+    dpc = direct_perfect_cost(
+        prev_follower=prev_pitch,
+        curr_follower=curr_pitch,
+        prev_other=prev_other,
+        curr_other=curr_other,
+    )
     return {
         "motion": mc,
         "diss": dc,
@@ -476,6 +531,7 @@ def pairwise_cost(
         "spacing": spc,
         "iv_qual": iqc,
         "crossing": vcc,
+        "direct_perf": dpc,
     }
 
 
@@ -496,6 +552,7 @@ def transition_cost(
     contour_target: int = 0,
     chord_pcs: frozenset[int] = frozenset(),
     hard_constraints: bool = True,
+    contour_weight: float = 1.0,
 ) -> tuple[float, dict[str, float]]:
     """Total cost of one transition, with itemised breakdown.
 
@@ -524,7 +581,7 @@ def transition_cost(
     prc = pitch_return_cost(prev_prev_pitch, curr_pitch)
     rp = run_penalty(run_count)
     pp = phrase_position_cost(curr_pitch, target_pitch, phrase_position, key)
-    cc = contour_cost(curr_pitch, contour_target, key)
+    cc = contour_cost(curr_pitch, contour_target, key, contour_weight=contour_weight)
     ctc = chord_tone_cost(curr_pitch, chord_pcs, curr_beat_strength)
 
     # Pairwise terms (sum over all existing voices)
@@ -534,6 +591,7 @@ def transition_cost(
     spc_total = 0.0
     iqc_total = 0.0
     vcc_total = 0.0
+    dpc_total = 0.0
     for i in range(len(prev_others)):
         pw = pairwise_cost(
             prev_pitch=prev_pitch,
@@ -553,9 +611,11 @@ def transition_cost(
         spc_total += pw["spacing"]
         iqc_total += pw["iv_qual"]
         vcc_total += pw["crossing"]
+        dpc_total += pw["direct_perf"]
 
     total = (sc + mc_total + lrc + zc + prc + rp + dc_total
-             + pp + xrc_total + spc_total + iqc_total + vcc_total + cc + ctc)
+             + pp + xrc_total + spc_total + iqc_total + vcc_total + cc + ctc
+             + dpc_total)
     breakdown = {
         "step": sc,
         "motion": mc_total,
@@ -569,6 +629,7 @@ def transition_cost(
         "spacing": spc_total,
         "iv_qual": iqc_total,
         "crossing": vcc_total,
+        "direct_perf": dpc_total,
         "contour": cc,
         "chord": ctc,
         "total": total,

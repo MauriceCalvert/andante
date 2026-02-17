@@ -33,7 +33,7 @@ tension: arch
 thematic:
   voice_count: 2
   invertible_counterpoint: true
-  answer_offset_beats: 2
+  answer_offset_beats: 4
   entry_sequence:
     # Exposition (I → V: answer handles transition, no episode)
     - upper: [subject, I]

@@ -101,8 +101,6 @@ def _build_part(
         _clean_accidental(m21_note=m21_note, ky=ky)
         offset_quarters: float = float(n.offset + shift) * 4
         part.insert(offset_quarters, m21_note)
-    part.makeRests(fillGaps=True, inPlace=True)
-    part.makeMeasures(inPlace=True)
     return part
 
 

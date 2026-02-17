@@ -951,13 +951,20 @@ def _find_start(
         if not ok:
             continue
 
+        # Reject candidates where entry voice crosses into other voice's prior register
+        MIN_EPISODE_SPACING: int = 10
+        if (prefer_lower_pitch is not None
+                and abs(first_upper_midi - prefer_lower_pitch) < MIN_EPISODE_SPACING):
+            continue
+        if (prefer_upper_pitch is not None
+                and abs(first_lower_midi - prefer_upper_pitch) < MIN_EPISODE_SPACING):
+            continue
         # Compute proximity to preferred pitches
         proximity: int = 0
         if prefer_upper_pitch is not None:
             proximity += abs(first_upper_midi - prefer_upper_pitch)
         if prefer_lower_pitch is not None:
             proximity += abs(first_lower_midi - prefer_lower_pitch)
-
         candidates.append((candidate, margin, proximity))
 
     if not candidates:

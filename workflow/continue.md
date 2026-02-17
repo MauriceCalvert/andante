@@ -2,34 +2,22 @@
 
 ## Current state
 
-CP1–3, F1–F2 complete. Six listening complaints diagnosed:
+CP1–4, F1–F3 complete. Groups A (I3 + I12), B (I2 + I4 + I6),
+C (I1a + I1b), D (D1 + D2: parametric contour + pedal descent) complete.
 
-1. Answer double-transposed (degrees +4 AND tonic +7) — ROOT CAUSE
-2. Minor entries use major scale (mode not propagated) — ROOT CAUSE
-3. Hold-exchange bars 11–12: Viterbi noise, no subject material
-4. Pedal bars 21–22: soprano wanders, no cadential approach
-5. No real final cadence (bars 23–24: three repeated dominants)
-6. Same episode repeated three times
+## Next
 
-## Active
+Re-listen. The improve.md plan says:
 
-**CP4** — Fix answer transposition + mode propagation. Brief in task.md.
-Fixes root causes 1 and 2. After this, every subject/answer entry will
-have correct pitches.
+> Group D:  I5 + I8  Rhythmic texture (lockstep fix + beat-1 gap validation)
+> Group E:  I7  Rhythmic displacement (fragen + planner)
 
-## Queued
+But our Group D was repurposed for the pedal contour fix (D1+D2).
+I5 (lockstep), I8 (beat-1 gaps), and I7 (rhythmic displacement) remain.
 
-**F3** — Fragen as a stateful class. Brief in task_f3_holding.md.
-Fixes complaint 6 (episode repetition). After CP4 completes, move this
-to task.md.
-
-## After F3
-
-Re-listen. Complaints 3–5 (hold-exchange, pedal, cadence) may improve
-once surrounding material is correct, or may need dedicated phases.
+**Action:** Human listens, then we decide what to tackle next.
 
 ## Key files
 
-- `workflow/task.md` — CP4 brief (active)
-- `workflow/task_f3_holding.md` — F3 brief (queued)
+- `workflow/improve.md` — full improvement plan
 - `workflow/todo.md` — full plan

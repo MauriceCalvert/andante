@@ -35,13 +35,13 @@ Defer updates. Track what needs changing, execute only when explicitly told.
 
 ## Testing
 
-Don't test after each change, test once when all changes have been made.
-Only test changed code.
-Pipeline checkpoint: `python -m scripts.run_tests`. Always. No exceptions.
-This runs all 8 genres with fixed seed to `tests/output/`.
-The `output/` directory is reserved for the user's brief runs.
+Do not run tests. Do not run `run_tests`. Do not run `run_pipeline`.
+Do not ask the user to run tests. Do not prompt for test execution.
+After completing all code changes and writing `result.md`, stop.
+The user runs tests separately and will report any failures.
+The `output/` directory is reserved for the user's pipeline runs.
 NEVER create output2, output3, output_vg3, or any other output variant.
-NEVER invent your own test runner. Use `scripts/run_tests.py`.
+NEVER invent your own test runner.
 
 ---
 

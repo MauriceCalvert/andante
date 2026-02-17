@@ -24,6 +24,7 @@ from planner.thematic import BeatRole
 from shared.constants import TRACK_BASS, TRACK_SOPRANO
 from shared.key import Key
 from shared.music_math import parse_metre
+from shared.pitch import degree_to_nearest_midi
 from shared.tracer import get_tracer, _key_str
 from shared.voice_types import Range
 
@@ -629,39 +630,24 @@ def _write_pedal(
     plan: PhrasePlan,
     prior_upper: tuple[Note, ...],
     prior_lower: tuple[Note, ...],
+    next_phrase_entry_degree: int | None = None,
+    next_phrase_entry_key: Key | None = None,
 ) -> PhraseResult:
-    """Write pedal phrase: held bass note + Viterbi soprano.
-
-    Args:
-        plan: PhrasePlan with thematic_roles containing PEDAL role
-        prior_upper: Prior soprano notes
-        prior_lower: Prior bass notes
-
-    Returns:
-        PhraseResult with held bass and Viterbi soprano
-    """
+    """Write pedal phrase: held bass + cup-contour soprano via Viterbi."""
     from planner.thematic import ThematicRole
-    from shared.music_math import parse_metre
-
+    from viterbi.mtypes import ContourShape
     assert plan.thematic_roles is not None, "Pedal phrase requires thematic_roles"
-
     # Find the PEDAL BeatRole (voice 1, beat 0 of first bar)
     pedal_beat_role: BeatRole | None = None
     for role in plan.thematic_roles:
         if role.role == ThematicRole.PEDAL and role.voice == 1 and role.beat == Fraction(0):
             pedal_beat_role = role
             break
-
     assert pedal_beat_role is not None, "No PEDAL BeatRole found in thematic_roles"
     assert pedal_beat_role.material is not None, "PEDAL BeatRole missing material (degree)"
-
-    # Parse degree from material field
     pedal_degree: int = int(pedal_beat_role.material)
-
-    # Compute MIDI pitch for pedal degree in octave 4 (middle octave)
+    # Place pedal bass pitch
     pedal_midi: int = plan.local_key.degree_to_midi(degree=pedal_degree, octave=4)
-
-    # Octave-shift to fit within lower_range, preferring octave closest to lower_median
     while pedal_midi < plan.lower_range.low:
         pedal_midi += 12
     while pedal_midi - 12 >= plan.lower_range.low:
@@ -669,14 +655,14 @@ def _write_pedal(
             pedal_midi -= 12
         else:
             break
-
     assert plan.lower_range.low <= pedal_midi <= plan.lower_range.high, (
-        f"Pedal pitch {pedal_midi} (degree {pedal_degree}) outside lower range "
+        f"Pedal pitch {pedal_midi} outside lower range "
         f"[{plan.lower_range.low}, {plan.lower_range.high}]"
     )
-
-    # Generate bass held notes: one per bar
-    bar_length: Fraction = parse_metre(metre=plan.metre)[0]
+    # Generate bass held notes: one semibreve per bar
+    bar_length: Fraction
+    beat_unit: Fraction
+    bar_length, beat_unit = parse_metre(metre=plan.metre)
     bass_notes: list[Note] = []
     for bar_offset in range(plan.bar_span):
         bass_notes.append(Note(
@@ -685,35 +671,83 @@ def _write_pedal(
             duration=bar_length,
             voice=TRACK_BASS,
         ))
-
-    # Build a minimal pedal plan with structural degrees for soprano anchors
-    # Provide tonic (degree 1) at start and end to give Viterbi solver boundary knots
-    from builder.phrase_types import BeatPosition
-    pedal_plan = replace(plan,
-        degrees_upper=(1, 1),
-        degrees_lower=(pedal_degree, pedal_degree),
-        degree_positions=(
-            BeatPosition(bar=1, beat=1),
-            BeatPosition(bar=plan.bar_span, beat=1),
-        ),
-        degree_keys=(plan.local_key, plan.local_key),
+    # Build sub-plan for soprano generation.
+    # Use degree 5 (dominant) as the initial structural tone — consonant
+    # with the pedal bass and placed near range ceiling for clear descent.
+    PEDAL_SOPRANO_START_DEGREE: int = 5
+    start_knot_midi: int = plan.local_key.degree_to_midi(
+        degree=PEDAL_SOPRANO_START_DEGREE,
+        octave=5,
     )
-
-    # Generate soprano using Viterbi (no harmonic grid, scale-only mode)
+    while start_knot_midi > plan.upper_range.high:
+        start_knot_midi -= 12
+    while start_knot_midi + 12 <= plan.upper_range.high:
+        start_knot_midi += 12
+    start_bar_relative: int = 1
+    pedal_plan: PhrasePlan = make_free_companion_plan(
+        plan=plan,
+        start_bar_relative=start_bar_relative,
+        bar_count=plan.bar_span,
+        start_offset=plan.start_offset,
+        prev_exit_upper=start_knot_midi,
+        prev_exit_lower=bass_notes[-1].pitch if bass_notes else plan.prev_exit_lower,
+    )
+    # Override degrees_upper to degree 5 so the knot lands on the dominant.
+    # Bias registral_bias high so place_structural_tones targets the upper octave.
+    PEDAL_REGISTRAL_BIAS: int = 9  # push biased_upper_median near A5
+    pedal_plan = replace(
+        pedal_plan,
+        degrees_upper=(PEDAL_SOPRANO_START_DEGREE,),
+        registral_bias=PEDAL_REGISTRAL_BIAS,
+    )
+    # Cup contour: start high, descend to nadir at ~55%, ascend to cadential
+    # handoff.  Units are scale degrees relative to range midpoint.
+    PEDAL_CONTOUR_START: float = 4.0   # ~7 st above mid (dominant register)
+    PEDAL_CONTOUR_NADIR: float = -4.0  # ~7 st below mid
+    PEDAL_CONTOUR_NADIR_POS: float = 0.45  # nadir before halfway — steep descent
+    PEDAL_CONTOUR_END_DEFAULT: float = 2.0  # fallback if no next-phrase info
+    PEDAL_CONTOUR_WEIGHT: float = 5.0  # strong pull — contour is the composition
+    # Compute contour end from next phrase's entry pitch when available.
+    # This connects the pedal ascent to the cadence's first soprano note.
+    contour_end: float
+    if next_phrase_entry_degree is not None and next_phrase_entry_key is not None:
+        next_entry_midi: int = degree_to_nearest_midi(
+            degree=next_phrase_entry_degree,
+            key=next_phrase_entry_key,
+            target_midi=start_knot_midi,
+            midi_range=(plan.upper_range.low, plan.upper_range.high),
+        )
+        range_mid: int = (plan.upper_range.low + plan.upper_range.high) // 2
+        pc_count: int = len(plan.local_key.pitch_class_set)
+        avg_step: float = 12.0 / max(pc_count, 1)
+        contour_end = (next_entry_midi - range_mid) / avg_step
+    else:
+        contour_end = PEDAL_CONTOUR_END_DEFAULT
+    pedal_contour: ContourShape = ContourShape(
+        start=PEDAL_CONTOUR_START,
+        apex=PEDAL_CONTOUR_NADIR,
+        apex_pos=PEDAL_CONTOUR_NADIR_POS,
+        end=contour_end,
+        weight=PEDAL_CONTOUR_WEIGHT,
+    )
     soprano_notes: tuple[Note, ...]
-    soprano_notes, _ = generate_soprano_viterbi(
+    soprano_figures: tuple[str, ...]
+    # Pass empty prior_upper so place_structural_tones uses
+    # pedal_plan.prev_exit_upper (our high bias) instead of the
+    # actual prior phrase exit which may be low.
+    soprano_notes, soprano_figures = generate_soprano_viterbi(
         plan=pedal_plan,
         bass_notes=tuple(bass_notes),
-        prior_upper=prior_upper,
-        next_phrase_entry_degree=None,
-        next_phrase_entry_key=None,
+        prior_upper=(),
+        next_phrase_entry_degree=next_phrase_entry_degree,
+        next_phrase_entry_key=next_phrase_entry_key,
         harmonic_grid=None,
+        density_override="high",
+        contour=pedal_contour,
     )
-
-    # Trace pedal rendering
-    from shared.tracer import get_tracer, _key_str
-    tracer = get_tracer()
+    # Trace
     first_bar: int = plan.thematic_roles[0].bar if plan.thematic_roles else plan.start_bar
+    tracer = get_tracer()
     tracer.trace_thematic_render(
         bar=first_bar,
         voice_name="L",
@@ -723,16 +757,17 @@ def _write_pedal(
         low_pitch=pedal_midi,
         high_pitch=pedal_midi,
     )
-    tracer.trace_thematic_render(
-        bar=first_bar,
-        voice_name="U",
-        role_name="FREE",
-        key_str="",
-        note_count=len(soprano_notes),
-        low_pitch=min(n.pitch for n in soprano_notes) if soprano_notes else 0,
-        high_pitch=max(n.pitch for n in soprano_notes) if soprano_notes else 0,
-    )
-
+    if soprano_notes:
+        sop_pitches: list[int] = [n.pitch for n in soprano_notes]
+        tracer.trace_thematic_render(
+            bar=first_bar,
+            voice_name="U",
+            role_name="PEDAL_SOP",
+            key_str="",
+            note_count=len(soprano_notes),
+            low_pitch=min(sop_pitches),
+            high_pitch=max(sop_pitches),
+        )
     return PhraseResult(
         upper_notes=soprano_notes,
         lower_notes=tuple(bass_notes),
@@ -830,6 +865,8 @@ def write_phrase(
             plan=plan,
             prior_upper=prior_upper,
             prior_lower=prior_lower,
+            next_phrase_entry_degree=next_phrase_entry_degree,
+            next_phrase_entry_key=next_phrase_entry_key,
         )
 
     # Path 2: Thematic

@@ -16,6 +16,7 @@ from shared.music_math import parse_metre
 from shared.voice_types import Range
 from viterbi.generate import generate_voice
 from viterbi.mtypes import ExistingVoice, Knot
+from viterbi.costs import SPACING_TIGHT
 from viterbi.scale import KeyInfo
 
 logger = logging.getLogger(__name__)
@@ -190,6 +191,16 @@ def generate_cs_viterbi(
             range_low=target_range.low,
             range_high=target_range.high,
         )
+    # Spacing check: shift boundary knot away from companion if too close
+    if first_comp is not None and abs(first_cs_midi - first_comp) < SPACING_TIGHT:
+        if companion_is_above:
+            shifted: int = first_cs_midi - 12
+            if shifted >= target_range.low:
+                first_cs_midi = shifted
+        else:
+            shifted = first_cs_midi + 12
+            if shifted <= target_range.high:
+                first_cs_midi = shifted
     knots.append(Knot(beat=float(first_onset), midi_pitch=first_cs_midi))
 
     # -- Middle knots (strong-beat CS notes, dropped if dissonant) --
@@ -225,6 +236,16 @@ def generate_cs_viterbi(
             range_low=target_range.low,
             range_high=target_range.high,
         )
+    # Spacing check: shift boundary knot away from companion if too close
+    if last_comp is not None and abs(last_cs_midi - last_comp) < SPACING_TIGHT:
+        if companion_is_above:
+            shifted = last_cs_midi - 12
+            if shifted >= target_range.low:
+                last_cs_midi = shifted
+        else:
+            shifted = last_cs_midi + 12
+            if shifted <= target_range.high:
+                last_cs_midi = shifted
     knots.append(Knot(beat=float(last_grid_onset), midi_pitch=last_cs_midi))
 
     # Deduplicate knots at the same beat (keep first occurrence)

@@ -6,7 +6,7 @@ the phrase writer, threading exit pitches between consecutive phrases.
 from dataclasses import replace
 from fractions import Fraction
 
-from builder.cadence_writer import load_cadence_templates
+from builder.cadence_writer import cadence_entry_degree
 from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
@@ -153,13 +153,11 @@ def compose_phrases(
         if plan_idx < len(phrase_plans) - 1:
             next_plan: PhrasePlan = phrase_plans[plan_idx + 1]
             if next_plan.is_cadential:
-                templates = load_cadence_templates()
-                tpl_key: tuple[str, str] = (next_plan.schema_name, next_plan.metre)
-                assert tpl_key in templates, (
-                    f"No cadence template for '{next_plan.schema_name}' "
-                    f"in metre '{next_plan.metre}'"
+                next_entry_degree = cadence_entry_degree(
+                    schema_name=next_plan.schema_name,
+                    metre=next_plan.metre,
+                    fugue=fugue,
                 )
-                next_entry_degree = templates[tpl_key].soprano_degrees[0]
                 next_entry_key = next_plan.local_key
             elif next_plan.degrees_upper and next_plan.degree_keys:
                 # Guard for imitative phrases with empty degree arrays

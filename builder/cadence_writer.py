@@ -157,6 +157,24 @@ def get_schema_bars(
     return len(schema_def.soprano_degrees)
 
 
+def cadence_entry_degree(
+    schema_name: str,
+    metre: str,
+    fugue: LoadedFugue | None = None,
+) -> int:
+    """First soprano degree (1-based) that a cadence will produce."""
+    if (fugue is not None
+            and schema_name == "cadenza_composta"
+            and metre == "4/4"):
+        return fugue.subject.degrees[0] + 1  # 0-based -> 1-based
+    templates: dict[tuple[str, str], CadenceTemplate] = load_cadence_templates()
+    tpl_key: tuple[str, str] = (schema_name, metre)
+    assert tpl_key in templates, (
+        f"No cadence template for '{schema_name}' in metre '{metre}'"
+    )
+    return templates[tpl_key].soprano_degrees[0]
+
+
 def write_cadence(
     schema_name: str,
     metre: str,

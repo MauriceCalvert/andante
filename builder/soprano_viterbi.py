@@ -13,7 +13,7 @@ from shared.key import Key
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
 from viterbi.generate import generate_voice
-from viterbi.mtypes import ExistingVoice, Knot
+from viterbi.mtypes import ContourShape, ExistingVoice, Knot
 from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ def generate_soprano_viterbi(
     next_phrase_entry_key: Key | None = None,
     harmonic_grid: "HarmonicGrid | None" = None,
     density_override: str | None = None,
+    contour: ContourShape | None = None,
 ) -> tuple[tuple[Note, ...], tuple[str, ...]]:
     """Generate soprano notes using Viterbi pathfinding against finished bass.
 
@@ -183,7 +184,7 @@ def generate_soprano_viterbi(
         chord_pcs_per_beat = harmonic_grid.to_beat_list(beat_grid)
     else:
         # H3 fallback: derive chord from surface bass (deprecated path)
-        if plan.thematic_roles is None:
+        if plan.thematic_roles is None and contour is None:
             logger.warning("No harmonic grid for schematic phrase '%s'; falling back to surface inference", plan.schema_name)
         assert len(plan.degrees_lower) == len(plan.degree_positions), (
             f"degrees_lower ({len(plan.degrees_lower)}) and degree_positions "
@@ -251,6 +252,7 @@ def generate_soprano_viterbi(
         voice_id=TRACK_SOPRANO,
         beats_per_bar=float(bar_length),
         chord_pcs_per_beat=chord_pcs_per_beat,
+        contour=contour,
     )
 
     # Step 6: Validate and audit

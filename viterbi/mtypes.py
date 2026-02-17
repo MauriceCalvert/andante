@@ -51,6 +51,22 @@ class Corridor:
                 f"{self.beat_strength}, legal={names})")
 
 
+@dataclass(frozen=True)
+class ContourShape:
+    """Three-point contour: start → apex → end, piecewise linear.
+
+    All values are degree offsets from the corridor midpoint.
+    apex_pos is the phrase fraction [0.0, 1.0] where the apex sits.
+    Default reproduces approximately the former Gaussian arc behaviour
+    (rise to +4 degrees at 65%, return to 0).
+    """
+    start: float = 0.0        # degree offset from corridor mid at phrase start
+    apex: float = 4.0         # degree offset at apex position
+    apex_pos: float = 0.65    # phrase fraction [0.0, 1.0] where apex sits
+    end: float = 0.0          # degree offset from corridor mid at phrase end
+    weight: float = 1.0       # multiplier on COST_CONTOUR (1.0 = default)
+
+
 @dataclass
 class PhraseResult:
     """Complete solved phrase from single Viterbi pass."""
