@@ -62,6 +62,10 @@ _METRE_FROM_BAR_LENGTH: dict[Fraction, str] = {
     Fraction(1): "4/4",
     Fraction(3, 4): "3/4",
 }
+_BEAT_DISPLACEMENTS: tuple[Fraction, ...] = (
+    Fraction(1, 4),
+    Fraction(1, 2),
+)
 _RHYTHMIC_CONTRAST: int = 2        # min ratio of avg note durations
 _SEPARATION_RANGE: range = range(5, 15)  # degree separation upper minus lower
 _START_SEARCH: range = range(-3, 16)
@@ -97,6 +101,7 @@ class Fragment:
     leader_voice: int
     separation: int
     offset: Fraction
+    beat_displacement: Fraction = Fraction(0)
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +349,7 @@ def _consonance_score(
     bar_length: Fraction,
     tonic_midi: int,
     mode: str,
+    cell_displacement: Fraction = Fraction(0),
 ) -> float:
     """Check consonance at crotchet grid with parallel-perfect and cross-relation rejection.
 
@@ -383,8 +389,9 @@ def _consonance_score(
         if u_midi - l_midi < _MIN_VOICE_SEPARATION:
             return 0.0
 
-        # Determine if this is a strong beat (offset within bar)
-        bar_offset: Fraction = t % bar_length
+        # Determine if this is a strong beat (offset within bar).
+        # cell_displacement shifts the whole texture later in the bar.
+        bar_offset: Fraction = (t + cell_displacement) % bar_length
         is_strong: bool = bar_offset in strong_offsets
 
         check_points.append((t, u_midi, l_midi, is_strong))
@@ -511,6 +518,31 @@ def build_fragments(
                         offset=offset,
                     ))
                     break  # first valid separation for this combo
+
+    # Displaced variants: shift running cell onset within the bar
+    undisplaced: list[Fragment] = list(fragments)
+    for base_frag in undisplaced:
+        for disp in _BEAT_DISPLACEMENTS:
+            rate: float = _consonance_score(
+                upper=base_frag.upper,
+                lower=base_frag.lower,
+                separation=base_frag.separation,
+                offset=base_frag.offset,
+                bar_length=bar_length,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                cell_displacement=disp,
+            )
+            if rate < _MIN_CONSONANCE:
+                continue
+            fragments.append(Fragment(
+                upper=base_frag.upper,
+                lower=base_frag.lower,
+                leader_voice=base_frag.leader_voice,
+                separation=base_frag.separation,
+                offset=base_frag.offset,
+                beat_displacement=disp,
+            ))
     return fragments
 
 
@@ -564,6 +596,31 @@ def build_hold_fragments(
                     offset=Fraction(0),
                 ))
                 break  # first valid separation for this combo
+
+    # Displaced variants for hold-exchange textures
+    undisplaced_hold: list[Fragment] = list(fragments)
+    for base_frag in undisplaced_hold:
+        for disp in _BEAT_DISPLACEMENTS:
+            rate: float = _consonance_score(
+                upper=base_frag.upper,
+                lower=base_frag.lower,
+                separation=base_frag.separation,
+                offset=Fraction(0),
+                bar_length=bar_length,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                cell_displacement=disp,
+            )
+            if rate < _HOLD_CONSONANCE:
+                continue
+            fragments.append(Fragment(
+                upper=base_frag.upper,
+                lower=base_frag.lower,
+                leader_voice=base_frag.leader_voice,
+                separation=base_frag.separation,
+                offset=Fraction(0),
+                beat_displacement=disp,
+            ))
     return fragments
 
 
@@ -583,6 +640,7 @@ def dedup_fragments(fragments: list[Fragment]) -> list[Fragment]:
         key: tuple = (
             _rhythm_class(leader.durations),
             f.leader_voice,
+            f.beat_displacement,
         )
         if key not in seen:
             seen.add(key)
@@ -631,10 +689,16 @@ def realise(
     Optional prefer_upper/lower_pitch: MIDI pitches to prefer for smooth connection.
     """
     target_dur: Fraction = bar_length * n_bars
-    model_dur: Fraction = max(
-        fragment.upper.total_duration,
-        fragment.lower.total_duration + fragment.offset,
-    )
+    # Account for beat_displacement: the leader's cell starts later in the bar,
+    # extending the model window by beat_displacement.
+    disp: Fraction = fragment.beat_displacement
+    if fragment.leader_voice == VOICE_SOPRANO:
+        upper_end: Fraction = disp + fragment.upper.total_duration
+        lower_end: Fraction = fragment.lower.total_duration + fragment.offset
+    else:
+        upper_end = fragment.upper.total_duration
+        lower_end = fragment.offset + disp + fragment.lower.total_duration
+    model_dur: Fraction = max(upper_end, lower_end)
     assert model_dur > 0, "Model duration must be positive"
     iterations: int = max(1, math.ceil(target_dur / model_dur))
     start: int | None = _find_start(
@@ -784,15 +848,43 @@ def _emit_notes(
     the last note before the gap (4c).
     """
     notes: list[Note] = []
+    beat_disp: Fraction = fragment.beat_displacement
     for k in range(iterations):
         t_base: Fraction = model_dur * k
         transpose: int = step * k
+
+        # Determine leader time_offset additions due to displacement
+        if fragment.leader_voice == VOICE_SOPRANO:
+            upper_time_offset: Fraction = beat_disp
+            lower_time_offset: Fraction = fragment.offset
+            gap_start: Fraction = t_base  # leader starts here in bar
+            gap_degree: int = start + transpose + fragment.upper.degrees[0]
+            gap_voice: int = VOICE_SOPRANO
+        else:
+            upper_time_offset = Fraction(0)
+            lower_time_offset = fragment.offset + beat_disp
+            gap_start = t_base + fragment.offset
+            gap_degree = start - fragment.separation + transpose + fragment.lower.degrees[0]
+            gap_voice = VOICE_BASS
+
+        # Gap-fill: held note for the leader from bar-start to displaced onset
+        if beat_disp > Fraction(0):
+            gap_abs: Fraction = gap_start
+            if gap_abs < target_dur:
+                actual_gap_dur: Fraction = min(beat_disp, target_dur - gap_abs)
+                notes.append(Note(
+                    offset=gap_abs,
+                    degree=gap_degree,
+                    duration=actual_gap_dur,
+                    voice=gap_voice,
+                ))
+
         _emit_voice_notes(
             notes=notes,
             cell=fragment.upper,
             base_degree=start + transpose,
             time_base=t_base,
-            time_offset=Fraction(0),
+            time_offset=upper_time_offset,
             target_dur=target_dur,
             voice=VOICE_SOPRANO,
         )
@@ -801,7 +893,7 @@ def _emit_notes(
             cell=fragment.lower,
             base_degree=start - fragment.separation + transpose,
             time_base=t_base,
-            time_offset=fragment.offset,
+            time_offset=lower_time_offset,
             target_dur=target_dur,
             voice=VOICE_BASS,
         )
@@ -994,13 +1086,14 @@ def _find_start(
 # ---------------------------------------------------------------------------
 
 
-def _fragment_signature(frag: Fragment) -> tuple[tuple[int, ...], Fraction, int]:
+def _fragment_signature(frag: Fragment) -> tuple[tuple[int, ...], Fraction, int, Fraction]:
     """Extract distinguishing features for diversity comparison.
 
     Returns tuple of:
     - interval_sequence: full melodic contour (all intervals, not just first)
     - offset: rhythmic offset between leader and follower
     - separation: degree separation between voices
+    - beat_displacement: how far the running cell's onset is shifted within the bar
 
     Fragments with different signatures sound perceptually distinct.
     Using full interval sequence ensures each unique melodic shape
@@ -1015,7 +1108,7 @@ def _fragment_signature(frag: Fragment) -> tuple[tuple[int, ...], Fraction, int]
         for i in range(len(degrees) - 1)
     )
 
-    return (intervals, frag.offset, frag.separation)
+    return (intervals, frag.offset, frag.separation, frag.beat_displacement)
 
 
 class FragenProvider:
@@ -1085,7 +1178,7 @@ class FragenProvider:
             return self._catalogue[i]
 
         # Build signature set from entire composition history
-        all_used_sigs: set[tuple[tuple[int, ...], Fraction, int]] = {
+        all_used_sigs: set[tuple[tuple[int, ...], Fraction, int, Fraction]] = {
             _fragment_signature(h) for h in self._history
         }
 

@@ -1,5 +1,10 @@
 # Completed
 
+## Group E — I7: Rhythmic displacement in episodes (2026-02-17)
+
+**I7 — Beat displacement for episode fragments (`motifs/fragen.py`):**
+Added `beat_displacement: Fraction = Fraction(0)` to `Fragment` dataclass. Added module-level `_BEAT_DISPLACEMENTS = (Fraction(1,4), Fraction(1,2))`. Extended `_consonance_score` with `cell_displacement` parameter; strong-beat determination now uses `(t + cell_displacement) % bar_length`. `build_fragments` and `build_hold_fragments` each generate displaced variants for every valid base fragment, keeping only those passing the consonance threshold. `realise()` extends `model_dur` to include `beat_displacement` for the leader voice. `_emit_notes()` emits a gap-fill held note at the leader's first degree from the iteration base to `beat_displacement`, then starts the leader cell at `beat_displacement` offset within each iteration. `dedup_fragments` now includes `beat_displacement` in its dedup key so displaced variants survive deduplication. `_fragment_signature` includes `beat_displacement` so the diversity mechanism treats displaced fragments as perceptually distinct and rotates through them. No changes to `phrase_writer.py` or `entry_layout.py`.
+
 ## Group D — Parametric contour + pedal descent (2026-02-17)
 
 **D1 — Parametric three-point contour (`viterbi/mtypes.py`, `viterbi/costs.py`, `viterbi/pathfinder.py`, `viterbi/pipeline.py`, `viterbi/generate.py`):**
