@@ -1,0 +1,52 @@
+name: chromatic
+head:
+  min_notes: 4
+  max_notes: 8
+  intervals: [-2, -1, 1, 2]
+  start_degrees: [0, 2, 4]
+  range_min: 3
+  range_max: 5
+  budget_fraction: 0.4375
+  gestures:
+    - chromatic_lamento_4
+    - chromatic_neighbour
+    - chromatic_descent_6
+continuation:
+  rule: chromatic_resolve
+  max_new_interval: 2
+  range_extension: 1
+  must_start_on_head_final: false
+  preferred_cells:
+    - step_down
+    - step_up
+    - run_down_2
+    - run_up_2
+    - skip_return_down
+    - skip_return_up
+  cell_chain_max: 2
+  contrary_motion: false
+kadenz:
+  approach: stepwise_from_direction
+  stable_degrees: [0, 2, 4]
+  may_augment: true
+  formulas:
+    - step_above
+    - step_below
+    - turn_above
+    - leading_tone
+rhythm:
+  profile: even
+  density_from_affect: false
+affect_affinity:
+  primary: [Klage, Sehnsucht]
+  secondary: [Dolore, Zorn]
+genre_affinity:
+  primary: [fugue, fugue_organ]
+  secondary: []
+mode_bias:
+  major: 0.5
+  minor: 1.0
+metre_filter: null
+direction_bias:
+  ascending: 0.3
+  descending: 0.7

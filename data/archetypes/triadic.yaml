@@ -1,0 +1,54 @@
+name: triadic
+head:
+  min_notes: 3
+  max_notes: 5
+  intervals: [-4, -3, -2, 2, 3, 4]
+  start_degrees: [0, 2, 4]
+  range_min: 7
+  range_max: 10
+  budget_fraction: 0.375
+  gestures:
+    - triadic_ascending_3
+    - triadic_ascending_4
+    - triadic_leap_fill
+    - triadic_wide_4
+continuation:
+  rule: gap_fill
+  max_new_interval: 2
+  range_extension: 2
+  must_start_on_head_final: false
+  preferred_cells:
+    - step_down
+    - run_down_2
+    - step_up
+    - run_up_2
+    - skip_return_down
+    - skip_return_up
+    - down_turn
+    - up_turn
+  cell_chain_max: 3
+  contrary_motion: true
+kadenz:
+  approach: stepwise_from_direction
+  stable_degrees: [0, 2, 4]
+  may_augment: true
+  formulas:
+    - step_above
+    - step_below
+    - leading_tone
+rhythm:
+  profile: long_short
+  density_from_affect: false
+affect_affinity:
+  primary: [Zaertlichkeit, Zierlich]
+  secondary: [Majestaet, Verwunderung]
+genre_affinity:
+  primary: [fugue, concerti_grossi, sonata_da_chiesa]
+  secondary: [invention, fugue_organ]
+mode_bias:
+  major: 1.0
+  minor: 0.6
+metre_filter: null
+direction_bias:
+  ascending: 0.5
+  descending: 0.5

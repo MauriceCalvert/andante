@@ -1,0 +1,46 @@
+# Kadenz formulas for fugue subject cadential close generation.
+#
+# degrees are relative: 0 = landing degree.
+# e.g. landing on degree 0 (tonic): step_above gives [1, 0]
+
+step_above:
+  approach_degrees: [1, 0]
+  rhythm: ["1/8", "1/4"]
+  archetypes: [scalar, triadic, chromatic, compound]
+  may_augment: true
+
+step_below:
+  approach_degrees: [-1, 0]
+  rhythm: ["1/8", "1/4"]
+  archetypes: [scalar, triadic, chromatic, compound]
+  may_augment: true
+
+turn_above:
+  approach_degrees: [1, -1, 0]
+  rhythm: ["1/8", "1/8", "1/4"]
+  archetypes: [scalar, chromatic]
+  may_augment: true
+
+leading_tone:
+  approach_degrees: [2, 1, 0]
+  rhythm: ["1/8", "1/8", "1/4"]
+  archetypes: [scalar, triadic, chromatic, compound]
+  may_augment: true
+
+sustained_arrival:
+  approach_degrees: [0]
+  rhythm: ["1/2"]
+  archetypes: [compound, rhythmic]
+  may_augment: false
+
+dotted_close:
+  approach_degrees: [2, 1, 0]
+  rhythm: ["3/16", "1/16", "1/4"]
+  archetypes: [rhythmic, dance]
+  may_augment: false
+
+dance_close:
+  approach_degrees: [1, 0]
+  rhythm: ["1/4", "1/4"]
+  archetypes: [dance]
+  may_augment: false

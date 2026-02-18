@@ -1,0 +1,52 @@
+name: dance
+head:
+  min_notes: 4
+  max_notes: 8
+  intervals: [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]
+  start_degrees: [0, 2, 4]
+  range_min: 5
+  range_max: 7
+  budget_fraction: 0.5
+  gestures:
+    - dance_gigue_leaps
+    - dance_minuet_step
+    - dance_bourree_upbeat
+continuation:
+  rule: periodic
+  max_new_interval: 5
+  range_extension: 2
+  must_start_on_head_final: false
+  preferred_cells:
+    - skip_down
+    - skip_up
+    - skip_step_down
+    - skip_step_up
+    - step_down
+    - step_up
+    - down_turn
+    - up_turn
+  cell_chain_max: 3
+  contrary_motion: true
+kadenz:
+  approach: stepwise_from_direction
+  stable_degrees: [0, 2, 4]
+  may_augment: false
+  formulas:
+    - dance_close
+    - dotted_close
+rhythm:
+  profile: dance
+  density_from_affect: false
+affect_affinity:
+  primary: [Freudigkeit, Zierlich]
+  secondary: [Entschlossenheit]
+genre_affinity:
+  primary: [gigue_fugue]
+  secondary: [concerti_grossi]
+mode_bias:
+  major: 1.0
+  minor: 0.5
+metre_filter: [[3, 4], [6, 8], [3, 8]]
+direction_bias:
+  ascending: 0.5
+  descending: 0.5

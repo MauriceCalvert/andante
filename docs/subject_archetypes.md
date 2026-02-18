@@ -46,9 +46,9 @@ into the next entry.
 1 to 5 (or descending from 5 to 1) gives a natural tonal answer point.
 Each step implies a passing chord.
 
-**Affect affinity:** Maestoso (slow scalar = solemn weight), Energetico
-(fast scalar = driving momentum), Serioso (minor scalar = brooding
-intensity).
+**Affect affinity:** Majestaet (slow scalar = solemn weight),
+Entschlossenheit (fast scalar = driving momentum), Sehnsucht
+(minor scalar = brooding intensity).
 
 **Fragmentation:** Scalar subjects fragment beautifully — any contiguous
 segment is a usable episode cell. The head (first 3–4 notes) makes a
@@ -80,8 +80,9 @@ harmony is explicit, not implied. The subject outlines I then pivots
 toward V. Handel's subjects are particularly triadic and harmonically
 direct.
 
-**Affect affinity:** Grazioso (gentle broken chord), Maestoso (wide
-arpeggio = grandeur), Brillante (fast arpeggio = virtuosic display).
+**Affect affinity:** Zaertlichkeit/Zierlich (gentle broken chord),
+Majestaet (wide arpeggio = grandeur), Verwunderung (fast arpeggio
+= virtuosic display).
 
 **Fragmentation:** The arpeggio head is a strong episode cell. The
 gap-fill tail is a second independent cell. Two-cell episodes are
@@ -118,9 +119,9 @@ secondary dominants, diminished chords, Neapolitan approaches. The
 cross-relation risk is highest here. The answer must handle the
 chromatic alterations carefully.
 
-**Affect affinity:** Klage/Lamento (descending chromatic = grief),
-Serioso (chromatic tension = gravity), Passionato (expressive
-chromaticism). This is the affect-richest archetype.
+**Affect affinity:** Klage/Dolore (descending chromatic = grief),
+Sehnsucht (chromatic tension = gravity), Zorn (expressive
+chromaticism = anguish). This is the affect-richest archetype.
 
 **Fragmentation:** Chromatic cells are powerful episode material but
 dangerous — repeated chromatic sequences can lose the key. Best used
@@ -155,9 +156,9 @@ harmonic implication is ambiguous — the subject sits on one harmony
 for several beats before moving. This makes the subject harmonically
 flexible (can fit over different bass harmonies in different entries).
 
-**Affect affinity:** Energetico (driving repeated notes), Giocoso
-(playful dotted rhythms), Maestoso (French overture dots = ceremonial),
-Marziale (martial repeated notes).
+**Affect affinity:** Entschlossenheit (driving repeated notes),
+Freudigkeit (playful dotted rhythms), Majestaet (French overture
+dots = ceremonial), Zorn (martial repeated notes).
 
 **Fragmentation:** The rhythmic cell is the episode unit, not the pitch
 content. Episodes transpose the rhythm over different scale degrees.
@@ -191,8 +192,9 @@ firmly. The kinetic tail traverses harmonic territory — typically
 moving from I toward V. The tonic–dominant journey is stretched across
 the subject's two halves.
 
-**Affect affinity:** Maestoso (solemn held note → dramatic run),
-Passionato (sustained tension → release), Brillante (static → virtuosic).
+**Affect affinity:** Majestaet (solemn held note → dramatic run),
+Dolore (sustained tension → release), Verwunderung (static →
+virtuosic).
 
 **Fragmentation:** The head and tail are natural independent episode
 cells. The head can be used as a pedal point or rhythmic anchor; the
@@ -227,8 +229,9 @@ rhythm is non-negotiable — it defines the genre.
 and periodic — 2-bar or 4-bar phrase units with clear half-cadence at
 midpoint. The harmonic rhythm matches the dance's phrase structure.
 
-**Affect affinity:** Giocoso (gigue = playful energy), Grazioso
-(minuet = elegant grace), Energetico (bourrée = vigorous drive).
+**Affect affinity:** Freudigkeit (gigue = playful energy), Zierlich
+(minuet = elegant grace), Entschlossenheit (bourrée = vigorous
+drive).
 
 **Fragmentation:** Dance subjects fragment into their constituent
 rhythmic cells (each bar or half-bar is a unit). Sequential episodes
@@ -242,19 +245,20 @@ and rarely cross the tonic–dominant boundary dramatically.
 ## Mapping: Affect → Archetype
 
 Not all affects suit all archetypes. This table shows primary (P) and
-secondary (S) affinities:
+secondary (S) affinities. Affect names match `data/rhetoric/affects.yaml`.
 
 ```
-                Scalar  Triadic  Chromatic  Rhythmic  Compound  Dance
-Maestoso          P                           S         P
-Klage/Lamento                      P
-Serioso           S                P
-Passionato                         S                    P
-Energetico        P                           P                   S
-Grazioso                   P                                      P
-Giocoso                                       S                   P
-Brillante                  S                            S
-Marziale                                      P
+                   Scalar  Triadic  Chromatic  Rhythmic  Compound  Dance
+Majestaet            P                           S         P
+Klage                                 P
+Dolore                                S                    P
+Sehnsucht            S                P
+Zorn                                  S          P
+Entschlossenheit     P                           P                   S
+Zaertlichkeit                 P                                      S
+Zierlich                      S                                      P
+Freudigkeit                                      S                   P
+Verwunderung                  S                            S
 ```
 
 ## Mapping: Genre → Archetype

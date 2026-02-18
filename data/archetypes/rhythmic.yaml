@@ -1,0 +1,54 @@
+name: rhythmic
+head:
+  min_notes: 3
+  max_notes: 6
+  intervals: [-3, -2, -1, 1, 2, 3]
+  start_degrees: [0, 2, 4]
+  range_min: 3
+  range_max: 4
+  budget_fraction: 0.4375
+  gestures:
+    - rhythmic_dotted_4
+    - rhythmic_repeated_accel
+    - rhythmic_syncopated
+    - rhythmic_lombard
+    - rhythmic_hammer
+continuation:
+  rule: maintain_rhythm
+  max_new_interval: 3
+  range_extension: 2
+  must_start_on_head_final: false
+  preferred_cells:
+    - step_down
+    - step_up
+    - run_down_2
+    - run_up_2
+    - skip_down
+    - skip_up
+    - down_turn
+    - up_turn
+  cell_chain_max: 3
+  contrary_motion: true
+kadenz:
+  approach: stepwise_from_direction
+  stable_degrees: [0, 2, 4]
+  may_augment: false
+  formulas:
+    - sustained_arrival
+    - dotted_close
+rhythm:
+  profile: dance
+  density_from_affect: false
+affect_affinity:
+  primary: [Entschlossenheit, Zorn]
+  secondary: [Freudigkeit, Majestaet]
+genre_affinity:
+  primary: [fugue_organ, concerti_grossi]
+  secondary: [invention, fugue]
+mode_bias:
+  major: 1.0
+  minor: 0.7
+metre_filter: null
+direction_bias:
+  ascending: 0.5
+  descending: 0.5

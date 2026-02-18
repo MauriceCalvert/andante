@@ -1,0 +1,52 @@
+name: compound
+head:
+  min_notes: 2
+  max_notes: 4
+  intervals: [-2, -1, 0, 1, 2]
+  start_degrees: [0, 2, 4]
+  range_min: 0
+  range_max: 3
+  budget_fraction: 0.25
+  gestures:
+    - compound_held_run
+    - compound_dotted_run
+    - compound_repeated_run
+continuation:
+  rule: kinetic_half
+  max_new_interval: 3
+  range_extension: 5
+  must_start_on_head_final: true
+  preferred_cells:
+    - run_down_3
+    - run_down_4
+    - run_up_3
+    - run_up_4
+    - skip_run_down
+    - skip_run_up
+  cell_chain_max: 2
+  contrary_motion: false
+kadenz:
+  approach: stepwise_from_direction
+  stable_degrees: [0, 2, 4]
+  may_augment: false
+  formulas:
+    - step_above
+    - step_below
+    - leading_tone
+    - sustained_arrival
+rhythm:
+  profile: bipartite
+  density_from_affect: false
+affect_affinity:
+  primary: [Majestaet, Dolore]
+  secondary: [Verwunderung]
+genre_affinity:
+  primary: [fugue, fugue_organ]
+  secondary: [sonata_da_chiesa]
+mode_bias:
+  major: 0.8
+  minor: 0.9
+metre_filter: null
+direction_bias:
+  ascending: 0.4
+  descending: 0.6

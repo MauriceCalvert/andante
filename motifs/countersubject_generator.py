@@ -16,12 +16,17 @@ from ortools.sat.python import cp_model
 from motifs.head_generator import degrees_to_midi
 from motifs.subject_generator import GeneratedSubject
 from shared.constants import TONIC_TRIAD_DEGREES
-from shared.music_math import VALID_DURATIONS
+from shared.music_math import VALID_DURATIONS, VALID_DURATIONS_SORTED
 
 
 CS_MIN_DURATION: Fraction = Fraction(1, 8)
-MIN_CS_DEGREE = -7
-MAX_CS_DEGREE = 14
+# Fallback range if subject analysis fails
+FALLBACK_MIN_CS_DEGREE = -7
+FALLBACK_MAX_CS_DEGREE = 14
+# CS sits below the subject: min separation (a 3rd) to max (2 octaves)
+CS_MIN_BELOW_SUBJECT = 2   # At least a 3rd below subject's lowest note
+CS_MAX_BELOW_SUBJECT = 14  # At most 2 octaves below subject's highest note
+CS_MAX_OVERLAP = 3         # CS may overlap up to a 4th into subject range
 INVERTIBLE_CONSONANCES = frozenset({0, 2, 5})
 WEAK_BEAT_ALLOWED = frozenset({0, 1, 2, 4, 5, 6})
 TRITONE_INTERVAL = 3
@@ -31,10 +36,14 @@ PENALTY_LARGE_LEAP = 30
 PENALTY_REPEATED_PITCH = 25
 PENALTY_INTERIOR_UNISON = 15
 PENALTY_PARALLEL_MOTION = 10
+PENALTY_ZIGZAG = 12          # Alternating direction on consecutive intervals
 REWARD_CONTRARY_MOTION = 15
 REWARD_STEPWISE = 5
 REWARD_STABLE_BOUNDARY = 10
+REWARD_DIRECTIONAL_RUN = 10  # 3+ notes moving same direction
+REWARD_RANGE_USAGE = 15      # Using a reasonable span of available range
 LARGE_LEAP_THRESHOLD = 4
+MIN_GOOD_RANGE = 4           # A 5th — minimum span for melodic interest
 SOLVER_TIMEOUT_SECONDS = 5
 
 
@@ -81,50 +90,116 @@ def _interval_mod7(diff: int) -> int:
     return abs(diff) % 7
 
 
-def _aggregate_cs_rhythm(
+def _generate_cs_rhythm(
     subject_durations: tuple[float, ...],
+    metre: tuple[int, int],
 ) -> tuple[tuple[Fraction, ...], tuple[int, ...]]:
-    """Aggregate subject durations into longer CS notes.
+    """Generate CS rhythm that contrasts with the subject.
+
+    Strategy: where the subject has short notes (eighths or less),
+    the CS holds longer notes; where the subject has long notes
+    (quarters or more), the CS subdivides. Total duration matches.
 
     Returns:
-        cs_durations: CS note durations (fewer, longer than subject)
+        cs_durations: CS note durations
         onset_indices: Subject-note index at the start of each CS note
     """
+    subj_fracs = tuple(Fraction(d).limit_denominator(64) for d in subject_durations)
+    total = sum(subj_fracs)
+    quarter = Fraction(1, 4)
+    eighth = Fraction(1, 8)
+    # Phase 1: merge runs of short subject notes into longer CS notes
     cs_durations: list[Fraction] = []
     onset_indices: list[int] = []
-    accumulator = Fraction(0)
-    group_start = 0
-
-    for i, dur in enumerate(subject_durations):
-        if accumulator == 0:
-            group_start = i
-        accumulator += Fraction(dur).limit_denominator(64)
-        if accumulator >= CS_MIN_DURATION:
-            assert accumulator in VALID_DURATIONS, (
-                f"Aggregated duration {accumulator} not valid. "
-                f"Subject durations {subject_durations[group_start:i+1]} sum to {accumulator}"
-            )
-            cs_durations.append(accumulator)
-            onset_indices.append(group_start)
-            accumulator = Fraction(0)
-
-    assert accumulator == 0, (
-        f"Leftover duration {accumulator} after aggregation. "
-        f"Subject durations do not aggregate evenly into CS_MIN_DURATION units"
+    i = 0
+    while i < len(subj_fracs):
+        if subj_fracs[i] <= eighth:
+            # Merge consecutive short notes into one longer CS note
+            onset_indices.append(i)
+            merged = Fraction(0)
+            while i < len(subj_fracs) and subj_fracs[i] <= eighth:
+                merged += subj_fracs[i]
+                i += 1
+            # Find the largest valid duration that fits
+            placed = Fraction(0)
+            first = True
+            while placed < merged:
+                remainder = merged - placed
+                found = False
+                for vd in VALID_DURATIONS_SORTED:
+                    if vd <= remainder:
+                        cs_durations.append(vd)
+                        if not first:
+                            onset_indices.append(onset_indices[-1])
+                        placed += vd
+                        found = True
+                        first = False
+                        break
+                assert found, f"Cannot fill remainder {remainder}"
+        elif subj_fracs[i] >= quarter:
+            # Split long subject notes into shorter CS notes
+            onset_indices.append(i)
+            dur = subj_fracs[i]
+            placed = Fraction(0)
+            first = True
+            while placed < dur:
+                remainder = dur - placed
+                # Prefer eighth notes for subdivision
+                if remainder >= eighth and eighth in VALID_DURATIONS:
+                    cs_durations.append(eighth)
+                    if not first:
+                        onset_indices.append(i)
+                    placed += eighth
+                else:
+                    for vd in VALID_DURATIONS_SORTED:
+                        if vd <= remainder:
+                            cs_durations.append(vd)
+                            if not first:
+                                onset_indices.append(i)
+                            placed += vd
+                            break
+                first = False
+            i += 1
+        else:
+            # Medium durations pass through
+            onset_indices.append(i)
+            cs_durations.append(subj_fracs[i])
+            i += 1
+    assert sum(cs_durations) == total, (
+        f"CS duration {sum(cs_durations)} != subject duration {total}"
     )
-
     return tuple(cs_durations), tuple(onset_indices)
+
+
+def _derive_cs_range(
+    subject_degrees: tuple[int, ...],
+) -> tuple[int, int]:
+    """Derive CS pitch range from subject register.
+
+    The CS should sit below the subject like a continuo line:
+    - Upper bound: subject's lowest note + small overlap
+    - Lower bound: subject's highest note minus 2 octaves
+    """
+    subj_lo = min(subject_degrees)
+    subj_hi = max(subject_degrees)
+    cs_max = subj_lo + CS_MAX_OVERLAP
+    cs_min = subj_hi - CS_MAX_BELOW_SUBJECT
+    # Ensure at least an octave of range for the solver
+    if cs_max - cs_min < 7:
+        cs_min = cs_max - 7
+    return cs_min, cs_max
 
 
 def generate_countersubject(
     subject: GeneratedSubject,
     metre: tuple[int, int] = (4, 4),
     tonic_midi: int = 60,
-    min_degree: int = MIN_CS_DEGREE,
-    max_degree: int = MAX_CS_DEGREE,
     answer_degrees: tuple[int, ...] | None = None,
 ) -> GeneratedCountersubject | None:
     """Generate countersubject using CP-SAT optimisation.
+
+    CS range is derived from the subject's register — the CS sits
+    below the subject like a continuo line.
 
     When answer_degrees is provided, the solver also constrains the CS
     to be consonant against the answer (dual validation for invertible
@@ -136,9 +211,10 @@ def generate_countersubject(
         assert len(answer_degrees) == n, (
             f"answer_degrees length {len(answer_degrees)} != subject length {n}"
         )
+    min_degree, max_degree = _derive_cs_range(subject_degrees=subject.scale_indices)
 
-    # Aggregate subject rhythm into longer CS notes
-    cs_durations, onset_indices = _aggregate_cs_rhythm(subject.durations)
+    # Generate contrasting CS rhythm
+    cs_durations, onset_indices = _generate_cs_rhythm(subject.durations, metre)
     m = len(cs_durations)
     assert m >= 2, f"CS too short after aggregation: {m} notes"
 
@@ -273,10 +349,109 @@ def generate_countersubject(
         model.Add(cs_mot == 0).OnlyEnforceIf(repeated)
         model.Add(cs_mot != 0).OnlyEnforceIf(repeated.Not())
         penalties.append((repeated, PENALTY_REPEATED_PITCH))
+    # --- Voice-leading: forbid parallel 5ths and octaves ---
+    for i in range(m - 1):
+        subj_idx_a = onset_indices[i]
+        subj_idx_b = onset_indices[i + 1]
+        if subj_idx_a == subj_idx_b:
+            continue
+        # CS motion and subject motion
+        cs_vl = model.NewIntVar(-28, 28, f"csvl_{i}")
+        model.Add(cs_vl == cs[i + 1] - cs[i])
+        subj_vl = subj_degrees[subj_idx_b] - subj_degrees[subj_idx_a]
+        # Both intervals are 5ths (mod 7 == 4)
+        both_5th = model.NewBoolVar(f"b5_{i}")
+        is_5th_a = model.NewBoolVar(f"i5a_{i}")
+        is_5th_b = model.NewBoolVar(f"i5b_{i}")
+        model.Add(interval_mod7[i] == 4).OnlyEnforceIf(is_5th_a)
+        model.Add(interval_mod7[i] != 4).OnlyEnforceIf(is_5th_a.Not())
+        model.Add(interval_mod7[i + 1] == 4).OnlyEnforceIf(is_5th_b)
+        model.Add(interval_mod7[i + 1] != 4).OnlyEnforceIf(is_5th_b.Not())
+        model.AddBoolAnd([is_5th_a, is_5th_b]).OnlyEnforceIf(both_5th)
+        model.AddBoolOr([is_5th_a.Not(), is_5th_b.Not()]).OnlyEnforceIf(both_5th.Not())
+        # Similar motion (same direction, neither static)
+        sim_up = model.NewBoolVar(f"su_{i}")
+        model.Add(cs_vl > 0).OnlyEnforceIf(sim_up)
+        if subj_vl <= 0:
+            model.Add(sim_up == 0)
+        sim_dn = model.NewBoolVar(f"sd_{i}")
+        model.Add(cs_vl < 0).OnlyEnforceIf(sim_dn)
+        if subj_vl >= 0:
+            model.Add(sim_dn == 0)
+        similar = model.NewBoolVar(f"sim_{i}")
+        model.AddBoolOr([sim_up, sim_dn]).OnlyEnforceIf(similar)
+        model.AddBoolAnd([sim_up.Not(), sim_dn.Not()]).OnlyEnforceIf(similar.Not())
+        # Forbid parallel 5ths: both 5ths + similar motion
+        model.AddBoolOr([both_5th.Not(), similar.Not()])
+        # Both intervals are unisons/octaves (mod 7 == 0)
+        both_oct = model.NewBoolVar(f"b8_{i}")
+        is_oct_a = model.NewBoolVar(f"i8a_{i}")
+        is_oct_b = model.NewBoolVar(f"i8b_{i}")
+        model.Add(interval_mod7[i] == 0).OnlyEnforceIf(is_oct_a)
+        model.Add(interval_mod7[i] != 0).OnlyEnforceIf(is_oct_a.Not())
+        model.Add(interval_mod7[i + 1] == 0).OnlyEnforceIf(is_oct_b)
+        model.Add(interval_mod7[i + 1] != 0).OnlyEnforceIf(is_oct_b.Not())
+        model.AddBoolAnd([is_oct_a, is_oct_b]).OnlyEnforceIf(both_oct)
+        model.AddBoolOr([is_oct_a.Not(), is_oct_b.Not()]).OnlyEnforceIf(both_oct.Not())
+        # Forbid parallel octaves/unisons: both octaves + similar motion
+        model.AddBoolOr([both_oct.Not(), similar.Not()])
+        # Forbid hidden 5ths/octaves: arriving at 5th or octave by similar motion
+        # (only when target interval is perfect, regardless of source interval)
+        arrive_perfect = model.NewBoolVar(f"ap_{i}")
+        model.AddBoolOr([is_5th_b, is_oct_b]).OnlyEnforceIf(arrive_perfect)
+        model.AddBoolAnd([is_5th_b.Not(), is_oct_b.Not()]).OnlyEnforceIf(arrive_perfect.Not())
+        model.AddBoolOr([arrive_perfect.Not(), similar.Not()])
+    # --- Melodic quality: directional momentum ---
+    # cs_mot variables already exist from the loop above
+    # Reward 3+ consecutive notes in the same direction
+    for i in range(m - 2):
+        cs_mot_a = model.NewIntVar(-28, 28, f"csmot_a_{i}")
+        cs_mot_b = model.NewIntVar(-28, 28, f"csmot_b_{i}")
+        model.Add(cs_mot_a == cs[i + 1] - cs[i])
+        model.Add(cs_mot_b == cs[i + 2] - cs[i + 1])
+        both_up = model.NewBoolVar(f"bothup_{i}")
+        model.Add(cs_mot_a > 0).OnlyEnforceIf(both_up)
+        model.Add(cs_mot_b > 0).OnlyEnforceIf(both_up)
+        both_down = model.NewBoolVar(f"bothdn_{i}")
+        model.Add(cs_mot_a < 0).OnlyEnforceIf(both_down)
+        model.Add(cs_mot_b < 0).OnlyEnforceIf(both_down)
+        run = model.NewBoolVar(f"run_{i}")
+        model.AddBoolOr([both_up, both_down]).OnlyEnforceIf(run)
+        model.AddBoolAnd([both_up.Not(), both_down.Not()]).OnlyEnforceIf(run.Not())
+        rewards.append((run, REWARD_DIRECTIONAL_RUN))
+    # Penalise zigzag: direction reversal on every pair of intervals
+    for i in range(m - 2):
+        cs_mot_a2 = model.NewIntVar(-28, 28, f"csmot_zz_a_{i}")
+        cs_mot_b2 = model.NewIntVar(-28, 28, f"csmot_zz_b_{i}")
+        model.Add(cs_mot_a2 == cs[i + 1] - cs[i])
+        model.Add(cs_mot_b2 == cs[i + 2] - cs[i + 1])
+        zz_up_down = model.NewBoolVar(f"zzud_{i}")
+        model.Add(cs_mot_a2 > 0).OnlyEnforceIf(zz_up_down)
+        model.Add(cs_mot_b2 < 0).OnlyEnforceIf(zz_up_down)
+        zz_down_up = model.NewBoolVar(f"zzdu_{i}")
+        model.Add(cs_mot_a2 < 0).OnlyEnforceIf(zz_down_up)
+        model.Add(cs_mot_b2 > 0).OnlyEnforceIf(zz_down_up)
+        zigzag = model.NewBoolVar(f"zz_{i}")
+        model.AddBoolOr([zz_up_down, zz_down_up]).OnlyEnforceIf(zigzag)
+        model.AddBoolAnd([zz_up_down.Not(), zz_down_up.Not()]).OnlyEnforceIf(zigzag.Not())
+        penalties.append((zigzag, PENALTY_ZIGZAG))
+    # --- Melodic quality: range usage ---
+    cs_max_var = model.NewIntVar(min_degree, max_degree, "cs_max")
+    cs_min_var = model.NewIntVar(min_degree, max_degree, "cs_min")
+    model.AddMaxEquality(cs_max_var, cs)
+    model.AddMinEquality(cs_min_var, cs)
+    cs_range = model.NewIntVar(0, max_degree - min_degree, "cs_range")
+    model.Add(cs_range == cs_max_var - cs_min_var)
+    good_range = model.NewBoolVar("good_range")
+    model.Add(cs_range >= MIN_GOOD_RANGE).OnlyEnforceIf(good_range)
+    model.Add(cs_range < MIN_GOOD_RANGE).OnlyEnforceIf(good_range.Not())
+    rewards.append((good_range, REWARD_RANGE_USAGE))
     stable_degrees = [(d % 7) for d in TONIC_TRIAD_DEGREES]
     for idx in [0, m - 1]:
-        cs_pos = model.NewIntVar(0, max_degree + 7, f"cspos_{idx}")
-        model.Add(cs_pos == cs[idx] + 7)
+        # Shift into non-negative range for modulo
+        cs_shift = abs(min_degree) + 7
+        cs_pos = model.NewIntVar(0, max_degree + cs_shift, f"cspos_{idx}")
+        model.Add(cs_pos == cs[idx] + cs_shift)
         cs_m7 = model.NewIntVar(0, 6, f"csm7_{idx}")
         model.AddModuloEquality(cs_m7, cs_pos, 7)
         stable = model.NewBoolVar(f"stab_{idx}")
@@ -338,6 +513,16 @@ def verify_countersubject(
     for i in range(m - 1):
         if cs.vertical_intervals[i] == 0 and cs.vertical_intervals[i + 1] == 0:
             violations.append(f"Notes {i}-{i+1}: consecutive unisons")
+        iv_a = cs.vertical_intervals[i]
+        iv_b = cs.vertical_intervals[i + 1]
+        cs_dir = cs.scale_indices[i + 1] - cs.scale_indices[i]
+        # Need subject motion at CS onset points — approximate from beat positions
+        # For now check the simple case: both voices move same direction
+        if cs_dir != 0:
+            if iv_a == 4 and iv_b == 4:
+                violations.append(f"Notes {i}-{i+1}: parallel 5ths")
+            if iv_a == 0 and iv_b == 0:
+                violations.append(f"Notes {i}-{i+1}: parallel octaves/unisons")
     return violations
 
 

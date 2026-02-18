@@ -218,6 +218,21 @@ INTERVAL_DIATONIC_SIZE: dict[str, int] = {
 
 
 # =============================================================================
+# Fragment Analyser
+# =============================================================================
+
+# Maximum diatonic degree interval for clean sequential treatment
+MAX_SEQUENTIAL_INTERVAL: int = 4
+
+# Multiplier over median duration to classify a note as "long"
+LONG_NOTE_MULTIPLIER: int = 2
+
+# Ideal episode cell length range (quarter-note beats)
+IDEAL_CELL_MAX_BEATS: int = 4
+IDEAL_CELL_MIN_BEATS: int = 2
+
+
+# =============================================================================
 # Intervals
 # =============================================================================
 
@@ -416,3 +431,20 @@ VOICE_RANGES: dict[int, tuple[int, int]] = {
     2: (45, 69),  # Tenor: A2 to A4
     3: (36, 62),  # Bass: C2 to D4
 }
+
+
+# =============================================================================
+# Fraction safety
+# =============================================================================
+
+_MAX_MUSICAL_DENOM: int = 128  # largest denominator for any musical duration
+
+
+def exact_fraction(value: float, label: str = "value") -> Fraction:
+    """Convert a float to Fraction, asserting it is exactly representable."""
+    f: Fraction = Fraction(value)
+    assert f.denominator <= _MAX_MUSICAL_DENOM, (
+        f"{label}: float {value} produces denominator {f.denominator} "
+        f"(max {_MAX_MUSICAL_DENOM}). Source data contains a non-exact float."
+    )
+    return f

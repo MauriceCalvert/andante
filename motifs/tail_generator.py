@@ -28,6 +28,18 @@ TAIL_CELLS: tuple[tuple[tuple[int, ...], str, int], ...] = (
     ((-1, -2), "step-skip-down", -3),
     ((-1, -1, -2), "run-skip-down", -4),
     ((-2, -1, -1), "skip-run-down", -4),
+    # Dramatic downward cells
+    ((-3,), "leap-down-4th", -3),
+    ((-4,), "leap-down-5th", -4),
+    ((-3, 1), "leap-recover-down", -2),
+    ((-4, 1), "plunge-recover-down", -3),
+    ((-4, 1, 1), "plunge-climb-down", -2),
+    ((-1, -3), "step-leap-down", -4),
+    ((-1, -1, -3), "run-leap-down", -5),
+    ((1, -3), "rise-fall-down", -2),
+    ((1, 1, -3), "rise-plunge-down", -1),
+    ((2, -3), "skip-leap-down", -1),
+    ((-3, 1, -2), "leap-turn-down", -4),
     # Upward cells (net > 0)
     ((1,), "step-up", 1),
     ((1, 1), "run-up-2", 2),
@@ -41,6 +53,18 @@ TAIL_CELLS: tuple[tuple[tuple[int, ...], str, int], ...] = (
     ((1, 2), "step-skip-up", 3),
     ((1, 1, 2), "run-skip-up", 4),
     ((2, 1, 1), "skip-run-up", 4),
+    # Dramatic upward cells
+    ((3,), "leap-up-4th", 3),
+    ((4,), "leap-up-5th", 4),
+    ((3, -1), "leap-recover-up", 2),
+    ((4, -1), "plunge-recover-up", 3),
+    ((4, -1, -1), "plunge-descend-up", 2),
+    ((1, 3), "step-leap-up", 4),
+    ((1, 1, 3), "run-leap-up", 5),
+    ((-1, 3), "dip-soar-up", 2),
+    ((-1, -1, 3), "dip-plunge-up", 1),
+    ((-2, 3), "skip-leap-up", 1),
+    ((3, -1, 2), "leap-turn-up", 4),
 )
 
 
@@ -175,8 +199,9 @@ def generate_tails_for_head(
     max_degree: int = 11,  # G5, prevents notes going too high
 ) -> list[Tail]:
     """Generate valid tails for a given head."""
-    # Tail direction is contrary to head's leap
-    direction = "down" if head.leap_direction == "up" else "up"
+    # Tail direction: prefer contrary to head's leap, but allow same
+    contrary = "down" if head.leap_direction == "up" else "up"
+    directions = (contrary, head.leap_direction)
 
     # Remaining duration for tail (excluding shared first note)
     head_dur = sum(head.rhythm)
@@ -197,62 +222,49 @@ def generate_tails_for_head(
         max_notes=max_tail_notes - 1,
     )
 
-    # Build interval sequences
-    # n_intervals = n_notes - 1, so for tail contribution of k notes, we need k intervals
-    interval_seqs_by_len: dict[int, list[tuple[tuple[int, ...], tuple[str, ...]]]] = {}
-    for n in range(min_tail_notes - 1, max_tail_notes):
-        seqs = _build_interval_sequences(target_direction=direction, min_intervals=n, max_intervals=n)
-        if seqs:
-            interval_seqs_by_len[n] = seqs
-
-    # Combine rhythms with matching interval sequences
+    # Build interval sequences for both directions
     tails = []
-    for rhythm in rhythm_combos:
-        n_tail_contrib = len(rhythm)  # Notes contributed by tail (after shared)
-        n_intervals_needed = n_tail_contrib  # One interval per contributed note
-
-        if n_intervals_needed not in interval_seqs_by_len:
-            continue
-
-        for intervals, cell_names in interval_seqs_by_len[n_intervals_needed]:
-            # Reject mostly stepwise (more than half are ±1)
-            step_count = sum(1 for iv in intervals if abs(iv) == 1)
-            if step_count > len(intervals) // 2:
+    for direction in directions:
+        interval_seqs_by_len: dict[int, list[tuple[tuple[int, ...], tuple[str, ...]]]] = {}
+        for n in range(min_tail_notes - 1, max_tail_notes):
+            seqs = _build_interval_sequences(target_direction=direction, min_intervals=n, max_intervals=n)
+            if seqs:
+                interval_seqs_by_len[n] = seqs
+        # Combine rhythms with matching interval sequences
+        for rhythm in rhythm_combos:
+            n_tail_contrib = len(rhythm)
+            n_intervals_needed = n_tail_contrib
+            if n_intervals_needed not in interval_seqs_by_len:
                 continue
-
-            # Reject oscillating patterns (repeated back-and-forth)
-            if _is_oscillating(intervals=intervals):
-                continue
-
-            # Check final degree resolves to stable tone
-            final_degree = head.degrees[-1] + sum(intervals)
-            if final_degree % 7 not in (0, 2, 4):  # Tonic triad within octave
-                continue
-
-            # Require minimum pitch range (at least a 4th = 3 degrees)
-            cumulative = [0]
-            for iv in intervals:
-                cumulative.append(cumulative[-1] + iv)
-            pitch_range = max(cumulative) - min(cumulative)
-            if pitch_range < 3:
-                continue
-
-            # Check all notes stay within allowed pitch range
-            start_degree = head.degrees[-1]
-            absolute_degrees = [start_degree + c for c in cumulative]
-            if max(absolute_degrees) > max_degree or min(absolute_degrees) < min_degree:
-                continue
-
-            # Full rhythm includes shared first note
-            full_rhythm = (head.rhythm[-1],) + rhythm
-
-            tail = Tail(
-                intervals=intervals,
-                rhythm=full_rhythm,
-                direction=direction,
-                cell_names=cell_names,
-            )
-            tails.append(tail)
+            for intervals, cell_names in interval_seqs_by_len[n_intervals_needed]:
+                # Reject oscillating patterns (repeated back-and-forth)
+                if _is_oscillating(intervals=intervals):
+                    continue
+                # Check final degree resolves to stable tone
+                final_degree = head.degrees[-1] + sum(intervals)
+                if final_degree % 7 not in (0, 2, 4):
+                    continue
+                # Require minimum pitch range (at least a 4th = 3 degrees)
+                cumulative = [0]
+                for iv in intervals:
+                    cumulative.append(cumulative[-1] + iv)
+                pitch_range = max(cumulative) - min(cumulative)
+                if pitch_range < 3:
+                    continue
+                # Check all notes stay within allowed pitch range
+                start_degree = head.degrees[-1]
+                absolute_degrees = [start_degree + c for c in cumulative]
+                if max(absolute_degrees) > max_degree or min(absolute_degrees) < min_degree:
+                    continue
+                # Full rhythm includes shared first note
+                full_rhythm = (head.rhythm[-1],) + rhythm
+                tail = Tail(
+                    intervals=intervals,
+                    rhythm=full_rhythm,
+                    direction=direction,
+                    cell_names=cell_names,
+                )
+                tails.append(tail)
 
     return tails
 

@@ -1,0 +1,195 @@
+# Head gesture templates for fugue subject kopfmotiv generation.
+#
+# A gesture defines SHAPE, not specific pitches.
+# interval_types:
+#   step    = +1 or -1  (direction from gesture direction)
+#   leap    = +3 to +5  (always in gesture direction)
+#   skip    = +2        (in gesture direction)
+#   back    = -1 or -2  (contrary to gesture direction, i.e. gap-fill)
+#   hold    = 0         (repeated note)
+#
+# metre_filter: list of metre strings e.g. ["4/4", "3/4"], or absent = all
+# force_direction: "ascending" or "descending", absent = either
+# chromatic_inflections: list of note indices to chromaticise at render time
+
+# --- SCALAR gestures ---
+
+scalar_run_4:
+  archetype: scalar
+  interval_types: [step, step, step]
+  rhythm: ["1/8", "1/8", "1/8", "1/8"]
+  character: driving
+  metre_filter: ["4/4", "2/2"]
+
+scalar_run_held_start:
+  archetype: scalar
+  interval_types: [hold, step, step, step]
+  rhythm: ["1/4", "1/8", "1/8", "1/8", "1/8"]
+  character: solemn
+  metre_filter: ["4/4", "2/2"]
+
+scalar_run_dotted_start:
+  archetype: scalar
+  interval_types: [step, step, step]
+  rhythm: ["3/8", "1/8", "1/8", "1/8"]
+  character: stately
+  metre_filter: ["4/4", "2/2"]
+
+scalar_run_6:
+  archetype: scalar
+  interval_types: [step, step, step, step, step]
+  rhythm: ["1/16", "1/16", "1/16", "1/16", "1/16", "1/16"]
+  character: energetic
+  metre_filter: ["4/4"]
+
+scalar_run_3_34:
+  archetype: scalar
+  interval_types: [step, step]
+  rhythm: ["1/8", "1/8", "1/8"]
+  character: flowing
+  metre_filter: ["3/4"]
+
+# --- TRIADIC gestures ---
+
+triadic_ascending_3:
+  archetype: triadic
+  interval_types: [skip, skip]
+  rhythm: ["1/4", "1/8", "1/8"]
+  character: open
+  metre_filter: ["4/4", "2/2"]
+
+triadic_ascending_4:
+  archetype: triadic
+  interval_types: [skip, skip, skip]
+  rhythm: ["3/8", "1/8", "1/8", "1/8"]
+  character: grand
+  metre_filter: ["4/4"]
+
+triadic_leap_fill:
+  archetype: triadic
+  interval_types: [leap, back, back]
+  rhythm: ["1/4", "1/8", "1/8", "1/4"]
+  character: graceful
+  metre_filter: ["4/4", "3/4"]
+
+triadic_wide_4:
+  archetype: triadic
+  interval_types: [leap, skip, back]
+  rhythm: ["1/4", "1/4", "1/8", "1/8"]
+  character: bold
+  metre_filter: ["4/4"]
+
+# --- CHROMATIC gestures ---
+# These operate in diatonic degrees but the generator will apply
+# chromatic_inflections (specified below) at render time.
+
+chromatic_lamento_4:
+  archetype: chromatic
+  interval_types: [step, step, step]
+  rhythm: ["1/4", "1/4", "1/4", "1/4"]
+  character: lament
+  metre_filter: ["4/4", "3/4"]
+  force_direction: descending
+  chromatic_inflections: [1, 2]
+
+chromatic_neighbour:
+  archetype: chromatic
+  interval_types: [step, back, step]
+  rhythm: ["1/4", "1/8", "1/8", "1/4"]
+  character: tense
+  metre_filter: ["4/4"]
+  chromatic_inflections: [1]
+
+chromatic_descent_6:
+  archetype: chromatic
+  interval_types: [step, step, step, step, step]
+  rhythm: ["1/4", "1/4", "1/4", "1/8", "1/8", "1/4"]
+  character: grave
+  metre_filter: ["4/4"]
+  force_direction: descending
+  chromatic_inflections: [1, 3]
+
+# --- RHYTHMIC gestures ---
+# Pitch range is narrow; the rhythm IS the identity.
+
+rhythmic_dotted_4:
+  archetype: rhythmic
+  interval_types: [hold, step, back]
+  rhythm: ["3/16", "1/16", "3/16", "1/16"]
+  character: martial
+  metre_filter: ["4/4", "2/2"]
+
+rhythmic_repeated_accel:
+  archetype: rhythmic
+  interval_types: [hold, hold, step]
+  rhythm: ["1/4", "1/8", "1/8", "1/4"]
+  character: emphatic
+  metre_filter: ["4/4"]
+
+rhythmic_syncopated:
+  archetype: rhythmic
+  interval_types: [step, back, step]
+  rhythm: ["1/8", "1/4", "1/8", "1/4"]
+  character: restless
+  metre_filter: ["4/4"]
+
+rhythmic_lombard:
+  archetype: rhythmic
+  interval_types: [step, back, step, step]
+  rhythm: ["1/16", "3/16", "1/16", "3/16", "1/8"]
+  character: lombardic
+  metre_filter: ["4/4"]
+
+rhythmic_hammer:
+  archetype: rhythmic
+  interval_types: [hold, hold, hold, step]
+  rhythm: ["1/8", "1/8", "1/8", "1/8", "1/4"]
+  character: driving
+  metre_filter: ["4/4", "2/2"]
+
+# --- COMPOUND gestures ---
+# Two-part: static (held/repeated) then kinetic (fast)
+
+compound_held_run:
+  archetype: compound
+  interval_types: [hold, step, step, step]
+  rhythm: ["1/2", "1/8", "1/8", "1/8", "1/8"]
+  character: dramatic
+  metre_filter: ["4/4"]
+
+compound_dotted_run:
+  archetype: compound
+  interval_types: [hold, step, step, step]
+  rhythm: ["3/4", "1/8", "1/8", "1/8", "1/8"]
+  character: majestic
+  metre_filter: ["4/4"]
+
+compound_repeated_run:
+  archetype: compound
+  interval_types: [hold, hold, step, step, step]
+  rhythm: ["1/4", "1/4", "1/8", "1/8", "1/8", "1/8"]
+  character: building
+  metre_filter: ["4/4"]
+
+# --- DANCE gestures ---
+
+dance_gigue_leaps:
+  archetype: dance
+  interval_types: [leap, back, leap]
+  rhythm: ["3/8", "1/8", "1/8", "1/4"]
+  character: leaping
+  metre_filter: ["6/8", "3/8"]
+
+dance_minuet_step:
+  archetype: dance
+  interval_types: [step, step, skip]
+  rhythm: ["1/4", "1/4", "1/4", "1/4"]
+  character: graceful
+  metre_filter: ["3/4"]
+
+dance_bourree_upbeat:
+  archetype: dance
+  interval_types: [step, leap, back, step]
+  rhythm: ["1/8", "1/8", "1/4", "1/8", "1/8"]
+  character: sturdy
+  metre_filter: ["4/4", "2/2"]

@@ -411,6 +411,8 @@ def generate_to_files(
                     seed=seed,
                     tonic_midi=tonic_midi,
                     verbose=True,
+                    affect=affect,
+                    genre=genre,
                 )
                 write_fugue_file(triple=triple, path=fugue_path)
                 fugue = load_fugue_path(path=fugue_path)

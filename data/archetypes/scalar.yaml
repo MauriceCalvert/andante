@@ -1,0 +1,56 @@
+name: scalar
+head:
+  min_notes: 4
+  max_notes: 8
+  intervals: [-1, 1]
+  start_degrees: [0, 2, 4]
+  range_min: 4
+  range_max: 7
+  budget_fraction: 0.4375
+  gestures:
+    - scalar_run_4
+    - scalar_run_held_start
+    - scalar_run_dotted_start
+    - scalar_run_6
+    - scalar_run_3_34
+continuation:
+  rule: continue_or_reverse
+  max_new_interval: 2
+  range_extension: 2
+  must_start_on_head_final: false
+  preferred_cells:
+    - run_down_2
+    - run_down_3
+    - run_down_4
+    - run_up_2
+    - run_up_3
+    - run_up_4
+    - down_turn
+    - up_turn
+  cell_chain_max: 3
+  contrary_motion: true
+kadenz:
+  approach: stepwise_from_direction
+  stable_degrees: [0, 2, 4]
+  may_augment: true
+  formulas:
+    - step_above
+    - step_below
+    - leading_tone
+    - turn_above
+rhythm:
+  profile: even
+  density_from_affect: true
+affect_affinity:
+  primary: [Majestaet, Entschlossenheit]
+  secondary: [Sehnsucht]
+genre_affinity:
+  primary: [invention, fugue]
+  secondary: [sonata_da_chiesa, fugue_organ]
+mode_bias:
+  major: 1.0
+  minor: 0.8
+metre_filter: null
+direction_bias:
+  ascending: 0.5
+  descending: 0.5

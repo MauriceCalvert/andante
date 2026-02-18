@@ -25,6 +25,7 @@ from shared.constants import (
     TRACK_BASS,
     TRACK_SOPRANO,
     VOICE_RANGES,
+    exact_fraction,
 )
 from shared.key import Key
 
@@ -125,7 +126,7 @@ def extract_cells(
     ]
     for source, degrees, durs_raw in sources:
         durs: tuple[Fraction, ...] = tuple(
-            Fraction(d).limit_denominator(64) for d in durs_raw
+            exact_fraction(d, f"{source} duration") for d in durs_raw
         )
         raw.extend(_subsequence_cells(
             degrees=degrees,

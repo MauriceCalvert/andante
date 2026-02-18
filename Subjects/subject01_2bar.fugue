@@ -1,0 +1,114 @@
+subject:
+  degrees:
+  - 7
+  - 2
+  - 4
+  - 4
+  - 5
+  - 4
+  - 7
+  - 8
+  - 9
+  durations:
+  - 0.25
+  - 0.125
+  - 0.125
+  - 0.5
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.5
+  mode: major
+  bars: 2
+  head_name: short-to-long
+  leap_size: 5
+  leap_direction: down
+answer:
+  degrees:
+  - 10
+  - 5
+  - 8
+  - 8
+  - 9
+  - 8
+  - 10
+  - 11
+  - 12
+  durations:
+  - 0.25
+  - 0.125
+  - 0.125
+  - 0.5
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.5
+  type: tonal
+  mutation_points:
+  - 1
+  - 5
+countersubject:
+  degrees:
+  - -2
+  - -2
+  - 0
+  - -1
+  - -1
+  - 3
+  - 2
+  - 0
+  - 0
+  - 0
+  - 3
+  - 4
+  durations:
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.5
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  vertical_intervals:
+  - 2
+  - 2
+  - 2
+  - 5
+  - 5
+  - 1
+  - 2
+  - 5
+  - 2
+  - 2
+  - 6
+  - 5
+metadata:
+  metre:
+  - 4
+  - 4
+  tonic: C
+  tonic_midi: 60
+  seed: 1
+stretto:
+- offset: 1.25
+  offset_beats: 5.0
+  overlap_notes: 5
+  all_consonant: false
+  voice: subject
+- offset: 1.375
+  offset_beats: 5.5
+  overlap_notes: 5
+  all_consonant: false
+  voice: subject
+- offset: 1.5
+  offset_beats: 6.0
+  overlap_notes: 3
+  all_consonant: true
+  voice: subject

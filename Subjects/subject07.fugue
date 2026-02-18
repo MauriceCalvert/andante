@@ -1,0 +1,103 @@
+subject:
+  degrees:
+  - 4
+  - 11
+  - 10
+  - 7
+  - 8
+  - 10
+  - 9
+  - 11
+  durations:
+  - 0.5
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.5
+  mode: major
+  bars: 2
+  head_name: long-to-short
+  leap_size: 7
+  leap_direction: up
+answer:
+  degrees:
+  - 8
+  - 15
+  - 13
+  - 10
+  - 11
+  - 13
+  - 12
+  - 15
+  durations:
+  - 0.5
+  - 0.1875
+  - 0.0625
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.1875
+  - 0.5
+  type: tonal
+  mutation_points:
+  - 1
+  - 6
+countersubject:
+  degrees:
+  - 6
+  - 6
+  - 3
+  - 2
+  - -1
+  - 1
+  - 2
+  - -1
+  - 1
+  - 5
+  - 7
+  - 6
+  - -1
+  - 2
+  - 6
+  durations:
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  vertical_intervals:
+  - 2
+  - 2
+  - 1
+  - 2
+  - 5
+  - 6
+  - 5
+  - 2
+  - 2
+  - 5
+  - 2
+  - 5
+  - 5
+  - 2
+  - 5
+metadata:
+  metre:
+  - 4
+  - 4
+  tonic: C
+  tonic_midi: 60
+  seed: 7

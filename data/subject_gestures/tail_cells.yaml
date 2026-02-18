@@ -1,0 +1,118 @@
+# Tail cells for fugue subject fortspinnung (continuation) generation.
+#
+# Each cell: intervals (degree steps), net displacement, character.
+# The generator chains 1-3 cells to fill the continuation budget.
+
+# --- Descending cells ---
+
+step_down:
+  intervals: [-1]
+  net: -1
+  character: resolving
+
+run_down_2:
+  intervals: [-1, -1]
+  net: -2
+  character: flowing
+
+run_down_3:
+  intervals: [-1, -1, -1]
+  net: -3
+  character: running
+
+run_down_4:
+  intervals: [-1, -1, -1, -1]
+  net: -4
+  character: cascading
+
+skip_down:
+  intervals: [-2]
+  net: -2
+  character: gentle
+
+skip_step_down:
+  intervals: [-2, -1]
+  net: -3
+  character: falling
+
+down_turn:
+  intervals: [-1, -1, 1]
+  net: -1
+  character: turning
+
+skip_return_down:
+  intervals: [-2, 1]
+  net: -1
+  character: sighing
+
+step_skip_down:
+  intervals: [-1, -2]
+  net: -3
+  character: accelerating
+
+run_skip_down:
+  intervals: [-1, -1, -2]
+  net: -4
+  character: tumbling
+
+skip_run_down:
+  intervals: [-2, -1, -1]
+  net: -4
+  character: cascading
+
+# --- Ascending cells ---
+
+step_up:
+  intervals: [1]
+  net: 1
+  character: rising
+
+run_up_2:
+  intervals: [1, 1]
+  net: 2
+  character: climbing
+
+run_up_3:
+  intervals: [1, 1, 1]
+  net: 3
+  character: running
+
+run_up_4:
+  intervals: [1, 1, 1, 1]
+  net: 4
+  character: soaring
+
+skip_up:
+  intervals: [2]
+  net: 2
+  character: lifting
+
+skip_step_up:
+  intervals: [2, 1]
+  net: 3
+  character: rising
+
+up_turn:
+  intervals: [1, 1, -1]
+  net: 1
+  character: arching
+
+skip_return_up:
+  intervals: [2, -1]
+  net: 1
+  character: breathing
+
+step_skip_up:
+  intervals: [1, 2]
+  net: 3
+  character: accelerating
+
+run_skip_up:
+  intervals: [1, 1, 2]
+  net: 4
+  character: surging
+
+skip_run_up:
+  intervals: [2, 1, 1]
+  net: 4
+  character: climbing
