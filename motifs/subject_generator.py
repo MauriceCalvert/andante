@@ -1,14 +1,20 @@
-"""Subject generator — contour-guided exhaustive generation and selection.
+"""Subject generator — shape-scored exhaustive generation and selection.
 
-Generates pitch sequences by exhaustive walk pruned to a contour band,
-pairs with bar-aligned duration sequences, scores, then evaluates
-stretto potential at every possible offset with graded dissonance scoring.
+Generates pitch sequences by exhaustive walk (no contour band), scores
+them for dramatic shape, pairs with bar-aligned duration sequences, then
+evaluates stretto potential at every possible offset.
+
+Duration sequences are assembled from per-bar fills so that no note
+crosses a bar boundary.  Note counts vary with the fills chosen.
 """
 import math
+import os
+import pickle
 import time
 from collections import Counter
 from dataclasses import dataclass
 from itertools import product as iter_product
+from pathlib import Path
 from typing import Tuple
 
 from motifs.head_generator import degrees_to_midi
@@ -19,11 +25,40 @@ from motifs.stretto_constraints import (
 )
 
 
+# ── Cache ────────────────────────────────────────────────────────────
+_CACHE_DIR: Path = Path(__file__).resolve().parent.parent / ".cache" / "subject"
+
+
+def _cache_path(name: str) -> Path:
+    """Return cache file path, creating directory if needed."""
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return _CACHE_DIR / name
+
+
+def _load_cache(name: str) -> object | None:
+    """Load pickled object from cache, or None if missing/corrupt."""
+    p = _cache_path(name)
+    if not p.exists():
+        return None
+    try:
+        with open(p, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        return None
+
+
+def _save_cache(name: str, obj: object) -> None:
+    """Save object to cache."""
+    p = _cache_path(name)
+    with open(p, "wb") as f:
+        pickle.dump(obj, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 # ── Duration vocabulary ─────────────────────────────────────────────
 DURATION_TICKS: tuple[int, ...] = (1, 2, 4, 8)
 DURATION_NAMES: tuple[str, ...] = ('semiquaver', 'quaver', 'crotchet', 'minim')
 NUM_DURATIONS: int = len(DURATION_TICKS)
-SEMIQUAVER_DI: int = 0  # index of semiquaver in DURATION_TICKS
+SEMIQUAVER_DI: int = 0
 
 # ── Tick / bar geometry ─────────────────────────────────────────────
 X2_TICKS_PER_WHOLE: int = 16
@@ -38,53 +73,30 @@ def _bar_x2_ticks(metre: tuple[int, int]) -> int:
 MIN_NOTES_PER_BAR: int = 2
 MAX_NOTES_PER_BAR: int = 8
 MAX_SAME_DUR_RUN: int = 4
-MIN_LAST_DUR_TICKS: int = 4  # subject ends on crotchet minimum
-MAX_SUBJECT_NOTES: int = 11  # cap to keep pitch enumeration tractable
-MIN_SEMIQUAVER_GROUP: int = 2  # no isolated semiquavers
+MIN_LAST_DUR_TICKS: int = 4
+MAX_SUBJECT_NOTES: int = 10
+MIN_SEMIQUAVER_GROUP: int = 2
 
 # ── Pitch constraints ───────────────────────────────────────────────
 PITCH_LO: int = -7
 PITCH_HI: int = 7
 MAX_LARGE_LEAPS: int = 4
-MAX_REPEATS: int = 1
 MIN_STEP_FRACTION: float = 0.5
 RANGE_LO: int = 4
 RANGE_HI: int = 11
 MAX_SAME_SIGN_RUN: int = 5
-ALLOWED_FINALS: set[int] = {0, 2, 3, 4, 5, 7, -2, -3, -4, -5, -7}
+ALLOWED_FINALS: frozenset[int] = frozenset({0, 2, 4})
 MAX_PITCH_FREQ: int = 3
-CONTOUR_TOLERANCE: int = 3
 
-# ── Contour definitions ─────────────────────────────────────────────
-PITCH_CONTOURS: dict[str, list] = {
-    'arch':     [(0.35, 6),  (1.0, -7)],
-    'cascade':  [(0.1, 2),   (1.0, -10)],
-    'swoop':    [(0.2, 8),   (1.0, -8)],
-    'valley':   [(0.2, -8),  (1.0, -2)],
-    'dip':      [(0.2, -8),  (1.0, 8)],
-    'ascent':   [(0.1, -2),  (1.0, 10)],
-}
-MIRROR_PAIRS: dict[str, str] = {
-    'arch': 'valley', 'valley': 'arch',
-    'cascade': 'ascent', 'ascent': 'cascade',
-    'swoop': 'dip', 'dip': 'swoop',
-}
-RHYTHM_CONTOURS: dict[str, list] = {
-    'motoric':    [(0.4, 0.0), (1.0, 1.0)],
-    'busy_brake': [(0.7, 0.1), (1.0, 0.7)],
-}
-
-# ── Scoring parameters ──────────────────────────────────────────────
-CONTOUR_SCORE_WIDTH: float = 2.5
-RHYTHM_SCORE_WIDTH: float = 0.3
+# ── Shape scoring parameters ────────────────────────────────────────
+IDEAL_CLIMAX_LO: float = 0.3
+IDEAL_CLIMAX_HI: float = 0.6
 IDEAL_STEP_FRACTION: float = 0.67
 IDEAL_RHYTHMIC_ENTROPY: float = 0.75
 
 # ── Selection parameters ────────────────────────────────────────────
-TOP_K_PITCH: int = 200
-TOP_K_DURATIONS: int = 100
-TOP_K_PAIRED: int = 50
-
+TOP_K_PAIRED: int = 100  # shortlist for melodic validation + stretto
+TOP_K_PITCH: int = 500   # max pitch sequences per note-count for pairing
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -112,36 +124,11 @@ class GeneratedSubject:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Contour interpolation
+#  Stage 1: Exhaustive pitch generation (no contour band)
 # ═══════════════════════════════════════════════════════════════════
 
-def interpolate_contour(waypoints: list, num_points: int) -> list[float]:
-    """Linearly interpolate waypoints to target pitch at each position."""
-    full = [(0.0, 0.0)] + waypoints
-    targets: list[float] = []
-    for i in range(num_points):
-        x = i / max(num_points - 1, 1)
-        for j in range(len(full) - 1):
-            x0, y0 = full[j]
-            x1, y1 = full[j + 1]
-            if x0 <= x <= x1:
-                t = (x - x0) / (x1 - x0) if x1 > x0 else 0.0
-                targets.append(y0 + t * (y1 - y0))
-                break
-        else:
-            targets.append(full[-1][1])
-    return targets
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  Stage 1: Contour-guided exhaustive pitch generation
-# ═══════════════════════════════════════════════════════════════════
-
-def generate_pitch_sequences(
-    num_notes: int,
-    contour_targets: list[float],
-) -> list[tuple[int, ...]]:
-    """Exhaustive interval enumeration pruned to a contour band."""
+def generate_pitch_sequences(num_notes: int) -> list[tuple[int, ...]]:
+    """Exhaustive interval enumeration with hard constraints only."""
     num_intervals = num_notes - 1
     min_steps = math.ceil(MIN_STEP_FRACTION * num_intervals)
     results: list[tuple[int, ...]] = []
@@ -154,7 +141,6 @@ def generate_pitch_sequences(
         pitch_lo: int,
         pitch_hi: int,
         large_leaps: int,
-        repeats: int,
         step_count: int,
         last_iv: int,
         same_sign_run: int,
@@ -172,19 +158,12 @@ def generate_pitch_sequences(
             results.append(tuple(buf))
             return
         remaining = num_intervals - pos
-        target = contour_targets[pos + 1]
         for iv in range(-5, 6):
+            if iv == 0:
+                continue  # no repeated pitches
             abs_iv = abs(iv)
-            if pos == 0 and iv == 0:
-                continue
             new_pitch = pitch + iv
-            # Contour band pruning
-            if abs(new_pitch - target) > CONTOUR_TOLERANCE:
-                continue
             if new_pitch < PITCH_LO or new_pitch > PITCH_HI:
-                continue
-            new_repeats = repeats + (1 if iv == 0 and pos > 0 else 0)
-            if new_repeats > MAX_REPEATS:
                 continue
             new_large = large_leaps + (1 if abs_iv >= 3 and pos > 0 else 0)
             if new_large > MAX_LARGE_LEAPS:
@@ -211,40 +190,192 @@ def generate_pitch_sequences(
             pitch_counts[pi] += 1
             _recurse(
                 pos + 1, new_pitch, new_lo, new_hi,
-                new_large, new_repeats, new_step, iv, new_run,
+                new_large, new_step, iv, new_run,
             )
             pitch_counts[pi] -= 1
-    _recurse(0, 0, 0, 0, 0, 0, 0, 0, 0)
+    _recurse(0, 0, 0, 0, 0, 0, 0, 0)
     return results
 
 
+def _cached_scored_pitch(num_notes: int) -> list[tuple[float, tuple[int, ...]]]:
+    """All scored pitch sequences, sorted descending, cached to disk."""
+    key = f"pitch_scored_{num_notes}n.pkl"
+    cached = _load_cache(key)
+    if cached is not None:
+        return cached
+    sequences = generate_pitch_sequences(num_notes)
+    scored = [(score_pitch_sequence(s), s) for s in sequences]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    _save_cache(key, scored)
+    return scored
+
+
+def _cached_scored_durations(
+    n_bars: int,
+    bar_ticks: int,
+) -> dict[int, list[tuple[float, tuple[int, ...]]]]:
+    """All scored durations per note count, sorted descending, cached to disk."""
+    key = f"dur_scored_{n_bars}b_{bar_ticks}t.pkl"
+    cached = _load_cache(key)
+    if cached is not None:
+        return cached
+    all_durs = enumerate_durations(n_bars=n_bars, bar_ticks=bar_ticks)
+    by_count: dict[int, list[tuple[int, ...]]] = {}
+    for d in all_durs:
+        by_count.setdefault(len(d), []).append(d)
+    result: dict[int, list[tuple[float, tuple[int, ...]]]] = {}
+    for nc, seqs in by_count.items():
+        scored = [(score_duration_sequence(d), d) for d in seqs]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        result[nc] = scored
+    _save_cache(key, result)
+    return result
+
+
 # ═══════════════════════════════════════════════════════════════════
-#  Stage 1 scoring: pitch quality
+#  Stage 1 scoring: shape quality
 # ═══════════════════════════════════════════════════════════════════
 
-def score_pitch_sequence(
-    ivs: tuple[int, ...],
-    contour_targets: list[float],
-) -> float:
-    """Score a pitch sequence for contour fit and melodic quality."""
+def _find_climax(pitches: list[int]) -> tuple[int, int, str]:
+    """Find the climax: extreme pitch that is unique and followed by direction change.
+
+    Returns (climax_index, climax_pitch, direction) where direction is
+    'high' or 'low'.  Returns (-1, 0, '') if no valid climax found.
+    """
+    n = len(pitches)
+    hi_val = max(pitches)
+    lo_val = min(pitches)
+    hi_span = hi_val - pitches[0]
+    lo_span = pitches[0] - lo_val
+    # Choose whichever extreme is more dramatic
+    if hi_span >= lo_span:
+        candidates = [i for i in range(n) if pitches[i] == hi_val]
+        direction = 'high'
+    else:
+        candidates = [i for i in range(n) if pitches[i] == lo_val]
+        direction = 'low'
+    # Must be a single occurrence
+    if len(candidates) != 1:
+        return (-1, 0, '')
+    ci = candidates[0]
+    # Must not be first or last note
+    if ci == 0 or ci == n - 1:
+        return (-1, 0, '')
+    # Must be followed by direction change
+    if direction == 'high':
+        if pitches[ci + 1] >= pitches[ci]:
+            return (-1, 0, '')
+    else:
+        if pitches[ci + 1] <= pitches[ci]:
+            return (-1, 0, '')
+    return (ci, pitches[ci], direction)
+
+
+def _direction_changes(ivs: tuple[int, ...]) -> int:
+    """Count sign changes in interval sequence (ignoring zeros)."""
+    changes = 0
+    last_sign = 0
+    for iv in ivs:
+        if iv > 0:
+            sign = 1
+        elif iv < 0:
+            sign = -1
+        else:
+            continue
+        if last_sign != 0 and sign != last_sign:
+            changes += 1
+        last_sign = sign
+    return changes
+
+
+def _tension_arc_score(ivs: tuple[int, ...], climax_pos: int) -> float:
+    """Score how well interval magnitudes intensify toward climax and relax after.
+
+    Computes rank correlation between position and |interval| for
+    pre-climax and post-climax segments separately.  Pre-climax should
+    have positive correlation (growing), post-climax negative (shrinking),
+    OR the reverse (shrinking then growing).  Either pattern scores well.
+    """
+    n = len(ivs)
+    if climax_pos < 2 or climax_pos >= n:
+        return 0.0
+    pre = ivs[:climax_pos]
+    post = ivs[climax_pos:]
+    def _trend(segment: tuple[int, ...] | list) -> float:
+        """Spearman-like: correlation of position with |interval|."""
+        m = len(segment)
+        if m < 2:
+            return 0.0
+        abs_vals = [abs(v) for v in segment]
+        mean_pos = (m - 1) / 2.0
+        mean_abs = sum(abs_vals) / m
+        num = sum((i - mean_pos) * (a - mean_abs) for i, a in enumerate(abs_vals))
+        den_pos = sum((i - mean_pos) ** 2 for i in range(m))
+        den_abs = sum((a - mean_abs) ** 2 for a in abs_vals)
+        denom = math.sqrt(den_pos * den_abs) if den_pos > 0 and den_abs > 0 else 1.0
+        return num / denom if denom > 0 else 0.0
+    pre_trend = _trend(pre)
+    post_trend = _trend(post)
+    # Pattern A: intensify then relax (pre positive, post negative)
+    score_a = (max(0.0, pre_trend) + max(0.0, -post_trend)) / 2.0
+    # Pattern B: relax then intensify (pre negative, post positive)
+    score_b = (max(0.0, -pre_trend) + max(0.0, post_trend)) / 2.0
+    return max(score_a, score_b)
+
+
+def score_pitch_sequence(ivs: tuple[int, ...]) -> float:
+    """Score a pitch sequence for dramatic shape."""
     num_intervals = len(ivs)
-    # Contour fit (RMS distance)
+    num_notes = num_intervals + 1
     pitches = [0]
     for iv in ivs:
         pitches.append(pitches[-1] + iv)
-    sum_sq = sum((p - t) ** 2 for p, t in zip(pitches, contour_targets))
-    rms = math.sqrt(sum_sq / len(pitches))
-    w = CONTOUR_SCORE_WIDTH
-    s_contour = math.exp(-(rms ** 2) / (2 * w * w))
-    # Step fraction
+    # ── Climax (35%) ────────────────────────────────────────────
+    ci, cp, cdir = _find_climax(pitches)
+    if ci < 0:
+        s_climax = 0.0
+        s_placement = 0.0
+        s_tension = 0.0
+    else:
+        s_climax = 1.0
+        # Asymmetric placement: < 0.3 or > 0.6
+        frac = ci / (num_notes - 1)
+        if frac < IDEAL_CLIMAX_LO or frac > IDEAL_CLIMAX_HI:
+            s_placement = 1.0
+        else:
+            # Penalise central placement, worst at 0.5
+            dist_from_centre = abs(frac - 0.45)
+            s_placement = min(dist_from_centre / 0.15, 1.0)
+        # Tension arc
+        s_tension = _tension_arc_score(ivs, ci)
+    # ── Directional commitment (20%) ────────────────────────────
+    changes = _direction_changes(ivs)
+    # Ideal: 1 change (up-then-down or down-then-up)
+    # 0 changes = monotonic (OK but less dramatic)
+    # 2+ changes = oscillating (bad)
+    if changes <= 1:
+        s_direction = 1.0
+    elif changes == 2:
+        s_direction = 0.5
+    else:
+        s_direction = max(0.0, 1.0 - changes * 0.25)
+    # ── Step fraction (15%) ─────────────────────────────────────
     steps = sum(1 for iv in ivs[1:] if abs(iv) <= 1)
     denom = max(num_intervals - 1, 1)
     step_frac = steps / denom
     s_steps = math.exp(-((step_frac - IDEAL_STEP_FRACTION) ** 2) / (2 * 0.12 * 0.12))
-    # Interval variety
+    # ── Interval variety (10%) ──────────────────────────────────
     abs_ivs = set(abs(iv) for iv in ivs)
     s_variety = min(len(abs_ivs) / 4.0, 1.0)
-    return 0.50 * s_contour + 0.30 * s_steps + 0.20 * s_variety
+    return (
+        0.15 * s_climax
+        + 0.10 * s_placement
+        + 0.10 * s_tension
+        + 0.20 * s_direction
+        + 0.15 * s_steps
+        + 0.10 * s_variety
+        + 0.20 * (s_climax * s_direction)  # bonus: good shape AND committed direction
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -351,6 +482,9 @@ def _closeness(value: float, target: float, width: float) -> float:
     return math.exp(-((value - target) ** 2) / (2 * width * width))
 
 
+MAX_OPENING_TICKS: int = 4  # crotchet max for first note
+
+
 def score_duration_sequence(durs: tuple[int, ...]) -> float:
     """Score a duration sequence for rhythmic quality."""
     n_notes = len(durs)
@@ -369,7 +503,16 @@ def score_duration_sequence(durs: tuple[int, ...]) -> float:
     s_coherence = _closeness(changes / max(n_notes - 1, 1), 0.4, 0.15)
     # Final note longer than penultimate
     s_final = 1.0 if ticks[-1] > ticks[-2] else (0.5 if ticks[-1] == ticks[-2] else 0.0)
-    return 0.15 * s_entropy + 0.40 * s_contrast + 0.25 * s_coherence + 0.20 * s_final
+    # Opening snap: first note should not be the longest — penalise minim
+    # openings.  Crotchet or shorter is fine; minim halves the score.
+    s_opening = 1.0 if ticks[0] <= MAX_OPENING_TICKS else 0.5
+    return (
+        0.10 * s_entropy
+        + 0.30 * s_contrast
+        + 0.20 * s_coherence
+        + 0.20 * s_final
+        + 0.20 * s_opening
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -381,10 +524,6 @@ def score_pairing(
     durs: tuple[int, ...],
 ) -> float:
     """Score how well a pitch sequence pairs with a duration sequence."""
-    # Reject consecutive identical (pitch, duration) pairs
-    for i in range(len(ivs)):
-        if ivs[i] == 0 and durs[i] == durs[i + 1]:
-            return -1.0
     ticks = [DURATION_TICKS[d] for d in durs]
     iv_abs = [abs(iv) for iv in ivs]
     # Leaps land on longer notes
@@ -441,6 +580,19 @@ def is_melodically_valid(midi: tuple[int, ...]) -> bool:
 #  Pipeline
 # ═══════════════════════════════════════════════════════════════════
 
+def _derive_shape_name(pitches: list[int]) -> str:
+    """Derive a human-readable shape name from the pitch contour."""
+    ci, cp, cdir = _find_climax(pitches)
+    if ci < 0:
+        net = pitches[-1] - pitches[0]
+        return 'ascending' if net > 0 else 'descending' if net < 0 else 'flat'
+    frac = ci / (len(pitches) - 1)
+    if cdir == 'high':
+        return 'arch' if frac > 0.4 else 'swoop'
+    else:
+        return 'valley' if frac > 0.4 else 'dip'
+
+
 def _derive_leap_info(ivs: tuple[int, ...]) -> tuple[int, str, str]:
     """Derive leap_size, leap_direction, tail_direction."""
     max_abs = 0
@@ -476,77 +628,59 @@ def select_subject(
     t_start = time.time()
     if verbose:
         print(f"select_subject: mode={mode} metre={metre} bars={target_bars} seed={seed}")
-    # ── Stage 2: durations (cheap, do first to know note counts) ─
-    all_durs = enumerate_durations(
-        n_bars=target_bars,
-        bar_ticks=bar_ticks,
-        note_counts=note_counts,
-    )
-    assert len(all_durs) > 0, f"No durations for bars={target_bars} metre={metre}"
-    durs_by_count: dict[int, list[tuple[int, ...]]] = {}
-    for d in all_durs:
-        durs_by_count.setdefault(len(d), []).append(d)
+    # ── Stages 1+2: cached scored sequences ─────────────────────
+    all_scored_durs = _cached_scored_durations(n_bars=target_bars, bar_ticks=bar_ticks)
+    assert len(all_scored_durs) > 0, f"No durations for bars={target_bars} metre={metre}"
     if verbose:
-        print(f"  Durations: {len(all_durs)} sequences, counts={sorted(durs_by_count.keys())}")
-    # Score and rank durations per note count
-    ranked_durs: dict[int, list[tuple[float, tuple[int, ...]]]] = {}
-    for nc, seqs in durs_by_count.items():
-        scored = [(score_duration_sequence(d), d) for d in seqs]
-        scored.sort(key=lambda x: x[0], reverse=True)
-        ranked_durs[nc] = scored[:TOP_K_DURATIONS]
-    # ── Determine contours ───────────────────────────────────────
-    if pitch_contour is not None:
-        assert pitch_contour in PITCH_CONTOURS
-        p_names = [pitch_contour]
-    else:
-        p_names = list(PITCH_CONTOURS.keys())
-    # ── Stage 1: pitch generation per contour per note count ─────
+        total_durs = sum(len(v) for v in all_scored_durs.values())
+        print(f"  Durations: {total_durs} scored, counts={sorted(all_scored_durs.keys())}")
     all_candidates: list[tuple[float, tuple[int, ...], tuple[int, ...], str]] = []
-    for nc in sorted(durs_by_count.keys()):
-        for pname in p_names:
-            targets = interpolate_contour(PITCH_CONTOURS[pname], nc)
-            t0 = time.time()
-            sequences = generate_pitch_sequences(nc, targets)
-            t_gen = time.time() - t0
-            if not sequences:
-                if verbose:
-                    print(f"  {pname} {nc}n: 0 sequences")
-                continue
-            # Score pitch sequences
-            scored_pitch = [(score_pitch_sequence(s, targets), s) for s in sequences]
-            scored_pitch.sort(key=lambda x: x[0], reverse=True)
-            top_pitch = scored_pitch[:TOP_K_PITCH]
+    for nc in sorted(all_scored_durs.keys()):
+        if note_counts is not None and nc not in note_counts:
+            continue
+        t0 = time.time()
+        all_pitch = _cached_scored_pitch(nc)
+        t_gen = time.time() - t0
+        if not all_pitch:
             if verbose:
-                print(f"  {pname} {nc}n: {len(sequences):,} sequences in {t_gen:.2f}s, top={top_pitch[0][0]:.3f}")
-            # ── Stage 3: pair top pitch with top durations ───────
-            pairs: list[tuple[float, tuple[int, ...], tuple[int, ...]]] = []
-            for p_sc, ivs in top_pitch:
-                for d_sc, durs in ranked_durs[nc]:
-                    pair_sc = score_pairing(ivs, durs)
-                    if pair_sc < 0:
-                        continue
-                    combined = 0.40 * p_sc + 0.30 * d_sc + 0.30 * pair_sc
-                    pairs.append((combined, ivs, durs))
-            pairs.sort(key=lambda x: x[0], reverse=True)
-            # ── Stage 4: melodic + stretto evaluation on shortlist ─
-            for combined, ivs, durs in pairs[:TOP_K_PAIRED]:
-                degs = (0,) + tuple(sum(ivs[:i + 1]) for i in range(len(ivs)))
-                midi = degrees_to_midi(degrees=degs, tonic_midi=tonic_midi, mode=mode)
-                if not is_melodically_valid(midi):
+                print(f"  {nc}n: 0 sequences")
+            continue
+        nc_durs = all_scored_durs[nc]
+        n_used = min(len(all_pitch), TOP_K_PITCH)
+        if verbose:
+            print(f"  {nc}n: {len(all_pitch):,} pitch (using {n_used}) x {len(nc_durs)} dur, "
+                  f"top={all_pitch[0][0]:.3f} in {t_gen:.2f}s")
+        # ── Stage 3: pair top-K pitch with all durations ─────────
+        pairs: list[tuple[float, tuple[int, ...], tuple[int, ...]]] = []
+        for p_sc, ivs in all_pitch[:TOP_K_PITCH]:
+            for d_sc, durs in nc_durs:
+                pair_sc = score_pairing(ivs, durs)
+                if pair_sc < 0:
                     continue
-                dur_slots = tuple(DURATION_TICKS[d] for d in durs)
-                total_slots = sum(dur_slots)
-                offset_results = evaluate_all_offsets(
-                    degrees=degs,
-                    dur_slots=dur_slots,
-                    metre=metre,
-                )
-                stretto_sc = score_stretto(
-                    offset_results=offset_results,
-                    total_slots=total_slots,
-                )
-                final_score = 0.60 * combined + 0.40 * stretto_sc
-                all_candidates.append((final_score, ivs, durs, pname))
+                combined = 0.40 * p_sc + 0.30 * d_sc + 0.30 * pair_sc
+                pairs.append((combined, ivs, durs))
+        pairs.sort(key=lambda x: x[0], reverse=True)
+        # ── Stage 4: melodic + stretto evaluation on shortlist ───
+        for combined, ivs, durs in pairs[:TOP_K_PAIRED]:
+            degs = (0,) + tuple(sum(ivs[:i + 1]) for i in range(len(ivs)))
+            midi = degrees_to_midi(degrees=degs, tonic_midi=tonic_midi, mode=mode)
+            if not is_melodically_valid(midi):
+                continue
+            dur_slots = tuple(DURATION_TICKS[d] for d in durs)
+            total_slots = sum(dur_slots)
+            offset_results = evaluate_all_offsets(
+                midi=midi,
+                dur_slots=dur_slots,
+                metre=metre,
+            )
+            stretto_sc = score_stretto(
+                offset_results=offset_results,
+                total_slots=total_slots,
+            )
+            final_score = 0.60 * combined + 0.40 * stretto_sc
+            pitches = list(degs)
+            shape_name = _derive_shape_name(pitches)
+            all_candidates.append((final_score, ivs, durs, shape_name))
     assert len(all_candidates) > 0, "No valid subject found"
     all_candidates.sort(key=lambda x: x[0], reverse=True)
     # Deduplicate: no two picks share the same duration sequence
@@ -557,7 +691,7 @@ def select_subject(
             seen_durs.add(entry[2])
             unique.append(entry)
     pick = seed % len(unique)
-    best_score, best_ivs, best_durs, best_contour = unique[pick]
+    best_score, best_ivs, best_durs, best_shape = unique[pick]
     if verbose:
         print(f"  Candidates: {len(all_candidates)} total, {len(unique)} unique, pick={pick}")
     # ── Convert to GeneratedSubject ──────────────────────────────
@@ -571,7 +705,7 @@ def select_subject(
     dur_slots = tuple(DURATION_TICKS[d] for d in best_durs)
     total_slots = sum(dur_slots)
     all_offsets = evaluate_all_offsets(
-        degrees=degrees,
+        midi=midi_pitches,
         dur_slots=dur_slots,
         metre=metre,
     )
@@ -590,7 +724,7 @@ def select_subject(
             print(f"    offset={r.offset_slots} slots "
                   f"({r.offset_slots / slots_per_beat:.1f} beats) "
                   f"cost={r.dissonance_cost}")
-        print(f"  Selected: {best_contour} {len(degrees)}n score={best_score:.4f} "
+        print(f"  Selected: {best_shape} {len(degrees)}n score={best_score:.4f} "
               f"bars={bars} in {elapsed:.2f}s")
         print(f"  Degrees: {degrees}")
         print(f"  Durations: {durations}")
@@ -602,7 +736,7 @@ def select_subject(
         score=best_score,
         seed=0,
         mode=mode,
-        head_name=best_contour,
+        head_name=best_shape,
         leap_size=leap_size,
         leap_direction=leap_direction,
         tail_direction=tail_direction,

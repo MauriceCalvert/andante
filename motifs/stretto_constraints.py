@@ -1,26 +1,21 @@
 """Stretto constraints: per-offset counterpoint evaluation for subject generation.
 
-Derives hard (strong-beat) and soft (weak-beat) consonance constraints
-from a rhythm and stretto offset, then evaluates degree sequences
-against them. Used by subject_generator to replace the binary
-stretto filter with graded per-offset scoring.
+Derives check points (note-index pairs at strong/weak beats) from a
+rhythm and stretto offset, then evaluates MIDI pitch sequences against
+them in semitone space.  Used by subject_generator to score stretto
+potential at every possible offset.
 """
 from dataclasses import dataclass
 
 from shared.constants import (
-    CONSONANT_MOD7,
-    SECOND_MOD7,
-    SEVENTH_MOD7,
+    CONSONANT_INTERVALS,
+    CONSONANT_INTERVALS_ABOVE_BASS,
     STRETTO_OFFSET_COUNT_CEILING,
-    TRITONE_MOD7,
+    TRITONE_SEMITONES,
 )
-
-HARD_REJECT_INTERVALS: frozenset[int] = frozenset({TRITONE_MOD7, SECOND_MOD7, SEVENTH_MOD7})
 
 
 # ── Strong-beat slot sets per metre (bar-relative) ───────────────────
-# Key: (numerator, denominator) -> set of bar-relative slot positions
-# that are strong beats. Slots are x2-tick units (= real semiquavers).
 _STRONG_BEAT_SLOTS: dict[tuple[int, int], frozenset[int]] = {
     (4, 4): frozenset({0, 8}),    # beats 1 and 3
     (3, 4): frozenset({0}),       # beat 1 only
@@ -30,9 +25,8 @@ _STRONG_BEAT_SLOTS: dict[tuple[int, int], frozenset[int]] = {
     (2, 2): frozenset({0}),       # beat 1 only
 }
 
-# ── Slots per beat for various denominators ──────────────────────────
-_SLOTS_PER_CROTCHET: int = 4  # x2-tick slots per real crotchet
-_SLOTS_PER_QUAVER: int = 2    # x2-tick slots per real quaver
+_SLOTS_PER_CROTCHET: int = 4
+_SLOTS_PER_QUAVER: int = 2
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -40,19 +34,12 @@ _SLOTS_PER_QUAVER: int = 2    # x2-tick slots per real quaver
 # ═════════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
-class HardConstraint:
-    """Strong-beat consonance requirement between two note indices."""
-    higher_idx: int
-    lower_idx: int
-    allowed_mod7: frozenset[int]
-
-
-@dataclass(frozen=True)
-class SoftConstraint:
-    """Weak-beat dissonance penalty between two note indices."""
-    higher_idx: int
-    lower_idx: int
-    collision_slots: int  # min(leader_remaining, follower_remaining)
+class StrettoCheck:
+    """A note-index pair to check, with beat strength and collision size."""
+    leader_idx: int
+    follower_idx: int
+    is_strong: bool
+    collision_slots: int
 
 
 @dataclass(frozen=True)
@@ -63,7 +50,7 @@ class OffsetResult:
     consonant_count: int
     total_count: int
     dissonance_cost: int
-    quality: float  # consonant_count / total_count, 1.0 if no check points
+    quality: float
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -115,189 +102,155 @@ def _remaining_at_slot(
 
 
 # ═════════════════════════════════════════════════════════════════════
-#  Constraint derivation
+#  Check-point derivation (rhythm only — no pitch knowledge)
 # ═════════════════════════════════════════════════════════════════════
 
-def derive_stretto_constraints(
+def derive_check_points(
     *,
     dur_slots: tuple[int, ...],
     offset_slots: int,
     metre: tuple[int, int],
-) -> tuple[tuple[HardConstraint, ...], tuple[SoftConstraint, ...]]:
-    """Derive hard and soft constraints from rhythm + offset.
+) -> tuple[StrettoCheck, ...]:
+    """Derive check points from rhythm + offset.
 
-    Check points are note onsets in either voice during the overlap.
-    For each unique (higher_idx, lower_idx) pair:
-    - If it lands on a strong beat -> HardConstraint
-    - Otherwise -> SoftConstraint with collision_slots
+    Each check point is a (leader_idx, follower_idx) pair at a note
+    onset in either voice during the overlap, tagged with beat strength
+    and collision duration.
     """
     assert offset_slots > 0, f"Offset must be positive, got {offset_slots}"
     slot_map: tuple[int, ...] = build_slot_to_note(dur_slots=dur_slots)
     total_slots: int = len(slot_map)
     assert offset_slots < total_slots, f"Offset {offset_slots} >= total {total_slots}"
-
     onsets: tuple[int, ...] = _note_onsets(dur_slots=dur_slots)
     bar_slots: int = _slots_per_bar(metre)
     strong_set: frozenset[int] = _STRONG_BEAT_SLOTS.get(metre, frozenset({0}))
-
-    # Collect note onsets in either voice during overlap
     leader_onset_set: set[int] = set()
     for onset in onsets:
         if onset >= offset_slots:
             leader_onset_set.add(onset)
-
     follower_onset_set: set[int] = set()
     for onset in onsets:
         shifted: int = onset + offset_slots
         if shifted < total_slots:
             follower_onset_set.add(shifted)
-
     check_times: list[int] = sorted(leader_onset_set | follower_onset_set)
-
-    # Build constraints per (higher_idx, lower_idx) pair
-    hard_pairs: dict[tuple[int, int], frozenset[int]] = {}
-    soft_pairs: dict[tuple[int, int], int] = {}
-
+    seen: dict[tuple[int, int], StrettoCheck] = {}
     for t in check_times:
         if t >= total_slots or t < offset_slots:
             continue
         li: int = slot_map[t]
         fi: int = slot_map[t - offset_slots]
         if li == fi:
-            continue  # same note index -> unison -> always OK
+            continue
         key: tuple[int, int] = (li, fi) if li > fi else (fi, li)
         bar_relative: int = t % bar_slots
         is_strong: bool = bar_relative in strong_set
-
-        if is_strong:
-            if key in hard_pairs:
-                hard_pairs[key] = hard_pairs[key] & CONSONANT_MOD7
-            else:
-                hard_pairs[key] = CONSONANT_MOD7
+        leader_rem: int = _remaining_at_slot(
+            note_idx=li, slot=t, onsets=onsets, dur_slots=dur_slots,
+        )
+        follower_rem: int = _remaining_at_slot(
+            note_idx=fi, slot=t - offset_slots, onsets=onsets, dur_slots=dur_slots,
+        )
+        collision: int = min(leader_rem, follower_rem)
+        prev = seen.get(key)
+        if prev is None:
+            seen[key] = StrettoCheck(
+                leader_idx=key[0], follower_idx=key[1],
+                is_strong=is_strong, collision_slots=collision,
+            )
         else:
-            leader_rem: int = _remaining_at_slot(
-                note_idx=li, slot=t,
-                onsets=onsets, dur_slots=dur_slots,
+            seen[key] = StrettoCheck(
+                leader_idx=key[0], follower_idx=key[1],
+                is_strong=prev.is_strong or is_strong,
+                collision_slots=max(prev.collision_slots, collision),
             )
-            follower_rem: int = _remaining_at_slot(
-                note_idx=fi, slot=t - offset_slots,
-                onsets=onsets, dur_slots=dur_slots,
-            )
-            collision: int = min(leader_rem, follower_rem)
-            if key in soft_pairs:
-                soft_pairs[key] = max(soft_pairs[key], collision)
-            else:
-                soft_pairs[key] = collision
-
-    hard_list: tuple[HardConstraint, ...] = tuple(
-        HardConstraint(higher_idx=hi, lower_idx=lo, allowed_mod7=allowed)
-        for (hi, lo), allowed in hard_pairs.items()
-    )
-    # Exclude soft pairs that were promoted to hard
-    soft_list: tuple[SoftConstraint, ...] = tuple(
-        SoftConstraint(higher_idx=hi, lower_idx=lo, collision_slots=dur)
-        for (hi, lo), dur in soft_pairs.items()
-        if (hi, lo) not in hard_pairs
-    )
-    return hard_list, soft_list
+    return tuple(seen.values())
 
 
 # ═════════════════════════════════════════════════════════════════════
-#  Evaluation
+#  Evaluation (semitone space)
 # ═════════════════════════════════════════════════════════════════════
 
 def evaluate_offset(
     *,
-    degrees: tuple[int, ...],
+    midi: tuple[int, ...],
     dur_slots: tuple[int, ...],
     offset_slots: int,
     metre: tuple[int, int],
 ) -> OffsetResult:
-    """Check one stretto offset for a completed degree sequence.
+    """Check one stretto offset using MIDI pitches in semitone space.
 
-    Hard constraints: interval must be in allowed_mod7 and not tritone.
-    Soft constraints: tritone is fatal; other dissonance adds collision_slots.
+    Strong beats: interval must be in CONSONANT_INTERVALS_ABOVE_BASS
+    (P4 excluded — dissonant when above bass, and in stretto we
+    cannot know which voice is lower).
+    Weak beats: tritone is fatal; other dissonance adds collision cost;
+    P4 is consonant (passing fourths are idiomatic).
     """
-    assert len(degrees) == len(dur_slots), (
-        f"degrees ({len(degrees)}) != durations ({len(dur_slots)})"
+    assert len(midi) == len(dur_slots), (
+        f"midi ({len(midi)}) != durations ({len(dur_slots)})"
     )
-    hard, soft = derive_stretto_constraints(
-        dur_slots=dur_slots,
-        offset_slots=offset_slots,
-        metre=metre,
+    checks: tuple[StrettoCheck, ...] = derive_check_points(
+        dur_slots=dur_slots, offset_slots=offset_slots, metre=metre,
     )
-
-    total_count: int = len(hard) + len(soft)
+    total_count: int = len(checks)
     if total_count == 0:
         return OffsetResult(
-            offset_slots=offset_slots,
-            viable=True,
-            consonant_count=0,
-            total_count=0,
-            dissonance_cost=0,
-            quality=1.0,
+            offset_slots=offset_slots, viable=True,
+            consonant_count=0, total_count=0,
+            dissonance_cost=0, quality=1.0,
         )
-    # Check hard constraints (all must pass)
-    for hc in hard:
-        iv: int = abs(degrees[hc.higher_idx] - degrees[hc.lower_idx]) % 7
-        if iv in HARD_REJECT_INTERVALS or iv not in hc.allowed_mod7:
-            return OffsetResult(
-                offset_slots=offset_slots,
-                viable=False,
-                consonant_count=0,
-                total_count=total_count,
-                dissonance_cost=0,
-                quality=0.0,
-            )
-    # Hard constraints all passed — count them as consonant
-    consonant_count: int = len(hard)
+    consonant_count: int = 0
     total_cost: int = 0
-    for sc in soft:
-        iv = abs(degrees[sc.higher_idx] - degrees[sc.lower_idx]) % 7
-        if iv in HARD_REJECT_INTERVALS:
-            return OffsetResult(
-                offset_slots=offset_slots,
-                viable=False,
-                consonant_count=consonant_count,
-                total_count=total_count,
-                dissonance_cost=0,
-                quality=0.0,
-            )
-        if iv in CONSONANT_MOD7:
+    for ck in checks:
+        semitones: int = abs(midi[ck.leader_idx] - midi[ck.follower_idx]) % 12
+        if ck.is_strong:
+            if semitones not in CONSONANT_INTERVALS_ABOVE_BASS:
+                return OffsetResult(
+                    offset_slots=offset_slots, viable=False,
+                    consonant_count=consonant_count, total_count=total_count,
+                    dissonance_cost=0, quality=0.0,
+                )
             consonant_count += 1
         else:
-            total_cost += sc.collision_slots
+            if semitones == TRITONE_SEMITONES:
+                return OffsetResult(
+                    offset_slots=offset_slots, viable=False,
+                    consonant_count=consonant_count, total_count=total_count,
+                    dissonance_cost=0, quality=0.0,
+                )
+            if semitones in CONSONANT_INTERVALS:
+                consonant_count += 1
+            else:
+                total_cost += ck.collision_slots
     qual: float = consonant_count / total_count
     return OffsetResult(
-        offset_slots=offset_slots,
-        viable=True,
-        consonant_count=consonant_count,
-        total_count=total_count,
-        dissonance_cost=total_cost,
-        quality=qual,
+        offset_slots=offset_slots, viable=True,
+        consonant_count=consonant_count, total_count=total_count,
+        dissonance_cost=total_cost, quality=qual,
     )
 
 
 # ── Stretto viability filters ────────────────────────────────────────
-MAX_OFFSET_FRACTION: float = 0.5  # reject if follower enters after half the subject
+MAX_OFFSET_FRACTION: float = 0.5
 
 
 def evaluate_all_offsets(
     *,
-    degrees: tuple[int, ...],
+    midi: tuple[int, ...],
     dur_slots: tuple[int, ...],
     metre: tuple[int, int],
 ) -> tuple[OffsetResult, ...]:
-    """Evaluate stretto at every offset from 1 to total_slots / 2."""
+    """Evaluate stretto at every leader note onset up to half the subject."""
     total_slots: int = sum(dur_slots)
     max_offset: int = int(total_slots * MAX_OFFSET_FRACTION)
+    onsets: tuple[int, ...] = _note_onsets(dur_slots)
     results: list[OffsetResult] = []
-    for offset in range(1, max_offset + 1):
+    for onset in onsets:
+        if onset < 1 or onset > max_offset:
+            continue
         results.append(evaluate_offset(
-            degrees=degrees,
-            dur_slots=dur_slots,
-            offset_slots=offset,
-            metre=metre,
+            midi=midi, dur_slots=dur_slots,
+            offset_slots=onset, metre=metre,
         ))
     return tuple(results)
 
@@ -321,12 +274,10 @@ def score_stretto(
     count: int = len(viable)
     if count == 0:
         return 0.0
-
     s_count: float = min(count / STRETTO_OFFSET_COUNT_CEILING, 1.0)
     s_tightness: float = sum(
         1.0 - r.offset_slots / total_slots for r in viable
     ) / count
     avg_cost: float = sum(r.dissonance_cost for r in viable) / count
     s_quality: float = max(0.0, 1.0 - avg_cost / total_slots)
-
     return 0.50 * s_count + 0.30 * s_tightness + 0.20 * s_quality

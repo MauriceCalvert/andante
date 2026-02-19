@@ -27,3 +27,6 @@ pyout.txt
 
 # YAML validator cache
 data/.yaml_last_validated
+
+# Enumeration cache
+.cache/
