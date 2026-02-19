@@ -1,55 +1,91 @@
-"""Subject generator using head + tail construction.
+"""Subject generator — contour-guided exhaustive generation and selection.
 
-Generates Baroque-style fugue subjects by:
-1. Selecting a head (opening gesture with leap + gap fill)
-2. Generating a tail (contrary motion, derived rhythm, tonic resolution)
-3. Combining into subjects that span an integer number of bars
-4. Scoring against figurae for affect appropriateness
-
-Usage:
-    from motifs.subject_generator import generate_subject, generate_subject_batch
+Generates pitch sequences by exhaustive walk pruned to a contour band,
+pairs with bar-aligned duration sequences, scores, then filters for
+stretto potential on the shortlist only.
 """
-import random
+import math
+import time
+from collections import Counter
 from dataclasses import dataclass
-from pathlib import Path
-from typing import List, Tuple
+from itertools import product as iter_product
+from typing import Tuple
 
-import yaml
-
-from motifs.affect_loader import get_affect_profile, score_subject_affect
-from motifs.figurae import get_figurae, score_motif_figurae, Figura
-from motifs.head_generator import (
-    get_rhythm_cells,
-    degrees_to_midi,
-    Head,
-    RHYTHM_CELLS_BY_METRE,
-    MIN_DEGREE,
-    MAX_DEGREE,
-    MAX_INTERVAL,
-    MIN_LEAP,
-)
-from motifs.tail_generator import (
-    generate_tails_for_head,
-    tail_to_degrees,
-    Tail,
-)
-from shared.constants import NOTE_NAMES, TONIC_TRIAD_DEGREES
-from shared.midi_writer import write_midi_notes, SimpleNote
-
-SUPPORTED_METRES: tuple[tuple[int, int], ...] = tuple(RHYTHM_CELLS_BY_METRE.keys())
-# Target bar lengths and their relative weights
-TARGET_BAR_LENGTHS: tuple[int, ...] = (2, 3, 4)
-TARGET_BAR_WEIGHTS: tuple[int, ...] = (4, 3, 2)  # Favour 2, allow 3 and 4
+from motifs.head_generator import degrees_to_midi
 
 
-def _bar_duration(metre: tuple[int, int]) -> float:
-    """Calculate duration of one bar for a given metre."""
-    return metre[0] / metre[1]
+# ── Duration vocabulary ─────────────────────────────────────────────
+DURATION_TICKS: tuple[int, ...] = (2, 4, 8)
+DURATION_NAMES: tuple[str, ...] = ('semiquaver', 'quaver', 'crotchet')
+NUM_DURATIONS: int = len(DURATION_TICKS)
 
+# ── Tick / bar geometry ─────────────────────────────────────────────
+X2_TICKS_PER_WHOLE: int = 16
+
+
+def _bar_x2_ticks(metre: tuple[int, int]) -> int:
+    """X2-ticks per bar for the given metre."""
+    return X2_TICKS_PER_WHOLE * metre[0] // metre[1]
+
+
+# ── Bar-fill constraints ────────────────────────────────────────────
+MIN_NOTES_PER_BAR: int = 2
+MAX_NOTES_PER_BAR: int = 6
+MAX_SAME_DUR_RUN: int = 4
+MIN_LAST_DUR_TICKS: int = 8
+
+# ── Pitch constraints ───────────────────────────────────────────────
+PITCH_LO: int = -7
+PITCH_HI: int = 7
+MAX_LARGE_LEAPS: int = 4
+MAX_REPEATS: int = 1
+MIN_STEP_FRACTION: float = 0.5
+RANGE_LO: int = 4
+RANGE_HI: int = 11
+MAX_SAME_SIGN_RUN: int = 5
+ALLOWED_FINALS: set[int] = {0, 2, 3, 4, 5, 7, -2, -3, -4, -5, -7}
+MAX_PITCH_FREQ: int = 3
+CONTOUR_TOLERANCE: int = 3
+
+# ── Contour definitions ─────────────────────────────────────────────
+PITCH_CONTOURS: dict[str, list] = {
+    'arch':     [(0.35, 6),  (1.0, -7)],
+    'cascade':  [(0.1, 2),   (1.0, -10)],
+    'swoop':    [(0.2, 8),   (1.0, -8)],
+    'valley':   [(0.2, -8),  (1.0, -2)],
+    'dip':      [(0.2, -8),  (1.0, 8)],
+    'ascent':   [(0.1, -2),  (1.0, 10)],
+}
+MIRROR_PAIRS: dict[str, str] = {
+    'arch': 'valley', 'valley': 'arch',
+    'cascade': 'ascent', 'ascent': 'cascade',
+    'swoop': 'dip', 'dip': 'swoop',
+}
+RHYTHM_CONTOURS: dict[str, list] = {
+    'motoric':    [(0.4, 0.0), (1.0, 1.0)],
+    'busy_brake': [(0.7, 0.1), (1.0, 0.7)],
+}
+
+# ── Scoring parameters ──────────────────────────────────────────────
+CONTOUR_SCORE_WIDTH: float = 2.5
+RHYTHM_SCORE_WIDTH: float = 0.3
+IDEAL_STEP_FRACTION: float = 0.67
+IDEAL_RHYTHMIC_ENTROPY: float = 0.75
+
+# ── Selection parameters ────────────────────────────────────────────
+TOP_K_PITCH: int = 200
+TOP_K_DURATIONS: int = 100
+TOP_K_PAIRED: int = 50
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  GeneratedSubject
+# ═══════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
 class GeneratedSubject:
-    """Result of subject generation."""
+    """A fully scored subject ready for answer/CS generation."""
     scale_indices: Tuple[int, ...]
     durations: Tuple[float, ...]
     midi_pitches: Tuple[int, ...]
@@ -66,725 +102,508 @@ class GeneratedSubject:
     satisfied_figurae: Tuple[str, ...] = ()
 
 
-@dataclass(frozen=True)
-class FugueTriple:
-    """Subject, answer, and countersubject as a coordinated unit."""
-    subject: 'GeneratedSubject'
-    answer: 'GeneratedAnswer'
-    countersubject: 'GeneratedCountersubject'
-    metre: Tuple[int, int]
-    tonic_midi: int
-    seed: int
-    stretto_offsets: Tuple = ()
+# ═══════════════════════════════════════════════════════════════════
+#  Contour interpolation
+# ═══════════════════════════════════════════════════════════════════
 
-
-def _intervals(degrees: tuple[int, ...]) -> list[int]:
-    """Compute intervals between adjacent degrees."""
-    return [degrees[i + 1] - degrees[i] for i in range(len(degrees) - 1)]
-
-
-def _midi_intervals(midi_pitches: tuple[int, ...]) -> list[int]:
-    """Compute semitone intervals between adjacent MIDI pitches."""
-    return [midi_pitches[i + 1] - midi_pitches[i] for i in range(len(midi_pitches) - 1)]
-
-
-def _has_seventh_leap(midi_pitches: tuple[int, ...]) -> bool:
-    """Check if sequence has any 7th leap (10-11 semitones)."""
-    for iv in _midi_intervals(midi_pitches=midi_pitches):
-        if abs(iv) in (10, 11):
-            return True
-    return False
-
-
-def _has_tritone_leap(midi_pitches: tuple[int, ...]) -> bool:
-    """Check if sequence has any tritone leap (6 semitones)."""
-    for iv in _midi_intervals(midi_pitches=midi_pitches):
-        if abs(iv) == 6:
-            return True
-    return False
-
-
-def _has_tritone_outline(midi_pitches: tuple[int, ...]) -> bool:
-    """Check if any 4-note span outlines a tritone (6 semitones)."""
-    if len(midi_pitches) < 4:
-        return False
-    for i in range(len(midi_pitches) - 3):
-        span = abs(midi_pitches[i + 3] - midi_pitches[i])
-        if span == 6:
-            return True
-    return False
-
-
-def _has_consecutive_leaps_same_direction(midi_pitches: tuple[int, ...]) -> bool:
-    """Check if sequence has two consecutive leaps (>2 semitones) in same direction."""
-    intervals = _midi_intervals(midi_pitches=midi_pitches)
-    for i in range(len(intervals) - 1):
-        iv1, iv2 = intervals[i], intervals[i + 1]
-        if abs(iv1) > 2 and abs(iv2) > 2:
-            if (iv1 > 0 and iv2 > 0) or (iv1 < 0 and iv2 < 0):
-                return True
-    return False
-
-
-def _has_unresolved_leading_tone(scale_indices: tuple[int, ...]) -> bool:
-    """Check if any leading tone (degree 7 / index 6) fails to resolve to tonic."""
-    for i in range(len(scale_indices) - 1):
-        idx = scale_indices[i] % 7
-        next_idx = scale_indices[i + 1] % 7
-        if idx == 6 and next_idx != 0:
-            return True
-    return False
-
-
-def _is_melodically_valid(midi_pitches: tuple[int, ...], scale_indices: tuple[int, ...] | None = None) -> bool:
-    """Check if MIDI pitch sequence passes all melodic validation."""
-    if _has_seventh_leap(midi_pitches=midi_pitches):
-        return False
-    if _has_tritone_leap(midi_pitches=midi_pitches):
-        return False
-    if _has_tritone_outline(midi_pitches=midi_pitches):
-        return False
-    if _has_consecutive_leaps_same_direction(midi_pitches=midi_pitches):
-        return False
-    if scale_indices is not None and _has_unresolved_leading_tone(scale_indices=scale_indices):
-        return False
-    return True
-
-
-def _score_drama(midi_pitches: tuple[int, ...], durations: tuple[float, ...]) -> float:
-    """Score a subject for dramatic interest."""
-    score = 0.0
-    # Range: reward wider pitch range (semitones)
-    pitch_range = max(midi_pitches) - min(midi_pitches)
-    if pitch_range >= 12:
-        score += 2.0
-    elif pitch_range >= 8:
-        score += 1.0
-    elif pitch_range <= 4:
-        score -= 1.0
-    # Rhythmic contrast: ratio of longest to shortest duration
-    longest = max(durations)
-    shortest = min(durations)
-    if shortest > 0:
-        ratio = longest / shortest
-        if ratio >= 4.0:
-            score += 2.0
-        elif ratio >= 2.0:
-            score += 1.0
-    # Leap count in the full subject (semitone intervals > 4)
-    leap_count = 0
-    for i in range(len(midi_pitches) - 1):
-        if abs(midi_pitches[i + 1] - midi_pitches[i]) > 4:
-            leap_count += 1
-    if leap_count >= 2:
-        score += 1.5
-    elif leap_count >= 1:
-        score += 0.5
-    # Contour change: reward at least one direction reversal
-    reversals = 0
-    for i in range(len(midi_pitches) - 2):
-        d1 = midi_pitches[i + 1] - midi_pitches[i]
-        d2 = midi_pitches[i + 2] - midi_pitches[i + 1]
-        if (d1 > 0 and d2 < 0) or (d1 < 0 and d2 > 0):
-            reversals += 1
-    if 1 <= reversals <= 3:
-        score += 1.0
-    elif reversals == 0:
-        score -= 1.0
-    return score
-
-
-def _midi_to_name(midi: int) -> str:
-    """Convert MIDI number to note name (e.g., 67 -> G4)."""
-    names = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
-    octave = midi // 12 - 1
-    return f"{names[midi % 12]}{octave}"
-
-
-def _largest_leap_position(intervals: list[int]) -> int:
-    """Return 0-indexed position of largest leap, or -1 if no leap."""
-    if not intervals:
-        return -1
-    max_size = 0
-    max_pos = -1
-    for i, iv in enumerate(intervals):
-        if abs(iv) > max_size:
-            max_size = abs(iv)
-            max_pos = i
-    return max_pos if max_size >= MIN_LEAP else -1
-
-
-def _is_filled(intervals: list[int], leap_pos: int) -> bool:
-    """Check if leap at position is followed by contrary stepwise motion."""
-    if leap_pos < 0 or leap_pos >= len(intervals) - 1:
-        return False
-    leap_iv = intervals[leap_pos]
-    next_iv = intervals[leap_pos + 1]
-    if leap_iv > 0 and next_iv >= 0:
-        return False
-    if leap_iv < 0 and next_iv <= 0:
-        return False
-    return 1 <= abs(next_iv) <= 2
-
-
-def _is_valid_pitch(degrees: tuple[int, ...]) -> tuple[bool, int, str]:
-    """Check if pitch sequence has leap + fill. Returns (valid, leap_size, direction)."""
-    intervals = _intervals(degrees=degrees)
-    leap_pos = _largest_leap_position(intervals=intervals)
-    if leap_pos < 0:
-        return False, 0, ""
-    if not _is_filled(intervals=intervals, leap_pos=leap_pos):
-        return False, 0, ""
-    leap_size = abs(intervals[leap_pos])
-    direction = "up" if intervals[leap_pos] > 0 else "down"
-    return True, leap_size, direction
-
-
-# Starting degrees spanning two octaves for balanced leap directions
-START_DEGREES: tuple[int, ...] = (
-    0, 2, 4,    # octave 0: C E G
-    7, 9, 11,   # octave 1: C E G
-)
-
-
-def _random_pitch_sequence(n_notes: int, rng: random.Random) -> tuple[int, ...]:
-    """Generate a random pitch sequence of given length."""
-    start = rng.choice(START_DEGREES)
-    degrees = [start]
-    for _ in range(n_notes - 1):
-        last = degrees[-1]
-        valid_intervals = [
-            iv for iv in range(-MAX_INTERVAL, MAX_INTERVAL + 1)
-            if MIN_DEGREE <= last + iv <= MAX_DEGREE
-        ]
-        iv = rng.choice(valid_intervals)
-        degrees.append(last + iv)
-    return tuple(degrees)
-
-
-def _sample_valid_head(metre: tuple[int, int], rng: random.Random, max_attempts: int = 100) -> Head | None:
-    """Sample a random valid head for the given metre."""
-    rhythm_cells = get_rhythm_cells(metre=metre)
-    valid_cells = [(r, n) for r, n in rhythm_cells if len(set(r)) >= 2]
-    if not valid_cells:
-        return None
-    # Alternate target direction to balance leap up/down
-    target_direction = rng.choice(("up", "down"))
-    for _ in range(max_attempts):
-        rhythm, rhythm_name = rng.choice(valid_cells)
-        n_notes = len(rhythm)
-        degrees = _random_pitch_sequence(n_notes=n_notes, rng=rng)
-        valid, leap_size, direction = _is_valid_pitch(degrees=degrees)
-        if valid and direction == target_direction:
-            return Head(
-                degrees=degrees,
-                rhythm=rhythm,
-                rhythm_name=rhythm_name,
-                leap_size=leap_size,
-                leap_direction=direction,
-            )
-    # Fallback: accept either direction
-    for _ in range(max_attempts):
-        rhythm, rhythm_name = rng.choice(valid_cells)
-        n_notes = len(rhythm)
-        degrees = _random_pitch_sequence(n_notes=n_notes, rng=rng)
-        valid, leap_size, direction = _is_valid_pitch(degrees=degrees)
-        if valid:
-            return Head(
-                degrees=degrees,
-                rhythm=rhythm,
-                rhythm_name=rhythm_name,
-                leap_size=leap_size,
-                leap_direction=direction,
-            )
-    return None
-
-
-def _crosses_barline(rhythm: tuple[float, ...], bar_dur: float) -> bool:
-    """Check if any note in the rhythm crosses a barline."""
-    offset = 0.0
-    for dur in rhythm:
-        end = offset + dur
-        start_bar = int(offset / bar_dur)
-        end_bar = int(end / bar_dur)
-        if abs(end % bar_dur) < 0.0001:
-            end_bar = start_bar
-        if start_bar != end_bar:
-            return True
-        offset = end
-    return False
-
-
-def _combine_head_tail(
-    head: Head,
-    tail: Tail,
-    bar_dur: float,
-) -> tuple[tuple[int, ...], tuple[float, ...], int] | None:
-    """Combine head and tail into a single subject."""
-    tail_degrees = tail_to_degrees(tail=tail, start_degree=head.degrees[-1])
-    full_degrees = head.degrees + tail_degrees[1:]
-    full_rhythm = head.rhythm + tail.rhythm[1:]
-    if _crosses_barline(rhythm=full_rhythm, bar_dur=bar_dur):
-        return None
-    total_dur = sum(full_rhythm)
-    bars = total_dur / bar_dur
-    if abs(bars - round(bars)) > 0.001:
-        return None
-    return full_degrees, full_rhythm, int(round(bars))
-
-
-def generate_subject(
-    mode: str = "major",
-    metre: Tuple[int, int] = (4, 4),
-    seed: int | None = None,
-    tonic_midi: int = 60,
-    verbose: bool = False,
-    affect: str | None = None,
-    max_attempts: int = 2000,
-    target_bars: int | None = None,
-) -> GeneratedSubject:
-    """Generate a single subject using head + tail construction."""
-    if metre not in SUPPORTED_METRES:
-        raise ValueError(f"Unsupported metre {metre}. Supported: {SUPPORTED_METRES}")
-    rng = random.Random(seed)
-    bar_dur = _bar_duration(metre=metre)
-    figurae_mgr = get_figurae()
-    target_figurae: list[Figura] = []
-    affect_profile = None
-    if affect:
-        target_figurae = figurae_mgr.select_for_motif(affect=affect, tension=0.5)
-        affect_profile = get_affect_profile(affect=affect)
-    if verbose:
-        if affect:
-            print(f"Affect: {affect}, target figurae: {[f.name for f in target_figurae]}")
-            if affect_profile:
-                print(f"  Profile: {affect_profile.interval_profile} intervals, {affect_profile.contour} contour")
-    candidates: list[GeneratedSubject] = []
-    target_candidates = 50 if affect else 20
-    for _ in range(max_attempts):
-        if len(candidates) >= target_candidates:
-            break
-        head = _sample_valid_head(metre=metre, rng=rng)
-        if head is None:
-            continue
-        head_dur = sum(head.rhythm)
-        if target_bars is not None:
-            chosen_bars = target_bars
+def interpolate_contour(waypoints: list, num_points: int) -> list[float]:
+    """Linearly interpolate waypoints to target pitch at each position."""
+    full = [(0.0, 0.0)] + waypoints
+    targets: list[float] = []
+    for i in range(num_points):
+        x = i / max(num_points - 1, 1)
+        for j in range(len(full) - 1):
+            x0, y0 = full[j]
+            x1, y1 = full[j + 1]
+            if x0 <= x <= x1:
+                t = (x - x0) / (x1 - x0) if x1 > x0 else 0.0
+                targets.append(y0 + t * (y1 - y0))
+                break
         else:
-            chosen_bars = rng.choices(TARGET_BAR_LENGTHS, weights=TARGET_BAR_WEIGHTS, k=1)[0]
-        target_total = chosen_bars * bar_dur
-        if target_total <= head_dur:
-            continue
-        tails = generate_tails_for_head(head=head, target_total=target_total)
-        if not tails:
-            continue
-        tail = rng.choice(tails)
-        result = _combine_head_tail(head=head, tail=tail, bar_dur=bar_dur)
-        if result is None:
-            continue
-        degrees, rhythm, bars = result
-        if len(set(rhythm)) < 2:
-            continue
-        fig_score = 0.0
-        satisfied: list[str] = []
-        if target_figurae:
-            fig_score, satisfied = score_motif_figurae(
-                indices=list(degrees), durations=list(rhythm), figurae=target_figurae
+            targets.append(full[-1][1])
+    return targets
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Stage 1: Contour-guided exhaustive pitch generation
+# ═══════════════════════════════════════════════════════════════════
+
+def generate_pitch_sequences(
+    num_notes: int,
+    contour_targets: list[float],
+) -> list[tuple[int, ...]]:
+    """Exhaustive interval enumeration pruned to a contour band."""
+    num_intervals = num_notes - 1
+    min_steps = math.ceil(MIN_STEP_FRACTION * num_intervals)
+    results: list[tuple[int, ...]] = []
+    buf: list[int] = [0] * num_intervals
+    pitch_counts: list[int] = [0] * (PITCH_HI - PITCH_LO + 1)
+    pitch_counts[0 - PITCH_LO] = 1
+    def _recurse(
+        pos: int,
+        pitch: int,
+        pitch_lo: int,
+        pitch_hi: int,
+        large_leaps: int,
+        repeats: int,
+        step_count: int,
+        last_iv: int,
+        same_sign_run: int,
+    ) -> None:
+        if pos == num_intervals:
+            if pitch not in ALLOWED_FINALS:
+                return
+            if buf[num_intervals - 1] == 0:
+                return
+            span = pitch_hi - pitch_lo
+            if span < RANGE_LO or span > RANGE_HI:
+                return
+            if step_count < min_steps:
+                return
+            results.append(tuple(buf))
+            return
+        remaining = num_intervals - pos
+        target = contour_targets[pos + 1]
+        for iv in range(-5, 6):
+            abs_iv = abs(iv)
+            if pos == 0 and iv == 0:
+                continue
+            new_pitch = pitch + iv
+            # Contour band pruning
+            if abs(new_pitch - target) > CONTOUR_TOLERANCE:
+                continue
+            if new_pitch < PITCH_LO or new_pitch > PITCH_HI:
+                continue
+            new_repeats = repeats + (1 if iv == 0 and pos > 0 else 0)
+            if new_repeats > MAX_REPEATS:
+                continue
+            new_large = large_leaps + (1 if abs_iv >= 3 and pos > 0 else 0)
+            if new_large > MAX_LARGE_LEAPS:
+                continue
+            new_lo = min(pitch_lo, new_pitch)
+            new_hi = max(pitch_hi, new_pitch)
+            if new_hi - new_lo > RANGE_HI:
+                continue
+            pi = new_pitch - PITCH_LO
+            if pitch_counts[pi] >= MAX_PITCH_FREQ:
+                continue
+            new_step = step_count + (1 if abs_iv <= 1 and pos > 0 else 0)
+            if pos > 0 and new_step + (remaining - 1) < min_steps:
+                continue
+            if iv > 0:
+                new_run = (same_sign_run + 1) if same_sign_run > 0 else 1
+            elif iv < 0:
+                new_run = (same_sign_run - 1) if same_sign_run < 0 else -1
+            else:
+                new_run = 0
+            if abs(new_run) > MAX_SAME_SIGN_RUN:
+                continue
+            buf[pos] = iv
+            pitch_counts[pi] += 1
+            _recurse(
+                pos + 1, new_pitch, new_lo, new_hi,
+                new_large, new_repeats, new_step, iv, new_run,
             )
-        affect_score = 0.0
-        if affect_profile:
-            affect_score = score_subject_affect(degrees=degrees, durations=rhythm, profile=affect_profile)
-        midi_pitches = degrees_to_midi(degrees=degrees, tonic_midi=tonic_midi, mode=mode)
-        if not _is_melodically_valid(midi_pitches=midi_pitches, scale_indices=degrees):
-            continue
-        drama_score = _score_drama(midi_pitches=midi_pitches, durations=rhythm)
-        total_score = 1.0 + fig_score + affect_score + drama_score
-        subject = GeneratedSubject(
-            scale_indices=degrees,
-            durations=rhythm,
-            midi_pitches=midi_pitches,
-            bars=bars,
-            score=total_score,
-            seed=seed or 0,
-            mode=mode,
-            head_name=head.rhythm_name,
-            leap_size=head.leap_size,
-            leap_direction=head.leap_direction,
-            tail_direction=tail.direction,
-            affect=affect,
-            figurae_score=fig_score,
-            satisfied_figurae=tuple(satisfied),
-        )
-        candidates.append(subject)
-    if not candidates:
-        raise RuntimeError(
-            f"Failed to generate subject for metre {metre} after {max_attempts} attempts."
-        )
-    best = max(candidates, key=lambda s: s.score)
-    if verbose:
-        pitch_str = ' '.join(f"{NOTE_NAMES[m % 12]}{m // 12 - 1}" for m in best.midi_pitches)
-        print(f"Subject: {len(best.midi_pitches)} notes")
-        print(f"  Bars: {best.bars}")
-        print(f"  Head: {best.head_name}, leap {best.leap_direction} {best.leap_size}")
-        print(f"  Tail: {best.tail_direction}")
-        if affect:
-            print(f"  Figurae score: {best.figurae_score:.2f}, satisfied: {best.satisfied_figurae}")
-    return best
-
-
-def generate_subject_batch(
-    mode: str = "major",
-    metre: Tuple[int, int] = (4, 4),
-    seed: int | None = None,
-    tonic_midi: int = 60,
-    count: int = 10,
-    verbose: bool = False,
-) -> List[GeneratedSubject]:
-    """Generate multiple subjects with variety."""
-    if metre not in SUPPORTED_METRES:
-        raise ValueError(f"Unsupported metre {metre}. Supported: {SUPPORTED_METRES}")
-    rng = random.Random(seed)
-    bar_dur = _bar_duration(metre=metre)
-    results: List[GeneratedSubject] = []
-    seen_degrees: set[tuple[int, ...]] = set()
-    max_attempts = count * 50
-    for _ in range(max_attempts):
-        if len(results) >= count:
-            break
-        head = _sample_valid_head(metre=metre, rng=rng)
-        if head is None:
-            continue
-        head_dur = sum(head.rhythm)
-        target_bars = rng.choices(TARGET_BAR_LENGTHS, weights=TARGET_BAR_WEIGHTS, k=1)[0]
-        target_total = target_bars * bar_dur
-        if target_total <= head_dur:
-            continue
-        tails = generate_tails_for_head(head=head, target_total=target_total)
-        if not tails:
-            continue
-        tail = rng.choice(tails)
-        result = _combine_head_tail(head=head, tail=tail, bar_dur=bar_dur)
-        if result is None:
-            continue
-        degrees, rhythm, bars = result
-        if degrees in seen_degrees:
-            continue
-        if len(set(rhythm)) < 2:
-            continue
-        midi_pitches = degrees_to_midi(degrees=degrees, tonic_midi=tonic_midi, mode=mode)
-        if not _is_melodically_valid(midi_pitches=midi_pitches, scale_indices=degrees):
-            continue
-        seen_degrees.add(degrees)
-        subject = GeneratedSubject(
-            scale_indices=degrees,
-            durations=rhythm,
-            midi_pitches=midi_pitches,
-            bars=bars,
-            score=1.0,
-            seed=seed or 0,
-            mode=mode,
-            head_name=head.rhythm_name,
-            leap_size=head.leap_size,
-            leap_direction=head.leap_direction,
-            tail_direction=tail.direction,
-        )
-        results.append(subject)
-        if verbose:
-            pitch_str = ' '.join(f"{NOTE_NAMES[m % 12]}{m // 12 - 1}" for m in midi_pitches)
-            print(f"[{len(results):02d}] {pitch_str} | {bars} bars | {head.rhythm_name}")
+            pitch_counts[pi] -= 1
+    _recurse(0, 0, 0, 0, 0, 0, 0, 0, 0)
     return results
 
 
-def generate_fugue_triple(
-    mode: str = "minor",
-    metre: Tuple[int, int] = (4, 4),
-    seed: int | None = None,
-    tonic_midi: int = 67,
-    verbose: bool = False,
+# ═══════════════════════════════════════════════════════════════════
+#  Stage 1 scoring: pitch quality
+# ═══════════════════════════════════════════════════════════════════
+
+def score_pitch_sequence(
+    ivs: tuple[int, ...],
+    contour_targets: list[float],
+) -> float:
+    """Score a pitch sequence for contour fit and melodic quality."""
+    num_intervals = len(ivs)
+    # Contour fit (RMS distance)
+    pitches = [0]
+    for iv in ivs:
+        pitches.append(pitches[-1] + iv)
+    sum_sq = sum((p - t) ** 2 for p, t in zip(pitches, contour_targets))
+    rms = math.sqrt(sum_sq / len(pitches))
+    w = CONTOUR_SCORE_WIDTH
+    s_contour = math.exp(-(rms ** 2) / (2 * w * w))
+    # Step fraction
+    steps = sum(1 for iv in ivs[1:] if abs(iv) <= 1)
+    denom = max(num_intervals - 1, 1)
+    step_frac = steps / denom
+    s_steps = math.exp(-((step_frac - IDEAL_STEP_FRACTION) ** 2) / (2 * 0.12 * 0.12))
+    # Interval variety
+    abs_ivs = set(abs(iv) for iv in ivs)
+    s_variety = min(len(abs_ivs) / 4.0, 1.0)
+    return 0.50 * s_contour + 0.30 * s_steps + 0.20 * s_variety
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Stage 2: Bar-fill duration enumeration
+# ═══════════════════════════════════════════════════════════════════
+
+def enumerate_bar_fills(bar_ticks: int) -> list[tuple[int, ...]]:
+    """Enumerate all valid duration-index sequences filling one bar."""
+    results: list[tuple[int, ...]] = []
+    max_notes: int = min(MAX_NOTES_PER_BAR, bar_ticks // min(DURATION_TICKS))
+    buf: list[int] = [0] * max_notes
+    def _recurse(
+        pos: int,
+        remaining: int,
+        last_di: int,
+        same_run: int,
+    ) -> None:
+        if remaining == 0:
+            if pos >= MIN_NOTES_PER_BAR:
+                results.append(tuple(buf[:pos]))
+            return
+        if pos >= max_notes:
+            return
+        for di in range(NUM_DURATIONS):
+            dt = DURATION_TICKS[di]
+            if dt > remaining:
+                continue
+            if remaining - dt > 0 and remaining - dt < min(DURATION_TICKS):
+                continue
+            new_run = (same_run + 1) if di == last_di else 1
+            if new_run > MAX_SAME_DUR_RUN:
+                continue
+            buf[pos] = di
+            _recurse(pos + 1, remaining - dt, di, new_run)
+    _recurse(0, bar_ticks, -1, 0)
+    return results
+
+
+def enumerate_durations(
+    n_bars: int,
+    bar_ticks: int,
+    note_counts: tuple[int, ...] | None = None,
+) -> list[tuple[int, ...]]:
+    """Combine per-bar fills into full-subject duration sequences."""
+    fills = enumerate_bar_fills(bar_ticks)
+    if not fills:
+        return []
+    results: list[tuple[int, ...]] = []
+    for combo in iter_product(fills, repeat=n_bars):
+        seq: tuple[int, ...] = sum(combo, ())
+        n_notes = len(seq)
+        if note_counts is not None and n_notes not in note_counts:
+            continue
+        if len(set(seq)) < 2:
+            continue
+        if DURATION_TICKS[seq[-1]] < MIN_LAST_DUR_TICKS:
+            continue
+        head_n = len(combo[0])
+        tail_n = n_notes - head_n
+        if tail_n > 0:
+            head_ticks = sum(DURATION_TICKS[d] for d in combo[0])
+            tail_ticks = sum(DURATION_TICKS[d] for d in seq[head_n:])
+            if head_ticks / head_n > tail_ticks / tail_n:
+                continue
+        results.append(seq)
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Stage 2 scoring: duration quality
+# ═══════════════════════════════════════════════════════════════════
+
+def _shannon_entropy(counts: list[int], total: int) -> float:
+    """Normalised Shannon entropy, 0..1."""
+    if total == 0 or len(counts) <= 1:
+        return 0.0
+    max_ent = math.log(len(counts))
+    if max_ent == 0:
+        return 0.0
+    ent = 0.0
+    for c in counts:
+        if c > 0:
+            p = c / total
+            ent -= p * math.log(p)
+    return ent / max_ent
+
+
+def _closeness(value: float, target: float, width: float) -> float:
+    """Gaussian closeness score, 1.0 at target."""
+    return math.exp(-((value - target) ** 2) / (2 * width * width))
+
+
+def score_duration_sequence(durs: tuple[int, ...]) -> float:
+    """Score a duration sequence for rhythmic quality."""
+    n_notes = len(durs)
+    head_len = n_notes // 2
+    ticks = [DURATION_TICKS[d] for d in durs]
+    # Entropy
+    counts = list(Counter(durs).values())
+    s_entropy = _closeness(_shannon_entropy(counts, n_notes), IDEAL_RHYTHMIC_ENTROPY, 0.2)
+    # Head/tail contrast
+    head_mean = sum(ticks[:head_len]) / max(head_len, 1)
+    tail_mean = sum(ticks[head_len:]) / max(n_notes - head_len, 1)
+    ratio = tail_mean / head_mean if head_mean > 0 else 1.0
+    s_contrast = _closeness(ratio, 2.5, 0.6)
+    # Change rate
+    changes = sum(1 for i in range(1, n_notes) if durs[i] != durs[i - 1])
+    s_coherence = _closeness(changes / max(n_notes - 1, 1), 0.4, 0.15)
+    # Final note longer than penultimate
+    s_final = 1.0 if ticks[-1] > ticks[-2] else (0.5 if ticks[-1] == ticks[-2] else 0.0)
+    return 0.15 * s_entropy + 0.40 * s_contrast + 0.25 * s_coherence + 0.20 * s_final
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Stage 3: Pairing score (pitch + duration coupling)
+# ═══════════════════════════════════════════════════════════════════
+
+def score_pairing(
+    ivs: tuple[int, ...],
+    durs: tuple[int, ...],
+) -> float:
+    """Score how well a pitch sequence pairs with a duration sequence."""
+    # Reject consecutive identical (pitch, duration) pairs
+    for i in range(len(ivs)):
+        if ivs[i] == 0 and durs[i] == durs[i + 1]:
+            return -1.0
+    ticks = [DURATION_TICKS[d] for d in durs]
+    iv_abs = [abs(iv) for iv in ivs]
+    # Leaps land on longer notes
+    leap_bonus = 0.0
+    leap_count = 0
+    for i in range(len(ivs)):
+        if iv_abs[i] >= 2:
+            leap_count += 1
+            if ticks[i + 1] >= 4:
+                leap_bonus += 1.0
+            elif ticks[i + 1] <= 2:
+                leap_bonus -= 0.5
+    s_leap = max(0.0, min(1.0, 0.5 + leap_bonus / leap_count)) if leap_count > 0 else 0.5
+    # Short notes before leaps
+    pre_count = 0
+    pre_bonus = 0.0
+    for i in range(len(ivs)):
+        if iv_abs[i] >= 2:
+            pre_count += 1
+            if ticks[i] <= 3:
+                pre_bonus += 1.0
+    s_pre = pre_bonus / pre_count if pre_count > 0 else 0.5
+    return 0.60 * s_leap + 0.40 * s_pre
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Stretto counting (delegates to analyser)
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _ivs_durs_to_stretto_count(
+    ivs: tuple[int, ...],
+    durs: tuple[int, ...],
+    metre: tuple[int, int],
+) -> int:
+    """Convert interval-index representation to degrees/durations and count self-stretto."""
+    from motifs.stretto_analyser import count_self_stretto
+    degrees = (0,) + tuple(sum(ivs[:i + 1]) for i in range(len(ivs)))
+    durations = tuple(DURATION_TICKS[d] / X2_TICKS_PER_WHOLE for d in durs)
+    return count_self_stretto(degrees, durations, metre)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Melodic validators
+# ═══════════════════════════════════════════════════════════════════
+
+def _midi_intervals(midi: tuple[int, ...]) -> list[int]:
+    """Semitone intervals between adjacent MIDI pitches."""
+    return [midi[i + 1] - midi[i] for i in range(len(midi) - 1)]
+
+
+def is_melodically_valid(midi: tuple[int, ...]) -> bool:
+    """Check MIDI pitch sequence for forbidden intervals."""
+    ivs = _midi_intervals(midi)
+    for iv in ivs:
+        a = abs(iv)
+        if a == 6 or a in (10, 11):
+            return False
+    for i in range(len(ivs) - 1):
+        if abs(ivs[i]) > 2 and abs(ivs[i + 1]) > 2:
+            if (ivs[i] > 0) == (ivs[i + 1] > 0):
+                return False
+    if len(midi) >= 4:
+        for i in range(len(midi) - 3):
+            if abs(midi[i + 3] - midi[i]) == 6:
+                return False
+    return True
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Pipeline
+# ═══════════════════════════════════════════════════════════════════
+
+def _derive_leap_info(ivs: tuple[int, ...]) -> tuple[int, str, str]:
+    """Derive leap_size, leap_direction, tail_direction."""
+    max_abs = 0
+    max_iv = 0
+    for iv in ivs:
+        if abs(iv) > max_abs:
+            max_abs = abs(iv)
+            max_iv = iv
+    second_half = ivs[len(ivs) // 2:]
+    net = sum(second_half)
+    return (
+        max_abs,
+        "up" if max_iv > 0 else "down",
+        "down" if net < 0 else "up",
+    )
+
+
+def select_subject(
+    mode: str = "major",
+    metre: tuple[int, int] = (4, 4),
+    tonic_midi: int = 60,
     target_bars: int | None = None,
-) -> FugueTriple:
-    """Generate coordinated subject, answer, and countersubject."""
-    from motifs.answer_generator import generate_answer
-    from motifs.countersubject_generator import generate_countersubject
-    from motifs.stretto_analyser import analyse_stretto
-    subject = generate_subject(
-        mode=mode,
-        metre=metre,
-        seed=seed,
-        tonic_midi=tonic_midi,
-        verbose=verbose,
-        target_bars=target_bars,
+    pitch_contour: str | None = None,
+    rhythm_contour: str | None = None,
+    note_counts: tuple[int, ...] | None = None,
+    seed: int = 0,
+    verbose: bool = False,
+) -> GeneratedSubject:
+    """Select best subject: generate, score, pair, stretto-filter."""
+    if target_bars is None:
+        target_bars = 3
+    bar_ticks = _bar_x2_ticks(metre)
+    t_start = time.time()
+    if verbose:
+        print(f"select_subject: mode={mode} metre={metre} bars={target_bars} seed={seed}")
+    # ── Stage 2: durations (cheap, do first to know note counts) ─
+    all_durs = enumerate_durations(
+        n_bars=target_bars,
+        bar_ticks=bar_ticks,
+        note_counts=note_counts,
     )
-    answer = generate_answer(
-        subject=subject,
-        tonic_midi=tonic_midi,
-    )
-    cs = generate_countersubject(
-        subject=subject,
-        metre=metre,
-        tonic_midi=tonic_midi,
-        answer_degrees=answer.scale_indices,
-    )
-    assert cs is not None, "Countersubject generation failed"
-    stretto = analyse_stretto(
-        subject=subject,
-        answer=answer,
-        metre=metre,
-    )
-    return FugueTriple(
-        subject=subject,
-        answer=answer,
-        countersubject=cs,
-        metre=metre,
-        tonic_midi=tonic_midi,
-        seed=seed or 0,
-        stretto_offsets=stretto.valid_offsets,
-    )
-
-
-def write_fugue_file(triple: FugueTriple, path: Path) -> None:
-    """Write fugue triple to YAML .fugue file."""
-    tonic_name = _midi_to_name(midi=triple.tonic_midi).rstrip('0123456789')
-    data = {
-        'subject': {
-            'degrees': list(triple.subject.scale_indices),
-            'durations': [float(d) for d in triple.subject.durations],
-            'mode': triple.subject.mode,
-            'bars': triple.subject.bars,
-            'head_name': triple.subject.head_name,
-            'leap_size': triple.subject.leap_size,
-            'leap_direction': triple.subject.leap_direction,
-        },
-        'answer': {
-            'degrees': list(triple.answer.scale_indices),
-            'durations': [float(d) for d in triple.answer.durations],
-            'type': triple.answer.answer_type,
-            'mutation_points': list(triple.answer.mutation_points),
-        },
-        'countersubject': {
-            'degrees': list(triple.countersubject.scale_indices),
-            'durations': [float(d) for d in triple.countersubject.durations],
-            'vertical_intervals': list(triple.countersubject.vertical_intervals),
-        },
-        'metadata': {
-            'metre': list(triple.metre),
-            'tonic': tonic_name,
-            'tonic_midi': triple.tonic_midi,
-            'seed': triple.seed,
-        },
-        'stretto': [
-            {
-                'offset': s.offset,
-                'offset_beats': s.offset_beats,
-                'overlap_notes': s.overlap_notes,
-                'all_consonant': s.all_consonant,
-                'voice': s.voice,
-            }
-            for s in triple.stretto_offsets
-        ],
-    }
-    with open(path, 'w', encoding='utf-8') as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
-
-
-def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> None:
-    """Write demonstration MIDI: solos, then pairs, then stretto if available."""
-    bar_dur = _bar_duration(metre=triple.metre)
-    notes: list[SimpleNote] = []
-    offset = 0.0
-    def add_melody(pitches: tuple[int, ...], durations: tuple[float, ...], track: int, start: float) -> float:
-        """Add a melody to notes list, return end offset."""
-        pos = start
-        for pitch, dur in zip(pitches, durations):
-            notes.append(SimpleNote(pitch=pitch, offset=pos, duration=dur, velocity=80, track=track))
-            pos += dur
-        return pos
-    cs_pitches_low = tuple(p - 12 for p in triple.countersubject.midi_pitches)
-    # 1. Subject solo
-    offset = add_melody(
-        pitches=triple.subject.midi_pitches,
-        durations=triple.subject.durations,
-        track=0,
-        start=offset,
-    )
-    offset += bar_dur
-    # 2. Answer solo
-    offset = add_melody(
-        pitches=triple.answer.midi_pitches,
-        durations=triple.answer.durations,
-        track=0,
-        start=offset,
-    )
-    offset += bar_dur
-    # 3. CS solo
-    offset = add_melody(
-        pitches=triple.countersubject.midi_pitches,
-        durations=triple.countersubject.durations,
-        track=0,
-        start=offset,
-    )
-    offset += bar_dur
-    # 4. Subject + CS
-    subj_end = add_melody(
-        pitches=triple.subject.midi_pitches,
-        durations=triple.subject.durations,
-        track=0,
-        start=offset,
-    )
-    add_melody(
-        pitches=cs_pitches_low,
-        durations=triple.countersubject.durations,
-        track=1,
-        start=offset,
-    )
-    offset = subj_end + bar_dur
-    # 5. Answer + CS
-    ans_end = add_melody(
-        pitches=triple.answer.midi_pitches,
-        durations=triple.answer.durations,
-        track=0,
-        start=offset,
-    )
-    add_melody(
-        pitches=cs_pitches_low,
-        durations=triple.countersubject.durations,
-        track=1,
-        start=offset,
-    )
-    offset = ans_end + bar_dur
-    # 6. Stretto: subject against itself at best offset, if any
-    subj_strettos = [s for s in triple.stretto_offsets if s.voice == "subject"]
-    if subj_strettos:
-        best = max(subj_strettos, key=lambda s: (s.all_consonant, s.overlap_notes))
-        add_melody(
-            pitches=triple.subject.midi_pitches,
-            durations=triple.subject.durations,
-            track=0,
-            start=offset,
-        )
-        add_melody(
-            pitches=tuple(p - 12 for p in triple.subject.midi_pitches),
-            durations=triple.subject.durations,
-            track=1,
-            start=offset + best.offset,
-        )
-    tonic_name = _midi_to_name(midi=triple.tonic_midi).rstrip('0123456789')
-    write_midi_notes(
-        path=str(path),
-        notes=notes,
-        tempo=tempo,
-        time_signature=triple.metre,
-        tonic=tonic_name,
-        mode=triple.subject.mode,
-    )
-
-
-def write_note_file(subject: GeneratedSubject, path: Path, track: int = 0) -> None:
-    """Write subject to .note CSV file."""
-    lines: list[str] = ["offset,midi,duration,track,length,bar,beat,pitch,lyric"]
-    offset = 0.0
-    for midi, dur in zip(subject.midi_pitches, subject.durations):
-        bar = int(offset) + 1
-        beat = (offset % 1.0) * 4 + 1
-        name = _midi_to_name(midi=midi)
-        lines.append(f"{offset},{midi},{dur},{track},,{bar},{beat},{name},")
-        offset += dur
-    path.write_text("\n".join(lines), encoding="utf-8")
-
-
-def write_midi_file(
-    subject: GeneratedSubject,
-    path: Path,
-    tempo: int = 100,
-    tonic: str = "C",
-) -> None:
-    """Write subject to MIDI file."""
-    from shared.midi_writer import write_midi
-    write_midi(
-        path=str(path),
-        pitches=list(subject.midi_pitches),
-        durations=list(subject.durations),
-        tempo=tempo,
-        tonic=tonic,
-        mode=subject.mode,
-    )
-
-
-# Batch bar-count distribution: 2 subjects at each length
-BATCH_BAR_COUNTS: tuple[int, ...] = (2, 2, 3, 3, 4, 4)
-
-
-def main() -> None:
-    """Generate subjects and write to .midi and .note files."""
-    import argparse
-    parser = argparse.ArgumentParser(description="Generate fugue subjects")
-    parser.add_argument("--output", "-o", type=Path, default=Path("subjects"),
-                        help="Output folder (default: subjects)")
-    parser.add_argument("--mode", "-m", type=str, default="major",
-                        choices=["major", "minor"], help="Mode (default: major)")
-    parser.add_argument("--metre", type=str, default="4/4",
-                        help="Time signature (default: 4/4)")
-    parser.add_argument("--seed", "-s", type=int, default=None,
-                        help="Random seed")
-    parser.add_argument("--tonic", "-k", type=str, default="C",
-                        help="Tonic note (default: C)")
-    parser.add_argument("--tempo", "-t", type=int, default=100,
-                        help="Tempo in BPM (default: 100)")
-    parser.add_argument("--bars", type=int, default=None, choices=[2, 3, 4],
-                        help="Subject length in bars (default: random 2-4)")
-    parser.add_argument("--batch", "-b", type=int, default=None,
-                        help="Generate batch of N subjects (default 6: 2x2bar, 2x3bar, 2x4bar)")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Print details")
-    args = parser.parse_args()
-    metre_parts = args.metre.split("/")
-    metre = (int(metre_parts[0]), int(metre_parts[1]))
-    tonic_midi = {"C": 60, "D": 62, "E": 64, "F": 65, "G": 67, "A": 69, "B": 71,
-                  "C#": 61, "Db": 61, "D#": 63, "Eb": 63, "F#": 66, "Gb": 66,
-                  "G#": 68, "Ab": 68, "A#": 70, "Bb": 70}.get(args.tonic, 60)
-    outdir = args.output
-    outdir.mkdir(parents=True, exist_ok=True)
-    count = args.batch or 6
-    # Build bar-count sequence
-    if args.bars is not None:
-        bar_counts = [args.bars] * count
-    elif count == 6:
-        bar_counts = list(BATCH_BAR_COUNTS)
+    assert len(all_durs) > 0, f"No durations for bars={target_bars} metre={metre}"
+    durs_by_count: dict[int, list[tuple[int, ...]]] = {}
+    for d in all_durs:
+        durs_by_count.setdefault(len(d), []).append(d)
+    if verbose:
+        print(f"  Durations: {len(all_durs)} sequences, counts={sorted(durs_by_count.keys())}")
+    # Score and rank durations per note count
+    ranked_durs: dict[int, list[tuple[float, tuple[int, ...]]]] = {}
+    for nc, seqs in durs_by_count.items():
+        scored = [(score_duration_sequence(d), d) for d in seqs]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        ranked_durs[nc] = scored[:TOP_K_DURATIONS]
+    # ── Determine contours ───────────────────────────────────────
+    if pitch_contour is not None:
+        assert pitch_contour in PITCH_CONTOURS
+        p_names = [pitch_contour]
     else:
-        bar_counts = [TARGET_BAR_LENGTHS[i % len(TARGET_BAR_LENGTHS)] for i in range(count)]
-    for i, n_bars in enumerate(bar_counts):
-        base = outdir / f"subject{i:02d}_{n_bars}bar"
-        triple = generate_fugue_triple(
-            mode=args.mode,
-            metre=metre,
-            seed=(args.seed or 0) + i,
-            tonic_midi=tonic_midi,
-            verbose=args.verbose,
-            target_bars=n_bars,
-        )
-        write_note_file(subject=triple.subject, path=base.with_suffix(".note"))
-        write_fugue_demo_midi(triple=triple, path=base.with_suffix(".midi"), tempo=args.tempo)
-        write_fugue_file(triple=triple, path=base.with_suffix(".fugue"))
-        n_stretto = len(triple.stretto_offsets)
-        stretto_subj = sum(1 for s in triple.stretto_offsets if s.voice == "subject")
-        stretto_ans = sum(1 for s in triple.stretto_offsets if s.voice == "answer")
-        s = triple.subject
-        a = triple.answer
-        c = triple.countersubject
-        s_notes = ' '.join(_midi_to_name(m) for m in s.midi_pitches)
-        print(
-            f"[{i:02d}] {n_bars}bar | {s.bars}bar actual | "
-            f"{s_notes} | stretto: {stretto_subj}S {stretto_ans}A"
-        )
-        if args.verbose:
-            a_notes = ' '.join(_midi_to_name(m) for m in a.midi_pitches)
-            c_notes = ' '.join(_midi_to_name(m) for m in c.midi_pitches)
-            print(f"     Answer:  {a_notes}")
-            print(f"     CS:      {c_notes}")
-            for so in triple.stretto_offsets:
-                print(f"     Stretto: {so.voice} at {so.offset_beats} beats, {so.overlap_notes} overlaps, consonant={so.all_consonant}")
-    print(f"Generated {count} fugue triples in {outdir}")
+        p_names = ['arch']  # TODO: restore list(PITCH_CONTOURS.keys())
+    # ── Stage 1: pitch generation per contour per note count ─────
+    all_candidates: list[tuple[float, tuple[int, ...], tuple[int, ...], str]] = []
+    for nc in sorted(durs_by_count.keys()):
+        for pname in p_names:
+            targets = interpolate_contour(PITCH_CONTOURS[pname], nc)
+            t0 = time.time()
+            sequences = generate_pitch_sequences(nc, targets)
+            t_gen = time.time() - t0
+            if not sequences:
+                if verbose:
+                    print(f"  {pname} {nc}n: 0 sequences")
+                continue
+            # Score pitch sequences
+            scored_pitch = [(score_pitch_sequence(s, targets), s) for s in sequences]
+            scored_pitch.sort(key=lambda x: x[0], reverse=True)
+            top_pitch = scored_pitch[:TOP_K_PITCH]
+            if verbose:
+                print(f"  {pname} {nc}n: {len(sequences):,} sequences in {t_gen:.2f}s, top={top_pitch[0][0]:.3f}")
+            # ── Stage 3: pair top pitch with top durations ───────
+            pairs: list[tuple[float, tuple[int, ...], tuple[int, ...]]] = []
+            for p_sc, ivs in top_pitch:
+                for d_sc, durs in ranked_durs[nc]:
+                    pair_sc = score_pairing(ivs, durs)
+                    if pair_sc < 0:
+                        continue
+                    combined = 0.40 * p_sc + 0.30 * d_sc + 0.30 * pair_sc
+                    pairs.append((combined, ivs, durs))
+            pairs.sort(key=lambda x: x[0], reverse=True)
+            # ── Stage 4: melodic + stretto filter on shortlist ────
+            MIN_STRETTO: int = 2
+            for combined, ivs, durs in pairs[:TOP_K_PAIRED]:
+                degs = (0,) + tuple(sum(ivs[:i + 1]) for i in range(len(ivs)))
+                midi = degrees_to_midi(degrees=degs, tonic_midi=tonic_midi, mode=mode)
+                if not is_melodically_valid(midi):
+                    continue
+                total_stretto = _ivs_durs_to_stretto_count(ivs, durs, metre)
+                if total_stretto < MIN_STRETTO:
+                    continue
+                stretto_bonus = min(total_stretto / 4.0, 1.0)
+                final_score = 0.70 * combined + 0.30 * stretto_bonus
+                all_candidates.append((final_score, ivs, durs, pname))
+    assert len(all_candidates) > 0, "No valid subject found"
+    all_candidates.sort(key=lambda x: x[0], reverse=True)
+    # Deduplicate: no two picks share the same duration sequence
+    seen_durs: set[tuple[int, ...]] = set()
+    unique: list[tuple[float, tuple[int, ...], tuple[int, ...], str]] = []
+    for entry in all_candidates:
+        if entry[2] not in seen_durs:
+            seen_durs.add(entry[2])
+            unique.append(entry)
+    pick = seed % len(unique)
+    best_score, best_ivs, best_durs, best_contour = unique[pick]
+    if verbose:
+        gen_stretto = _ivs_durs_to_stretto_count(best_ivs, best_durs, metre)
+        print(f"  Candidates: {len(all_candidates)} total, {len(unique)} unique, pick={pick}")
+        print(f"  Generator stretto: {gen_stretto}")
+    # ── Convert to GeneratedSubject ──────────────────────────────
+    degrees = (0,) + tuple(sum(best_ivs[:i + 1]) for i in range(len(best_ivs)))
+    dur_ticks = [DURATION_TICKS[d] for d in best_durs]
+    bars = sum(dur_ticks) // bar_ticks
+    durations = tuple(t / X2_TICKS_PER_WHOLE for t in dur_ticks)
+    midi_pitches = degrees_to_midi(degrees=degrees, tonic_midi=tonic_midi, mode=mode)
+    leap_size, leap_direction, tail_direction = _derive_leap_info(best_ivs)
+    elapsed = time.time() - t_start
+    if verbose:
+        print(f"  Selected: {best_contour} {len(degrees)}n score={best_score:.4f} "
+              f"bars={bars} in {elapsed:.2f}s")
+        print(f"  Degrees: {degrees}")
+        print(f"  Durations: {durations}")
+    return GeneratedSubject(
+        scale_indices=degrees,
+        durations=durations,
+        midi_pitches=midi_pitches,
+        bars=bars,
+        score=best_score,
+        seed=0,
+        mode=mode,
+        head_name=best_contour,
+        leap_size=leap_size,
+        leap_direction=leap_direction,
+        tail_direction=tail_direction,
+    )
 
 
-if __name__ == "__main__":
-    main()
+# ═══════════════════════════════════════════════════════════════════
+#  Display helpers
+# ═══════════════════════════════════════════════════════════════════
+
+def display_subject(rank: int, score: float, ivs: tuple, durs: tuple) -> None:
+    """Pretty-print a ranked subject."""
+    pitches = [0]
+    for iv in ivs:
+        pitches.append(pitches[-1] + iv)
+    dur_names = [DURATION_NAMES[d] for d in durs]
+    dur_ticks = [DURATION_TICKS[d] for d in durs]
+    print(f"#{rank + 1}  score={score:.4f}")
+    print(f"  Pitches:    {pitches}")
+    print(f"  Intervals:  {list(ivs)}")
+    print(f"  Rhythm:     {dur_names}")
+    print(f"  Ticks:      {dur_ticks}  total={sum(dur_ticks)}")
+    print()
+
+
+def decode_subject(intervals: tuple, durations: tuple) -> None:
+    """Print a human-readable subject."""
+    pitches = [0]
+    for iv in intervals:
+        pitches.append(pitches[-1] + iv)
+    print(f"  Pitches:   {pitches}")
+    print(f"  Intervals: {list(intervals)}")
+    print(f"  Durations: {[DURATION_NAMES[d] for d in durations]}")
+    print(f"  Ticks:     {[DURATION_TICKS[d] for d in durations]}")

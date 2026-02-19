@@ -1,94 +1,67 @@
-## Result: SGv2 — Gesture-based subject generator
+# Result: INV-STRETTO — Invertible subjects with stretto scoring
 
-**Status: DONE — all 9 parts implemented.**
+## Changes Made
 
-### What was built
+### 1. subject_generator.py — symmetric enumeration
 
-All musical logic has been moved from hardcoded Python into three YAML files.
-The Python generators are now thin assembly layers.
+- Removed `if pitch >= 0: return` (global descent constraint)
+- Removed `if peak_pos > HEAD_LEN: return` (peak-in-head constraint)
+- Expanded `ALLOWED_FINALS` from `{0, -2, -3, -4, -5, -7}` to `{0, 2, 3, 4, 5, 7, -2, -3, -4, -5, -7}`
 
-#### New files
+The generator now enumerates both ascending and descending subjects. Direction
+preference moves to contour scoring (arch still favours rise-then-fall).
 
-| File | Purpose |
-|------|---------|
-| `data/subject_gestures/head_gestures.yaml` | 22 head gestures across 6 archetypes |
-| `data/subject_gestures/tail_cells.yaml` | 22 tail cells (11 descending, 11 ascending) |
-| `data/subject_gestures/kadenz_formulas.yaml` | 7 kadenz formulas |
-| `motifs/gesture_loader.py` | Loads + caches all three YAML files; frozen dataclasses |
+### 2. subject_contours.py — mirror contours
 
-#### Modified files
+- Added two mirror pitch contours:
+  - `dip`: `[(0.2, -8), (1.0, 8)]` (mirror of swoop)
+  - `ascent`: `[(0.1, -2), (1.0, 10)]` (mirror of cascade)
+- Added `MIRROR_PAIRS` dict mapping each contour to its mirror
+- Added `mirror_waypoints(waypoints)` helper that negates all Y values
 
-| File | Change |
-|------|--------|
-| `data/archetypes/*.yaml` (6 files) | Added `head.gestures`, `continuation.preferred_cells/cell_chain_max/contrary_motion`, `kadenz.formulas` |
-| `motifs/archetype_types.py` | Added new fields to `HeadConstraints`, `ContinuationConstraints`, `KadenzConstraints` |
-| `motifs/kopfmotiv.py` | Full rewrite: gesture instantiation replaces 6 hardcoded generators |
-| `motifs/fortspinnung.py` | Full rewrite: tail-cell chaining replaces 6 hardcoded continuations |
-| `motifs/kadenz.py` | Full rewrite: formula lookup replaces approach-path builder |
-| `motifs/head_generator.py` | Added `chromatic_offsets` param to `degrees_to_midi` |
-| `motifs/subject_generator.py` | `min_kadenz` → 1/2; chromatic offset plumbing |
-| `scripts/archetype_sampler.py` | `_MIN_KADENZ` → 1/2; multi-bar-count loop; chromatic offset plumbing |
+### 3. subject_scorer.py — invertibility + stretto
 
-### Bugs found and fixed during implementation
+**3a. Invertibility in interval scoring:**
+- `score_intervals` gains optional `mirror_waypoints` parameter
+- When provided, scores both original pitches against original contour AND
+  inverted pitches (`-pitches`) against mirror contour, uses `np.minimum`
+- When `mirror_waypoints` is None, behaviour unchanged
 
-**1. `compound_dotted_run` rhythm/interval_types mismatch**
-`interval_types` had 3 entries but `rhythm` had 5 → corrected to 4 intervals.
+**3b. Stretto scoring:**
+- New `count_stretto_offsets(ivs, durs, bar_ticks=16)` function
+- Builds onset timeline and degree sequences (original + inverted)
+- Tests each internal note onset as a candidate stretto offset
+- Checks strong-beat consonances ({0,2,5} mod 7), weak-beat ({0,1,2,4,5,6}),
+  rejects on strong-beat dissonance, >1 weak-beat dissonance, consecutive
+  parallel unisons/5ths, or <3 overlap onset points
+- Returns `(self_count, mirror_count)`
 
-**2. `dance_gigue_leaps` rhythm too short**
-3-entry rhythm for a 4-note gesture → added `"1/8"` entry.
+**3c. Rebalanced joint weights:**
+- `score_joint` now calls `count_stretto_offsets` and computes
+  `s_stretto = min(total / 4.0, 1.0)`
+- New weights: `0.30 * s_leap_dur + 0.20 * s_pre_leap + 0.50 * s_stretto`
+- Stretto is 50% of joint, joint is 30% of combined = 15% of total score
 
-**3. `range_min` validation broke all gesture archetypes**
-Archetype YAMLs had `range_min` values (e.g. triadic=7) designed for the old
-note-by-note generator. Gesture shapes only span 3–6 degrees. Fix: removed
-`range_min` check from `kopfmotiv._validate`; only `range_max` is enforced.
+**3d. Display + diagnostic:**
+- `display_subject` prints stretto counts (self, mirror, total) per subject
+- `run()` prints stretto hit-rate diagnostic: fraction of 10K candidates
+  with any stretto offset
 
-**4. `min_kadenz=1/4` incompatible with all formula rhythms**
-Every kadenz formula sums to ≥ 3/8. With `min_kadenz=1/4`, the budget was
-always 1/4, and no formula fit. Fix: changed to `Fraction(1, 2)` in both
-`subject_generator.py` and `archetype_sampler.py`.
+### 4. subject_render.py — wiring
 
-**5. Sampler hard-coded 2-bar target**
-`compound` needs 4 bars (budget_fraction=0.25 requires ≥4 bars for head to
-fit). `dance` in 3/4 needs 3 bars. Fix: outer loop now tries `[2, 1, 3, 4]`.
+- Imports `MIRROR_PAIRS` from `subject_contours`
+- Per-contour scoring loop looks up mirror contour via `MIRROR_PAIRS[pname]`,
+  passes both `contour_waypoints` and `mirror_waypoints` to `score_intervals`
+- Now renders 6 pitch x 2 rhythm = 12 subjects (was 4x2=8)
+- Stretto counts appear automatically via updated `display_subject`
 
-### Melodic validator analysis (compound descending)
+## Verification Checklist
 
-The sampler uses compound with descending direction. The body ends at degree
-≈−6; the kadenz jumps back up ≈8 semitones to the approach note.
-`_check_seventh_leap` catches only 10–11 semitones; `_check_consecutive_leaps`
-requires two consecutive large intervals. The 8-semitone jump (minor sixth)
-passes all five checks. Only `sustained_arrival` at landing=0 produces a 10st
-(minor seventh) leap — that attempt fails, but other formulas/landings succeed
-within the 200-attempt budget. No config change required.
+Run `python subject_render.py` and verify:
 
-### Expected archetype outputs
-
-The sampler should produce these subject shapes by design:
-
-- **scalar**: directional run (4–6 stepwise notes), at least 2 distinct durations
-  (dotted start or held start gestures add variety)
-- **triadic**: triad outline via consecutive skips/leaps before any reversal,
-  grace notes via `back` intervals
-- **chromatic**: descending stepwise line with chromatic_inflections applied,
-  producing actual semitone inflections (lamento tetrachord style)
-- **rhythmic**: repeating cell pattern (dotted-sixteenth, or repeated-note +
-  step, all from the gesture's pre-composed rhythm)
-- **compound**: slow held note(s) opening (half/dotted-quarter), fast run body
-- **dance**: metre-appropriate gesture (minuet step in 3/4, bourree upbeat)
-
-No subject should be a pure scale run with uniform note values — the gesture
-system mandates pre-composed rhythms with ≥2 distinct durations per gesture.
-
-### Acceptance criteria check
-
-| Criterion | Status |
-|-----------|--------|
-| All 6 archetypes generate via sampler | ✓ by design |
-| No hardcoded rhythm/interval arrays in Python | ✓ all moved to YAML |
-| Each subject has ≥2 distinct durations | ✓ gesture rhythms enforce this |
-| Scalar subjects: directional run | ✓ scalar gestures are stepwise runs |
-| Triadic subjects: triad outline | ✓ skip/leap gestures |
-| Chromatic subjects: chromatic_inflections metadata | ✓ passed through |
-| Rhythmic subjects: repeating rhythm cell | ✓ gesture rhythm is the cell |
-| Compound subjects: slow+fast bipartite | ✓ hold+run gestures |
-| Dance subjects: metre-appropriate | ✓ metre_filter enforced |
+1. Enumeration count roughly doubled (~2M+ interval sequences)
+2. Top-ranked subjects per contour have invertibility score > 0.5
+3. At least some subjects have stretto offsets > 0
+4. Subjects with both self and mirror stretto appear in top ranks
+5. Listen to MIDI: subjects sound like viable fugue subjects
+6. Stretto hit-rate diagnostic: >= 10% of joint candidates have any offset

@@ -108,26 +108,27 @@ def _generate_cs_rhythm(
     total = sum(subj_fracs)
     quarter = Fraction(1, 4)
     eighth = Fraction(1, 8)
+    max_merge = quarter  # Cap: don't merge short notes beyond a crotchet
     # Phase 1: merge runs of short subject notes into longer CS notes
     cs_durations: list[Fraction] = []
     onset_indices: list[int] = []
     i = 0
     while i < len(subj_fracs):
         if subj_fracs[i] <= eighth:
-            # Merge consecutive short notes into one longer CS note
+            # Merge consecutive short notes, capped at max_merge
             onset_indices.append(i)
             merged = Fraction(0)
             while i < len(subj_fracs) and subj_fracs[i] <= eighth:
                 merged += subj_fracs[i]
                 i += 1
-            # Find the largest valid duration that fits
+            # Emit chunks of at most max_merge
             placed = Fraction(0)
             first = True
             while placed < merged:
-                remainder = merged - placed
+                chunk = min(merged - placed, max_merge)
                 found = False
                 for vd in VALID_DURATIONS_SORTED:
-                    if vd <= remainder:
+                    if vd <= chunk:
                         cs_durations.append(vd)
                         if not first:
                             onset_indices.append(onset_indices[-1])
@@ -135,7 +136,7 @@ def _generate_cs_rhythm(
                         found = True
                         first = False
                         break
-                assert found, f"Cannot fill remainder {remainder}"
+                assert found, f"Cannot fill remainder {merged - placed}"
         elif subj_fracs[i] >= quarter:
             # Split long subject notes into shorter CS notes
             onset_indices.append(i)
@@ -527,19 +528,18 @@ def verify_countersubject(
 
 
 if __name__ == "__main__":
-    from motifs.subject_generator import generate_subject
+    from motifs.subject_generator import select_subject
     from motifs.answer_generator import generate_answer
     print("Testing countersubject generation (dual validation)...")
     print("=" * 60)
     success_count = 0
     for seed in range(5):
         print(f"Seed {seed}...", end=" ", flush=True)
-        subject = generate_subject(
+        subject = select_subject(
             mode="minor",
             metre=(4, 4),
-            seed=seed,
             tonic_midi=67,
-            verbose=False,
+            target_bars=2,
         )
         answer = generate_answer(
             subject=subject,

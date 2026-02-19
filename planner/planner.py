@@ -27,7 +27,7 @@ from builder.phrase_types import PhrasePlan
 from builder.types import Composition, SchemaChain, TonalPlan
 from motifs.catalogue import SubjectCatalogue
 from motifs.fugue_loader import LoadedFugue, load_fugue_path
-from motifs.subject_generator import generate_fugue_triple, write_fugue_file
+from motifs.writers import generate_fugue_triple, write_fugue_file
 from planner.arc import load_named_curve
 from planner.dramaturgy import get_suggested_key
 from planner.imitative.subject_planner import plan_subject

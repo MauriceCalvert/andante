@@ -1,13 +1,13 @@
 subject:
   degrees:
   - 0
-  - 2
   - 3
   - 4
-  - 2
-  - 2
-  - -3
-  - -4
+  - 5
+  - 1
+  - 0
+  - -1
+  - -6
   - -5
   durations:
   - 0.125
@@ -16,8 +16,8 @@ subject:
   - 0.125
   - 0.5
   - 0.125
-  - 0.25
   - 0.125
+  - 0.25
   - 0.5
   mode: major
   bars: 2
@@ -27,13 +27,13 @@ subject:
 answer:
   degrees:
   - 3
-  - 5
   - 6
   - 8
-  - 5
-  - 5
-  - 1
-  - -1
+  - 9
+  - 4
+  - 3
+  - 3
+  - -3
   - -2
   durations:
   - 0.125
@@ -42,27 +42,26 @@ answer:
   - 0.125
   - 0.5
   - 0.125
-  - 0.25
   - 0.125
+  - 0.25
   - 0.5
   type: tonal
   mutation_points:
-  - 2
+  - 1
   - 3
   - 5
   - 6
 countersubject:
   degrees:
-  - -2
-  - -5
-  - -7
-  - -7
-  - -4
-  - -3
-  - -7
+  - -9
+  - -6
+  - -8
+  - -8
   - -8
   - -10
   - -9
+  - -8
+  - -5
   - -7
   - -7
   - -4
@@ -74,8 +73,7 @@ countersubject:
   - 0.125
   - 0.125
   - 0.125
-  - 0.125
-  - 0.125
+  - 0.25
   - 0.125
   - 0.125
   - 0.125
@@ -84,15 +82,14 @@ countersubject:
   - 0.125
   vertical_intervals:
   - 2
-  - 5
-  - 2
-  - 2
   - 6
-  - 5
   - 2
-  - 5
-  - 0
-  - 5
+  - 2
+  - 2
+  - 4
+  - 2
+  - 2
+  - 1
   - 2
   - 2
   - 1
@@ -105,11 +102,6 @@ metadata:
   tonic_midi: 72
   seed: 1
 stretto:
-- offset: 1.5
-  offset_beats: 6.0
-  overlap_notes: 4
-  all_consonant: false
-  voice: subject
 - offset: 1.625
   offset_beats: 6.5
   overlap_notes: 3

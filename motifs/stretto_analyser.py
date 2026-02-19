@@ -148,6 +148,35 @@ def _check_overlap(
     return True, len(sorted_times), all_consonant
 
 
+def count_self_stretto(
+    degrees: tuple[int, ...],
+    durations: tuple[float, ...],
+    metre: tuple[int, int] = (4, 4),
+) -> int:
+    """Count valid self-stretto offsets for a degree/duration sequence."""
+    frac_durs = tuple(Fraction(d).limit_denominator(64) for d in durations)
+    total_dur = sum(frac_durs)
+    timeline = _build_timeline(degrees, durations)
+    min_dur = min(frac_durs)
+    assert min_dur > Fraction(0), "Zero-duration note"
+    count = 0
+    offset = min_dur
+    while offset < total_dur:
+        valid, overlap_count, _ = _check_overlap(
+            leader_timeline=timeline,
+            follower_timeline=timeline,
+            leader_dur=total_dur,
+            follower_dur=total_dur,
+            offset=offset,
+            metre=metre,
+            min_duration=min_dur,
+        )
+        if valid and overlap_count >= 3:
+            count += 1
+        offset += min_dur
+    return count
+
+
 def analyse_stretto(
     subject: GeneratedSubject,
     answer: GeneratedAnswer | None = None,

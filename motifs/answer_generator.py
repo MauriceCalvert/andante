@@ -105,18 +105,17 @@ def answer_to_str(
 
 
 if __name__ == "__main__":
-    from motifs.subject_generator import generate_subject
+    from motifs.subject_generator import select_subject
     print("Testing tonal answer generation...")
     print("=" * 60)
     for seed in [42, 123, 456, 789, 1001]:
         print(f"\nSeed {seed}:")
         try:
-            subject = generate_subject(
+            subject = select_subject(
                 mode="minor",
                 metre=(4, 4),
-                seed=seed,
                 tonic_midi=67,
-                verbose=False,
+                target_bars=2,
             )
             print(f"  Subject degrees: {subject.scale_indices}")
             answer = generate_answer(subject=subject, tonic_midi=67)

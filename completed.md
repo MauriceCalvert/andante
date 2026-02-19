@@ -1,5 +1,17 @@
 # Completed
 
+## INV-STRETTO — Invertible subjects with stretto scoring (2026-02-18)
+
+Symmetric enumeration: removed global descent, peak-in-head, and negative-only
+finals constraints from subject_generator.py. Added mirror pitch contours (dip,
+ascent) and MIRROR_PAIRS dict to subject_contours.py. Invertibility-aware
+interval scoring in subject_scorer.py: scores both original and inverted
+orientations, uses minimum. New count_stretto_offsets() function checks
+self-vs-self and self-vs-inversion stretto at each internal note onset.
+Rebalanced joint weights (50% stretto). Display shows stretto counts per
+subject. Stretto hit-rate diagnostic in run(). subject_render.py wired to use
+mirror contours, now produces 12 subjects (6 pitch x 2 rhythm).
+
 ## SGv2 — Gesture-based subject generator (2026-02-17)
 
 Complete rewrite of the baroque fugue subject generator. All musical data

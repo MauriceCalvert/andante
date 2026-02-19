@@ -57,8 +57,8 @@ countersubject:
   - -5
   - -7
   - -7
-  - -4
   - -3
+  - -4
   - -7
   - -8
   - -10
@@ -87,8 +87,8 @@ countersubject:
   - 5
   - 2
   - 2
-  - 6
   - 5
+  - 6
   - 2
   - 5
   - 0
@@ -103,7 +103,7 @@ metadata:
   - 4
   tonic: C
   tonic_midi: 72
-  seed: 1
+  seed: 5
 stretto:
 - offset: 1.5
   offset_beats: 6.0

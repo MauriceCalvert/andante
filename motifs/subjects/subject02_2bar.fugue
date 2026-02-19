@@ -103,7 +103,7 @@ metadata:
   - 4
   tonic: C
   tonic_midi: 72
-  seed: 1
+  seed: 2
 stretto:
 - offset: 1.5
   offset_beats: 6.0
