@@ -1,9 +1,9 @@
 subject:
   degrees:
   - 0
-  - 2
   - 3
   - 4
+  - 5
   - 2
   - 2
   - -3
@@ -27,9 +27,9 @@ subject:
 answer:
   degrees:
   - 3
-  - 5
   - 6
   - 8
+  - 9
   - 5
   - 5
   - 1
@@ -47,7 +47,7 @@ answer:
   - 0.5
   type: tonal
   mutation_points:
-  - 2
+  - 1
   - 3
   - 5
   - 6
@@ -57,16 +57,16 @@ countersubject:
   - -5
   - -7
   - -7
-  - -3
   - -4
+  - -3
   - -7
   - -8
-  - -10
+  - -7
+  - -6
+  - -7
+  - -7
   - -9
   - -7
-  - -7
-  - -4
-  - -3
   durations:
   - 0.25
   - 0.25
@@ -87,15 +87,15 @@ countersubject:
   - 5
   - 2
   - 2
-  - 5
   - 6
-  - 2
-  - 5
-  - 0
   - 5
   - 2
+  - 5
+  - 4
   - 2
-  - 1
+  - 2
+  - 2
+  - 4
   - 2
 metadata:
   metre:
@@ -105,13 +105,7 @@ metadata:
   tonic_midi: 72
   seed: 0
 stretto:
-- offset: 1.5
-  offset_beats: 6.0
-  overlap_notes: 4
-  all_consonant: false
-  voice: subject
-- offset: 1.625
-  offset_beats: 6.5
-  overlap_notes: 3
-  all_consonant: false
-  voice: subject
+- offset_slots: 16
+  consonant: 4/5
+  dissonance_cost: 2
+  quality: 0.8

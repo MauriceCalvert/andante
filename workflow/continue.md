@@ -1,103 +1,80 @@
-## Subject Generation — Current State
+# Continue — Enable semiquavers in subject_generator (2026-02-19)
 
-### Architecture
+## What happened this session
 
-Two parallel contour systems, same machinery:
+Diagnosed why subject_generator never produces stretti: semiquavers didn't
+exist in the duration vocabulary. The `DURATION_TICKS = (2, 4, 8)` with
+`X2_TICKS_PER_WHOLE = 16` meant the smallest note was a quaver (tick=2),
+not a semiquaver (tick=1). The names were also shifted — 'semiquaver'
+labelled what was actually a quaver.
 
-**Pitch contours** — waypoints `(X, Y)` where X is position 0..1, Y is scale degree
-displacement. Origin `(0, 0)` implicit. Linear interpolation. Scored by RMS fit (σ=2.5).
+### Changes made to `motifs/subject_generator.py`
 
-Six contours in three mirror pairs:
+1. **Duration vocabulary fixed:**
+   - `DURATION_TICKS = (1, 2, 4, 8)` — semiquaver, quaver, crotchet, minim
+   - `DURATION_NAMES` corrected to match
+   - Added `SEMIQUAVER_DI = 0`
 
-```
-'arch':     [(0.35, 6),  (1.0, -7)]   ↔  'valley':  [(0.2, -8),  (1.0, -2)]
-'swoop':    [(0.2, 8),   (1.0, -8)]   ↔  'dip':     [(0.2, -8),  (1.0, 8)]
-'cascade':  [(0.1, 2),   (1.0, -10)]  ↔  'ascent':  [(0.1, -2),  (1.0, 10)]
-```
+2. **Bar-fill constraints updated:**
+   - `MAX_NOTES_PER_BAR`: 6 → 8
+   - `MIN_LAST_DUR_TICKS`: 8 → 4 (crotchet ending, was forcing minim)
+   - Added `MAX_SUBJECT_NOTES = 11` (caps pitch enumeration; 12n takes 16s,
+     11n takes 8s — acceptable)
+   - Added `MIN_SEMIQUAVER_GROUP = 2` (no isolated semiquavers)
 
-**Rhythm contours** — waypoints `(X, Y)` where Y is speed level 0.0=fast, 1.0=slow.
-Same origin convention. Scored by RMS fit (σ=0.3). Only 2 viable with 3-value vocabulary:
+3. **Isolated semiquaver filter:** New `_has_isolated_semiquaver()` function.
+   Applied as post-filter on bar fills inside `enumerate_durations`. Reduces
+   bar fills from 1224 to 372.
 
-```
-'motoric':    [(0.4, 0.0), (1.0, 1.0)]   # fast head, broadening tail
-'busy_brake': [(0.7, 0.1), (1.0, 0.7)]   # stays fast, late brake
-```
+4. **Note count cap:** `MAX_SUBJECT_NOTES` enforced in `enumerate_durations`.
 
-Duration vocabulary: semiquaver(2), quaver(4), crotchet(8) in x2 ticks.
+5. **Head/tail acceleration direction fixed:**
+   - Enumeration filter was `head_mean > tail_mean` (rejected acceleration).
+     Changed to `head_mean < tail_mean` (rejects deceleration — baroque
+     subjects accelerate, head notes longer than tail).
+   - `score_duration_sequence` contrast scorer: ratio flipped to
+     `head_mean / tail_mean`, target changed from 2.5 to 2.0 with
+     width 0.8. Now rewards head being ~2x slower than tail.
 
-### Invertibility
+### Current state
 
-Generator is now symmetric — no directional bias. Three former hard constraints
-removed:
-- Global descent (`pitch >= 0` rejection) — removed
-- Peak in head (`peak_pos > HEAD_LEN`) — removed
-- Negative-only finals — `ALLOWED_FINALS` expanded to `{0, ±2, ±3, ±4, ±5, ±7}`
+Duration enumeration produces 3398 sequences (up from 251), of which 2884
+contain semiquavers. Semiquaver durations score competitively (top ~0.96).
+Thousands of semiquaver candidates survive pairing and melodic validation.
 
-Direction comes from contour scoring. Each interval sequence is scored against
-both its original contour and the mirror contour (negated pitches vs negated
-waypoints). Invertibility score = `min(original_fit, mirror_fit)`. Subjects
-that work well both ways up rank highest.
+However, seed 0 still selects a 6-note non-semiquaver subject — the combined
+pitch+pairing+stretto scoring favours short subjects with excellent contour
+fit. A multi-seed test (`test_sq_seeds.py`) was written but not yet run.
 
-Enumeration: ~3.2M interval sequences (was ~1.2M), 10.5s. Acceptable.
+### Test scripts left in andante root (delete after use)
 
-### Stretto
+- `test_pitch_timing.py` — times pitch enumeration by note count
+- `test_dur_timing.py` — tests duration enumeration with semiquavers
+- `test_sq_diag.py` — checks semiquaver duration generation and scoring
+- `test_sq_candidates.py` — checks semiquaver candidates through pipeline
+- `test_sq_seeds.py` — multi-seed test, not yet run
 
-`count_stretto_offsets(ivs, durs, bar_ticks=16)` in `subject_scorer.py` tests
-two configurations at each internal note onset:
-- **Self-vs-self**: subject overlapping a time-shifted copy of itself
-- **Self-vs-inversion**: subject overlapping its negated form
+### What needs attention next
 
-Consonance rules (degree intervals mod 7):
-- Strong beats (tick % bar_ticks in {0, half_bar}): {0, 2, 5} — unison, 3rd, 6th.
-  Perfect 5th excluded (inverts to dissonant 4th in two-voice texture).
-- Weak beats: {0, 1, 2, 4, 5, 6} — all but tritone. Max 1 weak dissonance.
-- No consecutive parallel unisons or 5ths at onset points.
-- Minimum 3 overlap onset points.
+1. **Run `python test_sq_seeds.py`** to see if any seeds produce semiquaver
+   subjects. If none do, the scoring weights need adjustment — likely the
+   pitch contour score (50% of pitch scoring) dominates and short subjects
+   win on contour fit alone.
 
-Stretto score = `min((self_count + mirror_count) / 4, 1.0)`. Weighted 50% in
-joint scoring (effectively 15% of total combined score).
+2. **Possible fixes if no seeds produce semiquavers:**
+   - Add a note-count bonus to the combined score (longer subjects with
+     more rhythmic variety score higher)
+   - Reduce pitch contour weight relative to duration contrast
+   - Add a direct semiquaver bonus in `score_duration_sequence`
+   - Tighten the contour band for short sequences so fewer trivial 5-6n
+     subjects survive
 
-Results from render pipeline (12 subjects, 6 contours × 2 rhythms):
-- 10/12 have stretto offsets
-- 4/12 have both self AND mirror stretto
-- Best: cascade[2] and ascent[2] with self=2, mirror=1 (total=3)
+3. **Stretto yield** remains low from the previous session (strict interval
+   rejection). With semiquavers in the vocabulary, subjects now have more
+   note onsets and finer-grained offsets, which should improve stretto
+   viability. But this hasn't been verified yet.
 
-### Pipeline
-
-1. Enumerate intervals (recursive, ~3.2M sequences, 10.5s)
-2. Enumerate durations (~3.9K sequences, instant)
-3. Score intervals per pitch contour with invertibility (NumPy vectorised, ~3s each)
-4. Score durations per rhythm contour (Python loop, instant)
-5. Pair best melody × best rhythm per combo
-6. Joint-score with stretto evaluation
-7. Render to MIDI
-
-### Constraints
-
-- 9 notes, 8 intervals, scale degrees ±5
-- Pitch range: span 4–11 degrees, cumulative −7..+7
-- Allowed finals: {0, ±2, ±3, ±4, ±5, ±7}
-- ≥50% steps, ≤4 large leaps, ≤1 repeat, ≤5 same-direction run
-- ≤3 same pitch frequency
-- Head (4 notes) faster than tail (5 notes) on average
-- Last note ≥ crotchet
-- ≥2 distinct durations
-
-### Files
-
-- `subject_generator.py` — enumeration constants, contour definitions, mirror pairs,
-  interpolation, pitch/rhythm scoring helpers, exhaustive enumeration (symmetric)
-- `subject_pipeline.py` — interval/duration/joint scoring incl. invertibility + stretto,
-  rendering, MIDI output. Single entry point: `python subject_pipeline.py`
-
-### Next
-
-Listen to `subjects_by_contour.mid`. Evaluate whether:
-1. Subjects with high stretto counts sound like viable fugue material
-2. Mirror-pair subjects (arch/valley, swoop/dip, cascade/ascent) are
-   recognisably related when heard back-to-back
-3. Rhythmic variety is sufficient with only 2 rhythm contours
-4. Any subjects sound like scale exercises or random walks
-
-Then: integrate into the main Andante pipeline (`motifs/subject_generator.py`),
-replacing the head+tail construction with contour-ranked subjects.
+4. **Downstream impact:** once subjects contain semiquavers, check that
+   `thematic_renderer.py`, `imitation.py`, and the answer/CS generators
+   handle the finer durations correctly. The duration system uses Fractions
+   internally and 1/16 is in VALID_DURATIONS, so this should be safe.

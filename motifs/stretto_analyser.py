@@ -31,6 +31,9 @@ class StrettoOffset:
     overlap_notes: int      # Number of simultaneous note-pairs checked
     all_consonant: bool     # True if every overlap point is consonant
     voice: str              # "subject" or "answer" — what the follower plays
+    consonant_count: int = 0   # check points with consonant interval
+    total_count: int = 0       # total check points evaluated
+    quality: float = 0.0       # 0..1, consonant_count / total_count
 
 
 @dataclass(frozen=True)
@@ -95,17 +98,17 @@ def _check_overlap(
     offset: Fraction,
     metre: tuple[int, int],
     min_duration: Fraction,
-) -> tuple[bool, int, bool]:
+) -> tuple[bool, int, bool, int, int]:
     """Check counterpoint validity of follower entering at offset.
 
-    Returns (valid, overlap_note_count, all_consonant).
+    Returns (valid, overlap_note_count, all_consonant, consonant_count, total_count).
     """
     # Follower starts at `offset`, runs to `offset + follower_dur`
     # Leader starts at 0, runs to `leader_dur`
     overlap_start = offset
     overlap_end = min(leader_dur, offset + follower_dur)
     if overlap_end <= overlap_start:
-        return False, 0, False
+        return False, 0, False, 0, 0
     # Collect all onset times in the overlap region from both voices
     check_times: set[Fraction] = set()
     for onset, _ in leader_timeline:
@@ -116,36 +119,41 @@ def _check_overlap(
         if overlap_start <= shifted < overlap_end:
             check_times.add(shifted)
     if len(check_times) < 2:
-        return False, 0, False
+        return False, 0, False, 0, 0
     sorted_times = sorted(check_times)
     weak_dissonance_count = 0
     all_consonant = True
+    consonant_count = 0
+    total_checked = 0
     prev_interval_mod7: int | None = None
-    prev_leader_dir: int | None = None
     for t in sorted_times:
         leader_deg = _degree_at_time(leader_timeline, t, leader_dur)
         follower_deg = _degree_at_time(follower_timeline, t - offset, follower_dur)
         if leader_deg is None or follower_deg is None:
             continue
         interval_mod7 = abs(leader_deg - follower_deg) % 7
+        total_checked += 1
         strong = _is_strong_beat(t, metre)
         if strong:
             if interval_mod7 not in STRONG_BEAT_CONSONANCES:
-                return False, 0, False
+                return False, 0, False, consonant_count, total_checked
+            consonant_count += 1
         else:
             if interval_mod7 not in WEAK_BEAT_CONSONANCES:
-                return False, 0, False
-            if interval_mod7 not in STRONG_BEAT_CONSONANCES:
+                return False, 0, False, consonant_count, total_checked
+            if interval_mod7 in STRONG_BEAT_CONSONANCES:
+                consonant_count += 1
+            else:
                 all_consonant = False
                 weak_dissonance_count += 1
                 if weak_dissonance_count > MAX_WEAK_DISSONANCES:
-                    return False, 0, False
+                    return False, 0, False, consonant_count, total_checked
         # Check parallel 5ths/octaves with previous interval
         if prev_interval_mod7 is not None:
             if interval_mod7 == prev_interval_mod7 and interval_mod7 in (0, 4):
-                return False, 0, False
+                return False, 0, False, consonant_count, total_checked
         prev_interval_mod7 = interval_mod7
-    return True, len(sorted_times), all_consonant
+    return True, len(sorted_times), all_consonant, consonant_count, total_checked
 
 
 def count_self_stretto(
@@ -162,7 +170,7 @@ def count_self_stretto(
     count = 0
     offset = min_dur
     while offset < total_dur:
-        valid, overlap_count, _ = _check_overlap(
+        valid, overlap_count, _, _, _ = _check_overlap(
             leader_timeline=timeline,
             follower_timeline=timeline,
             leader_dur=total_dur,
@@ -199,7 +207,7 @@ def analyse_stretto(
     # Test subject against itself at each offset
     offset = min_dur
     while offset < subj_total:
-        valid, overlap_count, all_consonant = _check_overlap(
+        valid, overlap_count, all_consonant, cons_count, total_count = _check_overlap(
             leader_timeline=subj_timeline,
             follower_timeline=subj_timeline,
             leader_dur=subj_total,
@@ -209,12 +217,16 @@ def analyse_stretto(
             min_duration=min_dur,
         )
         if valid and overlap_count >= 3:
+            qual = cons_count / total_count if total_count > 0 else 1.0
             results.append(StrettoOffset(
                 offset=float(offset),
                 offset_beats=float(offset / beat_dur),
                 overlap_notes=overlap_count,
                 all_consonant=all_consonant,
                 voice="subject",
+                consonant_count=cons_count,
+                total_count=total_count,
+                quality=qual,
             ))
         offset += min_dur
     # Test subject (leader) against answer (follower)
@@ -224,7 +236,7 @@ def analyse_stretto(
         ans_timeline = _build_timeline(answer.scale_indices, answer.durations)
         offset = min_dur
         while offset < subj_total:
-            valid, overlap_count, all_consonant = _check_overlap(
+            valid, overlap_count, all_consonant, cons_count, total_count = _check_overlap(
                 leader_timeline=subj_timeline,
                 follower_timeline=ans_timeline,
                 leader_dur=subj_total,
@@ -234,12 +246,16 @@ def analyse_stretto(
                 min_duration=min_dur,
             )
             if valid and overlap_count >= 3:
+                qual = cons_count / total_count if total_count > 0 else 1.0
                 results.append(StrettoOffset(
                     offset=float(offset),
                     offset_beats=float(offset / beat_dur),
                     overlap_notes=overlap_count,
                     all_consonant=all_consonant,
                     voice="answer",
+                    consonant_count=cons_count,
+                    total_count=total_count,
+                    quality=qual,
                 ))
             offset += min_dur
     return StrettoAnalysis(valid_offsets=tuple(results))

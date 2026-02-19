@@ -1,8 +1,8 @@
 """Subject generator — contour-guided exhaustive generation and selection.
 
 Generates pitch sequences by exhaustive walk pruned to a contour band,
-pairs with bar-aligned duration sequences, scores, then filters for
-stretto potential on the shortlist only.
+pairs with bar-aligned duration sequences, scores, then evaluates
+stretto potential at every possible offset with graded dissonance scoring.
 """
 import math
 import time
@@ -12,12 +12,18 @@ from itertools import product as iter_product
 from typing import Tuple
 
 from motifs.head_generator import degrees_to_midi
+from motifs.stretto_constraints import (
+    OffsetResult,
+    evaluate_all_offsets,
+    score_stretto,
+)
 
 
 # ── Duration vocabulary ─────────────────────────────────────────────
-DURATION_TICKS: tuple[int, ...] = (2, 4, 8)
-DURATION_NAMES: tuple[str, ...] = ('semiquaver', 'quaver', 'crotchet')
+DURATION_TICKS: tuple[int, ...] = (1, 2, 4, 8)
+DURATION_NAMES: tuple[str, ...] = ('semiquaver', 'quaver', 'crotchet', 'minim')
 NUM_DURATIONS: int = len(DURATION_TICKS)
+SEMIQUAVER_DI: int = 0  # index of semiquaver in DURATION_TICKS
 
 # ── Tick / bar geometry ─────────────────────────────────────────────
 X2_TICKS_PER_WHOLE: int = 16
@@ -30,9 +36,11 @@ def _bar_x2_ticks(metre: tuple[int, int]) -> int:
 
 # ── Bar-fill constraints ────────────────────────────────────────────
 MIN_NOTES_PER_BAR: int = 2
-MAX_NOTES_PER_BAR: int = 6
+MAX_NOTES_PER_BAR: int = 8
 MAX_SAME_DUR_RUN: int = 4
-MIN_LAST_DUR_TICKS: int = 8
+MIN_LAST_DUR_TICKS: int = 4  # subject ends on crotchet minimum
+MAX_SUBJECT_NOTES: int = 11  # cap to keep pitch enumeration tractable
+MIN_SEMIQUAVER_GROUP: int = 2  # no isolated semiquavers
 
 # ── Pitch constraints ───────────────────────────────────────────────
 PITCH_LO: int = -7
@@ -97,6 +105,7 @@ class GeneratedSubject:
     leap_size: int
     leap_direction: str
     tail_direction: str
+    stretto_offsets: Tuple[OffsetResult, ...] = ()
     affect: str | None = None
     figurae_score: float = 0.0
     satisfied_figurae: Tuple[str, ...] = ()
@@ -274,19 +283,33 @@ def enumerate_bar_fills(bar_ticks: int) -> list[tuple[int, ...]]:
     return results
 
 
+def _has_isolated_semiquaver(fill: tuple[int, ...]) -> bool:
+    """True if any semiquaver has no adjacent semiquaver neighbour."""
+    for i, d in enumerate(fill):
+        if d == SEMIQUAVER_DI:
+            prev_sq = i > 0 and fill[i - 1] == SEMIQUAVER_DI
+            next_sq = i < len(fill) - 1 and fill[i + 1] == SEMIQUAVER_DI
+            if not prev_sq and not next_sq:
+                return True
+    return False
+
+
 def enumerate_durations(
     n_bars: int,
     bar_ticks: int,
     note_counts: tuple[int, ...] | None = None,
 ) -> list[tuple[int, ...]]:
     """Combine per-bar fills into full-subject duration sequences."""
-    fills = enumerate_bar_fills(bar_ticks)
-    if not fills:
+    raw_fills = enumerate_bar_fills(bar_ticks)
+    if not raw_fills:
         return []
+    fills = [f for f in raw_fills if not _has_isolated_semiquaver(f)]
     results: list[tuple[int, ...]] = []
     for combo in iter_product(fills, repeat=n_bars):
         seq: tuple[int, ...] = sum(combo, ())
         n_notes = len(seq)
+        if n_notes > MAX_SUBJECT_NOTES:
+            continue
         if note_counts is not None and n_notes not in note_counts:
             continue
         if len(set(seq)) < 2:
@@ -298,7 +321,7 @@ def enumerate_durations(
         if tail_n > 0:
             head_ticks = sum(DURATION_TICKS[d] for d in combo[0])
             tail_ticks = sum(DURATION_TICKS[d] for d in seq[head_n:])
-            if head_ticks / head_n > tail_ticks / tail_n:
+            if head_ticks / head_n < tail_ticks / tail_n:
                 continue
         results.append(seq)
     return results
@@ -336,11 +359,11 @@ def score_duration_sequence(durs: tuple[int, ...]) -> float:
     # Entropy
     counts = list(Counter(durs).values())
     s_entropy = _closeness(_shannon_entropy(counts, n_notes), IDEAL_RHYTHMIC_ENTROPY, 0.2)
-    # Head/tail contrast
+    # Head/tail contrast: baroque subjects accelerate (head longer than tail)
     head_mean = sum(ticks[:head_len]) / max(head_len, 1)
     tail_mean = sum(ticks[head_len:]) / max(n_notes - head_len, 1)
-    ratio = tail_mean / head_mean if head_mean > 0 else 1.0
-    s_contrast = _closeness(ratio, 2.5, 0.6)
+    ratio = head_mean / tail_mean if tail_mean > 0 else 1.0
+    s_contrast = _closeness(ratio, 2.0, 0.8)
     # Change rate
     changes = sum(1 for i in range(1, n_notes) if durs[i] != durs[i - 1])
     s_coherence = _closeness(changes / max(n_notes - 1, 1), 0.4, 0.15)
@@ -385,24 +408,6 @@ def score_pairing(
                 pre_bonus += 1.0
     s_pre = pre_bonus / pre_count if pre_count > 0 else 0.5
     return 0.60 * s_leap + 0.40 * s_pre
-
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  Stretto counting (delegates to analyser)
-# ═══════════════════════════════════════════════════════════════════
-
-
-def _ivs_durs_to_stretto_count(
-    ivs: tuple[int, ...],
-    durs: tuple[int, ...],
-    metre: tuple[int, int],
-) -> int:
-    """Convert interval-index representation to degrees/durations and count self-stretto."""
-    from motifs.stretto_analyser import count_self_stretto
-    degrees = (0,) + tuple(sum(ivs[:i + 1]) for i in range(len(ivs)))
-    durations = tuple(DURATION_TICKS[d] / X2_TICKS_PER_WHOLE for d in durs)
-    return count_self_stretto(degrees, durations, metre)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -494,7 +499,7 @@ def select_subject(
         assert pitch_contour in PITCH_CONTOURS
         p_names = [pitch_contour]
     else:
-        p_names = ['arch']  # TODO: restore list(PITCH_CONTOURS.keys())
+        p_names = list(PITCH_CONTOURS.keys())
     # ── Stage 1: pitch generation per contour per note count ─────
     all_candidates: list[tuple[float, tuple[int, ...], tuple[int, ...], str]] = []
     for nc in sorted(durs_by_count.keys()):
@@ -523,18 +528,24 @@ def select_subject(
                     combined = 0.40 * p_sc + 0.30 * d_sc + 0.30 * pair_sc
                     pairs.append((combined, ivs, durs))
             pairs.sort(key=lambda x: x[0], reverse=True)
-            # ── Stage 4: melodic + stretto filter on shortlist ────
-            MIN_STRETTO: int = 2
+            # ── Stage 4: melodic + stretto evaluation on shortlist ─
             for combined, ivs, durs in pairs[:TOP_K_PAIRED]:
                 degs = (0,) + tuple(sum(ivs[:i + 1]) for i in range(len(ivs)))
                 midi = degrees_to_midi(degrees=degs, tonic_midi=tonic_midi, mode=mode)
                 if not is_melodically_valid(midi):
                     continue
-                total_stretto = _ivs_durs_to_stretto_count(ivs, durs, metre)
-                if total_stretto < MIN_STRETTO:
-                    continue
-                stretto_bonus = min(total_stretto / 4.0, 1.0)
-                final_score = 0.70 * combined + 0.30 * stretto_bonus
+                dur_slots = tuple(DURATION_TICKS[d] for d in durs)
+                total_slots = sum(dur_slots)
+                offset_results = evaluate_all_offsets(
+                    degrees=degs,
+                    dur_slots=dur_slots,
+                    metre=metre,
+                )
+                stretto_sc = score_stretto(
+                    offset_results=offset_results,
+                    total_slots=total_slots,
+                )
+                final_score = 0.60 * combined + 0.40 * stretto_sc
                 all_candidates.append((final_score, ivs, durs, pname))
     assert len(all_candidates) > 0, "No valid subject found"
     all_candidates.sort(key=lambda x: x[0], reverse=True)
@@ -548,9 +559,7 @@ def select_subject(
     pick = seed % len(unique)
     best_score, best_ivs, best_durs, best_contour = unique[pick]
     if verbose:
-        gen_stretto = _ivs_durs_to_stretto_count(best_ivs, best_durs, metre)
         print(f"  Candidates: {len(all_candidates)} total, {len(unique)} unique, pick={pick}")
-        print(f"  Generator stretto: {gen_stretto}")
     # ── Convert to GeneratedSubject ──────────────────────────────
     degrees = (0,) + tuple(sum(best_ivs[:i + 1]) for i in range(len(best_ivs)))
     dur_ticks = [DURATION_TICKS[d] for d in best_durs]
@@ -558,8 +567,29 @@ def select_subject(
     durations = tuple(t / X2_TICKS_PER_WHOLE for t in dur_ticks)
     midi_pitches = degrees_to_midi(degrees=degrees, tonic_midi=tonic_midi, mode=mode)
     leap_size, leap_direction, tail_direction = _derive_leap_info(best_ivs)
+    # ── Stretto offsets (always computed) ────────────────────────
+    dur_slots = tuple(DURATION_TICKS[d] for d in best_durs)
+    total_slots = sum(dur_slots)
+    all_offsets = evaluate_all_offsets(
+        degrees=degrees,
+        dur_slots=dur_slots,
+        metre=metre,
+    )
+    viable_offsets = tuple(r for r in all_offsets if r.viable)
     elapsed = time.time() - t_start
     if verbose:
+        stretto_sc = score_stretto(
+            offset_results=all_offsets,
+            total_slots=total_slots,
+        )
+        tightest = min(r.offset_slots for r in viable_offsets) if viable_offsets else 0
+        print(f"  Stretto: {len(viable_offsets)} offsets, "
+              f"tightest={tightest} slots, score={stretto_sc:.3f}")
+        slots_per_beat = 4 if metre[1] == 4 else 2
+        for r in sorted(viable_offsets, key=lambda r: r.offset_slots):
+            print(f"    offset={r.offset_slots} slots "
+                  f"({r.offset_slots / slots_per_beat:.1f} beats) "
+                  f"cost={r.dissonance_cost}")
         print(f"  Selected: {best_contour} {len(degrees)}n score={best_score:.4f} "
               f"bars={bars} in {elapsed:.2f}s")
         print(f"  Degrees: {degrees}")
@@ -576,6 +606,7 @@ def select_subject(
         leap_size=leap_size,
         leap_direction=leap_direction,
         tail_direction=tail_direction,
+        stretto_offsets=viable_offsets,
     )
 
 
@@ -607,3 +638,33 @@ def decode_subject(intervals: tuple, durations: tuple) -> None:
     print(f"  Intervals: {list(intervals)}")
     print(f"  Durations: {[DURATION_NAMES[d] for d in durations]}")
     print(f"  Ticks:     {[DURATION_TICKS[d] for d in durations]}")
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  CLI
+# ═══════════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate a fugue subject")
+    parser.add_argument("--mode", type=str, default="major",
+                        choices=["major", "minor"])
+    parser.add_argument("--metre", type=int, nargs=2, default=[4, 4],
+                        metavar=("NUM", "DEN"))
+    parser.add_argument("--bars", type=int, default=2)
+    parser.add_argument("--tonic", type=int, default=60)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--verbose", "-v", action="store_true")
+    args = parser.parse_args()
+    result = select_subject(
+        mode=args.mode,
+        metre=tuple(args.metre),
+        tonic_midi=args.tonic,
+        target_bars=args.bars,
+        seed=args.seed,
+        verbose=args.verbose,
+    )
+    print(f"\nResult: {len(result.scale_indices)}n, score={result.score:.4f}")
+    print(f"  Degrees: {result.scale_indices}")
+    print(f"  MIDI:    {result.midi_pitches}")
+    print(f"  Durs:    {result.durations}")

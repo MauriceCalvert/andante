@@ -1,5 +1,26 @@
 # Completed
 
+## STRETTO-FIRST — Constraint-based stretto scoring (2026-02-19)
+
+Replaced binary stretto filter (`_ivs_durs_to_stretto_count` + `MIN_STRETTO=2`)
+with per-offset constraint evaluation and graded scoring.
+
+New file `motifs/stretto_constraints.py`: derives hard (strong-beat) and soft
+(weak-beat) constraints from rhythm + offset, evaluates degree sequences against
+them, scores by offset count (50%), tightness (30%), and dissonance quality (20%).
+
+Modified `motifs/subject_generator.py`: Stage 4 now calls `evaluate_all_offsets`
++ `score_stretto`. Final scoring: `0.60 * combined + 0.40 * stretto_sc`. Subjects
+with 0 viable offsets are rejected. Added `__main__` CLI.
+
+Added `CONSONANT_MOD7`, `TRITONE_MOD7`, `STRETTO_OFFSET_COUNT_CEILING` to
+`shared/constants.py`.
+
+Checkpoint: seed 0 produces 9-note arch subject with 8 viable offsets, tightest
+at 4 slots (1 beat). Cross-check: analyser is stricter (MAX_WEAK_DISSONANCES=1),
+so analyser_count <= new_viable (expected — the new code intentionally permits
+more weak-beat dissonance via graded scoring).
+
 ## INV-STRETTO — Invertible subjects with stretto scoring (2026-02-18)
 
 Symmetric enumeration: removed global descent, peak-in-head, and negative-only

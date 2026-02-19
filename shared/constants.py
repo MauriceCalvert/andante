@@ -101,6 +101,22 @@ UGLY_INTERVALS: frozenset[int] = frozenset({1, 6, 10, 11})
 
 
 # =============================================================================
+# Consonance & Dissonance (mod-7 degree space, for stretto evaluation)
+# =============================================================================
+
+# Consonant intervals in mod-7 degree space: unison (0), 3rd (2), 6th (5)
+CONSONANT_MOD7: frozenset[int] = frozenset({0, 2, 5})
+
+# Tritone in mod-7 degree space (always rejected, regardless of beat strength)
+TRITONE_MOD7: int = 3
+SECOND_MOD7: int = 1
+SEVENTH_MOD7: int = 6
+
+# Normalisation ceiling for stretto offset count scoring
+STRETTO_OFFSET_COUNT_CEILING: int = 6
+
+
+# =============================================================================
 # Cross-Relations
 # =============================================================================
 

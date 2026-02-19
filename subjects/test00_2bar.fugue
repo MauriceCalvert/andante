@@ -1,13 +1,13 @@
 subject:
   degrees:
   - 0
-  - 2
   - 3
   - 4
-  - 1
-  - 0
-  - -1
-  - -6
+  - 3
+  - 2
+  - 2
+  - -2
+  - -3
   - -7
   durations:
   - 0.125
@@ -16,24 +16,24 @@ subject:
   - 0.125
   - 0.5
   - 0.125
-  - 0.125
   - 0.25
+  - 0.125
   - 0.5
   mode: major
   bars: 2
   head_name: arch
-  leap_size: 5
+  leap_size: 4
   leap_direction: down
 answer:
   degrees:
   - 3
-  - 5
   - 6
   - 8
-  - 4
-  - 3
-  - 3
-  - -3
+  - 6
+  - 5
+  - 5
+  - 2
+  - 1
   - -4
   durations:
   - 0.125
@@ -42,25 +42,26 @@ answer:
   - 0.125
   - 0.5
   - 0.125
-  - 0.125
   - 0.25
+  - 0.125
   - 0.5
   type: tonal
   mutation_points:
+  - 1
   - 2
-  - 3
   - 5
-  - 6
+  - 7
 countersubject:
   degrees:
   - -9
-  - -6
-  - -8
-  - -8
+  - -5
+  - -7
+  - -7
   - -10
   - -11
-  - -9
-  - -8
+  - -7
+  - -7
+  - -10
   - -11
   - -9
   - -9
@@ -73,7 +74,8 @@ countersubject:
   - 0.125
   - 0.125
   - 0.125
-  - 0.25
+  - 0.125
+  - 0.125
   - 0.125
   - 0.125
   - 0.125
@@ -82,14 +84,15 @@ countersubject:
   - 0.125
   vertical_intervals:
   - 2
+  - 5
+  - 2
+  - 2
+  - 5
   - 6
   - 2
-  - 2
-  - 4
   - 5
-  - 2
-  - 2
-  - 5
+  - 1
+  - 1
   - 2
   - 2
   - 2
