@@ -54,6 +54,7 @@ def generate_fugue_triple(
     verbose: bool = False,
     target_bars: int | None = None,
     note_counts: tuple[int, ...] | None = None,
+    pitch_contour: str | None = None,
 ) -> FugueTriple:
     """Generate coordinated subject, answer, and countersubject."""
     from motifs.answer_generator import generate_answer
@@ -64,6 +65,7 @@ def generate_fugue_triple(
         metre=metre,
         tonic_midi=tonic_midi,
         target_bars=target_bars,
+        pitch_contour=pitch_contour,
         note_counts=note_counts,
         seed=seed or 0,
         verbose=verbose,
@@ -287,6 +289,10 @@ def main() -> None:
                         help="Note counts, e.g. '9,10' (default: all)")
     parser.add_argument("--batch", "-b", type=int, default=None,
                         help="Generate batch of N subjects (default 6: 2x2bar, 2x3bar, 2x4bar)")
+    parser.add_argument("--contour", type=str, default=None,
+                        choices=["arch", "valley", "swoop", "dip",
+                                 "ascending", "descending"],
+                        help="Pitch contour filter")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Print details")
     args = parser.parse_args()
@@ -317,6 +323,7 @@ def main() -> None:
             verbose=args.verbose,
             target_bars=n_bars,
             note_counts=note_counts,
+            pitch_contour=args.contour,
         )
         write_note_file(triple=triple, path=base.with_suffix(".note"))
         write_fugue_demo_midi(triple=triple, path=base.with_suffix(".midi"), tempo=args.tempo)
