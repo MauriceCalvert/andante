@@ -16,6 +16,12 @@ from motifs.subject_gen.constants import X2_TICKS_PER_WHOLE
 from shared.midi_writer import SimpleNote, write_midi_notes
 
 
+def invert_degrees(degrees: tuple[int, ...]) -> tuple[int, ...]:
+    """Tonal inversion: negate each degree around the first note."""
+    pivot = degrees[0]
+    return tuple(pivot - (d - pivot) for d in degrees)
+
+
 # ── Batch configuration ─────────────────────────────────────────────
 SUPPORTED_METRES: tuple[tuple[int, int], ...] = tuple(RHYTHM_CELLS_BY_METRE.keys())
 TARGET_BAR_LENGTHS: tuple[int, ...] = (2, 3, 4)
@@ -33,6 +39,9 @@ class FugueTriple:
     tonic_midi: int
     seed: int
     stretto_offsets: Tuple = ()
+    inversion_degrees: Tuple[int, ...] = ()
+    inversion_midi: Tuple[int, ...] = ()
+    inversion_stretto: Tuple = ()
 
 
 def _bar_duration(metre: tuple[int, int]) -> float:
@@ -82,6 +91,21 @@ def generate_fugue_triple(
         answer_degrees=answer.scale_indices,
     )
     assert cs is not None, "Countersubject generation failed"
+    inv_deg = invert_degrees(degrees=subject.scale_indices)
+    inv_midi = degrees_to_midi(
+        degrees=inv_deg,
+        tonic_midi=tonic_midi,
+        mode=subject.mode,
+    )
+    from motifs.stretto_analyser import find_stretto_offsets
+    inv_stretto = find_stretto_offsets(
+        leader_degrees=subject.scale_indices,
+        leader_durations=subject.durations,
+        follower_degrees=inv_deg,
+        follower_durations=subject.durations,
+        metre=metre,
+        voice_label="inversion",
+    )
     return FugueTriple(
         subject=subject,
         answer=answer,
@@ -89,6 +113,9 @@ def generate_fugue_triple(
         metre=metre,
         tonic_midi=tonic_midi,
         seed=seed or 0,
+        inversion_degrees=inv_deg,
+        inversion_midi=tuple(inv_midi),
+        inversion_stretto=tuple(inv_stretto),
     )
 
 
@@ -122,6 +149,9 @@ def write_fugue_file(triple: FugueTriple, path: Path) -> None:
             'tonic_midi': triple.tonic_midi,
             'seed': triple.seed,
         },
+        'inversion': {
+            'degrees': list(triple.inversion_degrees),
+        },
         'stretto': [
             {
                 'offset_slots': r.offset_slots,
@@ -130,6 +160,13 @@ def write_fugue_file(triple: FugueTriple, path: Path) -> None:
                 'quality': round(r.quality, 2),
             }
             for r in sorted(triple.subject.stretto_offsets, key=lambda r: r.offset_slots)
+        ],
+        'inversion_stretto': [
+            {
+                'offset_beats': round(r.offset_beats, 2),
+                'quality': round(r.quality, 2),
+            }
+            for r in sorted(triple.inversion_stretto, key=lambda r: r.offset)
         ],
     }
     with open(path, 'w', encoding='utf-8') as f:
@@ -173,10 +210,16 @@ def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> N
     # 2. Answer solo
     offset = _add_melody(notes, ans, ans_dur, 0, offset)
     offset += bar_dur
-    # 3. Countersubject solo
-    offset = _add_melody(notes, cs, cs_dur, 0, offset)
+    # 3. Subject + countersubject together
+    _add_melody(notes, subj, subj_dur, 0, offset)
+    offset = _add_melody(notes, cs, cs_dur, 1, offset)
     offset += bar_dur
-    # 4+. Stretto pairs: subject (high) vs subject octave down, tightest first
+    # 4. Inversion solo
+    inv = triple.inversion_midi
+    inv_dur = subj_dur  # Same rhythm
+    offset = _add_melody(notes, inv, inv_dur, 0, offset)
+    offset += bar_dur
+    # 5. Subject vs subject stretto pairs, tightest first
     viable: list[OffsetResult] = sorted(
         triple.subject.stretto_offsets,
         key=lambda r: r.offset_slots,
@@ -185,6 +228,16 @@ def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> N
         stretto_delay = r.offset_slots / X2_TICKS_PER_WHOLE
         leader_end = _add_melody(notes, subj, subj_dur, 0, offset)
         follower_end = _add_melody(notes, subj_low, subj_dur, 1, offset + stretto_delay)
+        offset = max(leader_end, follower_end) + bar_dur
+    # 6. Subject vs inversion stretto pairs
+    from motifs.stretto_analyser import StrettoOffset
+    inv_stretto: list[StrettoOffset] = sorted(
+        triple.inversion_stretto,
+        key=lambda r: r.offset,
+    )
+    for r in inv_stretto:
+        leader_end = _add_melody(notes, subj, subj_dur, 0, offset)
+        follower_end = _add_melody(notes, inv, inv_dur, 1, offset + r.offset)
         offset = max(leader_end, follower_end) + bar_dur
     tonic_name = _midi_to_name(midi=triple.tonic_midi).rstrip('0123456789')
     write_midi_notes(
@@ -234,10 +287,16 @@ def write_note_file(triple: FugueTriple, path: Path) -> None:
     # 2. Answer
     offset = _add_melody(notes, ans, ans_dur, 0, offset)
     offset += bar_dur
-    # 3. Countersubject
-    offset = _add_melody(notes, cs, cs_dur, 0, offset)
+    # 3. Subject + countersubject together
+    _add_melody(notes, subj, subj_dur, 0, offset)
+    offset = _add_melody(notes, cs, cs_dur, 1, offset)
     offset += bar_dur
-    # 4+. Stretto pairs
+    # 4. Inversion solo
+    inv = triple.inversion_midi
+    inv_dur = subj_dur
+    offset = _add_melody(notes, inv, inv_dur, 0, offset)
+    offset += bar_dur
+    # 5. Subject vs subject stretto pairs
     viable: list[OffsetResult] = sorted(
         triple.subject.stretto_offsets,
         key=lambda r: r.offset_slots,
@@ -246,6 +305,16 @@ def write_note_file(triple: FugueTriple, path: Path) -> None:
         stretto_delay = r.offset_slots / X2_TICKS_PER_WHOLE
         leader_end = _add_melody(notes, subj, subj_dur, 0, offset)
         follower_end = _add_melody(notes, subj_low, subj_dur, 1, offset + stretto_delay)
+        offset = max(leader_end, follower_end) + bar_dur
+    # 6. Subject vs inversion stretto pairs
+    from motifs.stretto_analyser import StrettoOffset
+    inv_stretto: list[StrettoOffset] = sorted(
+        triple.inversion_stretto,
+        key=lambda r: r.offset,
+    )
+    for r in inv_stretto:
+        leader_end = _add_melody(notes, subj, subj_dur, 0, offset)
+        follower_end = _add_melody(notes, inv, inv_dur, 1, offset + r.offset)
         offset = max(leader_end, follower_end) + bar_dur
     path.write_text(_notes_to_csv(notes, triple.metre), encoding="utf-8")
 
@@ -351,6 +420,13 @@ def main() -> None:
                 print(f"     Stretto: offset={r.offset_slots} slots "
                       f"({r.offset_slots / slots_per_beat:.1f} beats) "
                       f"cost={r.dissonance_cost} "
+                      f"quality={r.quality:.2f}")
+            inv_notes = ' '.join(_midi_to_name(m) for m in triple.inversion_midi)
+            print(f"     Inv:     {inv_notes}")
+            n_inv_stretto = len(triple.inversion_stretto)
+            print(f"     Inv stretto: {n_inv_stretto} offsets")
+            for r in sorted(triple.inversion_stretto, key=lambda r: r.offset):
+                print(f"       offset={r.offset_beats:.1f} beats "
                       f"quality={r.quality:.2f}")
     print(f"Generated {count} fugue triples in {outdir}")
 

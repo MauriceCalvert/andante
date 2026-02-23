@@ -116,6 +116,20 @@ metadata:
   tonic: C
   tonic_midi: 72
   seed: 5
+inversion:
+  degrees:
+  - 0
+  - -2
+  - 0
+  - -1
+  - 0
+  - -4
+  - -5
+  - -4
+  - -3
+  - -4
+  - -3
+  - -2
 stretto:
 - offset_slots: 8
   consonant: 8/11
@@ -129,3 +143,4 @@ stretto:
   consonant: 7/7
   dissonance_cost: 0
   quality: 1.0
+inversion_stretto: []

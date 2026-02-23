@@ -68,8 +68,8 @@ countersubject:
   - -3
   - -7
   - -7
-  - -3
   - -4
+  - -3
   - -7
   - -7
   - -6
@@ -98,8 +98,8 @@ countersubject:
   - 5
   - 2
   - 2
-  - 4
   - 5
+  - 4
   - 2
   - 2
   - 4
@@ -114,6 +114,20 @@ metadata:
   tonic: C
   tonic_midi: 72
   seed: 2
+inversion:
+  degrees:
+  - 0
+  - -2
+  - -1
+  - -2
+  - -1
+  - -2
+  - 2
+  - 3
+  - 1
+  - 2
+  - 1
+  - 0
 stretto:
 - offset_slots: 8
   consonant: 9/10
@@ -127,3 +141,4 @@ stretto:
   consonant: 7/8
   dissonance_cost: 4
   quality: 0.88
+inversion_stretto: []

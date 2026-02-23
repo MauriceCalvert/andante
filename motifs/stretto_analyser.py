@@ -156,6 +156,52 @@ def _check_overlap(
     return True, len(sorted_times), all_consonant, consonant_count, total_checked
 
 
+def find_stretto_offsets(
+    leader_degrees: tuple[int, ...],
+    leader_durations: tuple[float, ...],
+    follower_degrees: tuple[int, ...],
+    follower_durations: tuple[float, ...],
+    metre: tuple[int, int] = (4, 4),
+    voice_label: str = "subject",
+) -> list[StrettoOffset]:
+    """Find valid stretto offsets between two arbitrary degree sequences."""
+    leader_frac = tuple(Fraction(d).limit_denominator(64) for d in leader_durations)
+    follower_frac = tuple(Fraction(d).limit_denominator(64) for d in follower_durations)
+    leader_total = sum(leader_frac)
+    follower_total = sum(follower_frac)
+    leader_tl = _build_timeline(leader_degrees, leader_durations)
+    follower_tl = _build_timeline(follower_degrees, follower_durations)
+    min_dur = min(min(leader_frac), min(follower_frac))
+    assert min_dur > Fraction(0), "Zero-duration note"
+    beat_dur = Fraction(1, metre[1])
+    results: list[StrettoOffset] = []
+    offset = min_dur
+    while offset < leader_total:
+        valid, overlap_count, all_consonant, cons_count, total_count = _check_overlap(
+            leader_timeline=leader_tl,
+            follower_timeline=follower_tl,
+            leader_dur=leader_total,
+            follower_dur=follower_total,
+            offset=offset,
+            metre=metre,
+            min_duration=min_dur,
+        )
+        if valid and overlap_count >= 3:
+            qual = cons_count / total_count if total_count > 0 else 1.0
+            results.append(StrettoOffset(
+                offset=float(offset),
+                offset_beats=float(offset / beat_dur),
+                overlap_notes=overlap_count,
+                all_consonant=all_consonant,
+                voice=voice_label,
+                consonant_count=cons_count,
+                total_count=total_count,
+                quality=qual,
+            ))
+        offset += min_dur
+    return results
+
+
 def count_self_stretto(
     degrees: tuple[int, ...],
     durations: tuple[float, ...],
