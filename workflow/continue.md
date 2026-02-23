@@ -1,61 +1,62 @@
-# Continue — CP-SAT prototype scaling + documentation (2026-02-23)
+# Continue — Subject pool expansion + scoring removal (2026-02-23)
 
 ## What happened this session
 
-### 1. CP-SAT prototype fixed for scaling
+### 1. SUBPOOL — Widened subject pool for stretto richness
 
-Original prototype used `enumerate_all_solutions` which crashed at 9 notes
-(exponential time). Tested three sampling strategies:
+- `MAX_SUBJECT_NOTES` raised from 10 to 16 (was limiting to 8–10 notes)
+- Hard contour filter (arch only, discarding 87%) replaced with soft bonus
+- Stretto filter raised from `viable_count > 0` to `>= 3`
+- CP-SAT generates ~2000 sequences per note count (8–16), total ~6 min one-off
+- Result: pool grew from 2,735 to 5,256; stretto-passing candidates from 1/20 to 28
 
-**Strategy 1: Random restarts with solution limit.** Each restart uses a
-different `random_seed`. Result: severe clustering — nearly all solutions
-started `(0, 1, 0, 1, ...)`. Different seeds don't push the solver into
-different regions of feasible space. 529 distinct at 8 notes (vs 4,120
-from enumerate-all).
+### 2. SUBDUR — Multi-duration pairing + stretto cache
 
-**Strategy 2: Random linear objective per restart.** Random weights on each
-pitch position, then `maximize`. Result: good diversity but very few
-solutions per restart — optimisation mode only fires the callback for
-improving solutions. 94 distinct at 8 notes.
+- Each pitch now pairs with top-5 duration patterns (was: single best per note count)
+- Fixed dedup key to `(degrees, dur_pattern)` so rhythm variants survive
+- Stretto evaluation cached to disk — second run 0.03s (was 542s)
+- `DIVERSITY_POOL_CAP` raised from 500 to 2500 to accommodate 5× pool growth
+- Result: pool 25,833; stretto-passing 128; minim lock broken (5/6 end on crotchets)
 
-**Strategy 3: Two-phase (adopted).** Phase A: random objective finds one
-diverse anchor. Phase B: feasibility enumeration from anchor neighbourhood
-via `add_hint`. Result: good diversity AND good yield. 903 distinct at
-8 notes, 1,369 at 9, 1,559 at 10. All within 35s budget.
+### 3. SUBSCORE — Removed pitch/duration scoring (CC done, not yet tested)
 
-### 2. Production integration confirmed working
+- Deleted `scoring.py` entirely
+- Deleted `score_pitch_sequence` and all helpers from `pitch_generator.py`
+- Deleted `score_duration_sequence` from `duration_generator.py`
+- Removed quality floor from selector
+- Ranking signal is now stretto quality: `mean(offset.quality for viable offsets)`
+- Contour parameter restored as hard filter (CLI convenience), not bonus
+- Removed ~15 scoring constants from `constants.py`
 
-The CP-SAT generator (`cpsat_generator.py`) was already wired into
-`pitch_generator.py` from a previous session. Verified:
-- Cache files are fresh (`cpsat_pitch_8n_major_k4.pkl` etc.)
-- All 6 generated subjects in `motifs/subjects/` use CP-SAT output
-- Old `generate_pitch_sequences` is dead code (defined, never called)
-- Stretto filter in `selector.py` still active (real-duration evaluation)
+**Status: code changes committed by CC, caches need deletion, needs first run + evaluation.**
 
-### 3. Documentation updated
-
-- `cpsat_brief.md`: Updated status to "Integrated", added prototype
-  comparison table, current output table, architecture diagram, known
-  limitations.
-- `cpsat_design.md`: Updated status to "Implemented", replaced sampling
-  strategy section with two-phase description, updated integration plan
-  to "completed", updated risks/mitigations to reflect outcomes, marked
-  all acceptance criteria as MET, added two-phase prototype results to
-  appendix.
-
-### Files changed
-- `motifs/subject_gen/cpsat_prototype.py` — rewritten with two-phase sampling
-- `workflow/cpsat_brief.md` — full rewrite reflecting integration
-- `workflow/cpsat_design.md` — status, sampling, integration, risks, criteria updated
+### Files changed (cumulative)
+- `motifs/subject_gen/constants.py` — MAX_SUBJECT_NOTES=16, MIN_STRETTO_OFFSETS=3, DURATIONS_PER_NOTE_COUNT=5, removed scoring constants
+- `motifs/subject_gen/selector.py` — top-K durations, stretto cache, stretto quality ranking, no quality floor
+- `motifs/subject_gen/pitch_generator.py` — scoring removed, _ScoredPitch.score=0.0
+- `motifs/subject_gen/duration_generator.py` — scoring removed, returns patterns only
+- `motifs/subject_gen/scoring.py` — deleted
+- `motifs/subject_gen/models.py` — score fields retained (0.0 / stretto quality)
 
 ### What needs attention next
-1. **Remove dead code.** `generate_pitch_sequences` in `pitch_generator.py`
-   is defined but never called. Safe to delete.
-2. **Contour diversity.** All 6 subjects are "arch". The scorer favours arch
-   shapes — this is a scoring problem, not a CP-SAT problem. The pool
-   contains diverse contours but they score lower.
-3. **Even-duration stretto gap.** CP-SAT guarantees stretto at primary offset
-   with even durations. Real-duration evaluation is stricter. Joint
-   pitch+duration model would close this gap but is complex.
-4. **Minor mode.** Consonance table switches automatically via
-   `NATURAL_MINOR_SCALE` but not yet exercised in production.
+
+1. **Test SUBSCORE.** Delete all `.cache/subject/` files. Run:
+   ```
+   python -m motifs.subject_generator --bars 2 --verbose
+   ```
+   First run ~6–10 min (regen caches + stretto eval). Second run < 5s.
+   Check: ≥3 contour shapes in top 6, ≥200 stretto-passing candidates,
+   stepwise subjects present, all 6 have ≥3 stretto offsets.
+
+2. **Commit SUBSCORE** after successful test.
+
+3. **Listen.** Generate MIDI for the top subjects and listen. The numbers
+   look right but the human ear is the real test.
+
+4. **Duration scorer bias** is gone but the duration *enumerator* still
+   has hard constraints: last note ≥ crotchet, no isolated semiquavers,
+   bar1 density ≥ bar2. These may still exclude valid patterns. Review
+   after listening.
+
+5. **Cross-bar rhythmic variety**: bar1 and bar2 can still be identical
+   rhythm. Not yet addressed.

@@ -1,5 +1,16 @@
 # Completed
 
+## SUBSCORE — Remove pitch/duration scoring, rank by stretto quality (2026-02-23)
+
+Replaced aesthetic scoring with stretto-quality ranking throughout the subject generator.
+
+- `constants.py`: Removed `QUALITY_FLOOR_FRACTION`, `CONTOUR_PREFERENCE_BONUS`, `IDEAL_CLIMAX_LO/HI`, `IDEAL_STEP_FRACTION`, `IDEAL_RHYTHMIC_ENTROPY`, `MIN_SIGNATURE_LEAP`, `MAX_STEPWISE_RUN`, `MIN_DISTINCT_INTERVALS`, `LEAP_RECOVERY_WINDOW`, `MAX_OPENING_TICKS`, `MIN_DURATION_KINDS`
+- `pitch_generator.py`: Deleted `score_pitch_sequence` and all helpers (`_direction_changes`, `_tension_arc_score`, `_longest_stepwise_run`, `_leap_recovery_rate`). `_cached_validated_pitch` now sets `score=0.0`, no sorting.
+- `duration_generator.py`: Deleted `score_duration_sequence`. `_cached_scored_durations` returns `dict[int, list[tuple[int, ...]]]` (patterns only, no scores).
+- `selector.py`: Pool is now `list[tuple[_ScoredPitch, tuple[int, ...]]]` (no score). No quality floor. `pitch_contour` is a hard exclusion filter, not a bonus. After stretto filter, candidates ranked by `mean(r.quality for r in viable_offsets)`. `final_score` passed to `_build_subject` is the stretto quality score.
+- `scoring.py`: Deleted.
+- Caches: All `.pkl` cache files deleted to force regeneration with new data structures.
+
 ## SUBDUR — Multi-duration pairing + stretto cache (2026-02-23)
 
 Introduced rhythmic variety by pairing each pitch with the top-5 duration patterns

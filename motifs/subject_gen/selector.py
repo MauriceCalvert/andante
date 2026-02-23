@@ -6,12 +6,10 @@ from motifs.head_generator import degrees_to_midi
 from motifs.stretto_constraints import OffsetResult, evaluate_all_offsets
 from motifs.subject_gen.cache import _load_cache, _save_cache
 from motifs.subject_gen.constants import (
-    CONTOUR_PREFERENCE_BONUS,
     DIVERSITY_POOL_CAP,
     DURATION_TICKS,
     DURATIONS_PER_NOTE_COUNT,
     MIN_STRETTO_OFFSETS,
-    QUALITY_FLOOR_FRACTION,
     X2_TICKS_PER_WHOLE,
     _bar_x2_ticks,
 )
@@ -87,15 +85,15 @@ def select_diverse_subjects(
     t_start = time.time()
     if verbose:
         print(f"select_diverse: n={n} mode={mode} metre={metre} bars={target_bars}")
-    # ── Durations: top-K per note count ────────────────────────
-    all_scored_durs = _cached_scored_durations(n_bars=target_bars, bar_ticks=bar_ticks)
-    assert len(all_scored_durs) > 0, f"No durations for bars={target_bars} metre={metre}"
-    top_durs_by_count: dict[int, list[tuple[float, tuple[int, ...]]]] = {}
-    for nc, scored_list in all_scored_durs.items():
-        if scored_list:
-            top_durs_by_count[nc] = scored_list[:DURATIONS_PER_NOTE_COUNT]
+    # ── Durations: all patterns per note count ──────────────────
+    all_durs = _cached_scored_durations(n_bars=target_bars, bar_ticks=bar_ticks)
+    assert len(all_durs) > 0, f"No durations for bars={target_bars} metre={metre}"
+    top_durs_by_count: dict[int, list[tuple[int, ...]]] = {}
+    for nc, dur_list in all_durs.items():
+        if dur_list:
+            top_durs_by_count[nc] = dur_list[:DURATIONS_PER_NOTE_COUNT]
     # ── Pitch: full validated pool, paired with each duration option ────
-    pool: list[tuple[float, _ScoredPitch, tuple[int, ...]]] = []
+    pool: list[tuple[_ScoredPitch, tuple[int, ...]]] = []
     for nc in sorted(top_durs_by_count.keys()):
         if note_counts is not None and nc not in note_counts:
             continue
@@ -108,34 +106,28 @@ def select_diverse_subjects(
         if verbose:
             print(f"  {nc}n: {len(all_pitch):,} valid × {len(dur_options)} durations")
         for sp in all_pitch:
-            for d_sc, d_seq in dur_options:
-                combined = 0.50 * sp.score + 0.50 * d_sc
-                pool.append((combined, sp, d_seq))
+            for d_seq in dur_options:
+                pool.append((sp, d_seq))
     assert len(pool) > 0, "No valid subjects found"
-    pool.sort(key=lambda x: x[0], reverse=True)
-    # ── Contour filter ─────────────────────────────────────────
+    # ── Contour hard filter ─────────────────────────────────────
     if pitch_contour is not None:
+        available_contours = sorted({sp.shape for sp, _ in pool})
         if verbose:
-            contour_dist = Counter(sp.shape for _, sp, _ in pool)
+            contour_dist = Counter(sp.shape for sp, _ in pool)
             print(f"  Contour distribution: {dict(contour_dist)}")
-        pool = [
-            (sc + CONTOUR_PREFERENCE_BONUS, sp, durs) if sp.shape == pitch_contour
-            else (sc, sp, durs)
-            for sc, sp, durs in pool
-        ]
-        pool.sort(key=lambda x: x[0], reverse=True)
-    # ── Quality floor + dedup (key: degrees + dur_pattern) ─────
-    best_score = pool[0][0]
-    floor = best_score * QUALITY_FLOOR_FRACTION
+        pool = [(sp, durs) for sp, durs in pool if sp.shape == pitch_contour]
+        assert len(pool) > 0, (
+            f"No subjects with contour={pitch_contour!r}; "
+            f"available: {available_contours}"
+        )
+    # ── Dedup (key: degrees + dur_pattern) ─────────────────────
     seen: set[tuple[tuple[int, ...], tuple[int, ...]]] = set()
-    candidates: list[tuple[float, _ScoredPitch, tuple[int, ...]]] = []
-    for entry in pool:
-        if entry[0] < floor:
-            break
-        dedup_key = (entry[1].degrees, entry[2])
+    candidates: list[tuple[_ScoredPitch, tuple[int, ...]]] = []
+    for sp, d_seq in pool:
+        dedup_key = (sp.degrees, d_seq)
         if dedup_key not in seen:
             seen.add(dedup_key)
-            candidates.append(entry)
+            candidates.append((sp, d_seq))
             if len(candidates) >= DIVERSITY_POOL_CAP:
                 break
     # ── Stretto filter: cache to disk ──────────────────────────
@@ -145,10 +137,9 @@ def select_diverse_subjects(
         loaded if isinstance(loaded, dict) else {}
     )
     new_entries: int = 0
+    # (stretto_score, sp, dur_seq, viable_offsets)
     stretto_filtered: list[tuple[float, _ScoredPitch, tuple[int, ...], tuple[OffsetResult, ...]]] = []
-    for entry in candidates:
-        sp = entry[1]
-        dur_seq = entry[2]
+    for sp, dur_seq in candidates:
         cache_key = (sp.degrees, dur_seq)
         if cache_key in stretto_cache:
             viable_offsets = stretto_cache[cache_key]
@@ -164,18 +155,26 @@ def select_diverse_subjects(
             stretto_cache[cache_key] = viable_offsets
             new_entries += 1
         if len(viable_offsets) >= MIN_STRETTO_OFFSETS:
-            stretto_filtered.append((entry[0], sp, dur_seq, viable_offsets))
+            stretto_score = sum(r.quality for r in viable_offsets) / len(viable_offsets)
+            stretto_filtered.append((stretto_score, sp, dur_seq, viable_offsets))
     if new_entries > 0:
         _save_cache(cache_name, stretto_cache)
+    # ── Sort by stretto quality descending ─────────────────────
+    stretto_filtered.sort(key=lambda x: x[0], reverse=True)
     if verbose:
-        print(f"  Pool: {len(pool)} total, {len(stretto_filtered)} with >= {MIN_STRETTO_OFFSETS} stretto "
-              f"(best={best_score:.4f}, floor={floor:.4f}, cache_hits={len(candidates)-new_entries})")
-    assert len(stretto_filtered) > 0, f"No candidates with >= {MIN_STRETTO_OFFSETS} stretto offsets"
+        print(
+            f"  Pool: {len(pool)} total, {len(stretto_filtered)} with "
+            f">= {MIN_STRETTO_OFFSETS} stretto "
+            f"(cache_hits={len(candidates) - new_entries})"
+        )
+    assert len(stretto_filtered) > 0, (
+        f"No candidates with >= {MIN_STRETTO_OFFSETS} stretto offsets"
+    )
     # ── Greedy max-min distance selection ──────────────────────
     if len(stretto_filtered) <= n:
         picks = list(range(len(stretto_filtered)))
     else:
-        picks: list[int] = [0]  # start with best-scoring
+        picks: list[int] = [0]  # start with best stretto quality
         for _ in range(n - 1):
             best_idx = -1
             best_min_dist = -1
@@ -193,7 +192,7 @@ def select_diverse_subjects(
     # ── Build GeneratedSubject for each pick ──────────────────
     results: list[GeneratedSubject] = []
     for pi in picks:
-        combined_sc, sp, best_d_seq, viable_offsets = stretto_filtered[pi]
+        stretto_sc, sp, best_d_seq, viable_offsets = stretto_filtered[pi]
         subj = _build_subject(
             sp=sp,
             best_durs=best_d_seq,
@@ -201,7 +200,7 @@ def select_diverse_subjects(
             mode=mode,
             metre=metre,
             bar_ticks=bar_ticks,
-            final_score=combined_sc,
+            final_score=stretto_sc,
             cached_viable_offsets=viable_offsets,
         )
         results.append(subj)
@@ -209,7 +208,7 @@ def select_diverse_subjects(
     if verbose:
         for i, subj in enumerate(results):
             print(f"  [{i}] {subj.head_name} {len(subj.scale_indices)}n "
-                  f"score={subj.score:.4f} degrees={subj.scale_indices} "
+                  f"stretto_score={subj.score:.4f} degrees={subj.scale_indices} "
                   f"stretto={len(subj.stretto_offsets)}")
         print(f"  Selected {len(results)} in {elapsed:.2f}s")
     return results

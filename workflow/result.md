@@ -1,29 +1,40 @@
-# Result: SUBDUR — Multi-duration pairing + stretto cache
+## SUBSCORE — Result
 
-## Changes
+### Chaz checkpoint
 
-### `motifs/subject_gen/constants.py`
-- Added `DURATIONS_PER_NOTE_COUNT: int = 5`
+1. **`scoring.py` deleted** — confirmed, file is gone.
 
-### `motifs/subject_gen/selector.py`
-1. **Imports**: `OffsetResult` from `stretto_constraints`; `_load_cache`, `_save_cache` from `cache`; `DURATIONS_PER_NOTE_COUNT` from `constants`
-2. **Top-K durations**: `top_durs_by_count` keeps `scored_list[:DURATIONS_PER_NOTE_COUNT]` per note count
-3. **Pool loop**: inner loop over K duration options — each pitch × each duration = one pool entry
-4. **Dedup key**: `(sp.degrees, dur_seq)` — same pitch + different rhythm no longer collapsed
-5. **Stretto cache**: loaded before filter loop as `dict[(degrees, dur_pattern), tuple[OffsetResult, ...]]`. On cache hit: use stored offsets. On miss: evaluate, store. Save if new entries added. Cache file: `stretto_eval_{mode}_{target_bars}b_{bar_ticks}t.pkl`
-6. **`stretto_filtered`**: 4-tuple `(score, sp, dur_seq, viable_offsets)`
-7. **`_build_subject`**: `cached_viable_offsets: tuple[OffsetResult, ...] | None = None` parameter — when provided, skips `evaluate_all_offsets`
-8. **Picks loop**: passes `viable_offsets` from `stretto_filtered` to `_build_subject`
+2. **`score_pitch_sequence` and `score_duration_sequence` gone** — confirmed.
+   - `pitch_generator.py` contains no scoring functions; only `_degrees_to_ivs` and `_cached_validated_pitch`.
+   - `duration_generator.py` contains no `score_duration_sequence`; `_cached_scored_durations` returns `dict[int, list[tuple[int, ...]]]` (patterns only).
 
-## Chaz Checkpoint
+3. **No quality floor in selector** — confirmed.
+   - The `QUALITY_FLOOR_FRACTION` constant is deleted from `constants.py`.
+   - `selector.py` has no floor logic; all deduped candidates proceed to stretto evaluation, bounded only by `DIVERSITY_POOL_CAP=2500`.
 
-1. ✅ `DURATIONS_PER_NOTE_COUNT = 5` in `constants.py`
-2. ✅ Dedup key is `(degrees, dur_pattern)` — line `dedup_key = (entry[1].degrees, entry[2])`
-3. ✅ Cache file loaded before loop, saved after if `new_entries > 0`; second run will have all keys cached → no `evaluate_all_offsets` calls → fast
-4. ✅ `_build_subject` uses `cached_viable_offsets` when provided, no re-evaluation at pick time
+4. **Stretto quality is the ranking signal** — confirmed.
+   - After stretto filter, `stretto_score = sum(r.quality for r in viable_offsets) / len(viable_offsets)`.
+   - `stretto_filtered` is sorted descending by `stretto_score`.
+   - Greedy diversity selection starts at index 0 (best stretto quality).
+   - `final_score=stretto_sc` is passed to `_build_subject`, so `GeneratedSubject.score` carries stretto quality.
 
-## Notes
+5. **Cache files deleted** — no `.pkl` files found in `.cache/`; regeneration will happen on first run.
 
-- The CP-SAT pitch caches are untouched.
-- Delete `stretto_eval_*.pkl` if the stretto logic changes; pitch caches remain valid.
-- Verbose output now shows `cache_hits` count alongside pool/stretto stats.
+6. **`pitch_contour` as hard filter** — confirmed. When provided, `pool` is filtered to matching shape only; no bonus, just exclusion.
+
+7. **Unchanged per constraints** — `_build_subject` signature unchanged (beyond `final_score` semantics); `select_subject`, `_degree_distance`, `GeneratedSubject.score`, `_ScoredPitch.score` all retained.
+
+---
+
+### Bob checkpoint
+
+User must run:
+```
+python -m motifs.subject_generator --bars 2 --verbose
+```
+
+Bob should report:
+1. How many candidates pass ≥3 stretto? (expect >128)
+2. What contour shapes appear in the 6 selected? (expect variety)
+3. What note counts appear? Any even-quaver subjects?
+4. Do any subjects have the stepwise, running character of a Bach invention?
