@@ -14,7 +14,7 @@ from typing import Tuple
 from ortools.sat.python import cp_model
 
 from motifs.head_generator import degrees_to_midi
-from motifs.subject_generator import GeneratedSubject
+from motifs.subject_gen import GeneratedSubject
 from shared.constants import TONIC_TRIAD_DEGREES
 from shared.music_math import VALID_DURATIONS, VALID_DURATIONS_SORTED
 
@@ -528,7 +528,7 @@ def verify_countersubject(
 
 
 if __name__ == "__main__":
-    from motifs.subject_generator import select_subject
+    from motifs.subject_gen import select_subject
     from motifs.answer_generator import generate_answer
     print("Testing countersubject generation (dual validation)...")
     print("=" * 60)

@@ -2,18 +2,13 @@
 import os
 from itertools import product as iter_product
 
-import motifs.subject_generator as sg
-from motifs.subject_generator import (
-    MIRROR_PAIRS,
-    PITCH_CONTOURS,
-    RHYTHM_CONTOURS,
-    enumerate_bar_fills,
-    enumerate_intervals,
-    is_melodically_valid,
-    score_intervals,
-    score_joint,
-    score_rhythm_fit,
-)
+import motifs.subject_gen.constants as sg
+from motifs.subject_gen.duration_generator import enumerate_bar_fills
+from motifs.subject_gen.validator import is_melodically_valid
+# NOTE: The following imports are broken - these functions don't exist:
+# MIRROR_PAIRS, PITCH_CONTOURS, RHYTHM_CONTOURS, enumerate_intervals,
+# score_intervals, score_joint, score_rhythm_fit
+# This file needs updating to use the new subject_gen API.
 from motifs.head_generator import degrees_to_midi
 from shared.constants import NOTE_NAMES
 from shared.midi_writer import write_midi

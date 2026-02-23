@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 from motifs.head_generator import degrees_to_midi
-from motifs.subject_generator import GeneratedSubject
+from motifs.subject_gen import GeneratedSubject
 
 
 TONIC_TRANSPOSITION = 3      # Tonic region notes: up a 4th
@@ -105,7 +105,7 @@ def answer_to_str(
 
 
 if __name__ == "__main__":
-    from motifs.subject_generator import select_subject
+    from motifs.subject_gen import select_subject
     print("Testing tonal answer generation...")
     print("=" * 60)
     for seed in [42, 123, 456, 789, 1001]:

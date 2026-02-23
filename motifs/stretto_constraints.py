@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from shared.constants import (
     CONSONANT_INTERVALS,
     CONSONANT_INTERVALS_ABOVE_BASS,
+    STRETTO_MIN_QUALITY,
     STRETTO_OFFSET_COUNT_CEILING,
     TRITONE_SEMITONES,
 )
@@ -223,6 +224,12 @@ def evaluate_offset(
             else:
                 total_cost += ck.collision_slots
     qual: float = consonant_count / total_count
+    if qual < STRETTO_MIN_QUALITY:
+        return OffsetResult(
+            offset_slots=offset_slots, viable=False,
+            consonant_count=consonant_count, total_count=total_count,
+            dissonance_cost=total_cost, quality=qual,
+        )
     return OffsetResult(
         offset_slots=offset_slots, viable=True,
         consonant_count=consonant_count, total_count=total_count,

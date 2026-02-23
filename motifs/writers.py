@@ -11,7 +11,8 @@ import yaml
 
 from motifs.head_generator import degrees_to_midi, RHYTHM_CELLS_BY_METRE
 from motifs.stretto_constraints import OffsetResult
-from motifs.subject_generator import GeneratedSubject, X2_TICKS_PER_WHOLE
+from motifs.subject_gen import GeneratedSubject
+from motifs.subject_gen.constants import X2_TICKS_PER_WHOLE
 from shared.midi_writer import SimpleNote, write_midi_notes
 
 
@@ -59,7 +60,7 @@ def generate_fugue_triple(
     """Generate coordinated subject, answer, and countersubject."""
     from motifs.answer_generator import generate_answer
     from motifs.countersubject_generator import generate_countersubject
-    from motifs.subject_generator import select_subject
+    from motifs.subject_gen import select_subject
     subject = select_subject(
         mode=mode,
         metre=metre,
@@ -291,7 +292,7 @@ def main() -> None:
                         help="Generate batch of N subjects (default 6: 2x2bar, 2x3bar, 2x4bar)")
     parser.add_argument("--contour", type=str, default=None,
                         choices=["arch", "valley", "swoop", "dip",
-                                 "ascending", "descending"],
+                                 "ascending", "descending", "zigzag"],
                         help="Pitch contour filter")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Print details")

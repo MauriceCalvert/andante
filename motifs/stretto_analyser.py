@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import Tuple
 
-from motifs.subject_generator import GeneratedSubject
+from motifs.subject_gen import GeneratedSubject
 from motifs.answer_generator import GeneratedAnswer
 
 

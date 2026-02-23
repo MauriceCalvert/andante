@@ -116,6 +116,7 @@ SECOND_MOD7: int = 1
 SEVENTH_MOD7: int = 6
 
 # Normalisation ceiling for stretto offset count scoring
+STRETTO_MIN_QUALITY: float = 0.6
 STRETTO_OFFSET_COUNT_CEILING: int = 6
 
 
