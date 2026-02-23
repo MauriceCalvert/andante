@@ -32,6 +32,7 @@ WEAK_BEAT_ALLOWED = frozenset({0, 1, 2, 4, 5, 6})
 TRITONE_INTERVAL = 3
 PENALTY_WEAK_BEAT_FIFTH = 20
 PENALTY_WEAK_BEAT_DISSONANCE = 10
+PENALTY_DISSONANCE_NOT_PASSING = 200
 PENALTY_LARGE_LEAP = 30
 PENALTY_REPEATED_PITCH = 25
 PENALTY_INTERIOR_UNISON = 15
@@ -283,6 +284,45 @@ def generate_countersubject(
             model.Add(interval_mod7[i] == 0).OnlyEnforceIf(is_unison)
             model.Add(interval_mod7[i] != 0).OnlyEnforceIf(is_unison.Not())
             penalties.append((is_unison, PENALTY_INTERIOR_UNISON))
+    # --- Passing-tone constraint: dissonances must be approached and left by step ---
+    for i in range(m):
+        is_diss_1 = model.NewBoolVar(f"pt1_{i}")
+        model.Add(interval_mod7[i] == 1).OnlyEnforceIf(is_diss_1)
+        model.Add(interval_mod7[i] != 1).OnlyEnforceIf(is_diss_1.Not())
+        is_diss_6 = model.NewBoolVar(f"pt6_{i}")
+        model.Add(interval_mod7[i] == 6).OnlyEnforceIf(is_diss_6)
+        model.Add(interval_mod7[i] != 6).OnlyEnforceIf(is_diss_6.Not())
+        is_diss = model.NewBoolVar(f"ptd_{i}")
+        model.AddBoolOr([is_diss_1, is_diss_6]).OnlyEnforceIf(is_diss)
+        model.AddBoolAnd([is_diss_1.Not(), is_diss_6.Not()]).OnlyEnforceIf(is_diss.Not())
+        if i == 0 or i == m - 1:
+            # Boundary notes: forbid dissonance outright (no step context)
+            model.Add(is_diss == 0)
+        else:
+            # Approach by step: abs(cs[i] - cs[i-1]) <= 1
+            approach = model.NewIntVar(-28, 28, f"ptapp_{i}")
+            model.Add(approach == cs[i] - cs[i - 1])
+            abs_approach = model.NewIntVar(0, 28, f"ptaabs_{i}")
+            model.AddAbsEquality(abs_approach, approach)
+            step_in = model.NewBoolVar(f"ptin_{i}")
+            model.Add(abs_approach <= 1).OnlyEnforceIf(step_in)
+            model.Add(abs_approach > 1).OnlyEnforceIf(step_in.Not())
+            # Resolution by step: abs(cs[i+1] - cs[i]) <= 1
+            resolution = model.NewIntVar(-28, 28, f"ptres_{i}")
+            model.Add(resolution == cs[i + 1] - cs[i])
+            abs_resolution = model.NewIntVar(0, 28, f"ptrabs_{i}")
+            model.AddAbsEquality(abs_resolution, resolution)
+            step_out = model.NewBoolVar(f"ptout_{i}")
+            model.Add(abs_resolution <= 1).OnlyEnforceIf(step_out)
+            model.Add(abs_resolution > 1).OnlyEnforceIf(step_out.Not())
+            # Penalise dissonance that isn't a passing tone
+            not_passing = model.NewBoolVar(f"ptnp_{i}")
+            model.AddBoolOr([step_in.Not(), step_out.Not()]).OnlyEnforceIf(not_passing)
+            model.AddBoolAnd([step_in, step_out]).OnlyEnforceIf(not_passing.Not())
+            bad_diss = model.NewBoolVar(f"ptbad_{i}")
+            model.AddBoolAnd([is_diss, not_passing]).OnlyEnforceIf(bad_diss)
+            model.AddBoolOr([is_diss.Not(), not_passing.Not()]).OnlyEnforceIf(bad_diss.Not())
+            penalties.append((bad_diss, PENALTY_DISSONANCE_NOT_PASSING))
     # --- Answer weak-beat penalties (parallel to subject penalties) ---
     if answer_degrees is not None:
         for i in range(m):

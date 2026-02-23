@@ -190,6 +190,36 @@ def evaluate_offset(
     assert len(midi) == len(dur_slots), (
         f"midi ({len(midi)}) != durations ({len(dur_slots)})"
     )
+    # ── Follower onset alignment rules ───────────────────────
+    # 1. First follower onset must land on a leader onset
+    # 2. Later follower onsets may fall between leader onsets
+    #    but must finish on or before the next leader onset
+    onsets: tuple[int, ...] = _note_onsets(dur_slots)
+    leader_onset_set: frozenset[int] = frozenset(onsets)
+    total_slots_count: int = sum(dur_slots)
+    sorted_leader_onsets: tuple[int, ...] = tuple(sorted(leader_onset_set))
+    _REJECT = OffsetResult(
+        offset_slots=offset_slots, viable=False,
+        consonant_count=0, total_count=0,
+        dissonance_cost=0, quality=0.0,
+    )
+    for fi, f_onset in enumerate(onsets):
+        f_abs: int = f_onset + offset_slots
+        if f_abs >= total_slots_count:
+            break
+        if fi == 0:
+            if f_abs not in leader_onset_set:
+                return _REJECT
+        else:
+            if f_abs not in leader_onset_set:
+                f_end: int = f_abs + dur_slots[fi]
+                next_leader: int | None = None
+                for lo in sorted_leader_onsets:
+                    if lo > f_abs:
+                        next_leader = lo
+                        break
+                if next_leader is None or f_end > next_leader:
+                    return _REJECT
     checks: tuple[StrettoCheck, ...] = derive_check_points(
         dur_slots=dur_slots, offset_slots=offset_slots, metre=metre,
     )
@@ -213,7 +243,7 @@ def evaluate_offset(
                 )
             consonant_count += 1
         else:
-            if semitones == TRITONE_SEMITONES:
+            if semitones == TRITONE_SEMITONES or semitones == 1 or semitones == 11:
                 return OffsetResult(
                     offset_slots=offset_slots, viable=False,
                     consonant_count=consonant_count, total_count=total_count,

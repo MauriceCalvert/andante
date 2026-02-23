@@ -9,6 +9,7 @@ from motifs.subject_gen.constants import (
     MAX_SUBJECT_NOTES,
     MIN_LAST_DUR_TICKS,
     MIN_NOTES_PER_BAR,
+    MIN_SUBJECT_NOTES,
     NUM_DURATIONS,
     SEMIQUAVER_DI,
 )
@@ -71,7 +72,7 @@ def enumerate_durations(
     for combo in iter_product(fills, repeat=n_bars):
         seq: tuple[int, ...] = sum(combo, ())
         n_notes = len(seq)
-        if n_notes > MAX_SUBJECT_NOTES:
+        if n_notes < MIN_SUBJECT_NOTES or n_notes > MAX_SUBJECT_NOTES:
             continue
         if note_counts is not None and n_notes not in note_counts:
             continue

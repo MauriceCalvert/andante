@@ -60,17 +60,23 @@ if __name__ == "__main__":
     parser.add_argument("--bars", type=int, default=2)
     parser.add_argument("--tonic", type=int, default=60)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--notes", type=str, default=None,
+                        help="Note counts, e.g. '9,10' (default: all)")
     parser.add_argument("--contour", type=str, default=None,
                         choices=["arch", "valley", "swoop", "dip",
                                  "ascending", "descending", "zigzag"])
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
+    note_counts = None
+    if args.notes:
+        note_counts = tuple(int(x) for x in args.notes.split(","))
     result = select_subject(
         mode=args.mode,
         metre=tuple(args.metre),
         tonic_midi=args.tonic,
         target_bars=args.bars,
         pitch_contour=args.contour,
+        note_counts=note_counts,
         seed=args.seed,
         verbose=args.verbose,
     )

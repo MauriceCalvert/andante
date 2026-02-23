@@ -3,6 +3,7 @@
 Produces degree sequences where stretto consonance is a built-in constraint.
 Two-phase sampling: random-objective anchor + feasibility enumeration per restart.
 """
+import math
 import random
 
 from ortools.sat.python import cp_model
@@ -86,8 +87,7 @@ def _build_model(
     """Build CP-SAT model with melodic + stretto constraints."""
     model = cp_model.CpModel()
     n_iv = num_notes - 1
-    min_steps = -(-n_iv // 2)  # ceil division
-    assert min_steps == (n_iv + 1) // 2
+    min_steps = math.ceil(n_iv * MIN_STEP_FRACTION)
     # ── Variables ────────────────────────────────────────────────
     pitches = [model.new_int_var(PITCH_LO, PITCH_HI, f"p_{i}") for i in range(num_notes)]
     ivs = [model.new_int_var(-5, 5, f"iv_{i}") for i in range(n_iv)]

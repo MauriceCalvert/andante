@@ -6,9 +6,7 @@ from motifs.head_generator import degrees_to_midi
 from motifs.stretto_constraints import OffsetResult, evaluate_all_offsets
 from motifs.subject_gen.cache import _load_cache, _save_cache
 from motifs.subject_gen.constants import (
-    DIVERSITY_POOL_CAP,
     DURATION_TICKS,
-    DURATIONS_PER_NOTE_COUNT,
     MIN_STRETTO_OFFSETS,
     X2_TICKS_PER_WHOLE,
     _bar_x2_ticks,
@@ -19,8 +17,15 @@ from motifs.subject_gen.models import GeneratedSubject, _ScoredPitch
 from motifs.subject_gen.pitch_generator import _cached_validated_pitch
 
 
-def _degree_distance(a: tuple[int, ...], b: tuple[int, ...]) -> int:
-    """Hamming distance between two degree sequences (different lengths = max)."""
+def _subject_distance(
+    a_degs: tuple[int, ...],
+    a_durs: tuple[int, ...],
+    b_degs: tuple[int, ...],
+    b_durs: tuple[int, ...],
+) -> int:
+    """Hamming distance over degrees + durations (different lengths = max)."""
+    a = a_degs + a_durs
+    b = b_degs + b_durs
     if len(a) != len(b):
         return max(len(a), len(b))
     return sum(1 for x, y in zip(a, b) if x != y)
@@ -91,7 +96,7 @@ def select_diverse_subjects(
     top_durs_by_count: dict[int, list[tuple[int, ...]]] = {}
     for nc, dur_list in all_durs.items():
         if dur_list:
-            top_durs_by_count[nc] = dur_list[:DURATIONS_PER_NOTE_COUNT]
+            top_durs_by_count[nc] = dur_list
     # ── Pitch: full validated pool, paired with each duration option ────
     pool: list[tuple[_ScoredPitch, tuple[int, ...]]] = []
     for nc in sorted(top_durs_by_count.keys()):
@@ -128,8 +133,6 @@ def select_diverse_subjects(
         if dedup_key not in seen:
             seen.add(dedup_key)
             candidates.append((sp, d_seq))
-            if len(candidates) >= DIVERSITY_POOL_CAP:
-                break
     # ── Stretto filter: cache to disk ──────────────────────────
     cache_name = f"stretto_eval_{mode}_{target_bars}b_{bar_ticks}t.pkl"
     loaded = _load_cache(cache_name)
@@ -178,12 +181,14 @@ def select_diverse_subjects(
         for _ in range(n - 1):
             best_idx = -1
             best_min_dist = -1
-            picked_degs = [stretto_filtered[p][1].degrees for p in picks]
+            picked_items = [(stretto_filtered[p][1].degrees, stretto_filtered[p][2]) for p in picks]
             for ci in range(len(stretto_filtered)):
                 if ci in picks:
                     continue
-                min_dist = min(_degree_distance(stretto_filtered[ci][1].degrees, pd)
-                               for pd in picked_degs)
+                ci_degs = stretto_filtered[ci][1].degrees
+                ci_durs = stretto_filtered[ci][2]
+                min_dist = min(_subject_distance(ci_degs, ci_durs, pd, pdr)
+                               for pd, pdr in picked_items)
                 if min_dist > best_min_dist:
                     best_min_dist = min_dist
                     best_idx = ci

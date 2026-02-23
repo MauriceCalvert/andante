@@ -2,79 +2,85 @@ subject:
   degrees:
   - 0
   - 1
-  - 2
   - 0
   - 2
-  - 0
-  - -1
-  - -3
-  - -4
-  - -3
-  - 2
+  - 3
+  - 7
+  - 5
+  - 4
+  - 5
+  - 4
+  - 5
+  - 4
   durations:
+  - 0.25
+  - 0.25
   - 0.0625
   - 0.0625
   - 0.125
   - 0.25
-  - 0.5
+  - 0.25
+  - 0.25
+  - 0.125
   - 0.0625
   - 0.0625
-  - 0.125
-  - 0.125
-  - 0.125
-  - 0.5
+  - 0.25
   mode: major
   bars: 2
-  head_name: valley
-  leap_size: 5
+  head_name: zigzag
+  leap_size: 4
   leap_direction: up
 answer:
   degrees:
   - 3
   - 4
-  - 5
   - 3
   - 5
-  - 3
-  - 3
-  - 1
-  - -1
-  - 1
-  - 5
+  - 6
+  - 10
+  - 9
+  - 8
+  - 9
+  - 8
+  - 9
+  - 8
   durations:
+  - 0.25
+  - 0.25
   - 0.0625
   - 0.0625
   - 0.125
   - 0.25
-  - 0.5
+  - 0.25
+  - 0.25
+  - 0.125
   - 0.0625
   - 0.0625
-  - 0.125
-  - 0.125
-  - 0.125
-  - 0.5
+  - 0.25
   type: tonal
   mutation_points:
   - 5
-  - 7
-  - 8
-  - 9
 countersubject:
   degrees:
   - -2
-  - -5
-  - -6
-  - -7
-  - -7
+  - -2
   - -4
   - -3
   - -2
-  - -6
+  - -5
+  - -2
+  - 0
+  - 0
+  - -1
+  - -5
   - -7
-  - -7
-  - -4
-  - -3
+  - -5
+  - -1
   durations:
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
   - 0.25
   - 0.125
   - 0.125
@@ -83,24 +89,22 @@ countersubject:
   - 0.125
   - 0.125
   - 0.25
-  - 0.25
-  - 0.125
-  - 0.125
   - 0.125
   - 0.125
   vertical_intervals:
   - 2
+  - 2
   - 5
-  - 6
+  - 4
   - 2
-  - 2
-  - 6
   - 5
   - 2
-  - 6
+  - 5
+  - 5
+  - 5
   - 2
+  - 5
   - 2
-  - 6
   - 5
 metadata:
   metre:
@@ -110,15 +114,15 @@ metadata:
   tonic_midi: 72
   seed: 3
 stretto:
-- offset_slots: 2
-  consonant: 8/11
-  dissonance_cost: 5
-  quality: 0.73
 - offset_slots: 8
-  consonant: 11/14
+  consonant: 10/12
   dissonance_cost: 5
-  quality: 0.79
+  quality: 0.83
+- offset_slots: 12
+  consonant: 7/9
+  dissonance_cost: 6
+  quality: 0.78
 - offset_slots: 16
-  consonant: 6/6
-  dissonance_cost: 0
-  quality: 1.0
+  consonant: 6/7
+  dissonance_cost: 1
+  quality: 0.86

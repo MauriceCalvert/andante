@@ -1,62 +1,78 @@
-# Continue — Subject pool expansion + scoring removal (2026-02-23)
+# Continue — Subject generator refinement (2026-02-23)
 
 ## What happened this session
 
-### 1. SUBPOOL — Widened subject pool for stretto richness
+### 1. Removed low note counts for 2-bar subjects
+- Added `MIN_SUBJECT_NOTES = 8` to constants.py
+- Duration enumerator now skips sequences below this floor
+- Rationale: 5–7 notes in 2 bars of 4/4 produces hymn-tune subjects, not baroque keyboard
 
-- `MAX_SUBJECT_NOTES` raised from 10 to 16 (was limiting to 8–10 notes)
-- Hard contour filter (arch only, discarding 87%) replaced with soft bonus
-- Stretto filter raised from `viable_count > 0` to `>= 3`
-- CP-SAT generates ~2000 sequences per note count (8–16), total ~6 min one-off
-- Result: pool grew from 2,735 to 5,256; stretto-passing candidates from 1/20 to 28
+### 2. Removed DIVERSITY_POOL_CAP
+- The 2500-entry cap was starving diversity — first pitch sequences hogged all slots
+- With stretto caching to disk, the cap served no purpose (first run pays once)
+- Pool now unlimited; 10.6M candidates evaluated, 1.96M stretto-viable for 8–16n
+- Result: genuine diversity across note counts and contour shapes
 
-### 2. SUBDUR — Multi-duration pairing + stretto cache
+### 3. Challenged BachStretto.md claims
+- Document claimed BWV 846 fugue opens with a half-note C enabling stretto
+- Actually that's the prelude; the fugue subject is pure quavers from beat 2
+- "Sustained opening enables stretto" is not a general rule — BWV 846 disproves it
+- The document is unreliable on this point
 
-- Each pitch now pairs with top-5 duration patterns (was: single best per note count)
-- Fixed dedup key to `(degrees, dur_pattern)` so rhythm variants survive
-- Stretto evaluation cached to disk — second run 0.03s (was 542s)
-- `DIVERSITY_POOL_CAP` raised from 500 to 2500 to accommodate 5× pool growth
-- Result: pool 25,833; stretto-passing 128; minim lock broken (5/6 end on crotchets)
+### 4. Removed minims from duration vocabulary
+- `DURATION_TICKS` reduced to `(1, 2, 4)` — semiquaver, quaver, crotchet
+- Subjects now use mixed quaver/semiquaver rhythms naturally
 
-### 3. SUBSCORE — Removed pitch/duration scoring (CC done, not yet tested)
+### 5. Lowered RANGE_LO from 4 to 3
+- Admits BWV 846-style subjects spanning only a 4th
+- Still prevents aimless noodling (minimum span = 3 degrees = a 4th)
 
-- Deleted `scoring.py` entirely
-- Deleted `score_pitch_sequence` and all helpers from `pitch_generator.py`
-- Deleted `score_duration_sequence` from `duration_generator.py`
-- Removed quality floor from selector
-- Ranking signal is now stretto quality: `mean(offset.quality for viable offsets)`
-- Contour parameter restored as hard filter (CLI convenience), not bonus
-- Removed ~15 scoring constants from `constants.py`
+### 6. Fixed MIN_STEP_FRACTION enforcement
+- Was hardcoded to 50% via `ceil(n_iv / 2)` in cpsat_generator.py
+- Constant `MIN_STEP_FRACTION = 0.65` existed but was never read
+- Now uses `math.ceil(n_iv * MIN_STEP_FRACTION)` — 6 of 9 intervals must be steps for 10n
 
-**Status: code changes committed by CC, caches need deletion, needs first run + evaluation.**
+### 7. Improved diversity selection metric
+- Was: Hamming distance on pitch degrees only (rhythm invisible)
+- Now: Hamming distance on `(degrees + durations)` concatenated
+- Result: 6 picks show genuinely different rhythmic profiles
 
-### Files changed (cumulative)
-- `motifs/subject_gen/constants.py` — MAX_SUBJECT_NOTES=16, MIN_STRETTO_OFFSETS=3, DURATIONS_PER_NOTE_COUNT=5, removed scoring constants
-- `motifs/subject_gen/selector.py` — top-K durations, stretto cache, stretto quality ranking, no quality floor
-- `motifs/subject_gen/pitch_generator.py` — scoring removed, _ScoredPitch.score=0.0
-- `motifs/subject_gen/duration_generator.py` — scoring removed, returns patterns only
-- `motifs/subject_gen/scoring.py` — deleted
-- `motifs/subject_gen/models.py` — score fields retained (0.0 / stretto quality)
+### 8. Added rhythm display to writers output
+- Each subject now prints `Rhythm:` line with standard shorthand (16/8/4/2/1)
+
+### 9. Forbid semitone clashes in stretto
+- Minor 2nd (1 semitone) and major 7th (11 semitones) now fatal on any beat
+- Previously only tritones were fatal on weak beats; semitone clashes just added cost
+- A semitone clash at the end of overlap sounds terrible regardless of beat strength
+
+### 10. Stretto follower onset alignment rules
+- Bug: follower notes could attack between leader onsets and sustain across them
+- New rules in `evaluate_offset`:
+  1. First follower onset must land on a leader onset
+  2. Later follower onsets may fall between leader onsets but must finish on/before the next leader onset
+- Stretto caches cleared; next run rebuilds with stricter evaluation
+
+### Files changed
+- `motifs/subject_gen/constants.py` — MIN_SUBJECT_NOTES=8, DURATION_TICKS=(1,2,4), DURATION_NAMES trimmed, RANGE_LO=3, MIN_STEP_FRACTION=0.65, DIVERSITY_POOL_CAP removed
+- `motifs/subject_gen/cpsat_generator.py` — math.ceil(n_iv * MIN_STEP_FRACTION)
+- `motifs/subject_gen/selector.py` — cap removed, _subject_distance replaces _degree_distance (pitch+rhythm Hamming)
+- `motifs/subject_gen/duration_generator.py` — MIN_SUBJECT_NOTES import and floor check
+- `motifs/stretto_constraints.py` — follower onset alignment rules, semitone clashes fatal
+- `motifs/subject_generator.py` — added --notes CLI parameter
+- `motifs/writers.py` — rhythm display line
+
+### Cache state
+- All `.cache/subject/*.pkl` deleted — stretto caches must rebuild
+- First run will be slow (stretto eval for full pool); subsequent runs instant
 
 ### What needs attention next
 
-1. **Test SUBSCORE.** Delete all `.cache/subject/` files. Run:
-   ```
-   python -m motifs.subject_generator --bars 2 --verbose
-   ```
-   First run ~6–10 min (regen caches + stretto eval). Second run < 5s.
-   Check: ≥3 contour shapes in top 6, ≥200 stretto-passing candidates,
-   stepwise subjects present, all 6 have ≥3 stretto offsets.
+1. **Test stretto onset rules.** Run `writers.py -v --bars 2 --notes 12` and verify .note files — no follower notes should straddle leader onsets.
 
-2. **Commit SUBSCORE** after successful test.
+2. **Listen.** Generate MIDI and listen. Numbers look right but the ear is the real test.
 
-3. **Listen.** Generate MIDI for the top subjects and listen. The numbers
-   look right but the human ear is the real test.
+3. **Full note-count run.** After verifying 12n, run without --notes restriction. First run will be very slow (rebuilding stretto cache for all note counts). Expect significantly fewer stretto-viable candidates due to stricter onset alignment.
 
-4. **Duration scorer bias** is gone but the duration *enumerator* still
-   has hard constraints: last note ≥ crotchet, no isolated semiquavers,
-   bar1 density ≥ bar2. These may still exclude valid patterns. Review
-   after listening.
+4. **Selection caching.** If full-pool dedup/selection is still slow (~58s) after stretto cache is warm, cache the `select_diverse_subjects` output itself.
 
-5. **Cross-bar rhythmic variety**: bar1 and bar2 can still be identical
-   rhythm. Not yet addressed.
+5. **Cross-bar rhythmic variety**: bar1 and bar2 can still have identical rhythm. Not yet addressed.

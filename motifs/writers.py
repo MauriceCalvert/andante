@@ -332,10 +332,13 @@ def main() -> None:
         s = triple.subject
         n_stretto = len(s.stretto_offsets)
         s_notes = ' '.join(_midi_to_name(m) for m in s.midi_pitches)
+        _DUR_ABBREV = {0.0625: '16', 0.125: '8', 0.25: '4', 0.5: '2', 1.0: '1'}
+        s_durs = ' '.join(_DUR_ABBREV.get(d, f'{d}') for d in s.durations)
         print(
             f"[{i:02d}] {n_bars}bar | {s.bars}bar actual | "
             f"{s_notes} | {n_stretto} stretto offsets"
         )
+        print(f"     Rhythm:  {s_durs}")
         if args.verbose:
             a = triple.answer
             c = triple.countersubject
