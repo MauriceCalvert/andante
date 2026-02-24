@@ -13,7 +13,8 @@ from builder.phrase_types import PhrasePlan
 from builder.types import Composition, Note
 from shared.key import Key
 
-HEADER: str = "offset,midinote,duration,track,bar,beat,notename,degree,harmony,phrase,cadence"
+MANDATORY_COLS: tuple[str, ...] = ("offset", "midinote", "duration")
+OPTIONAL_COLS: tuple[str, ...] = ("track", "bar", "beat", "notename", "degree", "harmony", "phrase", "cadence")
 LABELS_HEADER: str = "offset,track,bar,beat,label"
 
 # Degree labels for all 12 pitch classes relative to tonic
@@ -148,7 +149,7 @@ def _format_metadata(
     return lines
 
 
-def _format_row(
+def _build_row(
     note: Note,
     bar: int,
     beat: Fraction,
@@ -156,22 +157,22 @@ def _format_row(
     harmony: str,
     phrase: str,
     cadence: str,
-) -> str:
-    """Format a single note as an enriched CSV line."""
+) -> dict[str, str]:
+    """Build a note row as a dict of column name → value."""
     degree: str = _degree_label(key=local_key, midi=note.pitch)
-    return (
-        f"{float(note.offset)},"
-        f"{note.pitch},"
-        f"{note.duration},"
-        f"{note.voice},"
-        f"{bar},"
-        f"{float(beat)},"
-        f"{note_name(midi=note.pitch)},"
-        f"{degree},"
-        f"{harmony},"
-        f"{phrase},"
-        f"{cadence}"
-    )
+    return {
+        "offset": str(float(note.offset)),
+        "midinote": str(note.pitch),
+        "duration": str(note.duration),
+        "track": str(note.voice),
+        "bar": str(bar),
+        "beat": str(float(beat)),
+        "notename": note_name(midi=note.pitch),
+        "degree": degree,
+        "harmony": harmony,
+        "phrase": phrase,
+        "cadence": cadence,
+    }
 
 
 def _key_label(key: Key) -> str:
@@ -205,8 +206,8 @@ def write_note_file(
         metre=comp.metre,
         upbeat=comp.upbeat,
     )
-    lines: list[str] = _format_metadata(comp=comp, home_key=home_key, genre=genre)
-    lines.append(HEADER)
+    # Collect all rows as dicts so we can inspect which optional columns have data
+    rows: list[dict[str, str]] = []
     seen_harmony_offsets: set[Fraction] = set()
     seen_phrase_offsets: set[Fraction] = set()
     seen_cadence_bars: set[int] = set()
@@ -228,7 +229,7 @@ def write_note_file(
             cadence = cadence_map[bar_num]
             seen_cadence_bars.add(bar_num)
         local_key: Key = key_map.get(bar_num, home_key)
-        lines.append(_format_row(
+        rows.append(_build_row(
             note=note,
             bar=bar_num,
             beat=beat_val,
@@ -237,6 +238,16 @@ def write_note_file(
             phrase=phrase,
             cadence=cadence,
         ))
+    # Drop optional columns that carry no data in any row
+    active_optional: tuple[str, ...] = tuple(
+        col for col in OPTIONAL_COLS
+        if any(row[col] for row in rows)
+    )
+    active_cols: tuple[str, ...] = MANDATORY_COLS + active_optional
+    lines: list[str] = _format_metadata(comp=comp, home_key=home_key, genre=genre)
+    lines.append(",".join(active_cols))
+    for row in rows:
+        lines.append(",".join(row[col] for col in active_cols))
     path.write_text("\n".join(lines), encoding="utf-8")
     # Write separate .labels file for Chaz (thematic role labels)
     label_lines: list[str] = [LABELS_HEADER]

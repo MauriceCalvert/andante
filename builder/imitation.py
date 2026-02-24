@@ -1,4 +1,5 @@
 """Subject-to-Notes conversion for imitative counterpoint."""
+import logging
 import math
 from dataclasses import replace
 from fractions import Fraction
@@ -9,6 +10,8 @@ from shared.constants import DURATION_DENOMINATOR_LIMIT
 from shared.key import Key
 from shared.voice_types import Range
 
+logger = logging.getLogger(__name__)
+
 
 def _fit_shift(
     midi_pitches: tuple[int, ...],
@@ -16,6 +19,7 @@ def _fit_shift(
     label: str,
 ) -> int:
     """Find the best shift to place midi_pitches within target_range."""
+    print(f'DEBUG _fit_shift: {label} pitches_lo={min(midi_pitches)} pitches_hi={max(midi_pitches)} range=[{target_range.low},{target_range.high}]', flush=True)
     lo: int = min(midi_pitches)
     hi: int = max(midi_pitches)
     span: int = hi - lo
@@ -40,10 +44,27 @@ def _fit_shift(
             best_dist = dist
     if best is not None:
         return best
-    # No octave multiple fits — use the shift closest to zero
-    if shift_lo <= 0 <= shift_hi:
-        return 0
-    return shift_lo if abs(shift_lo) <= abs(shift_hi) else shift_hi
+    # No octave multiple fits within range — use nearest octave multiple
+    # anyway, accepting minor range overflow (L003: soft hints, not hard limits)
+    mid: float = (shift_lo + shift_hi) / 2
+    k_near: int = round(mid / 12)
+    # Also check neighbours in case round() picked poorly
+    candidates: list[int] = [k_near - 1, k_near, k_near + 1]
+    best = None
+    best_dist: float = 9999.0
+    for k in candidates:
+        candidate: int = k * 12
+        dist: float = abs(candidate - mid)
+        if dist < best_dist or (dist == best_dist and abs(candidate) < abs(best)):
+            best = candidate
+            best_dist = dist
+    assert best is not None
+    logger.warning(
+        "%s: no octave-multiple shift in [%d, %d]; using %d (range may overflow by %d semitones)",
+        label, shift_lo, shift_hi, best,
+        max(0, shift_lo - best, best - shift_hi),
+    )
+    return best
 
 
 def answer_to_voice_notes(

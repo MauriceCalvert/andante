@@ -1,5 +1,35 @@
 # Completed
 
+## BUG-1: Fix _fit_shift key destruction (2026-02-24)
+
+Replaced the fallback branch in `_fit_shift` (`builder/imitation.py`).
+
+Old fallback: returned the non-octave shift closest to zero (e.g. +1 semitone),
+destroying tonal identity of subject/CS/answer entries in non-home keys.
+
+New fallback: finds the octave multiple (k×12) nearest to the midpoint of
+`[shift_lo, shift_hi]`, accepting minor range overflow per L003 (soft hints).
+Three candidates checked (k_near−1, k_near, k_near+1) with tie-break by
+proximity to zero. Assert guards the result.
+
+Logs a WARNING when the fallback fires, showing the label, valid range,
+chosen shift, and overflow in semitones.
+
+Added `import logging` and module-level `logger = logging.getLogger(__name__)`.
+
+## DBG-1: generated_by tagging + polyphony asserts (2026-02-24)
+
+Tagged all untagged `Note()` creation sites in `builder/`:
+- `hold_writer.py` lines 294, 343 → `generated_by="hold"`
+- `phrase_writer.py` `_write_pedal` line 668 → `generated_by="pedal"`
+- `thematic_renderer.py` `_render_episode_fragment` line 195 → `generated_by="episode_fragment"`
+
+Verified covered by downstream `replace()` stamps: `cadence_writer.py`, `galant/bass_writer.py`, `galant/soprano_writer.py`. `builder/strategies/diminution.py` confirmed dead code (no imports).
+
+Added `_assert_no_polyphony()` to `builder/compose.py` — called on both voices before `return Composition(...)`.
+
+Added `_assert_within_entry()` helper to `builder/phrase_writer.py` — called at all 7 note-producing paths in `_write_thematic` (HOLD, EPISODE, PEDAL bass, PEDAL voice0, CS+companion, CS, generic loop). ANSWER role uses `beat_role.render_offset` to widen the window start.
+
 ## Code review refactor (2026-02-24)
 
 Ran 5 parallel review agents across all modules then implemented findings.

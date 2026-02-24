@@ -160,6 +160,22 @@ def _segment_into_entries(thematic_roles: tuple[BeatRole, ...]) -> list[dict]:
     return entries
 
 
+def _assert_within_entry(
+    new_notes: tuple[Note, ...],
+    voice_name: str,
+    window_start: Fraction,
+    window_end: Fraction,
+    entry_first_bar: int,
+) -> None:
+    """Assert every note starts within the entry's time window."""
+    for n in new_notes:
+        assert window_start <= n.offset < window_end, (
+            f"{voice_name} note outside entry window: offset={float(n.offset)} "
+            f"window=[{float(window_start)}, {float(window_end)}) "
+            f"generated_by={n.generated_by!r} pitch={n.pitch} bar={entry_first_bar}"
+        )
+
+
 def _write_thematic(
     plan: PhrasePlan,
     fugue: LoadedFugue,
@@ -234,6 +250,8 @@ def _write_thematic(
 
         # HOLD: both voices handled together (returns accumulated tuples)
         if voice0_role == ThematicRole.HOLD or voice1_role == ThematicRole.HOLD:
+            _hold_prev_sop: int = len(soprano_notes)
+            _hold_prev_bas: int = len(bass_notes)
             soprano_notes, bass_notes = render_hold_entry(
                 entry_first_bar=entry_first_bar,
                 entry_bar_count=entry_bar_count,
@@ -249,6 +267,8 @@ def _write_thematic(
                 soprano_notes=soprano_notes,
                 bass_notes=bass_notes,
             )
+            _assert_within_entry(soprano_notes[_hold_prev_sop:], "soprano", entry_start_offset, next_entry_start_offset, entry_first_bar)
+            _assert_within_entry(bass_notes[_hold_prev_bas:], "bass", entry_start_offset, next_entry_start_offset, entry_first_bar)
             continue
 
         # EPISODE: both voices rendered together via fragen
@@ -297,8 +317,12 @@ def _write_thematic(
                 if ep_bass:
                     ep_bass[0] = replace(ep_bass[0], lyric="episode")
 
-                soprano_notes = soprano_notes + tuple(ep_soprano)
-                bass_notes = bass_notes + tuple(ep_bass)
+                _ep_sop: tuple[Note, ...] = tuple(ep_soprano)
+                _ep_bas: tuple[Note, ...] = tuple(ep_bass)
+                soprano_notes = soprano_notes + _ep_sop
+                bass_notes = bass_notes + _ep_bas
+                _assert_within_entry(_ep_sop, "soprano", entry_start_offset, next_entry_start_offset, entry_first_bar)
+                _assert_within_entry(_ep_bas, "bass", entry_start_offset, next_entry_start_offset, entry_first_bar)
 
                 # Trace both voices
                 tracer = get_tracer()
@@ -363,6 +387,7 @@ def _write_thematic(
             if pedal_bass:
                 pedal_bass = (replace(pedal_bass[0], lyric="pedal"),) + pedal_bass[1:]
                 bass_notes = bass_notes + pedal_bass
+                _assert_within_entry(pedal_bass, "bass", entry_start_offset, next_entry_start_offset, entry_first_bar)
 
                 # Trace render
                 tracer = get_tracer()
@@ -395,6 +420,12 @@ def _write_thematic(
                     metre=plan.metre,
                 )
                 soprano_notes = soprano_notes + voice0_notes
+                _v0_window_start: Fraction = (
+                    entry_start_offset + beat_role_v0.render_offset
+                    if voice0_role == ThematicRole.ANSWER and beat_role_v0 is not None
+                    else entry_start_offset
+                )
+                _assert_within_entry(voice0_notes, "soprano", _v0_window_start, next_entry_start_offset, entry_first_bar)
             continue
 
         # CP2: CS + companion — render companion first, then Viterbi CS
@@ -431,10 +462,17 @@ def _write_thematic(
                 thematic_roles=plan.thematic_roles,
                 metre=plan.metre,
             )
+            _comp_window_start: Fraction = (
+                entry_start_offset + comp_beat.render_offset
+                if comp_role == ThematicRole.ANSWER and comp_beat is not None
+                else entry_start_offset
+            )
             if comp_idx == 0:
                 soprano_notes = soprano_notes + companion_entry_notes
+                _assert_within_entry(companion_entry_notes, "soprano", _comp_window_start, next_entry_start_offset, entry_first_bar)
             else:
                 bass_notes = bass_notes + companion_entry_notes
+                _assert_within_entry(companion_entry_notes, "bass", _comp_window_start, next_entry_start_offset, entry_first_bar)
 
             # CS via Viterbi if companion has notes, else fallback stamp-in
             cs_beat: BeatRole | None = beat_role_v0 if cs_idx == 0 else beat_role_v1
@@ -493,8 +531,10 @@ def _write_thematic(
 
             if cs_idx == 0:
                 soprano_notes = soprano_notes + cs_entry_notes
+                _assert_within_entry(cs_entry_notes, "soprano", entry_start_offset, next_entry_start_offset, entry_first_bar)
             else:
                 bass_notes = bass_notes + cs_entry_notes
+                _assert_within_entry(cs_entry_notes, "bass", entry_start_offset, next_entry_start_offset, entry_first_bar)
             continue
 
         # All other roles: voice-agnostic loop
@@ -524,10 +564,17 @@ def _write_thematic(
                 thematic_roles=plan.thematic_roles,
                 metre=plan.metre,
             )
+            _gen_window_start: Fraction = (
+                entry_start_offset + beat_role.render_offset
+                if role == ThematicRole.ANSWER and beat_role is not None
+                else entry_start_offset
+            )
             if voice_idx == 0:
                 soprano_notes = soprano_notes + notes
+                _assert_within_entry(notes, "soprano", _gen_window_start, next_entry_start_offset, entry_first_bar)
             else:
                 bass_notes = bass_notes + notes
+                _assert_within_entry(notes, "bass", _gen_window_start, next_entry_start_offset, entry_first_bar)
 
     # Fill FREE bars (companion + tail)
     soprano_notes, bass_notes = fill_free_bars(
@@ -670,6 +717,7 @@ def _write_pedal(
             pitch=pedal_midi,
             duration=bar_length,
             voice=TRACK_BASS,
+            generated_by="pedal",
         ))
     # Build sub-plan for soprano generation.
     # Use degree 5 (dominant) as the initial structural tone — consonant

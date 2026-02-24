@@ -202,6 +202,22 @@ def _ensure_beat1_coverage(
     )
 
 
+def _assert_no_polyphony(notes: tuple[Note, ...], voice_name: str) -> None:
+    """Assert no two notes overlap in the same voice."""
+    sorted_notes: list[Note] = sorted(notes, key=lambda n: (n.offset, -n.duration))
+    for i in range(len(sorted_notes) - 1):
+        a: Note = sorted_notes[i]
+        b: Note = sorted_notes[i + 1]
+        if a.offset + a.duration > b.offset:
+            assert False, (
+                f"Polyphony in {voice_name}: "
+                f"{a.pitch}@{float(a.offset)} dur={float(a.duration)} "
+                f"(generated_by={a.generated_by!r}) overlaps "
+                f"{b.pitch}@{float(b.offset)} dur={float(b.duration)} "
+                f"(generated_by={b.generated_by!r})"
+            )
+
+
 def compose_phrases(
     phrase_plans: tuple[PhrasePlan, ...],
     home_key: Key,
@@ -297,6 +313,8 @@ def compose_phrases(
         total_upper=len(upper_notes),
         total_lower=len(lower_notes),
     )
+    _assert_no_polyphony(notes=tuple(upper_notes), voice_name="soprano")
+    _assert_no_polyphony(notes=tuple(lower_notes), voice_name="bass")
     phrase_offsets: tuple[Fraction, ...] = tuple(
         p.start_offset for p in phrase_plans
     )
