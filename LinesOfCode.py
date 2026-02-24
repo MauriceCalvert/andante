@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Dict
+from typing import Iterable
 try:
     from radon.raw import analyze
 except ImportError as e:
@@ -68,7 +68,7 @@ def main() -> int:
     """Sum LOC/SLOC for .py, count files and LOC for .yaml, grouped by top-level subfolder, with grand totals."""
     root: Path = Path.cwd()
     exclude_dirs: tuple[str, ...] = DEFAULT_EXCLUDE_DIRS
-    per_dir: Dict[str, Totals] = {}
+    per_dir: dict[str, Totals] = {}
     failed: list[Path] = []
     for path in iter_files(root=root, suffix=".py", exclude_dirs=exclude_dirs):
         key: str = top_level_dir(root=root, path=path)

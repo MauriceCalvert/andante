@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from fractions import Fraction
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 from shared.key import Key
 
@@ -64,7 +64,7 @@ def plan_thematic_roles(
     genre_config: "GenreConfig | None" = None,
     thematic_config: "dict | None" = None,
     subject_bars: int | None = None,
-) -> Tuple[BeatRole, ...]:
+) -> tuple[BeatRole, ...]:
     """Plan thematic roles for all beats × voices.
 
     TD-1: Reads entry_sequence from thematic_config and stamps bars with
@@ -152,6 +152,14 @@ def plan_thematic_roles(
     return tuple(roles)
 
 
+_MATERIAL_CODE_MAP: dict[str, str] = {
+    "subject": "S",
+    "answer": "A",
+    "cs": "cs",
+    "stretto": "st",
+}
+
+
 def _format_entry_sequence_echo(
     entry_sequence: list,
     home_key: Key,
@@ -185,12 +193,7 @@ def _format_entry_sequence_echo(
             material_name: str = entry["upper"][0]
             key_label: str = entry["upper"][1]
             # Map material name to compact code
-            material_code: str = {
-                "subject": "S",
-                "answer": "A",
-                "cs": "cs",
-                "stretto": "st",
-            }.get(material_name, material_name)
+            material_code: str = _MATERIAL_CODE_MAP.get(material_name, material_name)
             upper_str = f"{material_code}.{key_label}"
 
         if entry.get("lower") != "none" and isinstance(entry.get("lower"), list):

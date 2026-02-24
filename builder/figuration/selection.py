@@ -6,6 +6,7 @@ indexed by interval between consecutive structural tones.
 from builder.figuration.generator import generate_degrees
 from builder.figuration.loader import get_diminutions
 from builder.figuration.types import Figure
+from shared.constants import INTERVAL_DIATONIC_SIZE
 from shared.key import Key
 
 
@@ -103,44 +104,36 @@ def select_figure(
             # Deterministic rotation by bar_num (V001)
             return high_weight[bar_num % len(high_weight)]
 
-    # Try algorithmic generation (new path)
-    if True:
-        try:
-            generated_degrees: tuple[int, ...] = generate_degrees(
-                interval=interval,
-                note_count=note_count,
-                character=character,
-                position=position,
-                chord_tones=chord_tones,
-                bar_num=bar_num,
-            )
-            # Wrap generated degrees in a transient Figure
-            return Figure(
-                name=f"generated_{interval}_{note_count}",
-                degrees=generated_degrees,
-                contour="generated",
-                polarity="balanced",
-                arrival="stepwise",
-                placement="span",
-                character=character,
-                harmonic_tension="medium",
-                max_density="high",
-                cadential_safe=(position == "cadential"),
-                repeatable=True,
-                requires_compensation=False,
-                compensation_direction=None,
-                is_compound=False,
-                minor_safe=True,
-                requires_leading_tone=False,
-                weight=1.0,
-            )
-        except Exception as e:
-            # Algorithmic generation failed — fall back to YAML selection
-            import logging
-            logging.getLogger(__name__).debug(
-                "Algorithmic generation failed for %s/%d: %s",
-                interval, note_count, e,
-            )
+    # Algorithmic generation: guard then generate deterministically
+    if note_count >= 2 and interval in INTERVAL_DIATONIC_SIZE:
+        generated_degrees: tuple[int, ...] = generate_degrees(
+            interval=interval,
+            note_count=note_count,
+            character=character,
+            position=position,
+            chord_tones=chord_tones,
+            bar_num=bar_num,
+        )
+        # Wrap generated degrees in a transient Figure
+        return Figure(
+            name=f"generated_{interval}_{note_count}",
+            degrees=generated_degrees,
+            contour="generated",
+            polarity="balanced",
+            arrival="stepwise",
+            placement="span",
+            character=character,
+            harmonic_tension="medium",
+            max_density="high",
+            cadential_safe=(position == "cadential"),
+            repeatable=True,
+            requires_compensation=False,
+            compensation_direction=None,
+            is_compound=False,
+            minor_safe=True,
+            requires_leading_tone=False,
+            weight=1.0,
+        )
 
     # Fall back to YAML figure selection
     # Filter by note count: exact match or chainable figures that divide evenly

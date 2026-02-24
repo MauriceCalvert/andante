@@ -12,11 +12,14 @@ The layers:
 
 Category B: Orchestrator that validates and delegates.
 """
+import logging
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+_log: logging.Logger = logging.getLogger(__name__)
 
 from builder.compose import compose_phrases
 from builder.config_loader import load_configs
@@ -83,7 +86,6 @@ def _with_sections_override(
     sections_override: tuple[dict, ...],
 ) -> Any:
     """Return a new GenreConfig with sections replaced."""
-    from dataclasses import replace
     return replace(genre_config, sections=sections_override)
 
 
@@ -179,10 +181,6 @@ def generate(
             f"L3 Imitative SubjectPlan: {subject_plan.total_bars} bars, "
             f"{entry_count} entries, sections: {' > '.join(unique_sections)}"
         )
-        print(
-            f"  SubjectPlan: {subject_plan.total_bars} bars, "
-            f"{entry_count} entries, sections: {' > '.join(unique_sections)}"
-        )
 
         # L4/L5 imitative: Build PhrasePlans from SubjectPlan (skip galant layers)
         phrase_plans: tuple[PhrasePlan, ...] = build_imitative_plans(
@@ -251,9 +249,9 @@ def generate(
     if thematic_config is not None and fugue is not None:
         # Build subject catalogue
         catalogue: SubjectCatalogue = SubjectCatalogue(fugue=fugue)
-        print(f"  Subject catalogue built: {catalogue.fragment_count()} fragments")
-        print(f"    Fragment names: {', '.join(catalogue.fragment_names()[:10])}"
-              f"{' ...' if catalogue.fragment_count() > 10 else ''}")
+        tracer._line(f"Subject catalogue: {catalogue.fragment_count()} fragments — "
+                     f"{', '.join(catalogue.fragment_names()[:10])}"
+                     f"{' ...' if catalogue.fragment_count() > 10 else ''}")
 
         # Plan thematic roles with entry_sequence
         assert len(anchors) > 0, "Cannot plan thematic roles with no anchors"
@@ -279,9 +277,9 @@ def generate(
         free_count: int = sum(1 for role in thematic_plan if role.role.value == "free")
         free_pct: float = (free_count / len(thematic_plan)) * 100 if thematic_plan else 0.0
 
-        print(f"  Thematic plan: {len(thematic_plan)} beat-roles "
-              f"({total_beats} beats × {voice_count} voices)")
-        print(f"    FREE: {free_count}/{len(thematic_plan)} ({free_pct:.1f}%)")
+        tracer._line(f"Thematic plan: {len(thematic_plan)} beat-roles "
+                     f"({total_beats} beats x {voice_count} voices) — "
+                     f"FREE: {free_count}/{len(thematic_plan)} ({free_pct:.1f}%)")
 
         # Trace thematic plan summary
         entry_count: int = len(thematic_config.get("entry_sequence", []))
@@ -394,12 +392,12 @@ def generate_to_files(
                 f"Subject '{subject_name}' not found at {library_path}"
             )
             fugue = load_fugue_path(path=library_path)
-            print(f"  Loaded library subject: {subject_name}")
+            _log.info("Loaded library subject: %s", subject_name)
         else:
             fugue_path: Path = output_dir / f"{name}.fugue"
             if fugue_path.exists():
                 fugue = load_fugue_path(path=fugue_path)
-                print(f"  Loaded cached fugue: {fugue_path.name}")
+                _log.info("Loaded cached fugue: %s", fugue_path.name)
             else:
                 assert key is not None, (
                     f"Key required to generate fugue for '{genre}'. "
@@ -417,14 +415,19 @@ def generate_to_files(
                 )
                 write_fugue_file(triple=triple, path=fugue_path)
                 fugue = load_fugue_path(path=fugue_path)
-                print(f"  Generated fugue: {fugue_path.name}")
-        # Print summary
-        print(f"  Subject: {len(fugue.subject.degrees)} notes, {fugue.subject.bars} bars, "
-              f"leap {fugue.subject.leap_direction} {fugue.subject.leap_size}, "
-              f"head: {fugue.subject.head_name}")
-        print(f"  Answer: {fugue.answer.answer_type}, "
-              f"{len(fugue.answer.mutation_points)} mutation(s)")
-        print(f"  Countersubject: {len(fugue.countersubject.degrees)} notes")
+                _log.info("Generated fugue: %s", fugue_path.name)
+        # Log summary
+        _log.info(
+            "Subject: %d notes, %d bars, leap %s %s, head: %s",
+            len(fugue.subject.degrees), fugue.subject.bars,
+            fugue.subject.leap_direction, fugue.subject.leap_size,
+            fugue.subject.head_name,
+        )
+        _log.info(
+            "Answer: %s, %d mutation(s)",
+            fugue.answer.answer_type, len(fugue.answer.mutation_points),
+        )
+        _log.info("Countersubject: %d notes", len(fugue.countersubject.degrees))
     result, phrase_plans, home_key = generate(
         genre=genre,
         affect=affect,

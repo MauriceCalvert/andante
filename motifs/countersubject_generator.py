@@ -9,7 +9,6 @@ Works entirely in scale degrees mod 7 for mode-independence.
 """
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Tuple
 
 from ortools.sat.python import cp_model
 
@@ -17,7 +16,6 @@ from motifs.head_generator import degrees_to_midi
 from motifs.subject_gen import GeneratedSubject
 from shared.constants import TONIC_TRIAD_DEGREES
 from shared.music_math import VALID_DURATIONS, VALID_DURATIONS_SORTED
-
 
 CS_MIN_DURATION: Fraction = Fraction(1, 8)
 # Fallback range if subject analysis fails
@@ -47,15 +45,13 @@ LARGE_LEAP_THRESHOLD = 4
 MIN_GOOD_RANGE = 4           # A 5th — minimum span for melodic interest
 SOLVER_TIMEOUT_SECONDS = 5
 
-
 @dataclass(frozen=True)
 class GeneratedCountersubject:
     """Result of countersubject generation."""
-    scale_indices: Tuple[int, ...]
-    durations: Tuple[float, ...]
-    midi_pitches: Tuple[int, ...]
-    vertical_intervals: Tuple[int, ...]
-
+    scale_indices: tuple[int, ...]
+    durations: tuple[float, ...]
+    midi_pitches: tuple[int, ...]
+    vertical_intervals: tuple[int, ...]
 
 def _compute_beat_positions(
     durations: tuple[float, ...],
@@ -72,7 +68,6 @@ def _compute_beat_positions(
         cumulative += Fraction(dur).limit_denominator(64)
     return positions
 
-
 def _get_strong_beats(metre: tuple[int, int]) -> frozenset[int]:
     """Return strong beat numbers for the given metre."""
     if metre[0] == 4:
@@ -85,11 +80,9 @@ def _get_strong_beats(metre: tuple[int, int]) -> frozenset[int]:
         return frozenset({1, 4})
     return frozenset({1})
 
-
 def _interval_mod7(diff: int) -> int:
     """Compute vertical interval class from degree difference."""
     return abs(diff) % 7
-
 
 def _generate_cs_rhythm(
     subject_durations: tuple[float, ...],
@@ -172,7 +165,6 @@ def _generate_cs_rhythm(
     )
     return tuple(cs_durations), tuple(onset_indices)
 
-
 def _derive_cs_range(
     subject_degrees: tuple[int, ...],
 ) -> tuple[int, int]:
@@ -190,7 +182,6 @@ def _derive_cs_range(
     if cs_max - cs_min < 7:
         cs_min = cs_max - 7
     return cs_min, cs_max
-
 
 def generate_countersubject(
     subject: GeneratedSubject,
@@ -521,7 +512,6 @@ def generate_countersubject(
         vertical_intervals=intervals,
     )
 
-
 def verify_countersubject(
     subject: GeneratedSubject,
     cs: GeneratedCountersubject,
@@ -565,7 +555,6 @@ def verify_countersubject(
             if iv_a == 0 and iv_b == 0:
                 violations.append(f"Notes {i}-{i+1}: parallel octaves/unisons")
     return violations
-
 
 if __name__ == "__main__":
     from motifs.subject_gen import select_subject

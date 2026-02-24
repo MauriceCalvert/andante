@@ -5,7 +5,6 @@ into a FugueTriple, then writes MIDI, YAML (.fugue), and .note files.
 """
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple
 
 import yaml
 
@@ -15,12 +14,10 @@ from motifs.subject_gen import GeneratedSubject
 from motifs.subject_gen.constants import X2_TICKS_PER_WHOLE
 from shared.midi_writer import SimpleNote, write_midi_notes
 
-
 def invert_degrees(degrees: tuple[int, ...]) -> tuple[int, ...]:
     """Tonal inversion: negate each degree around the first note."""
     pivot = degrees[0]
     return tuple(pivot - (d - pivot) for d in degrees)
-
 
 # ── Batch configuration ─────────────────────────────────────────────
 SUPPORTED_METRES: tuple[tuple[int, int], ...] = tuple(RHYTHM_CELLS_BY_METRE.keys())
@@ -28,26 +25,23 @@ TARGET_BAR_LENGTHS: tuple[int, ...] = (2, 3, 4)
 TARGET_BAR_WEIGHTS: tuple[int, ...] = (4, 3, 2)
 BATCH_BAR_COUNTS: tuple[int, ...] = (2, 2, 3, 3, 4, 4)
 
-
 @dataclass(frozen=True)
 class FugueTriple:
     """Subject, answer, and countersubject as a coordinated unit."""
     subject: GeneratedSubject
     answer: 'GeneratedAnswer'
     countersubject: 'GeneratedCountersubject'
-    metre: Tuple[int, int]
+    metre: tuple[int, int]
     tonic_midi: int
     seed: int
     stretto_offsets: Tuple = ()
-    inversion_degrees: Tuple[int, ...] = ()
-    inversion_midi: Tuple[int, ...] = ()
+    inversion_degrees: tuple[int, ...] = ()
+    inversion_midi: tuple[int, ...] = ()
     inversion_stretto: Tuple = ()
-
 
 def _bar_duration(metre: tuple[int, int]) -> float:
     """Duration of one bar in whole-note units."""
     return metre[0] / metre[1]
-
 
 def _midi_to_name(midi: int) -> str:
     """Convert MIDI number to note name (e.g., 67 -> G4)."""
@@ -55,10 +49,9 @@ def _midi_to_name(midi: int) -> str:
     octave = midi // 12 - 1
     return f"{names[midi % 12]}{octave}"
 
-
 def generate_fugue_triple(
     mode: str = "minor",
-    metre: Tuple[int, int] = (4, 4),
+    metre: tuple[int, int] = (4, 4),
     seed: int | None = None,
     tonic_midi: int = 67,
     verbose: bool = False,
@@ -118,7 +111,6 @@ def generate_fugue_triple(
         inversion_stretto=tuple(inv_stretto),
     )
 
-
 def write_fugue_file(triple: FugueTriple, path: Path) -> None:
     """Write fugue triple to YAML .fugue file."""
     tonic_name = _midi_to_name(midi=triple.tonic_midi).rstrip('0123456789')
@@ -172,7 +164,6 @@ def write_fugue_file(triple: FugueTriple, path: Path) -> None:
     with open(path, 'w', encoding='utf-8') as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
-
 def _add_melody(
     notes: list[SimpleNote],
     pitches: tuple[int, ...],
@@ -188,9 +179,7 @@ def _add_melody(
         pos += dur
     return pos
 
-
 OCTAVE_SHIFT: int = 12
-
 
 def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> None:
     """Write demo MIDI: subject, answer, CS, then stretto pairs at each viable offset."""
@@ -249,7 +238,6 @@ def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> N
         mode=triple.subject.mode,
     )
 
-
 def _notes_to_csv(
     notes: list[SimpleNote],
     metre: tuple[int, int],
@@ -267,7 +255,6 @@ def _notes_to_csv(
             f"{bar},{beat_in_bar:.2f},{name}"
         )
     return "\n".join(lines)
-
 
 def write_note_file(triple: FugueTriple, path: Path) -> None:
     """Write .note CSV reflecting the full demo MIDI layout."""
@@ -318,7 +305,6 @@ def write_note_file(triple: FugueTriple, path: Path) -> None:
         offset = max(leader_end, follower_end) + bar_dur
     path.write_text(_notes_to_csv(notes, triple.metre), encoding="utf-8")
 
-
 def write_midi_file(
     subject: GeneratedSubject,
     path: Path,
@@ -335,7 +321,6 @@ def write_midi_file(
         tonic=tonic,
         mode=subject.mode,
     )
-
 
 def main() -> None:
     """Generate subjects and write to .midi and .note files."""
@@ -429,7 +414,6 @@ def main() -> None:
                 print(f"       offset={r.offset_beats:.1f} beats "
                       f"quality={r.quality:.2f}")
     print(f"Generated {count} fugue triples in {outdir}")
-
 
 if __name__ == "__main__":
     main()

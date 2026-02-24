@@ -126,21 +126,18 @@ def has_parallel_perfect(
         return False
 
     # Find other voice's pitch at candidate offset
-    other_pitch_at_offset: int | None = None
-    for note in other_voice_notes:
-        if note.offset == offset:
-            other_pitch_at_offset = note.pitch
-            break
+    other_pitch_at_offset: int | None = next(
+        (note.pitch for note in other_voice_notes if note.offset == offset), None
+    )
 
     if other_pitch_at_offset is None:
         return False  # No common onset
 
     # Find other voice's pitch at own_previous_note's offset
-    other_pitch_at_previous: int | None = None
-    for note in other_voice_notes:
-        if note.offset == own_previous_note.offset:
-            other_pitch_at_previous = note.pitch
-            break
+    other_pitch_at_previous: int | None = next(
+        (note.pitch for note in other_voice_notes if note.offset == own_previous_note.offset),
+        None,
+    )
 
     if other_pitch_at_previous is None:
         return False  # No previous common onset

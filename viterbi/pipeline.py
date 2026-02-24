@@ -104,27 +104,20 @@ def _print_phrase_summary(
     leader_map: dict[float, int],
     knots: list[Knot],
 ) -> None:
-    """Print the complete phrase in a compact visual format."""
+    """Log the complete phrase in a compact visual format."""
     knot_beats = {k.beat for k in knots}
-    print("\n+==============================================================+")
-    print("|                  COMPLETE PHRASE                              |")
-    print("+==============================================================+")
     beat_strs = [f"{'b' + str(b):>6s}" for b in beats]
-    print(f"| Beat    {'  '.join(beat_strs)}")
     leader_strs = [f"{pitch_name(leader_map.get(b, 0)):>6s}" for b in beats]
-    print(f"| Leader  {'  '.join(leader_strs)}")
     follower_strs = []
     for b, p in zip(beats, pitches):
         marker = "*" if b in knot_beats else " "
         follower_strs.append(f"{marker + pitch_name(p):>6s}")
-    print(f"| Follow  {'  '.join(follower_strs)}")
     iv_strs = []
     for b, p in zip(beats, pitches):
         lp = leader_map.get(b, 0)
         iv = abs(p - lp)
         flag = "." if is_consonant(iv) else "!"
         iv_strs.append(f"{interval_name(iv) + flag:>6s}")
-    print(f"| Intvl   {'  '.join(iv_strs)}")
     motion_strs = ["     ."]
     for i in range(1, len(pitches)):
         f_dir = pitches[i] - pitches[i - 1]
@@ -138,5 +131,19 @@ def _print_phrase_summary(
         else:
             m = "     "
         motion_strs.append(f"{m:>6s}")
-    print(f"| Motion  {'  '.join(motion_strs)}")
-    print("+==============================================================+")
+    _log.debug(
+        "\n+==============================================================+\n"
+        "|                  COMPLETE PHRASE                              |\n"
+        "+==============================================================+\n"
+        "| Beat    %s\n"
+        "| Leader  %s\n"
+        "| Follow  %s\n"
+        "| Intvl   %s\n"
+        "| Motion  %s\n"
+        "+==============================================================+",
+        "  ".join(beat_strs),
+        "  ".join(leader_strs),
+        "  ".join(follower_strs),
+        "  ".join(iv_strs),
+        "  ".join(motion_strs),
+    )

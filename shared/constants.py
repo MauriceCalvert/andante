@@ -3,7 +3,6 @@
 Organised into alphabetical sections; constants alphabetical within each section.
 """
 from fractions import Fraction
-from typing import Tuple
 
 
 # =============================================================================
@@ -164,6 +163,9 @@ STRONG_BEAT_OFFSETS: dict[str, tuple[Fraction, ...]] = {
 }
 
 # Valid note durations as fractions of a whole note (descending)
+# Maximum denominator when simplifying duration fractions (e.g. Fraction.limit_denominator)
+DURATION_DENOMINATOR_LIMIT: int = 64
+
 VALID_DURATIONS: tuple[Fraction, ...] = (
     Fraction(1, 1), Fraction(3, 4), Fraction(1, 2), Fraction(3, 8),
     Fraction(1, 4), Fraction(3, 16), Fraction(1, 8), Fraction(3, 32),
@@ -296,15 +298,18 @@ TRITONE_SEMITONES: int = 6
 FLAT_KEYS_MAJOR: frozenset[str] = frozenset({"Ab", "Bb", "Cb", "Db", "Eb", "F", "Gb"})
 FLAT_KEYS_MINOR: frozenset[str] = frozenset({"Ab", "Bb", "C", "D", "Eb", "F", "G"})
 
-MAJOR_SCALE: Tuple[int, ...] = (0, 2, 4, 5, 7, 9, 11)
-NATURAL_MINOR_SCALE: Tuple[int, ...] = (0, 2, 3, 5, 7, 8, 10)
-MINOR_SCALE: Tuple[int, ...] = NATURAL_MINOR_SCALE  # alias
-HARMONIC_MINOR_SCALE: Tuple[int, ...] = (0, 2, 3, 5, 7, 8, 11)
+MAJOR_SCALE: tuple[int, ...] = (0, 2, 4, 5, 7, 9, 11)
+NATURAL_MINOR_SCALE: tuple[int, ...] = (0, 2, 3, 5, 7, 8, 10)
+MINOR_SCALE: tuple[int, ...] = NATURAL_MINOR_SCALE  # alias
+HARMONIC_MINOR_SCALE: tuple[int, ...] = (0, 2, 3, 5, 7, 8, 11)
 
 
 # =============================================================================
 # MIDI & Voices
 # =============================================================================
+
+# MIDI gate time fraction (L013: 95% to avoid legato rendering in players)
+MIDI_GATE_TIME: float = 0.95
 
 # MIDI pitch threshold for bass clef assignment
 BASS_CLEF_THRESHOLD: int = 60
@@ -384,16 +389,16 @@ NOTE_NAME_MAP: dict[str, int] = {
     "G": 7, "G#": 8, "Gb": 6,
 }
 
-NOTE_NAMES_FLAT: Tuple[str, ...] = (
+NOTE_NAMES_FLAT: tuple[str, ...] = (
     "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B",
 )
 
-NOTE_NAMES_SHARP: Tuple[str, ...] = (
+NOTE_NAMES_SHARP: tuple[str, ...] = (
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 )
 
 # Alias for NOTE_NAMES_SHARP (common usage)
-NOTE_NAMES: Tuple[str, ...] = NOTE_NAMES_SHARP
+NOTE_NAMES: tuple[str, ...] = NOTE_NAMES_SHARP
 
 
 # =============================================================================

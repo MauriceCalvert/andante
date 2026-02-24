@@ -3,7 +3,6 @@
 Single source of truth for Key class across all andante packages.
 """
 from dataclasses import dataclass
-from typing import Tuple
 
 from shared.constants import (
     FLAT_KEYS_MAJOR,
@@ -34,7 +33,7 @@ class Key:
         return NOTE_NAME_MAP[self.tonic]
 
     @property
-    def scale(self) -> Tuple[int, ...]:
+    def scale(self) -> tuple[int, ...]:
         """Return scale intervals from tonic (natural minor for minor mode)."""
         return MAJOR_SCALE if self.mode == "major" else NATURAL_MINOR_SCALE
 
@@ -54,7 +53,7 @@ class Key:
     @property
     def bridge_pitch_set(self) -> frozenset[int]:
         """Return pentatonic subset for bridges (omits 4th and 7th degrees)."""
-        pentatonic_intervals: Tuple[int, ...] = (0, 2, 4, 7, 9) if self.mode == "major" else (0, 3, 5, 7, 10)
+        pentatonic_intervals: tuple[int, ...] = (0, 2, 4, 7, 9) if self.mode == "major" else (0, 3, 5, 7, 10)
         return frozenset((self.tonic_pc + interval) % 12 for interval in pentatonic_intervals)
 
     def uses_flats(self) -> bool:
@@ -70,7 +69,7 @@ class Key:
             raise ValueError(f"Unknown modulation target '{target}' for {self.mode}")
         semitones, new_mode = targets[target]
         new_pc: int = (self.tonic_pc + semitones) % 12
-        names: Tuple[str, ...] = NOTE_NAMES_FLAT if self.uses_flats() else NOTE_NAMES_SHARP
+        names: tuple[str, ...] = NOTE_NAMES_FLAT if self.uses_flats() else NOTE_NAMES_SHARP
         new_tonic: str = names[new_pc]
         return Key(tonic=new_tonic, mode=new_mode)
 
@@ -83,10 +82,7 @@ class Key:
         """Move MIDI pitch by diatonic steps within scale."""
         pc: int = (midi - self.tonic_pc) % 12
         octave: int = (midi - self.tonic_pc) // 12
-        try:
-            scale_idx: int = list(self.scale).index(pc)
-        except ValueError:
-            scale_idx = min(range(7), key=lambda i: abs(self.scale[i] - pc))
+        scale_idx: int = min(range(7), key=lambda i: abs(self.scale[i] - pc))
         new_idx: int = scale_idx + steps
         new_octave: int = octave + (new_idx // 7)
         new_idx = new_idx % 7

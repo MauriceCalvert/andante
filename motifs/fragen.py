@@ -43,6 +43,7 @@ _CANONIC_STAGGERS: tuple[Fraction, ...] = (
     Fraction(1, 4),   # 1 crotchet beat
     Fraction(1, 2),   # 2 crotchet beats
 )
+_MIN_EPISODE_SPACING: int = 10  # min semitone separation between entry and prior register
 _HOLD_CONSONANCE: float = 1.0
 _MAX_BOUNDARY_LEAP: int = 3         # max degree steps at cell join
 _MAX_NONTERMINAL_FINAL: Fraction = Fraction(3, 16)  # longest final note in a non-terminal cell
@@ -1068,12 +1069,11 @@ def _find_start(
             continue
 
         # Reject candidates where entry voice crosses into other voice's prior register
-        MIN_EPISODE_SPACING: int = 10
         if (prefer_lower_pitch is not None
-                and abs(first_upper_midi - prefer_lower_pitch) < MIN_EPISODE_SPACING):
+                and abs(first_upper_midi - prefer_lower_pitch) < _MIN_EPISODE_SPACING):
             continue
         if (prefer_upper_pitch is not None
-                and abs(first_lower_midi - prefer_upper_pitch) < MIN_EPISODE_SPACING):
+                and abs(first_lower_midi - prefer_upper_pitch) < _MIN_EPISODE_SPACING):
             continue
         # Compute proximity to preferred pitches
         proximity: int = 0

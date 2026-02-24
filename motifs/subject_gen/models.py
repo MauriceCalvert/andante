@@ -1,16 +1,14 @@
 """Subject generator data models."""
 from dataclasses import dataclass
-from typing import Tuple
 
 from motifs.stretto_constraints import OffsetResult
-
 
 @dataclass(frozen=True)
 class GeneratedSubject:
     """A fully scored subject ready for answer/CS generation."""
-    scale_indices: Tuple[int, ...]
-    durations: Tuple[float, ...]
-    midi_pitches: Tuple[int, ...]
+    scale_indices: tuple[int, ...]
+    durations: tuple[float, ...]
+    midi_pitches: tuple[int, ...]
     bars: int
     score: float
     seed: int
@@ -19,11 +17,10 @@ class GeneratedSubject:
     leap_size: int
     leap_direction: str
     tail_direction: str
-    stretto_offsets: Tuple[OffsetResult, ...] = ()
+    stretto_offsets: tuple[OffsetResult, ...] = ()
     affect: str | None = None
     figurae_score: float = 0.0
-    satisfied_figurae: Tuple[str, ...] = ()
-
+    satisfied_figurae: tuple[str, ...] = ()
 
 @dataclass(frozen=True)
 class _ScoredPitch:

@@ -2,11 +2,14 @@
 
 Category B: File I/O operations.
 """
+import logging
 from fractions import Fraction
 from pathlib import Path
 
 from builder.types import Composition, Note
 from shared.constants import BASS_CLEF_THRESHOLD
+
+_log: logging.Logger = logging.getLogger(__name__)
 
 try:
     from music21 import clef, key, meter, note, stream, tempo
@@ -19,7 +22,7 @@ except ImportError:
 def write_musicxml(comp: Composition, path: Path, tonic: str = "C", mode: str = "major") -> bool:
     """Write composition to MusicXML file."""
     if not MUSIC21_AVAILABLE:
-        print(f"Warning: music21 not installed, cannot write {path}")
+        _log.warning("music21 not installed, cannot write %s", path)
         return False
     score: stream.Score = _build_score(comp=comp, tonic=tonic, mode=mode)
     xml_path: Path = path.with_suffix(".musicxml")

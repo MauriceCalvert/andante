@@ -9,10 +9,8 @@ All fragments stored in relative form (signed diatonic intervals + durations).
 """
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Tuple
 
 from motifs.fugue_loader import LoadedFugue
-
 
 @dataclass(frozen=True)
 class Fragment:
@@ -22,11 +20,10 @@ class Fragment:
     Durations are Fraction objects (whole-note fractions).
     """
     name: str
-    intervals: Tuple[int, ...]
-    durations: Tuple[Fraction, ...]
+    intervals: tuple[int, ...]
+    durations: tuple[Fraction, ...]
     total_duration: Fraction
     source: str  # "subject", "countersubject", "derived"
-
 
 @dataclass(frozen=True)
 class InvertiblePair:
@@ -34,8 +31,7 @@ class InvertiblePair:
     subject: Fragment
     countersubject: Fragment
 
-
-def _degrees_to_intervals(degrees: Tuple[int, ...]) -> Tuple[int, ...]:
+def _degrees_to_intervals(degrees: tuple[int, ...]) -> tuple[int, ...]:
     """Convert absolute degrees to signed diatonic intervals.
 
     Example: [4, 2, 0, 1] → [-2, -2, +1]
@@ -45,26 +41,21 @@ def _degrees_to_intervals(degrees: Tuple[int, ...]) -> Tuple[int, ...]:
         return ()
     return tuple(degrees[i + 1] - degrees[i] for i in range(len(degrees) - 1))
 
-
-def _floats_to_fractions(durations: Tuple[float, ...]) -> Tuple[Fraction, ...]:
+def _floats_to_fractions(durations: tuple[float, ...]) -> tuple[Fraction, ...]:
     """Convert float durations to Fraction objects."""
     return tuple(Fraction(d).limit_denominator(128) for d in durations)
 
-
-def _negate_intervals(intervals: Tuple[int, ...]) -> Tuple[int, ...]:
+def _negate_intervals(intervals: tuple[int, ...]) -> tuple[int, ...]:
     """Negate all intervals (inversion transform)."""
     return tuple(-i for i in intervals)
 
-
-def _double_durations(durations: Tuple[Fraction, ...]) -> Tuple[Fraction, ...]:
+def _double_durations(durations: tuple[Fraction, ...]) -> tuple[Fraction, ...]:
     """Double all durations (augmentation transform)."""
     return tuple(d * 2 for d in durations)
 
-
-def _halve_durations(durations: Tuple[Fraction, ...]) -> Tuple[Fraction, ...]:
+def _halve_durations(durations: tuple[Fraction, ...]) -> tuple[Fraction, ...]:
     """Halve all durations (diminution transform)."""
     return tuple(d / 2 for d in durations)
-
 
 class SubjectCatalogue:
     """Repository of all fragments derived from a fugue triple.
@@ -81,8 +72,8 @@ class SubjectCatalogue:
     def _build_catalogue(self, fugue: LoadedFugue) -> None:
         """Extract all fragments from the fugue triple."""
         # Convert subject
-        subj_intervals: Tuple[int, ...] = _degrees_to_intervals(degrees=fugue.subject.degrees)
-        subj_durations: Tuple[Fraction, ...] = _floats_to_fractions(durations=fugue.subject.durations)
+        subj_intervals: tuple[int, ...] = _degrees_to_intervals(degrees=fugue.subject.degrees)
+        subj_durations: tuple[Fraction, ...] = _floats_to_fractions(durations=fugue.subject.durations)
         subj_total: Fraction = sum(subj_durations, start=Fraction(0))
 
         subject_frag: Fragment = Fragment(
@@ -95,8 +86,8 @@ class SubjectCatalogue:
         self._fragments["subject"] = subject_frag
 
         # Convert answer
-        ans_intervals: Tuple[int, ...] = _degrees_to_intervals(degrees=fugue.answer.degrees)
-        ans_durations: Tuple[Fraction, ...] = _floats_to_fractions(durations=fugue.answer.durations)
+        ans_intervals: tuple[int, ...] = _degrees_to_intervals(degrees=fugue.answer.degrees)
+        ans_durations: tuple[Fraction, ...] = _floats_to_fractions(durations=fugue.answer.durations)
         ans_total: Fraction = sum(ans_durations, start=Fraction(0))
 
         answer_frag: Fragment = Fragment(
@@ -109,8 +100,8 @@ class SubjectCatalogue:
         self._fragments["answer"] = answer_frag
 
         # Convert countersubject
-        cs_intervals: Tuple[int, ...] = _degrees_to_intervals(degrees=fugue.countersubject.degrees)
-        cs_durations: Tuple[Fraction, ...] = _floats_to_fractions(durations=fugue.countersubject.durations)
+        cs_intervals: tuple[int, ...] = _degrees_to_intervals(degrees=fugue.countersubject.degrees)
+        cs_durations: tuple[Fraction, ...] = _floats_to_fractions(durations=fugue.countersubject.durations)
         cs_total: Fraction = sum(cs_durations, start=Fraction(0))
 
         cs_frag: Fragment = Fragment(
@@ -143,23 +134,23 @@ class SubjectCatalogue:
         self._generate_diminution(base_frag=subject_frag, name="diminution")
 
         # Generate inverted heads
-        inv_intervals: Tuple[int, ...] = _negate_intervals(intervals=subj_intervals)
-        inv_durations: Tuple[Fraction, ...] = subj_durations
+        inv_intervals: tuple[int, ...] = _negate_intervals(intervals=subj_intervals)
+        inv_durations: tuple[Fraction, ...] = subj_durations
         self._generate_heads(base_name="head_inv", intervals=inv_intervals, durations=inv_durations, source="derived")
 
         # Generate augmented heads
-        aug_durations: Tuple[Fraction, ...] = _double_durations(durations=subj_durations)
+        aug_durations: tuple[Fraction, ...] = _double_durations(durations=subj_durations)
         self._generate_heads(base_name="head_aug", intervals=subj_intervals, durations=aug_durations, source="derived")
 
         # Generate diminished heads
-        dim_durations: Tuple[Fraction, ...] = _halve_durations(durations=subj_durations)
+        dim_durations: tuple[Fraction, ...] = _halve_durations(durations=subj_durations)
         self._generate_heads(base_name="head_dim", intervals=subj_intervals, durations=dim_durations, source="derived")
 
     def _generate_heads(
         self,
         base_name: str,
-        intervals: Tuple[int, ...],
-        durations: Tuple[Fraction, ...],
+        intervals: tuple[int, ...],
+        durations: tuple[Fraction, ...],
         source: str,
     ) -> None:
         """Generate head(n) fragments for n = 1 beat to len-1 beats."""
@@ -178,8 +169,8 @@ class SubjectCatalogue:
                 beat_count += 1
                 # Head of beat_count beats: take first i+1 notes
                 if i + 1 < len(durations):  # Don't generate full-length head
-                    head_intervals: Tuple[int, ...] = intervals[:i]
-                    head_durations: Tuple[Fraction, ...] = durations[:i + 1]
+                    head_intervals: tuple[int, ...] = intervals[:i]
+                    head_durations: tuple[Fraction, ...] = durations[:i + 1]
                     head_total: Fraction = sum(head_durations, start=Fraction(0))
 
                     head_frag: Fragment = Fragment(
@@ -194,8 +185,8 @@ class SubjectCatalogue:
     def _generate_tails(
         self,
         base_name: str,
-        intervals: Tuple[int, ...],
-        durations: Tuple[Fraction, ...],
+        intervals: tuple[int, ...],
+        durations: tuple[Fraction, ...],
         source: str,
     ) -> None:
         """Generate tail(n) fragments for n = 1 beat to len-1 beats."""
@@ -216,8 +207,8 @@ class SubjectCatalogue:
                 beat_count += 1
                 # Tail of beat_count beats: take last notes from index i onward
                 if i > 0:  # Don't generate full-length tail
-                    tail_intervals: Tuple[int, ...] = intervals[i - 1:]
-                    tail_durations: Tuple[Fraction, ...] = durations[i:]
+                    tail_intervals: tuple[int, ...] = intervals[i - 1:]
+                    tail_durations: tuple[Fraction, ...] = durations[i:]
                     tail_total: Fraction = sum(tail_durations, start=Fraction(0))
 
                     tail_frag: Fragment = Fragment(
@@ -231,7 +222,7 @@ class SubjectCatalogue:
 
     def _generate_inversion(self, base_frag: Fragment, name: str) -> None:
         """Generate inverted fragment (intervals negated)."""
-        inv_intervals: Tuple[int, ...] = _negate_intervals(intervals=base_frag.intervals)
+        inv_intervals: tuple[int, ...] = _negate_intervals(intervals=base_frag.intervals)
         inv_frag: Fragment = Fragment(
             name=name,
             intervals=inv_intervals,
@@ -243,7 +234,7 @@ class SubjectCatalogue:
 
     def _generate_augmentation(self, base_frag: Fragment, name: str) -> None:
         """Generate augmented fragment (durations doubled)."""
-        aug_durations: Tuple[Fraction, ...] = _double_durations(durations=base_frag.durations)
+        aug_durations: tuple[Fraction, ...] = _double_durations(durations=base_frag.durations)
         aug_total: Fraction = sum(aug_durations, start=Fraction(0))
         aug_frag: Fragment = Fragment(
             name=name,
@@ -256,7 +247,7 @@ class SubjectCatalogue:
 
     def _generate_diminution(self, base_frag: Fragment, name: str) -> None:
         """Generate diminished fragment (durations halved)."""
-        dim_durations: Tuple[Fraction, ...] = _halve_durations(durations=base_frag.durations)
+        dim_durations: tuple[Fraction, ...] = _halve_durations(durations=base_frag.durations)
         dim_total: Fraction = sum(dim_durations, start=Fraction(0))
         dim_frag: Fragment = Fragment(
             name=name,
@@ -275,7 +266,7 @@ class SubjectCatalogue:
         )
         return self._fragments[name]
 
-    def list_by_duration(self, max_duration: Fraction) -> Tuple[Fragment, ...]:
+    def list_by_duration(self, max_duration: Fraction) -> tuple[Fragment, ...]:
         """Return all fragments with total_duration <= max_duration."""
         return tuple(
             frag for frag in self._fragments.values()
@@ -287,7 +278,7 @@ class SubjectCatalogue:
         assert self._invertible_pair is not None, "Invertible pair not built"
         return self._invertible_pair
 
-    def fragment_names(self) -> Tuple[str, ...]:
+    def fragment_names(self) -> tuple[str, ...]:
         """Return all fragment names in the catalogue."""
         return tuple(sorted(self._fragments.keys()))
 

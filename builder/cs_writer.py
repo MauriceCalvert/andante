@@ -10,7 +10,7 @@ from fractions import Fraction
 
 from builder.types import Note
 from motifs.fugue_loader import LoadedFugue
-from shared.constants import STRONG_BEAT_DISSONANT
+from shared.constants import DURATION_DENOMINATOR_LIMIT, STRONG_BEAT_DISSONANT
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.voice_types import Range
@@ -20,8 +20,6 @@ from viterbi.costs import SPACING_TIGHT
 from viterbi.scale import KeyInfo
 
 logger = logging.getLogger(__name__)
-
-DURATION_DENOMINATOR_LIMIT: int = 64
 
 
 def _companion_at(

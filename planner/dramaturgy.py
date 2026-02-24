@@ -3,11 +3,10 @@
 Maps affects to historically appropriate keys per Mattheson's
 Der vollkommene Capellmeister (baroque_theory.md section 8.1).
 """
-from typing import Dict, Tuple
 
 
 # Mattheson Key Characteristics (baroque_theory.md section 8.1)
-MATTHESON_KEYS: Dict[str, str] = {
+MATTHESON_KEYS: dict[str, str] = {
     "C": "pure_innocent",
     "D": "sharp_martial",
     "E": "piercing_sorrowful",
@@ -26,7 +25,7 @@ MATTHESON_KEYS: Dict[str, str] = {
 }
 
 # Affect to Mattheson key mapping (baroque_theory.md section 8.1 Affektenlehre)
-AFFECT_TO_KEYS: Dict[str, Tuple[str, ...]] = {
+AFFECT_TO_KEYS: dict[str, tuple[str, ...]] = {
     # Major affects (German)
     "Freudigkeit": ("G", "A", "D"),
     "Majestaet": ("D", "Bb", "Eb"),
@@ -52,7 +51,7 @@ AFFECT_TO_KEYS: Dict[str, Tuple[str, ...]] = {
 }
 
 # Fallback by mode + character
-KEY_SUGGESTIONS: Dict[str, Tuple[str, ...]] = {
+KEY_SUGGESTIONS: dict[str, tuple[str, ...]] = {
     "bright_major": ("G", "A", "D"),
     "dark_major": ("Eb", "Bb", "E"),
     "bright_minor": ("e", "a", "d"),

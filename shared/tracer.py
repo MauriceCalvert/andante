@@ -9,6 +9,7 @@ Usage:
 """
 from __future__ import annotations
 
+from collections import Counter
 from fractions import Fraction
 from io import StringIO
 from pathlib import Path
@@ -238,7 +239,6 @@ class PipelineTracer:
             bar_voice_roles[key].append(role)
 
         # Count total beats per role across both voices
-        from collections import Counter
         role_counts: Counter = Counter()
         for role in plan:
             role_counts[role.role.value.upper()] += 1

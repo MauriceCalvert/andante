@@ -310,8 +310,8 @@ def generate_bass_phrase(
         prev_prev = actual_prev
         actual_prev = midi
         prev_midi = midi
-    structural_map: dict[Fraction, int] = dict(structural_tones)
-    structural_key_map: dict[Fraction, Key] = dict(structural_keys)
+    structural_map: dict[Fraction, int] = {off: midi for off, midi in structural_tones}
+    structural_key_map: dict[Fraction, Key] = {off: key for off, key in structural_keys}
     bar_structural_offsets: dict[int, frozenset[Fraction]] = {}
     for st_offset, _ in structural_tones:
         bar_num_for_st: int = phrase_offset_to_bar(plan=plan, offset=st_offset, bar_length=bar_length)

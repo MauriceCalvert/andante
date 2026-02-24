@@ -12,6 +12,8 @@ from typing import Any
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+_MAX_SCHEMA_WALK_ITERATIONS: int = 20
+
 from builder.types import (
     FormConfig,
     GenreConfig,
@@ -207,11 +209,10 @@ def _generate_section_schemas(
         )
         result = [opening_schema]
         bars_used: int = _schema_bars(schema_name=opening_schema, schema_defs=schema_defs)
-        max_iterations: int = 20
         iteration: int = 0
         while bars_used < bar_budget:
-            assert iteration < max_iterations, (
-                f"Schema walk exceeded {max_iterations} iterations for section "
+            assert iteration < _MAX_SCHEMA_WALK_ITERATIONS, (
+                f"Schema walk exceeded {_MAX_SCHEMA_WALK_ITERATIONS} iterations for section "
                 f"'{section_plan.name}'. Schemas so far: {result}, bars: {bars_used}/{bar_budget}"
             )
             iteration += 1

@@ -5,10 +5,9 @@ from fractions import Fraction
 
 from builder.types import Note
 from motifs.fugue_loader import LoadedFugue
+from shared.constants import DURATION_DENOMINATOR_LIMIT
 from shared.key import Key
 from shared.voice_types import Range
-
-DURATION_DENOMINATOR_LIMIT: int = 64
 
 
 def _fit_shift(

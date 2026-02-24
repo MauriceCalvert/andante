@@ -50,8 +50,7 @@ def validate_cadence_variety(cadences: tuple[str, ...]) -> None:
 def validate_tonal_path_variety(key_areas: tuple[str, ...]) -> None:
     """V-T004: No consecutive identical non-tonic key areas."""
     for i in range(len(key_areas) - 1):
-        if key_areas[i] != "I" and key_areas[i] == key_areas[i + 1]:
-            assert False, (
-                f"V-T004: consecutive non-tonic key '{key_areas[i]}' "
-                f"at sections {i} and {i + 1}"
-            )
+        assert not (key_areas[i] != "I" and key_areas[i] == key_areas[i + 1]), (
+            f"V-T004: consecutive non-tonic key '{key_areas[i]}' "
+            f"at sections {i} and {i + 1}"
+        )

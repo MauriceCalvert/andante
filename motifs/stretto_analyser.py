@@ -10,18 +10,15 @@ work and stores them as metadata.
 """
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Tuple
 
 from motifs.subject_gen import GeneratedSubject
 from motifs.answer_generator import GeneratedAnswer
-
 
 # Intervals mod 7 that are consonant (invertible: no 5ths)
 STRONG_BEAT_CONSONANCES: frozenset[int] = frozenset({0, 2, 5})  # unison, 3rd, 6th
 WEAK_BEAT_CONSONANCES: frozenset[int] = frozenset({0, 1, 2, 4, 5, 6})  # all but tritone
 # Maximum dissonance count on weak beats before rejecting
 MAX_WEAK_DISSONANCES: int = 1
-
 
 @dataclass(frozen=True)
 class StrettoOffset:
@@ -35,12 +32,10 @@ class StrettoOffset:
     total_count: int = 0       # total check points evaluated
     quality: float = 0.0       # 0..1, consonant_count / total_count
 
-
 @dataclass(frozen=True)
 class StrettoAnalysis:
     """Result of stretto analysis for a subject."""
-    valid_offsets: Tuple[StrettoOffset, ...]
-
+    valid_offsets: tuple[StrettoOffset, ...]
 
 def _build_timeline(
     degrees: tuple[int, ...],
@@ -53,7 +48,6 @@ def _build_timeline(
         timeline.append((offset, deg))
         offset += Fraction(dur).limit_denominator(64)
     return timeline
-
 
 def _degree_at_time(
     timeline: list[tuple[Fraction, int]],
@@ -69,7 +63,6 @@ def _degree_at_time(
             break
         result = deg
     return result
-
 
 def _is_strong_beat(
     t: Fraction,
@@ -88,7 +81,6 @@ def _is_strong_beat(
     if metre[0] == 6:
         return beat_in_bar in (0, 3)
     return beat_in_bar == 0
-
 
 def _check_overlap(
     leader_timeline: list[tuple[Fraction, int]],
@@ -155,7 +147,6 @@ def _check_overlap(
         prev_interval_mod7 = interval_mod7
     return True, len(sorted_times), all_consonant, consonant_count, total_checked
 
-
 def find_stretto_offsets(
     leader_degrees: tuple[int, ...],
     leader_durations: tuple[float, ...],
@@ -201,7 +192,6 @@ def find_stretto_offsets(
         offset += min_dur
     return results
 
-
 def count_self_stretto(
     degrees: tuple[int, ...],
     durations: tuple[float, ...],
@@ -229,7 +219,6 @@ def count_self_stretto(
             count += 1
         offset += min_dur
     return count
-
 
 def analyse_stretto(
     subject: GeneratedSubject,

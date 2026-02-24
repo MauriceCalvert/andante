@@ -17,10 +17,6 @@ def phrase_zone(
     assert phrase_bar >= 1, f"phrase_bar must be >= 1, got {phrase_bar}"
     assert total_bars >= 1, f"total_bars must be >= 1, got {total_bars}"
 
-    # Defensive: handle invalid total_bars
-    if total_bars <= 0:
-        return "opening"
-
     # Single bar phrase
     if total_bars == 1:
         return "cadential"

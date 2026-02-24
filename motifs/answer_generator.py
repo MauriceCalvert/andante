@@ -17,37 +17,31 @@ The answer preserves the subject's rhythm exactly — tonal answers in
 Bach always use the same rhythm as the subject.
 """
 from dataclasses import dataclass
-from typing import Tuple
 
 from motifs.head_generator import degrees_to_midi
 from motifs.subject_gen import GeneratedSubject
 
-
 TONIC_TRANSPOSITION = 3      # Tonic region notes: up a 4th
 DOMINANT_TRANSPOSITION = 4   # Dominant region notes: up a 5th
-
 
 @dataclass(frozen=True)
 class GeneratedAnswer:
     """Result of answer generation."""
-    scale_indices: Tuple[int, ...]
-    durations: Tuple[float, ...]
-    midi_pitches: Tuple[int, ...]
+    scale_indices: tuple[int, ...]
+    durations: tuple[float, ...]
+    midi_pitches: tuple[int, ...]
     answer_type: str  # Always "tonal"
-    mutation_points: Tuple[int, ...]  # Indices where transposition amount changes
-
+    mutation_points: tuple[int, ...]  # Indices where transposition amount changes
 
 def _is_tonic_region(degree: int) -> bool:
     """Check if degree is in tonic region (indices 0,1,2,3 mod 7)."""
     return (degree % 7) in (0, 1, 2, 3)
-
 
 def _transposition_for_degree(degree: int) -> int:
     """Return transposition amount for a given subject degree."""
     if _is_tonic_region(degree=degree):
         return TONIC_TRANSPOSITION
     return DOMINANT_TRANSPOSITION
-
 
 def _find_mutation_points(degrees: tuple[int, ...]) -> list[int]:
     """Find indices where transposition amount changes between adjacent notes."""
@@ -59,14 +53,12 @@ def _find_mutation_points(degrees: tuple[int, ...]) -> list[int]:
             mutations.append(i)
     return mutations
 
-
 def _apply_tonal_transposition(degrees: tuple[int, ...]) -> tuple[int, ...]:
     """Transpose each degree by its region-appropriate amount."""
     return tuple(
         deg + _transposition_for_degree(degree=deg)
         for deg in degrees
     )
-
 
 def generate_answer(
     subject: GeneratedSubject,
@@ -90,7 +82,6 @@ def generate_answer(
         mutation_points=tuple(mutation_points),
     )
 
-
 def answer_to_str(
     answer: GeneratedAnswer,
     tonic_midi: int = 60,
@@ -102,7 +93,6 @@ def answer_to_str(
     )
     mutation_str = f", mutations at {list(answer.mutation_points)}" if answer.mutation_points else ""
     return f"tonal answer: {pitch_str}{mutation_str}"
-
 
 if __name__ == "__main__":
     from motifs.subject_gen import select_subject

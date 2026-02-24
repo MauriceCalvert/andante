@@ -1,5 +1,37 @@
 # Completed
 
+## Code review refactor (2026-02-24)
+
+Ran 5 parallel review agents across all modules then implemented findings.
+
+**Law violations fixed (L001, L016, L002):**
+- `shared/key.py`: Removed forbidden try/except in `diatonic_step()`, replaced with direct `min()` call.
+- `builder/figuration/selection.py`: Removed `if True:` dead branch and forbidden try/except. Added guard `if note_count >= 2 and interval in INTERVAL_DIATONIC_SIZE:` before calling `generate_degrees()`.
+- `planner/planner.py`: Replaced all `print()` calls with `tracer._line()` (pipeline output) or `_log.info()` (pre-tracer fugue loading). Added module-level `_log`. Removed duplicate `from dataclasses import replace` at function scope.
+- `viterbi/pipeline.py`: Replaced `print()` calls in `_print_phrase_summary()` with `_log.debug()`.
+- `builder/musicxml_writer.py`: Replaced `print()` warning with `_log.warning()`.
+- `shared/midi_writer.py`: Replaced `print()` warning with `_log.warning()`. Moved `GATE_TIME = 0.95` local constant to `shared/constants.py` as `MIDI_GATE_TIME`.
+- `shared/constants.py`: Added `DURATION_DENOMINATOR_LIMIT: int = 64` and `MIDI_GATE_TIME: float = 0.95`.
+- `builder/cs_writer.py`, `builder/imitation.py`: Removed duplicate `DURATION_DENOMINATOR_LIMIT` definitions, import from `shared.constants`.
+
+**Typing modernisation (Tuple/Dict/List/Optional → built-ins):**
+- Removed `from typing import Tuple` and updated to `tuple[...]` in: `shared/constants.py`, `shared/key.py`, `planner/dramaturgy.py`, `planner/thematic.py`, `motifs/fugue_loader.py`, `motifs/countersubject_generator.py`, `motifs/catalogue.py`, `motifs/answer_generator.py`, `motifs/stretto_analyser.py`, `motifs/subject_gen/models.py`, `scripts/generate_subjects.py`.
+- `LinesOfCode.py`: Removed `Dict` import, updated to `dict[...]`.
+- `shared/midi_writer.py`: Replaced `List`, `Optional` with `list`, `str | None`.
+- `shared/tracer.py`: Moved `from collections import Counter` from inside function to module-level import.
+
+**Dead code and Pythonic improvements:**
+- `shared/phrase_position.py`: Removed unreachable defensive branch (impossible after assert on previous line).
+- `shared/counterpoint.py`: Replaced manual for-loops with `next()` generator expressions in `has_parallel_perfect()`.
+- `planner/variety.py`: Replaced `assert False, msg` inside if-branch with inline conditional assertion.
+- `planner/schematic.py`: Extracted magic `20` as module-level `_MAX_SCHEMA_WALK_ITERATIONS`.
+- `planner/thematic.py`: Extracted duplicate material code dict literal to module-level `_MATERIAL_CODE_MAP`.
+- `builder/galant/bass_writer.py`: Replaced `dict(list_of_tuples)` with explicit dict comprehensions.
+- `motifs/fragen.py`: Moved `MIN_EPISODE_SPACING = 10` from inside function body to module-level `_MIN_EPISODE_SPACING`.
+- `motifs/subject_gen/cache.py`: Narrowed `except Exception` to specific pickle failure types.
+
+All 26 modified modules import cleanly.
+
 ## F4 — Canonic Episode Texture (2026-02-24)
 
 Replaced cross-pairing episode builder with canonic pairing in `motifs/fragen.py`.

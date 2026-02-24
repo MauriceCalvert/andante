@@ -21,7 +21,7 @@ def _load_cache(name: str) -> object | None:
     try:
         with open(p, "rb") as f:
             return pickle.load(f)
-    except Exception:
+    except (pickle.UnpicklingError, EOFError, AttributeError, ImportError):
         return None
 
 

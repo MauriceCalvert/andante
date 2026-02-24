@@ -2,8 +2,13 @@
 
 No dependencies on datalayer - works with simple pitch/duration lists or Note dataclasses.
 """
+import logging
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import Sequence
+
+from shared.constants import MIDI_GATE_TIME
+
+_log: logging.Logger = logging.getLogger(__name__)
 
 try:
     import mido
@@ -61,7 +66,7 @@ def write_midi(
     tempo: int = 120,
     velocity: int = 80,
     time_signature: tuple[int, int] = (4, 4),
-    tonic: Optional[str] = None,
+    tonic: str | None = None,
     mode: str = "major"
 ) -> bool:
     """Write a single-track MIDI file from pitch and duration lists.
@@ -82,7 +87,7 @@ def write_midi(
     if len(pitches) != len(durations):
         raise ValueError(f"pitches ({len(pitches)}) and durations ({len(durations)}) must have same length")
     offset = 0.0
-    notes: List[SimpleNote] = []
+    notes: list[SimpleNote] = []
     for p, d in zip(pitches, durations):
         notes.append(SimpleNote(pitch=p, offset=offset, duration=d, velocity=velocity, track=0))
         offset += d
@@ -95,7 +100,7 @@ def write_midi_notes(
     *,
     tempo: int = 100,
     time_signature: tuple[int, int] = (4, 4),
-    tonic: Optional[str] = None,
+    tonic: str | None = None,
     mode: str = "major"
 ) -> bool:
     """Write MIDI file from a list of SimpleNote objects.
@@ -115,7 +120,7 @@ def write_midi_notes(
         True if successful, False if mido not available
     """
     if not MIDO_AVAILABLE:
-        print(f"Warning: mido not installed, cannot write {path}")
+        _log.warning("mido not installed, cannot write %s", path)
         return False
 
     if not notes:
@@ -157,14 +162,11 @@ def write_midi_notes(
         midi_track.append(MetaMessage('track_name', name=name, time=0))
         midi_track.append(Message('program_change', channel=track_num % 16, program=0, time=0))
 
-        # L013: 95% gate time to avoid legato/slur rendering in players
-        GATE_TIME = 0.95
-
-        # Build events list (on/off with absolute times)
-        events: List[tuple[int, str, int, int]] = []  # (tick, type, pitch, velocity)
+        # Build events list (on/off with absolute times) — L013: 95% gate time
+        events: list[tuple[int, str, int, int]] = []  # (tick, type, pitch, velocity)
         for note in track_notes:
             on_tick = int(note.offset * ticks_per_whole)
-            gate_dur = note.duration * GATE_TIME
+            gate_dur = note.duration * MIDI_GATE_TIME
             off_tick = int((note.offset + gate_dur) * ticks_per_whole)
             pitch = note.pitch
             assert 0 <= pitch <= 127, (

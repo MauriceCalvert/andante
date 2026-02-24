@@ -4,44 +4,38 @@ Loads .fugue YAML files containing pre-composed subject, answer, and countersubj
 """
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple
 
 import yaml
 
 from motifs.head_generator import degrees_to_midi
 
-
 LIBRARY_DIR = Path(__file__).parent / "library"
-
 
 @dataclass(frozen=True)
 class LoadedSubject:
     """Subject loaded from .fugue file."""
-    degrees: Tuple[int, ...]
-    durations: Tuple[float, ...]
+    degrees: tuple[int, ...]
+    durations: tuple[float, ...]
     mode: str
     bars: int
     head_name: str
     leap_size: int
     leap_direction: str
 
-
 @dataclass(frozen=True)
 class LoadedAnswer:
     """Answer loaded from .fugue file."""
-    degrees: Tuple[int, ...]
-    durations: Tuple[float, ...]
+    degrees: tuple[int, ...]
+    durations: tuple[float, ...]
     answer_type: str
-    mutation_points: Tuple[int, ...]
-
+    mutation_points: tuple[int, ...]
 
 @dataclass(frozen=True)
 class LoadedCountersubject:
     """Countersubject loaded from .fugue file."""
-    degrees: Tuple[int, ...]
-    durations: Tuple[float, ...]
-    vertical_intervals: Tuple[int, ...]
-
+    degrees: tuple[int, ...]
+    durations: tuple[float, ...]
+    vertical_intervals: tuple[int, ...]
 
 @dataclass(frozen=True)
 class LoadedStretto:
@@ -49,20 +43,19 @@ class LoadedStretto:
     offset_slots: int
     quality: float
 
-
 @dataclass(frozen=True)
 class LoadedFugue:
     """Complete fugue triple loaded from file."""
     subject: LoadedSubject
     answer: LoadedAnswer
     countersubject: LoadedCountersubject
-    metre: Tuple[int, int]
+    metre: tuple[int, int]
     tonic: str
     tonic_midi: int
     seed: int
-    stretto: Tuple[LoadedStretto, ...]
+    stretto: tuple[LoadedStretto, ...]
 
-    def subject_midi(self, tonic_midi: int | None = None, mode: str | None = None) -> Tuple[int, ...]:
+    def subject_midi(self, tonic_midi: int | None = None, mode: str | None = None) -> tuple[int, ...]:
         """Get subject as MIDI pitches.
 
         Args:
@@ -77,7 +70,7 @@ class LoadedFugue:
             mode=effective_mode,
         )
 
-    def answer_midi(self, tonic_midi: int | None = None) -> Tuple[int, ...]:
+    def answer_midi(self, tonic_midi: int | None = None) -> tuple[int, ...]:
         """Get answer as MIDI pitches (in dominant key)."""
         midi = tonic_midi if tonic_midi is not None else self.tonic_midi
         dominant_midi = midi + 7
@@ -87,7 +80,7 @@ class LoadedFugue:
             mode=self.subject.mode,
         )
 
-    def countersubject_midi(self, tonic_midi: int | None = None, mode: str | None = None) -> Tuple[int, ...]:
+    def countersubject_midi(self, tonic_midi: int | None = None, mode: str | None = None) -> tuple[int, ...]:
         """Get countersubject as MIDI pitches.
 
         Args:
@@ -101,7 +94,6 @@ class LoadedFugue:
             tonic_midi=midi,
             mode=effective_mode,
         )
-
 
 def _parse_fugue_data(data: dict) -> LoadedFugue:
     """Parse fugue YAML data dict into a LoadedFugue."""
@@ -146,7 +138,6 @@ def _parse_fugue_data(data: dict) -> LoadedFugue:
         stretto=tuple(stretto_entries),
     )
 
-
 def load_fugue(name: str) -> LoadedFugue:
     """Load a fugue triple from the library by name."""
     if name.endswith(".fugue"):
@@ -157,14 +148,12 @@ def load_fugue(name: str) -> LoadedFugue:
         data: dict = yaml.safe_load(f)
     return _parse_fugue_data(data=data)
 
-
 def load_fugue_path(path: Path) -> LoadedFugue:
     """Load a fugue triple from an explicit file path."""
     assert path.exists(), f"Fugue file not found: {path}"
     with open(path, encoding="utf-8") as f:
         data: dict = yaml.safe_load(f)
     return _parse_fugue_data(data=data)
-
 
 def list_fugues() -> list[str]:
     """List available fugue names in the library."""
