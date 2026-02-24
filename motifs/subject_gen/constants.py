@@ -42,4 +42,12 @@ CPSAT_SOLVER_TIMEOUT: float = 3.0
 
 # ── Selection parameters ────────────────────────────────────────────
 
-MIN_STRETTO_OFFSETS: int = 3
+MIN_STRETTO_OFFSETS: int = 1
+
+# ── Aesthetic scoring weights (each criterion 0–1, weighted sum) ────
+
+W_RANGE: float = 1.0
+W_SIGNATURE_INTERVAL: float = 1.0
+W_RHYTHMIC_CONTRAST: float = 1.0
+W_DIRECTION_COMMITMENT: float = 1.0
+W_REPETITION_PENALTY: float = 1.0

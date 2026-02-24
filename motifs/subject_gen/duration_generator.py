@@ -70,6 +70,8 @@ def enumerate_durations(
     fills = [f for f in raw_fills if not _has_isolated_semiquaver(f)]
     results: list[tuple[int, ...]] = []
     for combo in iter_product(fills, repeat=n_bars):
+        if len(set(combo)) < len(combo):
+            continue  # cross-bar rhythmic contrast: no two bars identical
         seq: tuple[int, ...] = sum(combo, ())
         n_notes = len(seq)
         if n_notes < MIN_SUBJECT_NOTES or n_notes > MAX_SUBJECT_NOTES:
@@ -95,14 +97,14 @@ def _cached_scored_durations(
     n_bars: int,
     bar_ticks: int,
 ) -> dict[int, list[tuple[int, ...]]]:
-    """All duration patterns per note count, cached to disk."""
-    key = f"dur_scored_{n_bars}b_{bar_ticks}t.pkl"
+    """All valid duration patterns per note count, cached to disk."""
+    key = f"dur_all_{n_bars}b_{bar_ticks}t.pkl"
     cached = _load_cache(key)
     if cached is not None:
         return cached
     all_durs = enumerate_durations(n_bars=n_bars, bar_ticks=bar_ticks)
-    result: dict[int, list[tuple[int, ...]]] = {}
+    by_count: dict[int, list[tuple[int, ...]]] = {}
     for d in all_durs:
-        result.setdefault(len(d), []).append(d)
-    _save_cache(key, result)
-    return result
+        by_count.setdefault(len(d), []).append(d)
+    _save_cache(key, by_count)
+    return by_count

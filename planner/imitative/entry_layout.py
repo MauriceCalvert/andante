@@ -247,12 +247,19 @@ def _group_beat_roles(
     groups: list[dict] = []
     current_group: dict | None = None
 
+    # Build stretto material lookup: bar -> material string for STRETTO voice
+    stretto_material: dict[int, str | None] = {}
+    for role in beat_roles:
+        if role.beat == Fraction(0) and role.role == ThematicRole.STRETTO:
+            stretto_material[role.bar] = role.material
+
     for bar_num in sorted_bars:
         bar_data: dict = bars_data[bar_num]
         voice_roles: frozenset[ThematicRole] = frozenset(bar_data["roles"].values())
         function: str = get_function(bar_data["roles"])
         local_key: Key = bar_data["local_key"]
         section_name: str = bar_data["section"]
+        bar_stretto_mat: str | None = stretto_material.get(bar_num)
 
         if current_group is None:
             # Start first group
@@ -263,11 +270,13 @@ def _group_beat_roles(
                 "local_key": local_key,
                 "section_name": section_name,
                 "voice_roles": voice_roles,
+                "stretto_material": bar_stretto_mat,
                 "bar_assignments": [],  # Not needed for BeatRole-based groups
             }
         elif (function != current_group["function"] or
-              voice_roles != current_group["voice_roles"]):
-            # Pattern changed, close current group and start new one
+              voice_roles != current_group["voice_roles"] or
+              bar_stretto_mat != current_group["stretto_material"]):
+            # Pattern changed (or stretto delay changed), close and start new
             groups.append(current_group)
             current_group = {
                 "function": function,
@@ -276,6 +285,7 @@ def _group_beat_roles(
                 "local_key": local_key,
                 "section_name": section_name,
                 "voice_roles": voice_roles,
+                "stretto_material": bar_stretto_mat,
                 "bar_assignments": [],
             }
         else:

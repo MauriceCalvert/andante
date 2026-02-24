@@ -11,9 +11,12 @@ bridges them with sequential fragments of the subject head.
 """
 from __future__ import annotations
 
+import math
+
 from shared.constants import CADENCE_BARS
 from shared.key import Key
 
+from motifs.fugue_loader import LoadedStretto
 from planner.imitative.types import BarAssignment, SubjectPlan, VoiceAssignment
 
 # Roles that are not yet supported (IMP-5)
@@ -23,6 +26,10 @@ _UNSUPPORTED_ROLES: frozenset[str] = frozenset({
 
 # Episode length: fixed at 2 bars for IMP-4
 _EPISODE_BARS: int = 2
+
+# Slot-to-beat conversion (from stretto_constraints)
+_SLOTS_PER_CROTCHET: int = 4
+_SLOTS_PER_QUAVER: int = 2
 
 
 def _extract_lead_voice_and_key(entry: dict | str, home_key: Key) -> tuple[int | None, Key | None]:
@@ -77,12 +84,26 @@ def _semitone_distance(key1: Key, key2: Key) -> int:
     return dist
 
 
+def _slots_per_beat(metre: str) -> int:
+    """Semiquaver slots per beat for the given metre."""
+    parts: list[str] = metre.split("/")
+    denom: int = int(parts[1])
+    if denom == 4:
+        return _SLOTS_PER_CROTCHET
+    if denom == 8:
+        return _SLOTS_PER_QUAVER
+    if denom == 2:
+        return _SLOTS_PER_CROTCHET * 2
+    assert False, f"Unsupported metre denominator: {denom}"
+
+
 def plan_subject(
     thematic_config: dict,
     subject_bars: int,
     home_key: Key,
     metre: str,
     sections: tuple[dict, ...],
+    stretto_offsets: tuple[LoadedStretto, ...] = (),
 ) -> SubjectPlan:
     """Build a SubjectPlan from the declarative entry_sequence.
 
@@ -96,8 +117,33 @@ def plan_subject(
     Returns:
         SubjectPlan with one BarAssignment per bar, fully validated.
     """
-    entry_sequence: list = thematic_config["entry_sequence"]
-    assert len(entry_sequence) > 0, "entry_sequence is empty"
+    raw_sequence: list = thematic_config["entry_sequence"]
+    assert len(raw_sequence) > 0, "entry_sequence is empty"
+
+    # Expand stretto_section into individual stretto entries
+    spb: int = _slots_per_beat(metre=metre)
+    entry_sequence: list = []
+    for entry in raw_sequence:
+        if isinstance(entry, dict) and entry.get("type") == "stretto_section":
+            section_key: str = entry["key"]
+            sorted_offsets: list[LoadedStretto] = sorted(
+                stretto_offsets,
+                key=lambda s: s.offset_slots,
+                reverse=True,
+            )
+            for so in sorted_offsets:
+                delay_beats: int = so.offset_slots // spb
+                assert delay_beats * spb == so.offset_slots, (
+                    f"Stretto offset {so.offset_slots} slots not divisible by "
+                    f"{spb} slots/beat"
+                )
+                entry_sequence.append({
+                    "type": "stretto",
+                    "key": section_key,
+                    "delay": delay_beats,
+                })
+        else:
+            entry_sequence.append(entry)
 
     # Read answer_offset_beats (optional, defaults to 0 for bar-aligned entry)
     answer_offset_beats: int = thematic_config.get("answer_offset_beats", 0)
@@ -119,7 +165,9 @@ def plan_subject(
             entry_costs.append(entry["bars"])
             continue
         if entry.get("type") == "stretto":
-            entry_costs.append(subject_bars)
+            _delay: int = entry["delay"]
+            _extra: int = math.ceil(_delay / int(metre.split("/")[0]))
+            entry_costs.append(subject_bars + _extra)
             continue
         # Guard against unsupported roles
         for slot_key in ("upper", "lower"):
@@ -296,12 +344,15 @@ def plan_subject(
             stretto_delay: int = entry["delay"]
             stretto_key: Key = home_key.modulate_to(stretto_key_label)
 
-            # Stamp bars for this stretto (uses subject_bars, same as normal entry)
-            for offset in range(subject_bars):
+            # Stretto spans subject_bars + extra bars for follower's delayed entry
+            for offset in range(cost):
                 bar_num: int = bar_pointer + offset
                 voices: dict[int, VoiceAssignment] = {}
 
-                # Voice 0 (upper/leader): subject role at stretto_key
+                # Voice 0 (upper/leader): SUBJECT throughout so grouping
+                # keeps the stretto as one entry. The subject renderer
+                # naturally produces no notes past its duration;
+                # fill_free_bars handles the tail.
                 voices[0] = VoiceAssignment(
                     role="subject",
                     material_key=stretto_key,
@@ -311,7 +362,7 @@ def plan_subject(
                     fragment_iteration=0,
                 )
 
-                # Voice 1 (lower/follower): stretto role with delay encoded in fragment
+                # Voice 1 (lower/follower): stretto throughout
                 voices[1] = VoiceAssignment(
                     role="stretto",
                     material_key=stretto_key,
@@ -329,7 +380,7 @@ def plan_subject(
                     voices=voices,
                 ))
 
-            bar_pointer += subject_bars
+            bar_pointer += cost
             continue
 
         # Pedal entry

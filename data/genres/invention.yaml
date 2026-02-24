@@ -24,7 +24,7 @@ tracks:
 
 form: through_composed
 metre: "4/4"
-subject: call_response
+subject: subject00_2bar
 rhythmic_unit: "1/16"
 tempo: 120
 bass_treatment: contrapuntal
@@ -50,7 +50,7 @@ thematic:
     # Recapitulation
     - upper: [subject, V]
       lower: [cs, V]
-    - {type: stretto, key: I, delay: 2}
+    - {type: stretto_section, key: I}
     - {type: pedal, degree: 5, bars: 2}
     - cadence
 

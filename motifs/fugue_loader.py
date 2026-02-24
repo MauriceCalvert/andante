@@ -44,6 +44,13 @@ class LoadedCountersubject:
 
 
 @dataclass(frozen=True)
+class LoadedStretto:
+    """One viable stretto offset from .fugue file."""
+    offset_slots: int
+    quality: float
+
+
+@dataclass(frozen=True)
 class LoadedFugue:
     """Complete fugue triple loaded from file."""
     subject: LoadedSubject
@@ -53,6 +60,7 @@ class LoadedFugue:
     tonic: str
     tonic_midi: int
     seed: int
+    stretto: Tuple[LoadedStretto, ...]
 
     def subject_midi(self, tonic_midi: int | None = None, mode: str | None = None) -> Tuple[int, ...]:
         """Get subject as MIDI pitches.
@@ -121,6 +129,12 @@ def _parse_fugue_data(data: dict) -> LoadedFugue:
         durations=tuple(cs_data["durations"]),
         vertical_intervals=tuple(cs_data["vertical_intervals"]),
     )
+    stretto_entries: list[LoadedStretto] = []
+    for s in data.get("stretto", []):
+        stretto_entries.append(LoadedStretto(
+            offset_slots=s["offset_slots"],
+            quality=s["quality"],
+        ))
     return LoadedFugue(
         subject=subject,
         answer=answer,
@@ -129,6 +143,7 @@ def _parse_fugue_data(data: dict) -> LoadedFugue:
         tonic=meta["tonic"],
         tonic_midi=meta["tonic_midi"],
         seed=meta["seed"],
+        stretto=tuple(stretto_entries),
     )
 
 

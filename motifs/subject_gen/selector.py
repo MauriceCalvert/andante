@@ -1,4 +1,5 @@
 """Diversity selection and subject assembly."""
+import math
 import time
 from collections import Counter
 
@@ -15,20 +16,15 @@ from motifs.subject_gen.contour import _derive_leap_info
 from motifs.subject_gen.duration_generator import _cached_scored_durations
 from motifs.subject_gen.models import GeneratedSubject, _ScoredPitch
 from motifs.subject_gen.pitch_generator import _cached_validated_pitch
+from motifs.subject_gen.scoring import score_subject, subject_features
 
 
-def _subject_distance(
-    a_degs: tuple[int, ...],
-    a_durs: tuple[int, ...],
-    b_degs: tuple[int, ...],
-    b_durs: tuple[int, ...],
-) -> int:
-    """Hamming distance over degrees + durations (different lengths = max)."""
-    a = a_degs + a_durs
-    b = b_degs + b_durs
-    if len(a) != len(b):
-        return max(len(a), len(b))
-    return sum(1 for x, y in zip(a, b) if x != y)
+def _feature_distance(
+    a: tuple[float, ...],
+    b: tuple[float, ...],
+) -> float:
+    """Euclidean distance between two feature vectors."""
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 
 def _build_subject(
@@ -83,26 +79,25 @@ def select_diverse_subjects(
     note_counts: tuple[int, ...] | None = None,
     verbose: bool = False,
 ) -> list[GeneratedSubject]:
-    """Select n subjects maximising pairwise pitch distance."""
+    """Select n subjects maximising pairwise feature distance."""
     if target_bars is None:
         target_bars = 3
     bar_ticks = _bar_x2_ticks(metre)
     t_start = time.time()
     if verbose:
         print(f"select_diverse: n={n} mode={mode} metre={metre} bars={target_bars}")
-    # ── Durations: all patterns per note count ──────────────────
-    all_durs = _cached_scored_durations(n_bars=target_bars, bar_ticks=bar_ticks)
-    assert len(all_durs) > 0, f"No durations for bars={target_bars} metre={metre}"
-    top_durs_by_count: dict[int, list[tuple[int, ...]]] = {}
-    for nc, dur_list in all_durs.items():
-        if dur_list:
-            top_durs_by_count[nc] = dur_list
-    # ── Pitch: full validated pool, paired with each duration option ────
+    # ── Durations: all valid patterns per note count ─────────────
+    all_durs_by_count: dict[int, list[tuple[int, ...]]] = _cached_scored_durations(
+        n_bars=target_bars,
+        bar_ticks=bar_ticks,
+    )
+    assert len(all_durs_by_count) > 0, f"No durations for bars={target_bars} metre={metre}"
+    # ── Pitch × Duration: pair each pitch with each valid duration ──
     pool: list[tuple[_ScoredPitch, tuple[int, ...]]] = []
-    for nc in sorted(top_durs_by_count.keys()):
+    for nc in sorted(all_durs_by_count.keys()):
         if note_counts is not None and nc not in note_counts:
             continue
-        dur_options = top_durs_by_count[nc]
+        dur_options: list[tuple[int, ...]] = all_durs_by_count[nc]
         all_pitch = _cached_validated_pitch(
             num_notes=nc,
             tonic_midi=tonic_midi,
@@ -133,15 +128,15 @@ def select_diverse_subjects(
         if dedup_key not in seen:
             seen.add(dedup_key)
             candidates.append((sp, d_seq))
-    # ── Stretto filter: cache to disk ──────────────────────────
+    # ── Stretto filter + aesthetic scoring ──────────────────────
     cache_name = f"stretto_eval_{mode}_{target_bars}b_{bar_ticks}t.pkl"
     loaded = _load_cache(cache_name)
     stretto_cache: dict[tuple[tuple[int, ...], tuple[int, ...]], tuple[OffsetResult, ...]] = (
         loaded if isinstance(loaded, dict) else {}
     )
     new_entries: int = 0
-    # (stretto_score, sp, dur_seq, viable_offsets)
-    stretto_filtered: list[tuple[float, _ScoredPitch, tuple[int, ...], tuple[OffsetResult, ...]]] = []
+    # (aesthetic_score, min_stretto_offset, sp, dur_seq, viable_offsets, features)
+    scored: list[tuple[float, int, _ScoredPitch, tuple[int, ...], tuple[OffsetResult, ...], tuple[float, ...]]] = []
     for sp, dur_seq in candidates:
         cache_key = (sp.degrees, dur_seq)
         if cache_key in stretto_cache:
@@ -157,38 +152,50 @@ def select_diverse_subjects(
             viable_offsets = tuple(r for r in all_offsets if r.viable)
             stretto_cache[cache_key] = viable_offsets
             new_entries += 1
-        if len(viable_offsets) >= MIN_STRETTO_OFFSETS:
-            stretto_score = sum(r.quality for r in viable_offsets) / len(viable_offsets)
-            stretto_filtered.append((stretto_score, sp, dur_seq, viable_offsets))
+        if len(viable_offsets) < MIN_STRETTO_OFFSETS:
+            continue
+        aesthetic: float = score_subject(
+            degrees=sp.degrees,
+            ivs=sp.ivs,
+            dur_indices=dur_seq,
+        )
+        # Tie-breaker: shortest stretto offset (lower = tighter = better)
+        min_offset: int = min(r.offset_slots for r in viable_offsets)
+        features: tuple[float, ...] = subject_features(
+            degrees=sp.degrees,
+            ivs=sp.ivs,
+            dur_indices=dur_seq,
+        )
+        scored.append((aesthetic, min_offset, sp, dur_seq, viable_offsets, features))
     if new_entries > 0:
         _save_cache(cache_name, stretto_cache)
-    # ── Sort by stretto quality descending ─────────────────────
-    stretto_filtered.sort(key=lambda x: x[0], reverse=True)
+    # ── Sort: aesthetic descending, then min_offset ascending (tighter stretto) ──
+    scored.sort(key=lambda x: (-x[0], x[1]))
     if verbose:
         print(
-            f"  Pool: {len(pool)} total, {len(stretto_filtered)} with "
+            f"  Pool: {len(pool)} total, {len(scored)} with "
             f">= {MIN_STRETTO_OFFSETS} stretto "
             f"(cache_hits={len(candidates) - new_entries})"
         )
-    assert len(stretto_filtered) > 0, (
+    assert len(scored) > 0, (
         f"No candidates with >= {MIN_STRETTO_OFFSETS} stretto offsets"
     )
-    # ── Greedy max-min distance selection ──────────────────────
-    if len(stretto_filtered) <= n:
-        picks = list(range(len(stretto_filtered)))
+    # ── Greedy max-min feature-distance selection ──────────────
+    if len(scored) <= n:
+        picks = list(range(len(scored)))
     else:
-        picks: list[int] = [0]  # start with best stretto quality
+        picks: list[int] = [0]  # best aesthetic score
         for _ in range(n - 1):
-            best_idx = -1
-            best_min_dist = -1
-            picked_items = [(stretto_filtered[p][1].degrees, stretto_filtered[p][2]) for p in picks]
-            for ci in range(len(stretto_filtered)):
+            best_idx: int = -1
+            best_min_dist: float = -1.0
+            picked_features: list[tuple[float, ...]] = [scored[p][5] for p in picks]
+            for ci in range(len(scored)):
                 if ci in picks:
                     continue
-                ci_degs = stretto_filtered[ci][1].degrees
-                ci_durs = stretto_filtered[ci][2]
-                min_dist = min(_subject_distance(ci_degs, ci_durs, pd, pdr)
-                               for pd, pdr in picked_items)
+                ci_features: tuple[float, ...] = scored[ci][5]
+                min_dist: float = min(
+                    _feature_distance(ci_features, pf) for pf in picked_features
+                )
                 if min_dist > best_min_dist:
                     best_min_dist = min_dist
                     best_idx = ci
@@ -197,7 +204,7 @@ def select_diverse_subjects(
     # ── Build GeneratedSubject for each pick ──────────────────
     results: list[GeneratedSubject] = []
     for pi in picks:
-        stretto_sc, sp, best_d_seq, viable_offsets = stretto_filtered[pi]
+        aesthetic_sc, _, sp, best_d_seq, viable_offsets, _ = scored[pi]
         subj = _build_subject(
             sp=sp,
             best_durs=best_d_seq,
@@ -205,16 +212,17 @@ def select_diverse_subjects(
             mode=mode,
             metre=metre,
             bar_ticks=bar_ticks,
-            final_score=stretto_sc,
+            final_score=aesthetic_sc,
             cached_viable_offsets=viable_offsets,
         )
         results.append(subj)
     elapsed = time.time() - t_start
     if verbose:
         for i, subj in enumerate(results):
+            dur_str: str = ",".join(str(d) for d in subj.durations)
             print(f"  [{i}] {subj.head_name} {len(subj.scale_indices)}n "
-                  f"stretto_score={subj.score:.4f} degrees={subj.scale_indices} "
-                  f"stretto={len(subj.stretto_offsets)}")
+                  f"aesthetic={subj.score:.2f} degrees={subj.scale_indices} "
+                  f"durs=({dur_str}) stretto={len(subj.stretto_offsets)}")
         print(f"  Selected {len(results)} in {elapsed:.2f}s")
     return results
 

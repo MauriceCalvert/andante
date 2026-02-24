@@ -341,7 +341,7 @@ def main() -> None:
     """Generate subjects and write to .midi and .note files."""
     import argparse
     parser = argparse.ArgumentParser(description="Generate fugue subjects")
-    parser.add_argument("--output", "-o", type=Path, default=Path("subjects"),
+    parser.add_argument("--output", "-o", type=Path, default=Path("output"),
                         help="Output folder (default: subjects)")
     parser.add_argument("--mode", "-m", type=str, default="major",
                         choices=["major", "minor"], help="Mode (default: major)")
@@ -353,11 +353,11 @@ def main() -> None:
                         help="Tonic note (default: C)")
     parser.add_argument("--tempo", "-t", type=int, default=100,
                         help="Tempo in BPM (default: 100)")
-    parser.add_argument("--bars", type=int, default=None, choices=[2, 3, 4],
+    parser.add_argument("--bars", type=int, default=2, choices=[2, 3, 4],
                         help="Subject length in bars (default: random 2-4)")
-    parser.add_argument("--notes", type=str, default=None,
+    parser.add_argument("--notes", type=str, default=12,
                         help="Note counts, e.g. '9,10' (default: all)")
-    parser.add_argument("--batch", "-b", type=int, default=None,
+    parser.add_argument("--batch", "-b", type=int, default=6,
                         help="Generate batch of N subjects (default 6: 2x2bar, 2x3bar, 2x4bar)")
     parser.add_argument("--contour", type=str, default=None,
                         choices=["arch", "valley", "swoop", "dip",

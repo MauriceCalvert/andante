@@ -1201,6 +1201,14 @@ def validate_thematic_entry_sequence() -> list[str]:
                     errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] stretto delay must be int > 0, got {entry.get('delay')}")
                 continue
 
+            # Stretto section (expanded at planning time from fugue stretto offsets)
+            if entry.get("type") == "stretto_section":
+                if "key" not in entry:
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] stretto_section missing 'key' field -- add it")
+                elif not isinstance(entry["key"], str):
+                    errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] stretto_section key must be string, got {type(entry.get('key')).__name__}")
+                continue
+
             # Hold-exchange entry
             if entry.get("type") == "hold_exchange":
                 # Validate hold_exchange-specific fields
@@ -1212,6 +1220,16 @@ def validate_thematic_entry_sequence() -> list[str]:
                     errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] hold_exchange missing 'bars' field -- add it")
                 elif not isinstance(entry["bars"], int) or entry["bars"] < 2:
                     errors.append(f"{rel}: genre '{name}' entry_sequence[{i}] hold_exchange bars must be int >= 2, got {entry.get('bars')}")
+                continue
+
+            # Unknown type guard: catch unrecognised entry types before falling through
+            entry_type = entry.get("type")
+            if entry_type is not None:
+                known_types = ("episode", "pedal", "stretto", "stretto_section", "hold_exchange")
+                errors.append(
+                    f"{rel}: genre '{name}' entry_sequence[{i}] has unknown type '{entry_type}' "
+                    f"-- expected one of {sorted(known_types)} or a regular entry with upper/lower"
+                )
                 continue
 
             # Regular entry: check for upper and lower keys
