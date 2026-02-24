@@ -3,6 +3,7 @@
 All voices (soprano, bass, inner voices) use the same generation function.
 Differences are parametric, not algorithmic.
 """
+from dataclasses import replace
 from fractions import Fraction
 
 from builder.types import Note
@@ -85,4 +86,4 @@ def generate_voice(
         ))
 
     # e. Return tuple
-    return tuple(notes)
+    return tuple(replace(n, generated_by="viterbi") for n in notes)

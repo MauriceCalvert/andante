@@ -1,5 +1,6 @@
 """Subject-to-Notes conversion for imitative counterpoint."""
 import math
+from dataclasses import replace
 from fractions import Fraction
 
 from builder.types import Note
@@ -75,7 +76,7 @@ def answer_to_voice_notes(
             voice=target_track,
         ))
         offset += dur
-    return tuple(notes)
+    return tuple(replace(n, generated_by="answer") for n in notes)
 
 
 def countersubject_to_voice_notes(
@@ -110,7 +111,7 @@ def countersubject_to_voice_notes(
             voice=target_track,
         ))
         offset += dur
-    return tuple(notes)
+    return tuple(replace(n, generated_by="cs") for n in notes)
 
 
 def subject_to_voice_notes(
@@ -145,4 +146,4 @@ def subject_to_voice_notes(
             voice=target_track,
         ))
         offset += dur
-    return tuple(notes)
+    return tuple(replace(n, generated_by="subject") for n in notes)

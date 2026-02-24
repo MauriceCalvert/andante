@@ -1,5 +1,17 @@
 # Completed
 
+## F4 — Canonic Episode Texture (2026-02-24)
+
+Replaced cross-pairing episode builder with canonic pairing in `motifs/fragen.py`.
+
+- Deleted `_FOLLOWER_OFFSETS`, `_RHYTHMIC_CONTRAST`, `_avg_duration`, `product` import
+- Added `_CANONIC_STAGGERS` (1/4, 1/2) for 1-2 beat canonic stagger
+- `build_fragments`: each cell paired with itself (parallel) and its inversion (contrary), looped over staggers
+- `_consonance_score`: added `leader_voice` param, fixed model_dur and t-loop for bass-leads case
+- `_emit_notes`: fixed timing so leader enters first, follower at stagger offset; fixed `realise` model_dur
+- `_fragment_signature` / `dedup_fragments`: added contrary flag and stagger to signature/dedup key
+- Pipeline verified: episodes show staggered entries, contrary motion, recognisable motivic cells
+
 ## SUBSCORE — Remove pitch/duration scoring, rank by stretto quality (2026-02-23)
 
 Replaced aesthetic scoring with stretto-quality ranking throughout the subject generator.

@@ -3,7 +3,7 @@
 Cadential schemas use predetermined note sequences, not generation.
 This guarantees correct resolution.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -275,7 +275,10 @@ def write_cadence(
                 duration=trimmed,
                 voice=last.voice,
             )
-    return tuple(soprano_notes), tuple(bass_notes)
+    return (
+        tuple(replace(n, generated_by="cadence") for n in soprano_notes),
+        tuple(replace(n, generated_by="cadence") for n in bass_notes),
+    )
 
 
 def write_thematic_cadence(
@@ -517,4 +520,7 @@ def write_thematic_cadence(
                 voice=last.voice,
             )
 
-    return tuple(soprano_notes), tuple(bass_notes)
+    return (
+        tuple(replace(n, generated_by="cadence") for n in soprano_notes),
+        tuple(replace(n, generated_by="cadence") for n in bass_notes),
+    )

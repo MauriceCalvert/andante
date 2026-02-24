@@ -88,12 +88,38 @@ def fill_free_bars(
                     voice_material_map[bar][1] = True
 
     # Mark silent voices as occupied (solo exposition entries)
+    silent_bars: set[tuple[int, int]] = set()  # (bar, voice) pairs marked silent
     if plan.thematic_roles:
         for role in plan.thematic_roles:
             if role.texture == "silent" and role.beat == Fraction(0):
                 if role.bar not in voice_material_map:
                     voice_material_map[role.bar] = {0: False, 1: False}
                 voice_material_map[role.bar][role.voice] = True
+                silent_bars.add((role.bar, role.voice))
+
+    # Reconcile: downgrade "has material" to False where no notes exist.
+    # Stretto/subject entries may span more bars in the role map than the
+    # rendered notes actually cover (e.g. a 2-bar subject in a 3-bar stretto
+    # window leaves bar 3 empty despite the role claiming SUBJECT).
+    # Skip bars marked silent — they have no notes by design.
+    soprano_bars_covered: set[int] = set()
+    bass_bars_covered: set[int] = set()
+    phrase_start: Fraction = plan.start_offset
+    for n in soprano_notes:
+        if n.offset >= phrase_start:
+            covered_bar: int = phrase_first_bar + int((n.offset - phrase_start) / bar_length)
+            soprano_bars_covered.add(covered_bar)
+    for n in bass_notes:
+        if n.offset >= phrase_start:
+            covered_bar = phrase_first_bar + int((n.offset - phrase_start) / bar_length)
+            bass_bars_covered.add(covered_bar)
+    for bar_num in list(voice_material_map.keys()):
+        if voice_material_map[bar_num][0] and bar_num not in soprano_bars_covered:
+            if (bar_num, 0) not in silent_bars:
+                voice_material_map[bar_num][0] = False
+        if voice_material_map[bar_num][1] and bar_num not in bass_bars_covered:
+            if (bar_num, 1) not in silent_bars:
+                voice_material_map[bar_num][1] = False
 
     # Identify FREE bar runs (consecutive bars where exactly one voice is FREE)
     free_runs: list[tuple[int, int, int]] = []

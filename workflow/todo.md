@@ -27,10 +27,14 @@ on correct pitches.
       its catalogue and tracking used fragments across the entire composition.
       Also fixes: proximity-first start selection, cross-relation at
       boundaries, beat-1 gap fill. See task_f3_holding.md.
+- [x] **F4 — Canonic episode texture.** Episodes were chorale texture
+      (simultaneous attacks, different material). Replaced with staggered
+      canonic imitation: same cell in both voices offset by 1–2 beats,
+      with contrary-motion variants. Fixed leader/follower timing bug.
 
-After F3, re-evaluate: the hold-exchange (bars 11–12), pedal (bars 21–22),
-and final cadence (bars 23–24) are also weak but may improve once the
-surrounding material is correct. Listen before briefing further.
+All pitch bugs and texture failures closed. Listen before briefing
+further — hold-exchange, pedal, and final cadence are still weak
+but may improve with surrounding material now correct.
 
 ---
 
@@ -66,6 +70,12 @@ surrounding material is correct. Listen before briefing further.
 - Figuration strong-beat consonance / metric alignment
 - Thematic cadence 3/4
 - Thematic cadence bass
+- Compositional ornaments: mordents, trills, turns, appoggiaturas placed
+  by structural context (downbeat emphasis, cadential trill, neighbour-tone
+  decoration). Not performance ornaments — these are ink-on-paper
+  compositional decisions (cf. Bach's Explication table). The vocabulary
+  exists in figurations.yaml / diminutions.yaml but is currently dead
+  code. Wire after counterpoint and episode texture are structurally sound.
 
 ---
 

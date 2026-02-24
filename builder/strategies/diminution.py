@@ -3,6 +3,7 @@
 Wraps existing soprano figuration pipeline with counterpoint-aware checking.
 Tries figures in preference order, falls back to stepwise motion if needed.
 """
+from dataclasses import replace
 from fractions import Fraction
 
 from builder.figuration.loader import (

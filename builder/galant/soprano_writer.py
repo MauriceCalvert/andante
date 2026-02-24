@@ -1,4 +1,5 @@
 """Galant structural soprano skeleton builder."""
+from dataclasses import replace
 from fractions import Fraction
 
 from builder.phrase_types import PhrasePlan
@@ -38,4 +39,4 @@ def build_structural_soprano(
             duration=duration,
             voice=TRACK_SOPRANO,
         ))
-    return tuple(notes)
+    return tuple(replace(n, generated_by="structural") for n in notes)

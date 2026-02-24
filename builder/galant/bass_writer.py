@@ -1,4 +1,5 @@
 """Bass phrase generation and validation."""
+from dataclasses import replace
 from fractions import Fraction
 
 from builder.figuration.bass import get_bass_pattern, realise_bass_pattern
@@ -1056,4 +1057,4 @@ def generate_bass_phrase(
                 current_midi = pitch
                 note_offset += dur
     validate_bass_notes(notes=notes, plan=plan, soprano_notes=soprano_notes)
-    return tuple(notes)
+    return tuple(replace(n, generated_by="galant_bass") for n in notes)

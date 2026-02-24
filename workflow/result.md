@@ -1,40 +1,55 @@
-## SUBSCORE — Result
+## Result: F4 — Canonic Episode Texture
 
-### Chaz checkpoint
+### Changes Made
 
-1. **`scoring.py` deleted** — confirmed, file is gone.
+File modified: `motifs/fragen.py`
 
-2. **`score_pitch_sequence` and `score_duration_sequence` gone** — confirmed.
-   - `pitch_generator.py` contains no scoring functions; only `_degrees_to_ivs` and `_cached_validated_pitch`.
-   - `duration_generator.py` contains no `score_duration_sequence`; `_cached_scored_durations` returns `dict[int, list[tuple[int, ...]]]` (patterns only).
+**Change 1 — Constants:**
+- Deleted `_FOLLOWER_OFFSETS` (sub-beat offsets 0, 1/8, 1/4) and `_RHYTHMIC_CONTRAST` (2x ratio filter).
+- Added `_CANONIC_STAGGERS = (Fraction(1,4), Fraction(1,2))` — 1 or 2 crotchet beats.
+- Removed dead code: `_avg_duration` function, `product` import.
 
-3. **No quality floor in selector** — confirmed.
-   - The `QUALITY_FLOOR_FRACTION` constant is deleted from `constants.py`.
-   - `selector.py` has no floor logic; all deduped candidates proceed to stretto evaluation, bounded only by `DIVERSITY_POOL_CAP=2500`.
+**Change 2 — `build_fragments`:**
+- Replaced cross-pairing (`product(cells, repeat=2)` with rhythmic contrast filter) with canonic pairing: each cell paired with itself (parallel canon) and with its inversion (contrary motion).
+- Loops over `_CANONIC_STAGGERS` instead of `_FOLLOWER_OFFSETS`.
+- Passes `leader_voice` to `_consonance_score`.
 
-4. **Stretto quality is the ranking signal** — confirmed.
-   - After stretto filter, `stretto_score = sum(r.quality for r in viable_offsets) / len(viable_offsets)`.
-   - `stretto_filtered` is sorted descending by `stretto_score`.
-   - Greedy diversity selection starts at index 0 (best stretto quality).
-   - `final_score=stretto_sc` is passed to `_build_subject`, so `GeneratedSubject.score` carries stretto quality.
+**Change 3 — `_consonance_score`:**
+- Added `leader_voice: int = VOICE_SOPRANO` parameter.
+- Fixed `model_dur`: when bass leads, `model_dur = max(lower.total_duration, upper.total_duration + offset)`.
+- Fixed t-loop: when bass leads, lower is checked at `t` (leader time) and upper at `t - offset` (follower time). Boundary checks respect the leader/follower roles.
 
-5. **Cache files deleted** — no `.pkl` files found in `.cache/`; regeneration will happen on first run.
+**Change 4 — `_emit_notes`:**
+- Fixed offset logic: leader enters at `beat_disp`, follower enters at `beat_disp + fragment.offset`. Previously when leader was bass, the bass was delayed by `offset` (backwards).
+- Fixed `realise` model_dur: both leader_end and follower_end now include `disp` consistently.
 
-6. **`pitch_contour` as hard filter** — confirmed. When provided, `pool` is filtered to matching shape only; no bonus, just exclusion.
+**Change 5 — Signature and dedup:**
+- `_fragment_signature` now returns 5-tuple including `is_contrary` flag (upper.source != lower.source).
+- `dedup_fragments` key now includes `f.offset` (stagger) and `is_contrary` flag, so same cell with different staggers/canon types are preserved as distinct.
 
-7. **Unchanged per constraints** — `_build_subject` signature unchanged (beyond `final_score` semantics); `select_subject`, `_degree_distance`, `GeneratedSubject.score`, `_ScoredPitch.score` all retained.
+### Pipeline Checkpoint
 
----
+Ran invention pipeline (seed 42, fugueA subject). Three episodes generated (bars 7-8, 13-14, 24-25).
 
-### Bob checkpoint
+**Bob:**
+- Episode 2 (bars 13-14) achieves the target: overlapping canon with 1-beat stagger, contrary motion (bass ascending, soprano descending), recognisable motivic cell in both voices.
+- Episodes 1 and 3 use 1/2-bar stagger with 1/2-bar cell = antiphonal alternation (valid per Known Limitation 3 but less rich).
+- Gap-fill extends notes at iteration boundaries (Known Limitation 4).
+- All episodes show staggered onsets — no simultaneous chorale-like attacks.
 
-User must run:
-```
-python -m motifs.subject_generator --bars 2 --verbose
-```
+**Chaz:**
+- Antiphonal texture occurs when cell_duration == stagger. Not a bug — both are valid episode textures per task spec Known Limitation 3.
+- Gap-fill behaviour is pre-existing and acceptable per Known Limitation 4.
+- Episode length (2 bars) determined upstream by entry_layout, out of scope.
 
-Bob should report:
-1. How many candidates pass ≥3 stretto? (expect >128)
-2. What contour shapes appear in the 6 selected? (expect variety)
-3. What note counts appear? Any even-quaver subjects?
-4. Do any subjects have the stepwise, running character of a Bach invention?
+### Acceptance Criteria
+
+- [x] Episode bars show staggered onsets (follower enters 1 or 2 beats after leader)
+- [x] Both voices carry the same rhythmic profile (same cell durations)
+- [x] At least one episode uses contrary motion (Episode 2: inverted cell in follower)
+- [x] No voice crossing, no parallel perfects, no cross-relations in episodes
+- [x] Pipeline runs successfully
+
+### Note
+
+The invention.yaml `subject: subject00_2bar` references a missing library file. Temporarily used `fugueA` for testing, then reverted. The missing subject is a pre-existing issue.

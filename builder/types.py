@@ -25,6 +25,7 @@ class Note:
     duration: Fraction
     voice: int
     lyric: str = ""
+    generated_by: str = ""
 
 
 @dataclass(frozen=True)

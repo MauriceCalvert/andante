@@ -9,7 +9,6 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from fractions import Fraction
-from itertools import product
 from typing import NamedTuple
 
 from builder.types import Note as BuilderNote
@@ -40,10 +39,9 @@ VOICE_SOPRANO: int = 0
 # Internal constants
 # ---------------------------------------------------------------------------
 
-_FOLLOWER_OFFSETS: tuple[Fraction, ...] = (
-    Fraction(0),
-    Fraction(1, 8),
-    Fraction(1, 4),
+_CANONIC_STAGGERS: tuple[Fraction, ...] = (
+    Fraction(1, 4),   # 1 crotchet beat
+    Fraction(1, 2),   # 2 crotchet beats
 )
 _HOLD_CONSONANCE: float = 1.0
 _MAX_BOUNDARY_LEAP: int = 3         # max degree steps at cell join
@@ -67,7 +65,6 @@ _BEAT_DISPLACEMENTS: tuple[Fraction, ...] = (
     Fraction(1, 4),
     Fraction(1, 2),
 )
-_RHYTHMIC_CONTRAST: int = 2        # min ratio of avg note durations
 _SEPARATION_RANGE: range = range(5, 15)  # degree separation upper minus lower
 _START_SEARCH: range = range(-3, 16)
 
@@ -322,11 +319,6 @@ def _find_chain_combos(
 # ---------------------------------------------------------------------------
 
 
-def _avg_duration(cell: Cell) -> Fraction:
-    """Average note duration of a cell."""
-    return cell.total_duration / len(cell.degrees)
-
-
 def _degree_at(
     cell: Cell,
     t: Fraction,
@@ -351,18 +343,30 @@ def _consonance_score(
     tonic_midi: int,
     mode: str,
     cell_displacement: Fraction = Fraction(0),
+    leader_voice: int = VOICE_SOPRANO,
 ) -> float:
     """Check consonance at crotchet grid with parallel-perfect and cross-relation rejection.
 
     Returns consonance_rate (consonant strong beats / total strong beats),
     or 0.0 if voices cross, parallel perfects, or cross-relations detected.
+
+    leader_voice determines timing: the leader enters at t=0, the follower
+    enters at t=offset.  When leader is soprano, upper is checked at t and
+    lower (follower) at t-offset.  When leader is bass, lower is checked at
+    t and upper (follower) at t-offset.
     """
     upper_base: int = _REF_UPPER_BASE
     lower_base: int = upper_base - separation
-    model_dur: Fraction = max(
-        upper.total_duration,
-        lower.total_duration + offset,
-    )
+    if leader_voice == VOICE_SOPRANO:
+        model_dur: Fraction = max(
+            upper.total_duration,
+            lower.total_duration + offset,
+        )
+    else:
+        model_dur = max(
+            lower.total_duration,
+            upper.total_duration + offset,
+        )
     # Crotchet grid: bar_length / 4 gives one check per crotchet beat
     beat_unit: Fraction = bar_length / 4
     assert beat_unit > 0, f"beat_unit must be positive, got bar_length={bar_length}"
@@ -378,11 +382,26 @@ def _consonance_score(
     t: Fraction = Fraction(0)
     while t < model_dur:
         follower_t: Fraction = t - offset
-        if follower_t < Fraction(0) or follower_t >= lower.total_duration:
-            t += beat_unit
-            continue
-        u_deg: int = upper_base + _degree_at(cell=upper, t=t)
-        l_deg: int = lower_base + _degree_at(cell=lower, t=follower_t)
+        if leader_voice == VOICE_SOPRANO:
+            # Soprano leads: upper at t, lower (follower) at follower_t
+            if follower_t < Fraction(0) or follower_t >= lower.total_duration:
+                t += beat_unit
+                continue
+            if t >= upper.total_duration:
+                t += beat_unit
+                continue
+            u_deg: int = upper_base + _degree_at(cell=upper, t=t)
+            l_deg: int = lower_base + _degree_at(cell=lower, t=follower_t)
+        else:
+            # Bass leads: lower at t, upper (follower) at follower_t
+            if follower_t < Fraction(0) or follower_t >= upper.total_duration:
+                t += beat_unit
+                continue
+            if t >= lower.total_duration:
+                t += beat_unit
+                continue
+            u_deg = upper_base + _degree_at(cell=upper, t=follower_t)
+            l_deg = lower_base + _degree_at(cell=lower, t=t)
         u_midi: int = degrees_to_midi((u_deg,), tonic_midi, mode)[0]
         l_midi: int = degrees_to_midi((l_deg,), tonic_midi, mode)[0]
 
@@ -480,51 +499,51 @@ def build_fragments(
     mode: str,
     bar_length: Fraction,
 ) -> list[Fragment]:
-    """Build consonant two-voice episode textures from cell pairs."""
+    """Build canonic two-voice episode textures from cells."""
     fragments: list[Fragment] = []
-    for leader, follower in product(cells, repeat=2):
-        if leader is follower:
-            continue
-        leader_avg: Fraction = _avg_duration(leader)
-        follower_avg: Fraction = _avg_duration(follower)
-        if follower_avg < _RHYTHMIC_CONTRAST * leader_avg:
-            continue
-        for voice in (VOICE_SOPRANO, VOICE_BASS):
-            upper: Cell = leader if voice == VOICE_SOPRANO else follower
-            lower: Cell = follower if voice == VOICE_SOPRANO else leader
-            for offset in _FOLLOWER_OFFSETS:
-                if voice == VOICE_SOPRANO:
-                    if upper.total_duration < lower.total_duration + offset:
-                        continue
-                else:
-                    if lower.total_duration + offset < upper.total_duration:
-                        continue
-                for sep in _SEPARATION_RANGE:
-                    rate: float = _consonance_score(
-                        upper=upper,
-                        lower=lower,
-                        separation=sep,
-                        offset=offset,
-                        bar_length=bar_length,
-                        tonic_midi=tonic_midi,
-                        mode=mode,
-                    )
-                    if rate < _MIN_CONSONANCE:
-                        continue
-                    fragments.append(Fragment(
-                        upper=upper,
-                        lower=lower,
-                        leader_voice=voice,
-                        separation=sep,
-                        offset=offset,
-                    ))
-                    break  # first valid separation for this combo
-
-    # Displaced variants: shift running cell onset within the bar
+    for cell in cells:
+        inv: Cell = _invert(cell)
+        # Two canon types: parallel (same cell) and contrary (cell + inversion)
+        pairings: list[tuple[Cell, Cell]] = [
+            (cell, cell),   # parallel canon
+            (cell, inv),    # contrary motion
+        ]
+        for leader_cell, follower_cell in pairings:
+            for stagger in _CANONIC_STAGGERS:
+                for voice in (VOICE_SOPRANO, VOICE_BASS):
+                    # Upper/lower assignment: leader goes to leader_voice register
+                    if voice == VOICE_SOPRANO:
+                        upper: Cell = leader_cell
+                        lower: Cell = follower_cell
+                    else:
+                        upper = follower_cell
+                        lower = leader_cell
+                    for sep in _SEPARATION_RANGE:
+                        rate: float = _consonance_score(
+                            upper=upper,
+                            lower=lower,
+                            separation=sep,
+                            offset=stagger,
+                            bar_length=bar_length,
+                            tonic_midi=tonic_midi,
+                            mode=mode,
+                            leader_voice=voice,
+                        )
+                        if rate < _MIN_CONSONANCE:
+                            continue
+                        fragments.append(Fragment(
+                            upper=upper,
+                            lower=lower,
+                            leader_voice=voice,
+                            separation=sep,
+                            offset=stagger,
+                        ))
+                        break  # first valid separation
+    # Beat displacement variants (existing pattern)
     undisplaced: list[Fragment] = list(fragments)
     for base_frag in undisplaced:
         for disp in _BEAT_DISPLACEMENTS:
-            rate: float = _consonance_score(
+            rate = _consonance_score(
                 upper=base_frag.upper,
                 lower=base_frag.lower,
                 separation=base_frag.separation,
@@ -533,6 +552,7 @@ def build_fragments(
                 tonic_midi=tonic_midi,
                 mode=mode,
                 cell_displacement=disp,
+                leader_voice=base_frag.leader_voice,
             )
             if rate < _MIN_CONSONANCE:
                 continue
@@ -631,17 +651,20 @@ def build_hold_fragments(
 
 
 def dedup_fragments(fragments: list[Fragment]) -> list[Fragment]:
-    """Remove duplicates: quantised leader rhythm + leader voice (spec 4b)."""
+    """Remove duplicates: quantised leader rhythm + leader voice + stagger + canon type."""
     seen: set[tuple] = set()
     unique: list[Fragment] = []
     for f in fragments:
         leader: Cell = (
             f.upper if f.leader_voice == VOICE_SOPRANO else f.lower
         )
+        is_contrary: bool = f.upper.source != f.lower.source
         key: tuple = (
             _rhythm_class(leader.durations),
             f.leader_voice,
             f.beat_displacement,
+            f.offset,
+            is_contrary,
         )
         if key not in seen:
             seen.add(key)
@@ -694,12 +717,12 @@ def realise(
     # extending the model window by beat_displacement.
     disp: Fraction = fragment.beat_displacement
     if fragment.leader_voice == VOICE_SOPRANO:
-        upper_end: Fraction = disp + fragment.upper.total_duration
-        lower_end: Fraction = fragment.lower.total_duration + fragment.offset
+        leader_end: Fraction = disp + fragment.upper.total_duration
+        follower_end: Fraction = disp + fragment.offset + fragment.lower.total_duration
     else:
-        upper_end = fragment.upper.total_duration
-        lower_end = fragment.offset + disp + fragment.lower.total_duration
-    model_dur: Fraction = max(upper_end, lower_end)
+        leader_end = disp + fragment.lower.total_duration
+        follower_end = disp + fragment.offset + fragment.upper.total_duration
+    model_dur: Fraction = max(leader_end, follower_end)
     assert model_dur > 0, "Model duration must be positive"
     iterations: int = max(1, math.ceil(target_dur / model_dur))
     start: int | None = _find_start(
@@ -854,17 +877,17 @@ def _emit_notes(
         t_base: Fraction = model_dur * k
         transpose: int = step * k
 
-        # Determine leader time_offset additions due to displacement
+        # Leader enters first (at beat_disp); follower enters at beat_disp + stagger
         if fragment.leader_voice == VOICE_SOPRANO:
-            upper_time_offset: Fraction = beat_disp
-            lower_time_offset: Fraction = fragment.offset
-            gap_start: Fraction = t_base  # leader starts here in bar
+            upper_time_offset: Fraction = beat_disp                         # leader
+            lower_time_offset: Fraction = beat_disp + fragment.offset       # follower
+            gap_start: Fraction = t_base
             gap_degree: int = start + transpose + fragment.upper.degrees[0]
             gap_voice: int = VOICE_SOPRANO
         else:
-            upper_time_offset = Fraction(0)
-            lower_time_offset = fragment.offset + beat_disp
-            gap_start = t_base + fragment.offset
+            lower_time_offset: Fraction = beat_disp                         # leader
+            upper_time_offset: Fraction = beat_disp + fragment.offset       # follower
+            gap_start = t_base
             gap_degree = start - fragment.separation + transpose + fragment.lower.degrees[0]
             gap_voice = VOICE_BASS
 
@@ -1087,18 +1110,19 @@ def _find_start(
 # ---------------------------------------------------------------------------
 
 
-def _fragment_signature(frag: Fragment) -> tuple[tuple[int, ...], Fraction, int, Fraction]:
+def _fragment_signature(
+    frag: Fragment,
+) -> tuple[tuple[int, ...], Fraction, int, Fraction, bool]:
     """Extract distinguishing features for diversity comparison.
 
     Returns tuple of:
     - interval_sequence: full melodic contour (all intervals, not just first)
-    - offset: rhythmic offset between leader and follower
+    - offset: rhythmic stagger between leader and follower
     - separation: degree separation between voices
     - beat_displacement: how far the running cell's onset is shifted within the bar
+    - is_contrary: True when upper and lower come from different sources
 
     Fragments with different signatures sound perceptually distinct.
-    Using full interval sequence ensures each unique melodic shape
-    gets a unique signature.
     """
     leader_cell: Cell = frag.upper if frag.leader_voice == VOICE_SOPRANO else frag.lower
     degrees: tuple[int, ...] = leader_cell.degrees
@@ -1109,7 +1133,9 @@ def _fragment_signature(frag: Fragment) -> tuple[tuple[int, ...], Fraction, int,
         for i in range(len(degrees) - 1)
     )
 
-    return (intervals, frag.offset, frag.separation, frag.beat_displacement)
+    is_contrary: bool = frag.upper.source != frag.lower.source
+
+    return (intervals, frag.offset, frag.separation, frag.beat_displacement, is_contrary)
 
 
 class FragenProvider:
@@ -1179,7 +1205,7 @@ class FragenProvider:
             return self._catalogue[i]
 
         # Build signature set from entire composition history
-        all_used_sigs: set[tuple[tuple[int, ...], Fraction, int, Fraction]] = {
+        all_used_sigs: set[tuple[tuple[int, ...], Fraction, int, Fraction, bool]] = {
             _fragment_signature(h) for h in self._history
         }
 
