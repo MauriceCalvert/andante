@@ -45,3 +45,8 @@ X002 Anti: iterative fix loops
 X003 Anti: global signature tracking at MIDI level
 X004 Anti: separate bar-fix and sequence-fix passes
 X005 Anti: rep counter starting at 0 each phrase
+M001 Bundle 3+ optional params that travel together through 2+ call layers into a frozen dataclass
+M002 Function signatures max 10 params; bundle related groups into a context dataclass when exceeded
+M003 Pass the source object, not its extracted fields, when the callee has access to both
+M004 Frozen dataclasses with >15 fields must decompose into named sub-objects
+M005 When the same extraction pattern appears at 3+ call sites, promote to a method on the source object

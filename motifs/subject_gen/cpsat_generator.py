@@ -1,21 +1,18 @@
-"""CP-SAT stretto-first pitch generation.
+"""CP-SAT tail generation with fixed head prefix.
 
-Produces degree sequences where stretto consonance is a built-in constraint.
-Two-phase sampling: random-objective anchor + feasibility enumeration per restart.
+For each enumerated head, enumerates degree sequences where stretto
+consonance and melodic constraints are built in.
 """
 import math
-import random
 
 from ortools.sat.python import cp_model
 
 from motifs.subject_gen.constants import (
     ALLOWED_FINALS,
-    CPSAT_NUM_RESTARTS,
-    CPSAT_SOLUTIONS_PER_RESTART,
-    CPSAT_SOLVER_TIMEOUT,
+    CPSAT_SOLUTIONS_PER_HEAD,
+    CPSAT_TAIL_TIMEOUT,
     MAX_LARGE_LEAPS,
     MAX_PITCH_FREQ,
-    MAX_SAME_SIGN_RUN,
     MIN_STEP_FRACTION,
     PITCH_HI,
     PITCH_LO,
@@ -53,15 +50,6 @@ _SCALE_BY_MODE: dict[str, tuple[int, ...]] = {
 }
 
 
-def _degree_to_semitone(
-    degree: int,
-    scale: tuple[int, ...],
-) -> int:
-    """Convert signed degree offset to semitone offset."""
-    octave, step = divmod(degree, 7)
-    return octave * 12 + scale[step]
-
-
 def _build_consonant_pairs(
     scale: tuple[int, ...],
     consonance_set: frozenset[int],
@@ -83,15 +71,21 @@ def _build_model(
     num_notes: int,
     stretto_k: int,
     consonant_pairs: list[tuple[int, int]],
+    head: tuple[int, ...],
 ) -> tuple[cp_model.CpModel, list, list]:
-    """Build CP-SAT model with melodic + stretto constraints."""
+    """Build CP-SAT model with head prefix fixed."""
+    assert len(head) >= 1
+    assert head[0] == 0
     model = cp_model.CpModel()
     n_iv = num_notes - 1
     min_steps = math.ceil(n_iv * MIN_STEP_FRACTION)
     # ── Variables ────────────────────────────────────────────────
     pitches = [model.new_int_var(PITCH_LO, PITCH_HI, f"p_{i}") for i in range(num_notes)]
     ivs = [model.new_int_var(-5, 5, f"iv_{i}") for i in range(n_iv)]
-    model.add(pitches[0] == 0)
+    # ── Fix head pitches ─────────────────────────────────────────
+    for i, deg in enumerate(head):
+        model.add(pitches[i] == deg)
+    # ── Interval definitions ─────────────────────────────────────
     for i in range(n_iv):
         model.add(pitches[i + 1] == pitches[i] + ivs[i])
         model.add(ivs[i] != 0)
@@ -150,56 +144,44 @@ def _build_model(
     return model, pitches, ivs
 
 
-def generate_cpsat_degrees(
-    num_notes: int,
-    mode: str = "major",
-    stretto_k: int | None = None,
-    seed: int = 42,
-) -> list[tuple[int, ...]]:
-    """Generate stretto-compatible degree sequences via CP-SAT sampling."""
-    assert num_notes >= 3, f"Need at least 3 notes, got {num_notes}"
+def _degree_to_semitone(
+    degree: int,
+    scale: tuple[int, ...],
+) -> int:
+    """Convert signed degree offset to semitone offset."""
+    octave, step = divmod(degree, 7)
+    return octave * 12 + scale[step]
+
+
+def build_consonant_pairs(mode: str) -> list[tuple[int, int]]:
+    """Build consonant (start_mod7, degree_span) pairs for a mode."""
     assert mode in _SCALE_BY_MODE, f"Unknown mode: {mode}"
-    if stretto_k is None:
-        stretto_k = num_notes // 2
-    assert 1 <= stretto_k < num_notes
     scale = _SCALE_BY_MODE[mode]
-    consonant_pairs = _build_consonant_pairs(
-        scale=scale,
-        consonance_set=CONSONANT_INTERVALS,
-    )
-    rng = random.Random(seed)
-    all_solutions: set[tuple[int, ...]] = set()
-    for restart in range(CPSAT_NUM_RESTARTS):
-        # ── Phase A: random-objective anchor ─────────────────────
-        model_a, pitches_a, _ = _build_model(num_notes, stretto_k, consonant_pairs)
-        weights = [rng.randint(-10, 10) for _ in range(num_notes)]
-        model_a.maximize(sum(w * p for w, p in zip(weights, pitches_a)))
-        solver_a = cp_model.CpSolver()
-        solver_a.parameters.max_time_in_seconds = 1.0
-        solver_a.parameters.random_seed = restart
-        status_a = solver_a.solve(model_a)
-        if status_a not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            continue
-        anchor = tuple(solver_a.value(pitches_a[i]) for i in range(num_notes))
-        all_solutions.add(anchor)
-        # ── Phase B: enumerate from anchor neighbourhood ─────────
-        model_b, pitches_b, _ = _build_model(num_notes, stretto_k, consonant_pairs)
-        for i in range(num_notes):
-            model_b.add_hint(pitches_b[i], anchor[i])
-        solver_b = cp_model.CpSolver()
-        solver_b.parameters.max_time_in_seconds = CPSAT_SOLVER_TIMEOUT
-        solver_b.parameters.random_seed = restart
-        solver_b.parameters.enumerate_all_solutions = True
-        # Collector must close over pitches_b and num_notes
-        collected: list[tuple[int, ...]] = []
-        limit = CPSAT_SOLUTIONS_PER_RESTART
-        class _Collector(cp_model.CpSolverSolutionCallback):
-            """Gather solutions up to limit."""
-            def on_solution_callback(self):
-                degs = tuple(self.value(pitches_b[i]) for i in range(num_notes))
-                collected.append(degs)
-                if len(collected) >= limit:
-                    self.stop_search()
-        solver_b.solve(model_b, _Collector())
-        all_solutions.update(collected)
-    return sorted(all_solutions)
+    return _build_consonant_pairs(scale, CONSONANT_INTERVALS)
+
+
+def generate_tails_for_head(
+    head: tuple[int, ...],
+    num_notes: int,
+    stretto_k: int,
+    consonant_pairs: list[tuple[int, int]],
+    max_solutions: int = CPSAT_SOLUTIONS_PER_HEAD,
+    timeout: float = CPSAT_TAIL_TIMEOUT,
+) -> list[tuple[int, ...]]:
+    """Enumerate valid completions for a given head prefix."""
+    assert len(head) < num_notes
+    model, pitches, _ = _build_model(num_notes, stretto_k, consonant_pairs, head)
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = timeout
+    solver.parameters.enumerate_all_solutions = True
+    collected: set[tuple[int, ...]] = set()
+    limit: int = max_solutions
+    class _Collector(cp_model.CpSolverSolutionCallback):
+        """Gather solutions up to limit."""
+        def on_solution_callback(self):
+            degs = tuple(self.value(pitches[i]) for i in range(num_notes))
+            collected.add(degs)
+            if len(collected) >= limit:
+                self.stop_search()
+    solver.solve(model, _Collector())
+    return sorted(collected)

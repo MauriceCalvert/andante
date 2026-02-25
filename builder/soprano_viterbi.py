@@ -13,7 +13,7 @@ from builder.phrase_types import (
 )
 from builder.rhythm_cells import select_cell
 from builder.types import Note
-from builder.voice_types import VoiceConfig
+from builder.voice_types import VoiceBias, VoiceConfig
 from builder.voice_writer import validate_voice, audit_voice
 from shared.constants import MIN_SOPRANO_MIDI, TRACK_SOPRANO, TRACK_BASS
 from shared.key import Key
@@ -77,6 +77,8 @@ def generate_soprano_viterbi(
     density_override: str | None = None,
     contour: ContourShape | None = None,
     avoid_onsets_by_bar: dict[int, frozenset[Fraction]] | None = None,
+    chord_pcs_per_beat: list[frozenset[int]] | None = None,
+    bias: VoiceBias | None = None,
 ) -> tuple[tuple[Note, ...], tuple[str, ...]]:
     """Generate soprano notes using Viterbi pathfinding against finished bass.
 
@@ -90,13 +92,25 @@ def generate_soprano_viterbi(
     """
     # Step 1: Place structural tones and convert to Knots
     prev_exit_midi: int | None = prior_upper[-1].pitch if prior_upper else None
-    structural_tones: list[tuple[Fraction, int, Key]] = place_structural_tones(
-        plan=plan, prev_exit_midi=prev_exit_midi,
-    )
-    knots: list[Knot] = [
-        Knot(beat=float(offset), midi_pitch=midi)
-        for offset, midi, _ in structural_tones
-    ]
+    structural_tones: list[tuple[Fraction, int, Key]]
+    knots: list[Knot]
+    structural_knots_override: list[Knot] | None = bias.structural_knots if bias else None
+    if structural_knots_override is not None:
+        # Override: synthesise structural_tones from override knots so the
+        # rhythm grid and audit machinery can use them unchanged.
+        structural_tones = [
+            (Fraction(k.beat), k.midi_pitch, plan.local_key)
+            for k in structural_knots_override
+        ]
+        knots = list(structural_knots_override)
+    else:
+        structural_tones = place_structural_tones(
+            plan=plan, prev_exit_midi=prev_exit_midi,
+        )
+        knots = [
+            Knot(beat=float(offset), midi_pitch=midi)
+            for offset, midi, _ in structural_tones
+        ]
 
     # Compute final knot pitch: use next_phrase_entry if provided, else last structural tone
     final_offset: Fraction = plan.start_offset + plan.phrase_duration
@@ -113,6 +127,9 @@ def generate_soprano_viterbi(
     # Add final knot at phrase_end (required by Viterbi solver)
     if len(knots) == 0 or abs(float(final_offset) - knots[-1].beat) > 1e-6:
         knots.append(Knot(beat=float(final_offset), midi_pitch=final_midi))
+    # Sort by beat and deduplicate (thematic overrides + alignment knots may overlap)
+    knots.sort(key=lambda k: k.beat)
+    knots = [k for i, k in enumerate(knots) if i == 0 or abs(k.beat - knots[i - 1].beat) > 1e-6]
 
     # Step 2: Build rhythm grid (onset positions with durations)
     bar_length, beat_unit = parse_metre(metre=plan.metre)
@@ -230,11 +247,19 @@ def generate_soprano_viterbi(
         tonic_pc=tonic_pc,
     )
 
-    # Step 4b: Build chord grid from harmonic grid or fallback to H3
-    chord_pcs_per_beat: list[frozenset[int]]
-    if harmonic_grid is not None:
+    # Step 4b: Build chord grid from harmonic grid, caller-supplied list, or H3 fallback
+    chord_pcs_per_beat_built: list[frozenset[int]]
+    if chord_pcs_per_beat is not None:
+        # Caller (e.g. pedal writer) supplies the full per-beat chord grid directly
+        assert len(chord_pcs_per_beat) == len(grid_positions), (
+            f"chord_pcs_per_beat length {len(chord_pcs_per_beat)} != "
+            f"grid_positions length {len(grid_positions)}; "
+            f"caller must supply one entry per grid position"
+        )
+        chord_pcs_per_beat_built = chord_pcs_per_beat
+    elif harmonic_grid is not None:
         # HRL-2: Use schema-annotated Roman numerals (primary path)
-        chord_pcs_per_beat = harmonic_grid.to_beat_list(beat_grid)
+        chord_pcs_per_beat_built = harmonic_grid.to_beat_list(beat_grid)
     else:
         # H3 fallback: derive chord from surface bass (deprecated path)
         if plan.thematic_roles is None and contour is None:
@@ -276,7 +301,7 @@ def generate_soprano_viterbi(
         # If surface bass is diatonic in the active key, build a triad from it
         # (per-beat harmonic awareness). Otherwise fall back to the most recent
         # schema degree's triad (H2 behaviour).
-        chord_pcs_per_beat = []
+        chord_pcs_per_beat_built = []
         for i, (grid_onset, _) in enumerate(grid_positions):
             # Find most recent schema degree index
             active_idx: int = 0
@@ -290,9 +315,9 @@ def generate_soprano_viterbi(
             surface_bass_midi: int = bass_pitches_at_beat[beat_grid[i]]
             surface_bass_pc: int = surface_bass_midi % 12
             if surface_bass_pc in active_key.pitch_class_set:
-                chord_pcs_per_beat.append(viterbi_triad_pcs(bass_midi=surface_bass_midi, key=active_key))
+                chord_pcs_per_beat_built.append(viterbi_triad_pcs(bass_midi=surface_bass_midi, key=active_key))
             else:
-                chord_pcs_per_beat.append(fallback_chord)
+                chord_pcs_per_beat_built.append(fallback_chord)
 
     # Step 5: Generate voice via Viterbi
     notes_tuple = generate_voice(
@@ -304,8 +329,11 @@ def generate_soprano_viterbi(
         key=key_info,
         voice_id=TRACK_SOPRANO,
         beats_per_bar=float(bar_length),
-        chord_pcs_per_beat=chord_pcs_per_beat,
+        chord_pcs_per_beat=chord_pcs_per_beat_built,
         contour=contour,
+        degree_affinity=bias.degree_affinity if bias else None,
+        interval_affinity=bias.interval_affinity if bias else None,
+        genome_entries=bias.vertical_genome.entries if bias and bias.vertical_genome else None,
     )
 
     # Step 6: Validate and audit

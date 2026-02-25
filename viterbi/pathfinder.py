@@ -123,6 +123,9 @@ def find_path(
     chord_pcs_at: list[frozenset[int]] | None = None,
     hard_constraints: bool = True,
     contour: ContourShape | None = None,
+    degree_affinity: tuple[float, ...] | None = None,
+    interval_affinity: dict[int, float] | None = None,
+    genome_entries: tuple[tuple[float, int], ...] | None = None,
 ) -> tuple[list[float], list[int], float]:
     """Find minimum-cost path through corridors with knot constraints."""
     knot_map = {k.beat: k.midi_pitch for k in knots}
@@ -193,6 +196,9 @@ def find_path(
             chord_pcs=chord_pcs_at[1] if chord_pcs_at else frozenset(),
             hard_constraints=hard_constraints,
             contour_weight=contour_weight,
+            degree_affinity=degree_affinity,
+            interval_affinity=interval_affinity,
+            genome_entries=genome_entries,
         )
         if cost == INF:
             hc_blocks_1[bd.get("rule", "unknown")] += 1
@@ -223,6 +229,9 @@ def find_path(
             chord_pcs_at=chord_pcs_at,
             hard_constraints=False,
             contour=contour,
+            degree_affinity=degree_affinity,
+            interval_affinity=interval_affinity,
+            genome_entries=genome_entries,
         )
     # Beats 2..n-1: full second-order transitions
     for t in range(2, n_beats):
@@ -255,6 +264,9 @@ def find_path(
                     chord_pcs=chord_pcs_at[t] if chord_pcs_at else frozenset(),
                     hard_constraints=hard_constraints,
                     contour_weight=contour_weight,
+                    degree_affinity=degree_affinity,
+                    interval_affinity=interval_affinity,
+                    genome_entries=genome_entries,
                 )
                 if cost == INF:
                     hc_blocks_t[bd.get("rule", "unknown")] += 1
@@ -288,6 +300,9 @@ def find_path(
                 chord_pcs_at=chord_pcs_at,
                 hard_constraints=False,
                 contour=contour,
+                degree_affinity=degree_affinity,
+                interval_affinity=interval_affinity,
+                genome_entries=genome_entries,
             )
     # Find best final state
     end_pitch = knot_map[beats[-1]]

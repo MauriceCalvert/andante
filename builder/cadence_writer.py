@@ -276,8 +276,8 @@ def write_cadence(
                 voice=last.voice,
             )
     return (
-        tuple(replace(n, generated_by="cadence") for n in soprano_notes),
-        tuple(replace(n, generated_by="cadence") for n in bass_notes),
+        tuple(replace(n, creator="cadence") for n in soprano_notes),
+        tuple(replace(n, creator="cadence") for n in bass_notes),
     )
 
 
@@ -521,6 +521,6 @@ def write_thematic_cadence(
             )
 
     return (
-        tuple(replace(n, generated_by="cadence") for n in soprano_notes),
-        tuple(replace(n, generated_by="cadence") for n in bass_notes),
+        tuple(replace(n, creator="cadence") for n in soprano_notes),
+        tuple(replace(n, creator="cadence") for n in bass_notes),
     )

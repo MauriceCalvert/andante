@@ -1,123 +1,76 @@
-# Continue: generated_by tagging + polyphony asserts
+# Continue — Post SH-2: Subject Generator Refactored
 
-## Context
+## What just happened
 
-Chat crashed while implementing `generated_by` tagging on all Note creation
-sites, plus asserts to catch notes being placed in wrong bar/beat positions
-(the root cause of polyphony at bar 2 in fuguec.note).
+SH-2 refactored the subject generator from random CP-SAT sampling to
+exhaustive head enumeration + tail solving. Also restored dotted
+durations and removed mediant from allowed finals.
 
-## Problem
+### Changes made
 
-Two generators were writing notes to the same bar/beat/track in bar 2.
-The `generated_by` field exists on Note (`builder/types.py:28`, default `""`)
-but most creation sites don't set it, making it impossible to trace which
-module produced the conflicting notes.
+1. **`constants.py`** — Added `HEAD_LENGTHS = (4,)` (prepared for
+   `(3, 4, 5)` later). Restored `DURATION_TICKS` to `(1, 2, 3, 4, 6)`.
+   Changed `ALLOWED_FINALS` to `{0, 4}`. Replaced old CP-SAT sampling
+   params with `CPSAT_SOLUTIONS_PER_HEAD = 200` and
+   `CPSAT_TAIL_TIMEOUT = 2.0`. Old `CPSAT_NUM_RESTARTS`,
+   `CPSAT_SOLUTIONS_PER_RESTART`, `CPSAT_SOLVER_TIMEOUT` removed.
 
-## What's done
+2. **`head_enumerator.py`** — New file. Exhaustive enumeration of valid
+   heads (leap ≥ 4th + stepwise contrary recovery). For HEAD_LENGTHS=(4,)
+   produces 208 heads.
 
-These files already stamp `generated_by`:
+3. **`cpsat_generator.py`** — Rewritten. No longer does random-objective
+   sampling. Exports `build_consonant_pairs(mode)` and
+   `generate_tails_for_head(head, num_notes, ...)`. The old
+   `generate_cpsat_degrees()` function is gone.
 
-- `builder/imitation.py` — stamps "subject", "answer", "cs" (via `replace()` at return)
-- `builder/cadence_writer.py` — stamps "cadence" (lines 279-280, 524-525)
-- `builder/galant/bass_writer.py` — stamps "galant_bass" (line 1060)
-- `builder/galant/soprano_writer.py` — stamps "structural" (line 42)
-- `viterbi/generate.py` — stamps "viterbi" (last line, via `replace()`)
+4. **`pitch_generator.py`** — Rewritten. Iterates HEAD_LENGTHS, calls
+   `enumerate_heads()` per length, then `generate_tails_for_head()` per
+   head. The old `_has_valid_head()` post-filter is gone — heads are
+   valid by construction. Cache key includes head lengths tag.
+   Accepts `verbose` parameter.
 
-## What's not done
+5. **`selector.py`** — Pitch dedup (one candidate per degree sequence)
+   runs before diversity selection. Rhythm dedup removed — with 3,813
+   distinct pitches, the diversity selector handles variety. Passes
+   `verbose` through to `_cached_validated_pitch`.
 
-These files create Note objects without setting `generated_by`:
+### Pipeline numbers (12n, major, 4/4, 2 bars)
 
-### Must tag
+- 208 heads enumerated (len=4)
+- 71 fertile heads (have ≥1 valid tail)
+- 11,539 raw degree sequences
+- 4,767 pass melodic validation
+- 2,898,336 pitch × duration pairs
+- 90,431 stretto-capable
+- 3,813 distinct pitch sequences with stretto
+- 20 selected with diversity
 
-1. **`builder/hold_writer.py`** — 2 × `Note()` calls (lines 294, 343).
-   Tag: `"hold"`
+### Caches
 
-2. **`builder/phrase_writer.py`** — 1 × `Note()` call (line 668, bass in `_write_pedal`).
-   Tag: `"pedal"`
+All `.pkl` files in `.cache/subject/` were deleted. They rebuild on
+first run (~230s for stretto GPU eval, then cached).
 
-3. **`builder/thematic_renderer.py`** — 1 × `Note()` call (line 195, in `_render_episode_fragment`).
-   Tag: `"episode_fragment"`
+## What to do next
 
-4. **`builder/cadence_writer.py`** — 10 × `Note()` calls (lines 226, 250, 272, 357, 370, 430, 450, 466, 497, 516).
-   These are the *creation* sites inside cadence functions. The `replace(..., generated_by="cadence")`
-   at lines 279-280 and 524-525 stamps them at return — but only for the two main cadence functions.
-   Check whether all paths go through those return stamps. If any `Note()` escapes unstamped, tag it.
+Discuss with the user which direction to take. Options:
 
-5. **`builder/strategies/diminution.py`** — 4 × `Note()` calls (lines 271, 281, 401, 440).
-   Tag: `"diminution"`. NOTE: this file appears to be dead code — no import found anywhere
-   in the builder. Verify before spending time on it. If dead, delete or ignore.
+1. **Extend HEAD_LENGTHS to (3, 4, 5)** — change one constant, delete
+   pitch cache, run. Should significantly expand the pool. 3-note heads
+   give longer tails with more freedom; 5-note heads give more
+   distinctive openings.
 
-6. **`builder/galant/bass_writer.py`** — 5 × `Note()` calls (lines 399, 448, 566, 657, 1051).
-   The `replace(..., generated_by="galant_bass")` at line 1060 stamps them at return.
-   Same question as cadence_writer: do all paths go through that return stamp?
-   If yes, already covered. If any early-return or branch escapes, tag at creation.
+2. **Add minim (tick 8)** to DURATION_TICKS — enables long-note heads
+   and running-tail subjects. Independent of head length change.
 
-7. **`builder/galant/soprano_writer.py`** — 1 × `Note()` call (line 36).
-   The `replace(..., generated_by="structural")` at line 42 stamps at return. Likely covered.
+3. **Allow other note counts** — drop `--notes 12` restriction and run
+   across 8–12 notes. Shorter subjects have more rhythmic slack.
 
-### Viterbi callers (already covered by viterbi/generate.py stamp)
+4. **Tune aesthetic scoring** — some selected subjects score below 4.0.
+   Review scoring weights or add new criteria now that the pool is large
+   enough to be selective.
 
-These call `generate_voice()` which returns notes already stamped `"viterbi"`:
-- `builder/bass_viterbi.py`
-- `builder/soprano_viterbi.py`
-- `builder/cs_writer.py`
+5. **Listen** — generate MIDI output and evaluate by ear. The numbers
+   look good but the only real test is hearing.
 
-No action needed unless they create Notes independently (they don't — verified).
-
-### free_fill.py
-
-Calls `generate_soprano_viterbi` and `generate_bass_viterbi` which return
-pre-stamped notes. No `Note()` calls of its own. No action needed.
-
-## Second task: polyphony assert
-
-After tagging, add a polyphony check in `builder/compose.py` at the end of
-`compose_phrases()`, before the return. For each voice separately:
-
-```python
-def _assert_no_polyphony(notes: tuple[Note, ...], voice_name: str) -> None:
-    """Assert no two notes overlap in the same voice."""
-    sorted_notes = sorted(notes, key=lambda n: (n.offset, -n.duration))
-    for i in range(len(sorted_notes) - 1):
-        a = sorted_notes[i]
-        b = sorted_notes[i + 1]
-        if a.offset + a.duration > b.offset:
-            assert False, (
-                f"Polyphony in {voice_name}: "
-                f"{a.pitch}@{float(a.offset)} dur={float(a.duration)} "
-                f"(generated_by={a.generated_by!r}) overlaps "
-                f"{b.pitch}@{float(b.offset)} dur={float(b.duration)} "
-                f"(generated_by={b.generated_by!r})"
-            )
-```
-
-Call for both voices before returning the Composition.
-
-## Third task: bar-range assert
-
-In `_write_thematic` in `phrase_writer.py`, after each entry renders notes,
-assert that every note's offset falls within the entry's time window
-[entry_start_offset, next_entry_start_offset). This catches the forward/backward
-shift bug. The assert message must include `generated_by` so the offending
-module is immediately identified.
-
-```python
-for n in entry_notes:
-    assert entry_start_offset <= n.offset < next_entry_start_offset, (
-        f"Note outside entry window: offset={float(n.offset)} "
-        f"window=[{float(entry_start_offset)}, {float(next_entry_start_offset)}) "
-        f"generated_by={n.generated_by!r} pitch={n.pitch}"
-    )
-```
-
-## Dead code check
-
-`builder/strategies/diminution.py` — no imports found. Likely dead. Verify
-with `grep -rn "from builder.strategies" --include="*.py"` and delete if unused.
-
-## After implementation
-
-Run `python scripts/run_pipeline.py briefs/builder` on invention. If the
-polyphony assert fires, `generated_by` will identify which two modules
-collided at bar 2. Fix the root cause (likely double-rendering from
-overlapping entry windows in `_segment_into_entries`).
+6. **Something else** the user has in mind.

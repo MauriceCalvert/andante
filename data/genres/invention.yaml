@@ -24,7 +24,6 @@ tracks:
 
 form: through_composed
 metre: "4/4"
-subject: subject00_2bar
 rhythmic_unit: "1/16"
 tempo: 120
 bass_treatment: contrapuntal
@@ -34,25 +33,43 @@ thematic:
   voice_count: 2
   invertible_counterpoint: true
   answer_offset_beats: 4
-  entry_sequence:
-    # Exposition (I → V: answer handles transition, no episode)
-    - upper: [subject, I]
-      lower: none
-    - upper: [cs, I]
-      lower: [answer, V]
-    # --- section boundary: V → vi --- episode auto-inserted if needed
-    # Development
-    - upper: [subject, vi]
-      lower: [cs, vi]
-    - upper: [cs, IV]
-      lower: [subject, IV]
-    # --- section boundary: IV → V --- episode auto-inserted if needed
-    # Recapitulation
-    - upper: [subject, V]
-      lower: [cs, V]
-    - {type: stretto_section, key: I}
-    - {type: pedal, degree: 5, bars: 2}
-    - cadence
+
+  vocabulary:
+    exposition:
+      # Invariant: this is what makes it an invention
+      - upper: [subject, I]
+        lower: none
+      - upper: [cs, I]
+        lower: [answer, V]
+
+    development_entries:
+      # Pool: planner picks from these, assigns keys at runtime
+      - template: subject_cs    # subject in one voice, cs in the other
+      - template: hold_exchange
+        bars: 2
+      - template: stretto
+
+    peroration_entries:
+      - template: stretto
+      - template: subject_cs
+      - template: pedal
+        degree: 5
+        bars: 2
+
+    key_pool_major: [vi, IV, V, ii, iii]
+    key_pool_minor: [III, iv, v, VI, ii]
+
+    cadence: cadenza_composta
+
+  # Default brief (used when no external brief is provided)
+  brief:
+    scope: medium            # short / medium / extended
+    # development_entries omitted: scope controls count (short=2, medium=3, extended=5)
+    stretto: single          # none / single / multiple
+    pedal: true
+    key_journey_major: [vi, IV, V]
+    key_journey_minor: [III, iv, v]
+    voice_lead: alternate    # alternate / soprano_heavy / bass_heavy
 
 sections:
   - name: exordium

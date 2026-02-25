@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from shared.constants import MIDI_GATE_TIME
+from shared.pitch import midi_to_name
 
 _log: logging.Logger = logging.getLogger(__name__)
 
@@ -26,13 +27,6 @@ class SimpleNote:
     duration: float     # Duration in whole notes
     velocity: int = 80  # MIDI velocity (0-127)
     track: int = 0      # Track number
-
-
-def midi_to_name(midi: int) -> str:
-    """Convert MIDI number to note name (e.g., 67 -> 'G4')."""
-    names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-    octave = midi // 12 - 1
-    return f"{names[midi % 12]}{octave}"
 
 
 def name_to_midi(name: str) -> int:

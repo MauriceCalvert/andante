@@ -212,9 +212,9 @@ def _assert_no_polyphony(notes: tuple[Note, ...], voice_name: str) -> None:
             assert False, (
                 f"Polyphony in {voice_name}: "
                 f"{a.pitch}@{float(a.offset)} dur={float(a.duration)} "
-                f"(generated_by={a.generated_by!r}) overlaps "
+                f"(creator={a.creator!r}) overlaps "
                 f"{b.pitch}@{float(b.offset)} dur={float(b.duration)} "
-                f"(generated_by={b.generated_by!r})"
+                f"(creator={b.creator!r})"
             )
 
 

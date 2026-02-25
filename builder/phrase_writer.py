@@ -8,7 +8,9 @@ from builder.cadence_writer import write_cadence, write_thematic_cadence
 from builder.galant.bass_writer import generate_bass_phrase
 from builder.galant.harmony import build_harmonic_grid, HarmonicGrid
 from builder.galant.soprano_writer import build_structural_soprano
-from builder.phrase_types import PhrasePlan, PhraseResult, make_tail_plan, make_free_companion_plan
+from builder.figuration.rhythm_calc import compute_rhythmic_distribution
+from builder.phrase_types import BeatPosition, PhrasePlan, PhraseResult, make_tail_plan, make_free_companion_plan
+from builder.voice_types import VoiceBias
 from builder.soprano_viterbi import generate_soprano_viterbi
 from builder.types import Note
 from motifs.fragen import (
@@ -18,7 +20,7 @@ from motifs.fragen import (
     VOICE_SOPRANO as FRAGEN_SOPRANO,
     realise_to_notes,
 )
-from motifs.fugue_loader import LoadedFugue
+from motifs.fugue_loader import LoadedFugue, ThematicBias
 from planner.schema_loader import get_schema
 from planner.thematic import BeatRole
 from shared.constants import TRACK_BASS, TRACK_SOPRANO
@@ -27,8 +29,19 @@ from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
 from shared.tracer import get_tracer, _key_str
 from shared.voice_types import Range
+from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
 
 _log: logging.Logger = logging.getLogger(__name__)
+
+# Implied harmonic progression above dominant pedal (2 bars, 4/4).
+# Each entry: (bar_offset 0-based, beat_offset 0-based, chord_root_degree).
+# bar_offset 0 = bar 1; beat_offset 0 = beat 1, 2 = beat 3 (half-bar divisions).
+_PEDAL_HARMONY_2BAR_4_4: tuple[tuple[int, int, int], ...] = (
+    (0, 0, 1),  # bar 1 beat 1: I   — consonant frame
+    (0, 2, 4),  # bar 1 beat 3: IV  — mild tension
+    (1, 0, 7),  # bar 2 beat 1: viio — leading tone, max tension
+    (1, 2, 1),  # bar 2 beat 3: I   — pre-cadential approach
+)
 
 
 def _is_walking(plan: PhrasePlan) -> bool:
@@ -172,7 +185,7 @@ def _assert_within_entry(
         assert window_start <= n.offset < window_end, (
             f"{voice_name} note outside entry window: offset={float(n.offset)} "
             f"window=[{float(window_start)}, {float(window_end)}) "
-            f"generated_by={n.generated_by!r} pitch={n.pitch} bar={entry_first_bar}"
+            f"creator={n.creator!r} pitch={n.pitch} bar={entry_first_bar}"
         )
 
 
@@ -195,6 +208,7 @@ def _write_thematic(
     from planner.thematic import ThematicRole
 
     assert plan.thematic_roles is not None, "thematic_roles must be populated"
+    bias: ThematicBias = fugue.thematic_bias()
 
     # Segment phrase into entries
     entries: list[dict] = _segment_into_entries(plan.thematic_roles)
@@ -375,12 +389,17 @@ def _write_thematic(
             )
 
             # Generate bass Viterbi with density_override="low"
+            pedal_bass_bias: VoiceBias = VoiceBias(
+                degree_affinity=bias.degree_affinity,
+                interval_affinity=bias.subject_interval_affinity,
+            )
             pedal_bass: tuple[Note, ...] = generate_bass_viterbi(
                 plan=pedal_plan,
                 soprano_notes=soprano_notes,
                 prior_lower=bass_notes,
                 harmonic_grid=None,
                 density_override="low",
+                bias=pedal_bass_bias,
             )
 
             # Label first note
@@ -587,6 +606,7 @@ def _write_thematic(
         next_phrase_entry_degree=next_phrase_entry_degree,
         next_phrase_entry_key=next_phrase_entry_key,
         bar_length=bar_length,
+        bias=bias,
     )
 
     # Return phrase result
@@ -679,11 +699,13 @@ def _write_pedal(
     prior_lower: tuple[Note, ...],
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
+    fugue: LoadedFugue | None = None,
 ) -> PhraseResult:
     """Write pedal phrase: held bass + cup-contour soprano via Viterbi."""
     from planner.thematic import ThematicRole
     from viterbi.mtypes import ContourShape
     assert plan.thematic_roles is not None, "Pedal phrase requires thematic_roles"
+    bias: ThematicBias | None = fugue.thematic_bias() if fugue is not None else None
     # Find the PEDAL BeatRole (voice 1, beat 0 of first bar)
     pedal_beat_role: BeatRole | None = None
     for role in plan.thematic_roles:
@@ -717,7 +739,7 @@ def _write_pedal(
             pitch=pedal_midi,
             duration=bar_length,
             voice=TRACK_BASS,
-            generated_by="pedal",
+            creator="pedal",
         ))
     # Build sub-plan for soprano generation.
     # Use degree 5 (dominant) as the initial structural tone — consonant
@@ -740,21 +762,89 @@ def _write_pedal(
         prev_exit_upper=start_knot_midi,
         prev_exit_lower=bass_notes[-1].pitch if bass_notes else plan.prev_exit_lower,
     )
-    # Override degrees_upper to degree 5 so the knot lands on the dominant.
     # Bias registral_bias high so place_structural_tones targets the upper octave.
     PEDAL_REGISTRAL_BIAS: int = 9  # push biased_upper_median near A5
-    pedal_plan = replace(
-        pedal_plan,
-        degrees_upper=(PEDAL_SOPRANO_START_DEGREE,),
-        registral_bias=PEDAL_REGISTRAL_BIAS,
-    )
+    # Build harmonic knots and chord grid for 2-bar 4/4 pedals (PED-1).
+    # For other bar spans or metres, fall back to single-knot behaviour.
+    chord_pcs_per_beat: list[frozenset[int]] | None = None
+    if plan.bar_span == 2 and plan.metre == "4/4":
+        # Four structural knots at strong beats imply a directed harmonic arc
+        # (I → IV → viio → I) over the static bass pedal.
+        pedal_knot_degrees: tuple[int, ...] = (5, 4, 7, 1)
+        pedal_knot_positions: tuple[BeatPosition, ...] = (
+            BeatPosition(bar=1, beat=1),  # I   (5th above pedal — consonant)
+            BeatPosition(bar=1, beat=3),  # IV  (4th above pedal — mild tension)
+            BeatPosition(bar=2, beat=1),  # viio (leading tone — maximum tension)
+            BeatPosition(bar=2, beat=3),  # I   (pre-cadential resolution)
+        )
+        pedal_knot_keys: tuple[Key, ...] = tuple(plan.local_key for _ in pedal_knot_degrees)
+        pedal_plan = replace(
+            pedal_plan,
+            degrees_upper=pedal_knot_degrees,
+            degree_positions=pedal_knot_positions,
+            degree_keys=pedal_knot_keys,
+            registral_bias=PEDAL_REGISTRAL_BIAS,
+        )
+        # Build chord PCS for each of the 4 harmony steps.
+        # Bar 1 steps use natural PCS; bar 2 steps use cadential PCS
+        # (raises degree 7 to leading tone in minor keys).
+        tonic_pc: int = plan.local_key.degree_to_midi(degree=1, octave=0) % 12
+        bar1_key_info: KeyInfo = KeyInfo(
+            pitch_class_set=plan.local_key.pitch_class_set,
+            tonic_pc=tonic_pc,
+        )
+        bar2_key_info: KeyInfo = KeyInfo(
+            pitch_class_set=plan.local_key.cadential_pitch_class_set,
+            tonic_pc=tonic_pc,
+        )
+        step_chords: list[frozenset[int]] = []
+        for bar_off, _beat_off, chord_root_deg in _PEDAL_HARMONY_2BAR_4_4:
+            use_cadential: bool = bar_off >= 1
+            step_key: KeyInfo = bar2_key_info if use_cadential else bar1_key_info
+            root_pc: int = plan.local_key.degree_to_midi(degree=chord_root_deg, octave=0) % 12
+            # Bar 2 viio in minor: natural degree 7 is flat; raise to leading tone.
+            if use_cadential and chord_root_deg == 7 and plan.local_key.mode == "minor":
+                raised_pc: int = (root_pc + 1) % 12
+                if raised_pc in step_key.pitch_class_set:
+                    root_pc = raised_pc
+            assert root_pc in step_key.pitch_class_set, (
+                f"Chord root pc {root_pc} (degree {chord_root_deg}, bar {bar_off + 1}) "
+                f"not in step PCS {step_key.pitch_class_set}; "
+                f"fix _PEDAL_HARMONY_2BAR_4_4 or key handling for {plan.local_key}"
+            )
+            step_chords.append(viterbi_triad_pcs(bass_midi=root_pc, key=step_key))
+        # Expand to grid resolution: each half-bar span gets notes_per_span slots.
+        # Final marker entry (duration = -1) inherits last chord.
+        notes_per_span: int
+        _note_dur: Fraction
+        notes_per_span, _note_dur = compute_rhythmic_distribution(
+            gap=bar_length / 2,
+            density="high",
+        )
+        chord_pcs_per_beat = []
+        for chord_pcs in step_chords:
+            chord_pcs_per_beat.extend([chord_pcs] * notes_per_span)
+        chord_pcs_per_beat.append(step_chords[-1])  # final marker position
+    else:
+        _log.warning(
+            "Pedal writer: bar_span=%d metre=%s is not 2-bar 4/4; "
+            "falling back to single-knot behaviour (no harmonic direction)",
+            plan.bar_span, plan.metre,
+        )
+        pedal_plan = replace(
+            pedal_plan,
+            degrees_upper=(PEDAL_SOPRANO_START_DEGREE,),
+            registral_bias=PEDAL_REGISTRAL_BIAS,
+        )
     # Cup contour: start high, descend to nadir at ~55%, ascend to cadential
     # handoff.  Units are scale degrees relative to range midpoint.
-    PEDAL_CONTOUR_START: float = 4.0   # ~7 st above mid (dominant register)
-    PEDAL_CONTOUR_NADIR: float = -4.0  # ~7 st below mid
+    # With harmonic knots providing direction, contour values are reduced
+    # (knots do the structural work; contour only supplements shape).
+    PEDAL_CONTOUR_START: float = 3.0   # slightly lower — knots do the work now
+    PEDAL_CONTOUR_NADIR: float = -2.0  # shallower — knots prevent aimlessness
     PEDAL_CONTOUR_NADIR_POS: float = 0.45  # nadir before halfway — steep descent
     PEDAL_CONTOUR_END_DEFAULT: float = 2.0  # fallback if no next-phrase info
-    PEDAL_CONTOUR_WEIGHT: float = 5.0  # strong pull — contour is the composition
+    PEDAL_CONTOUR_WEIGHT: float = 3.0  # reduced — knots and chords provide constraint
     # Compute contour end from next phrase's entry pitch when available.
     # This connects the pedal ascent to the cadence's first soprano note.
     contour_end: float
@@ -783,6 +873,10 @@ def _write_pedal(
     # Pass empty prior_upper so place_structural_tones uses
     # pedal_plan.prev_exit_upper (our high bias) instead of the
     # actual prior phrase exit which may be low.
+    pedal_sop_bias: VoiceBias | None = VoiceBias(
+        degree_affinity=bias.degree_affinity if bias else None,
+        interval_affinity=bias.subject_interval_affinity if bias else None,
+    ) if bias is not None else None
     soprano_notes, soprano_figures = generate_soprano_viterbi(
         plan=pedal_plan,
         bass_notes=tuple(bass_notes),
@@ -792,6 +886,8 @@ def _write_pedal(
         harmonic_grid=None,
         density_override="high",
         contour=pedal_contour,
+        chord_pcs_per_beat=chord_pcs_per_beat,
+        bias=pedal_sop_bias,
     )
     # Trace
     first_bar: int = plan.thematic_roles[0].bar if plan.thematic_roles else plan.start_bar
@@ -915,6 +1011,7 @@ def write_phrase(
             prior_lower=prior_lower,
             next_phrase_entry_degree=next_phrase_entry_degree,
             next_phrase_entry_key=next_phrase_entry_key,
+            fugue=fugue,
         )
 
     # Path 2: Thematic

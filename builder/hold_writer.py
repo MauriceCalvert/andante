@@ -297,7 +297,7 @@ def render_hold_entry(
                 duration=bar_length,
                 voice=TRACK_BASS,
                 lyric="hold" if bar_offset == 0 else "",
-                generated_by="hold",
+                creator="hold",
             )
             bass_notes = bass_notes + (bass_note,)
 
@@ -347,7 +347,7 @@ def render_hold_entry(
                 duration=bar_length,
                 voice=TRACK_SOPRANO,
                 lyric="hold" if bar_offset == 0 else "",
-                generated_by="hold",
+                creator="hold",
             )
             soprano_notes = soprano_notes + (sop_note,)
 

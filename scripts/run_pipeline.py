@@ -202,7 +202,7 @@ def run_from_brief(
             f"Use e.g. 'tempo: 100' not 'tempo: allegro'"
         )
         tempo = raw_tempo
-    subject_name: str | None = brief_data.get("subject")
+    subject_name: str | None = brief_data.get("subject") or frame_data.get("subject")
     fugue: LoadedFugue | None = None
     if subject_name:
         fugue = load_fugue(name=subject_name)

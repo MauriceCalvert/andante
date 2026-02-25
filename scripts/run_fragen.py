@@ -32,7 +32,6 @@ from motifs.fragen import (
 )
 from motifs.fugue_loader import load_fugue
 from motifs.head_generator import degrees_to_midi
-from shared.constants import NOTE_NAMES_FLAT, NOTE_NAMES_SHARP
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -54,10 +53,8 @@ _NOTE_CSV_HEADER: str = "offset,midinote,duration,track,bar,beat,notename,degree
 
 def _midi_to_name(pitch: int, tonic: str) -> str:
     """Convert MIDI pitch to note name like C4, F#3."""
-    names = NOTE_NAMES_SHARP if tonic in _SHARP_KEYS else NOTE_NAMES_FLAT
-    octave: int = (pitch // 12) - 1
-    pc: int = pitch % 12
-    return f"{names[pc]}{octave}"
+    from shared.pitch import midi_to_name
+    return midi_to_name(midi=pitch, use_flats=tonic not in _SHARP_KEYS)
 
 
 def _write_notes(

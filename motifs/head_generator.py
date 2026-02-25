@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Iterator
 
 from shared.constants import MAJOR_SCALE, MINOR_SCALE, NOTE_NAMES, TONIC_TRIAD_DEGREES
+from shared.pitch import degrees_to_intervals as _intervals
 
 # Pitch constraints
 MIN_LEAP = 3  # Minimum interval to count as a leap
@@ -129,11 +130,6 @@ class Head:
     leap_direction: str  # "up" or "down"
 
 
-def _intervals(degrees: tuple[int, ...]) -> list[int]:
-    """Compute intervals between adjacent degrees."""
-    return [degrees[i + 1] - degrees[i] for i in range(len(degrees) - 1)]
-
-
 def _largest_leap_position(intervals: list[int]) -> int:
     """Return 0-indexed position of largest leap, or -1 if no leap."""
     if not intervals:
@@ -239,6 +235,23 @@ def degrees_to_midi(degrees: tuple[int, ...], tonic_midi: int = 60, mode: str = 
         scale_idx = deg % 7
         midi = tonic_midi + octave * 12 + scale[scale_idx]
         result.append(midi)
+    return tuple(result)
+
+
+def midi_to_degrees(midi_pitches: tuple[int, ...], tonic_midi: int = 60, mode: str = "major") -> tuple[int, ...]:
+    """Convert MIDI pitches to scale degrees (inverse of degrees_to_midi)."""
+    scale = MINOR_SCALE if mode == "minor" else MAJOR_SCALE
+    chroma_to_idx: dict[int, int] = {s: i for i, s in enumerate(scale)}
+    result: list[int] = []
+    for m in midi_pitches:
+        semitones: int = m - tonic_midi
+        octave: int = semitones // 12
+        chroma: int = semitones % 12
+        assert chroma in chroma_to_idx, (
+            f"MIDI {m} is not diatonic in {mode} from tonic {tonic_midi}: "
+            f"chroma={chroma}, scale={scale}"
+        )
+        result.append(octave * 7 + chroma_to_idx[chroma])
     return tuple(result)
 
 

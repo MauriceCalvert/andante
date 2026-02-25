@@ -10,8 +10,8 @@ from motifs.subject_gen.validator import is_melodically_valid
 # score_intervals, score_joint, score_rhythm_fit
 # This file needs updating to use the new subject_gen API.
 from motifs.head_generator import degrees_to_midi
-from shared.constants import NOTE_NAMES
 from shared.midi_writer import write_midi
+from shared.pitch import midi_to_name as _midi_name
 
 # ── Override to x4 encoding: crotchet–semiquaver with dotted ────────
 sg.X2_TICKS_PER_WHOLE = 32
@@ -43,10 +43,6 @@ CONTOUR_CONFIGS: list[tuple[str, str]] = [
     ("ascent", "motoric"),
     ("dip", "busy_brake"),
 ]
-
-
-def _midi_name(midi: int) -> str:
-    return f"{NOTE_NAMES[midi % 12]}{midi // 12 - 1}"
 
 
 def _ivs_to_degrees(ivs: tuple[int, ...]) -> tuple[int, ...]:

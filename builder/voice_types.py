@@ -3,12 +3,18 @@
 All types are frozen dataclasses. The FillStrategy protocol defines the
 interface for span-filling strategies (diminution, walking, pillar, patterned).
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from builder.types import Note
 from shared.key import Key
+
+if TYPE_CHECKING:
+    from motifs.thematic_transform import VerticalGenome
+    from viterbi.mtypes import Knot
 
 
 # =============================================================================
@@ -35,6 +41,15 @@ class StructuralTone:
     offset: Fraction
     midi: int
     key: Key
+
+
+@dataclass(frozen=True)
+class VoiceBias:
+    """Per-voice Viterbi bias parameters bundled together (M001)."""
+    degree_affinity: tuple[float, ...] | None = None
+    interval_affinity: dict[int, float] | None = None
+    structural_knots: list[Knot] | None = None
+    vertical_genome: VerticalGenome | None = None
 
 
 # =============================================================================

@@ -1,7 +1,7 @@
 """Pitch placement utilities for scale degrees."""
 from typing import TYPE_CHECKING
 
-from shared.constants import SKIP_SEMITONES, UGLY_INTERVALS
+from shared.constants import MAJOR_SCALE, NATURAL_MINOR_SCALE, SKIP_SEMITONES, UGLY_INTERVALS
 
 if TYPE_CHECKING:
     from shared.key import Key
@@ -134,3 +134,41 @@ def select_octave(
     if pitch < low:
         pitch = low
     return pitch
+
+
+def midi_to_name(midi: int, use_flats: bool = False) -> str:
+    """Convert MIDI pitch number to note name with octave, e.g. 67 -> 'G4'."""
+    from shared.constants import NOTE_NAMES_FLAT, NOTE_NAMES_SHARP
+    names: tuple[str, ...] = NOTE_NAMES_FLAT if use_flats else NOTE_NAMES_SHARP
+    return f"{names[midi % 12]}{midi // 12 - 1}"
+
+
+def build_pitch_class_set(tonic_pc: int, mode: str) -> frozenset[int]:
+    """Build diatonic pitch class set for a given tonic pitch class and mode."""
+    assert mode in ("major", "minor"), (
+        f"Unsupported mode {mode!r}: use 'major' or 'minor'"
+    )
+    intervals: tuple[int, ...] = MAJOR_SCALE if mode == "major" else NATURAL_MINOR_SCALE
+    return frozenset((tonic_pc + interval) % 12 for interval in intervals)
+
+
+def diatonic_step_count(pitch_a: int, pitch_b: int, pitch_class_set: frozenset[int]) -> int:
+    """Count diatonic scale steps between two MIDI pitches (always non-negative).
+
+    Returns 0 for unison, 1 for a step (2nd), 2 for a skip (3rd), etc.
+    """
+    if pitch_a == pitch_b:
+        return 0
+    low: int
+    high: int
+    low, high = min(pitch_a, pitch_b), max(pitch_a, pitch_b)
+    count: int = 0
+    for midi in range(low + 1, high + 1):
+        if (midi % 12) in pitch_class_set:
+            count += 1
+    return count
+
+
+def degrees_to_intervals(degrees: tuple[int, ...]) -> tuple[int, ...]:
+    """Compute intervals between adjacent scale degrees."""
+    return tuple(degrees[i + 1] - degrees[i] for i in range(len(degrees) - 1))

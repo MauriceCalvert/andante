@@ -249,3 +249,79 @@ def test_uses_flats(tonic: str, mode: str, expected: bool) -> None:
     k: Key = Key(tonic=tonic, mode=mode)
     assert k.uses_flats() is expected
 
+
+# =========================================================================
+# cadential_pitch_class_set
+# =========================================================================
+
+
+def test_cadential_pcs_major_same_as_natural() -> None:
+    """Major key cadential set == natural set (no alteration needed)."""
+    k: Key = Key(tonic="C", mode="major")
+    assert k.cadential_pitch_class_set == k.pitch_class_set
+
+
+def test_cadential_pcs_minor_has_raised_seventh() -> None:
+    """A minor cadential set includes G# (pc 8) instead of G (pc 7)."""
+    k: Key = Key(tonic="A", mode="minor")
+    natural: frozenset[int] = k.pitch_class_set
+    cadential: frozenset[int] = k.cadential_pitch_class_set
+    assert 7 in natural       # G natural
+    assert 8 not in natural   # No G#
+    assert 8 in cadential     # G# in cadential
+    assert 7 not in cadential # G natural removed
+
+
+def test_cadential_pcs_d_minor() -> None:
+    """D minor cadential set includes C# (pc 1) instead of C (pc 0)."""
+    k: Key = Key(tonic="D", mode="minor")
+    cadential: frozenset[int] = k.cadential_pitch_class_set
+    assert 1 in cadential  # C#
+    assert 0 not in cadential  # C natural removed
+
+
+# =========================================================================
+# bridge_pitch_set
+# =========================================================================
+
+
+def test_bridge_pcs_c_major() -> None:
+    """C major pentatonic: C D E G A."""
+    k: Key = Key(tonic="C", mode="major")
+    assert k.bridge_pitch_set == frozenset({0, 2, 4, 7, 9})
+
+
+def test_bridge_pcs_a_minor() -> None:
+    """A minor pentatonic: A C D E G."""
+    k: Key = Key(tonic="A", mode="minor")
+    assert k.bridge_pitch_set == frozenset({9, 0, 2, 4, 7})
+
+
+def test_bridge_pcs_is_subset_of_natural() -> None:
+    """Bridge set is always a subset of natural pitch class set."""
+    for tonic in ["C", "D", "G", "F"]:
+        for mode in ["major", "minor"]:
+            k: Key = Key(tonic=tonic, mode=mode)
+            assert k.bridge_pitch_set.issubset(k.pitch_class_set)
+
+
+def test_bridge_pcs_has_five_elements() -> None:
+    """Pentatonic always has 5 pitch classes."""
+    k: Key = Key(tonic="C", mode="major")
+    assert len(k.bridge_pitch_set) == 5
+
+
+# =========================================================================
+# midi_to_diatonic / diatonic_to_midi — chromatic input
+# =========================================================================
+
+
+def test_midi_to_diatonic_chromatic_rounds() -> None:
+    """Chromatic pitch maps to nearest diatonic."""
+    k: Key = Key(tonic="C", mode="major")
+    # C#4 = 61 should map to either C(step=28) or D(step=29)
+    dp = k.midi_to_diatonic(midi=61)
+    result_midi: int = k.diatonic_to_midi(dp=dp)
+    # Result should be either 60 (C) or 62 (D)
+    assert result_midi in (60, 62)
+

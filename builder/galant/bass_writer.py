@@ -1057,4 +1057,4 @@ def generate_bass_phrase(
                 current_midi = pitch
                 note_offset += dur
     validate_bass_notes(notes=notes, plan=plan, soprano_notes=soprano_notes)
-    return tuple(replace(n, generated_by="galant_bass") for n in notes)
+    return tuple(replace(n, creator="galant_bass") for n in notes)

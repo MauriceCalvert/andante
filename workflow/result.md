@@ -1,29 +1,21 @@
-# Result: BUG-1 — Fix _fit_shift key destruction
+# Result: SH-2 — Head Enumeration + Dotted Durations + Mediant Removal
 
-## Status: Done
+## Status: Complete
 
-## Change
+## Summary
 
-`builder/imitation.py` — `_fit_shift` fallback branch replaced.
+Refactored subject generator from random CP-SAT sampling (40 restarts ×
+50 solutions) to exhaustive head enumeration + per-head tail solving.
+Pool expanded from 98 to 4,767 valid pitch sequences, stretto-capable
+pool from 9 to 3,813 distinct pitches.
 
-**Before:** when no octave multiple fit in `[shift_lo, shift_hi]`, returned the
-non-octave shift closest to zero (could be +1, +2 … semitones), turning the
-subject/CS/answer into a chromatic transposition in the wrong key.
-
-**After:** always picks the octave multiple (k×12) nearest the midpoint of
-`[shift_lo, shift_hi]`. Three candidates (k_near−1, k_near, k_near+1) are
-evaluated; ties broken by proximity to zero. A WARNING is logged when the
-fallback fires.
-
-Also added `import logging` and module-level `logger = logging.getLogger(__name__)`.
-
-## Expected outcome
-
-Bars 5–6 soprano (A-minor subject entry): A4 B4 C5 D5 B4 A4 — all diatonic
-in A minor. No Bb/Db/Eb/Ab accidentals. The +1 semitone shift that produced
-the Bb-minor colour is replaced by the nearest octave multiple, accepting the
-minor range overflow permitted by L003.
+Also restored dotted durations (1,2,3,4,6) and removed mediant (degree 2)
+from allowed finals.
 
 ## Files changed
 
-- `builder/imitation.py`
+- `motifs/subject_gen/constants.py` — HEAD_LENGTHS, durations, finals, solver params
+- `motifs/subject_gen/head_enumerator.py` — new file
+- `motifs/subject_gen/cpsat_generator.py` — rewritten (head-prefix solver)
+- `motifs/subject_gen/pitch_generator.py` — rewritten (head iteration)
+- `motifs/subject_gen/selector.py` — pitch dedup first, rhythm dedup removed, verbose passthrough

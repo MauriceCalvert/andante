@@ -1,6 +1,8 @@
 """Data types for the viterbi prototype."""
 from dataclasses import dataclass, field
 
+from shared.pitch import midi_to_name as pitch_name
+
 
 # ---------------------------------------------------------------------------
 # Musical constants
@@ -78,15 +80,3 @@ class PhraseResult:
     total_cost: float
 
 
-# ---------------------------------------------------------------------------
-# Pitch naming utility
-# ---------------------------------------------------------------------------
-
-NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-
-
-def pitch_name(midi: int) -> str:
-    """MIDI number to readable name, e.g. 60 -> 'C4'."""
-    octave = (midi // 12) - 1
-    note = NOTE_NAMES[midi % 12]
-    return f"{note}{octave}"

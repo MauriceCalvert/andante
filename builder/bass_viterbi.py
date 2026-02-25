@@ -3,6 +3,7 @@ import logging
 from fractions import Fraction
 
 from builder.galant.bass_writer import validate_bass_notes
+from builder.voice_types import VoiceBias
 from builder.phrase_types import (
     PhrasePlan,
     phrase_bar_duration,
@@ -39,6 +40,7 @@ def generate_bass_viterbi(
     prior_lower: tuple[Note, ...] = (),
     harmonic_grid: "HarmonicGrid | None" = None,
     density_override: str | None = None,
+    bias: VoiceBias | None = None,
 ) -> tuple[Note, ...]:
     """Generate walking bass via Viterbi pathfinding against soprano.
 
@@ -64,44 +66,49 @@ def generate_bass_viterbi(
     # ================================================================
     # Step 1 — Place structural bass knots
     # ================================================================
-    knots: list[Knot] = []
-    prev_midi: int = prev_exit_midi if prev_exit_midi is not None else plan.lower_median
+    knots: list[Knot]
+    structural_knots_override: list[Knot] | None = bias.structural_knots if bias else None
+    if structural_knots_override is not None:
+        knots = list(structural_knots_override)
+    else:
+        knots = []
+        prev_midi: int = prev_exit_midi if prev_exit_midi is not None else plan.lower_median
 
-    for i, degree in enumerate(plan.degrees_lower):
-        pos = plan.degree_positions[i]
-        offset: Fraction = phrase_degree_offset(
-            plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
-        )
-        key_for_degree = plan.degree_keys[i]
-        bass_midi: int = degree_to_nearest_midi(
-            degree=degree,
-            key=key_for_degree,
-            target_midi=prev_midi,
-            midi_range=(plan.lower_range.low, plan.lower_range.high),
-        )
+        for i, degree in enumerate(plan.degrees_lower):
+            pos = plan.degree_positions[i]
+            offset: Fraction = phrase_degree_offset(
+                plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
+            )
+            key_for_degree = plan.degree_keys[i]
+            bass_midi: int = degree_to_nearest_midi(
+                degree=degree,
+                key=key_for_degree,
+                target_midi=prev_midi,
+                midi_range=(plan.lower_range.low, plan.lower_range.high),
+            )
 
-        # Consonance check against soprano at this offset
-        sop_at: int | None = _soprano_at(
-            soprano_notes=soprano_notes, offset=offset,
-        )
-        if sop_at is not None:
-            if abs(bass_midi - sop_at) % 12 in STRONG_BEAT_DISSONANT:
-                alternatives: list[int] = [
-                    alt for alt in (bass_midi - 12, bass_midi + 12)
-                    if (plan.lower_range.low <= alt <= plan.lower_range.high
-                        and alt <= sop_at
-                        and abs(alt - sop_at) % 12 not in STRONG_BEAT_DISSONANT)
-                ]
-                if alternatives:
-                    bass_midi = min(alternatives, key=lambda m: abs(m - prev_midi))
-            # L004: bass must not cross soprano
-            if bass_midi > sop_at:
-                alt_low: int = bass_midi - 12
-                if plan.lower_range.low <= alt_low:
-                    bass_midi = alt_low
+            # Consonance check against soprano at this offset
+            sop_at: int | None = _soprano_at(
+                soprano_notes=soprano_notes, offset=offset,
+            )
+            if sop_at is not None:
+                if abs(bass_midi - sop_at) % 12 in STRONG_BEAT_DISSONANT:
+                    alternatives: list[int] = [
+                        alt for alt in (bass_midi - 12, bass_midi + 12)
+                        if (plan.lower_range.low <= alt <= plan.lower_range.high
+                            and alt <= sop_at
+                            and abs(alt - sop_at) % 12 not in STRONG_BEAT_DISSONANT)
+                    ]
+                    if alternatives:
+                        bass_midi = min(alternatives, key=lambda m: abs(m - prev_midi))
+                # L004: bass must not cross soprano
+                if bass_midi > sop_at:
+                    alt_low: int = bass_midi - 12
+                    if plan.lower_range.low <= alt_low:
+                        bass_midi = alt_low
 
-        knots.append(Knot(beat=float(offset), midi_pitch=bass_midi))
-        prev_midi = bass_midi
+            knots.append(Knot(beat=float(offset), midi_pitch=bass_midi))
+            prev_midi = bass_midi
 
     # Final knot at phrase_end (same pattern as soprano Viterbi)
     final_midi: int = knots[-1].midi_pitch if knots else plan.lower_median
@@ -191,6 +198,9 @@ def generate_bass_viterbi(
     if abs(knots[0].beat - first_beat) > 1e-6:
         start_midi: int = prev_exit_midi if prev_exit_midi is not None else plan.lower_median
         knots.insert(0, Knot(beat=first_beat, midi_pitch=start_midi))
+    # Sort by beat and deduplicate (thematic overrides + alignment knots may overlap)
+    knots.sort(key=lambda k: k.beat)
+    knots = [k for i, k in enumerate(knots) if i == 0 or abs(k.beat - knots[i - 1].beat) > 1e-6]
 
     # ================================================================
     # Step 3 — Build soprano ExistingVoice at each grid position
@@ -242,6 +252,9 @@ def generate_bass_viterbi(
         voice_id=TRACK_BASS,
         beats_per_bar=float(bar_length),
         chord_pcs_per_beat=chord_pcs,
+        degree_affinity=bias.degree_affinity if bias else None,
+        interval_affinity=bias.interval_affinity if bias else None,
+        genome_entries=bias.vertical_genome.entries if bias and bias.vertical_genome else None,
     )
 
     # ================================================================

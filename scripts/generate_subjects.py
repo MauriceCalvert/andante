@@ -5,14 +5,17 @@ into a FugueTriple, then writes MIDI, YAML (.fugue), and .note files.
 """
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Tuple
 
 import yaml
 
-from motifs.head_generator import degrees_to_midi, RHYTHM_CELLS_BY_METRE
+from motifs.head_generator import degrees_to_midi
 from motifs.stretto_constraints import OffsetResult
 from motifs.subject_gen import GeneratedSubject
 from motifs.subject_gen.constants import X2_TICKS_PER_WHOLE
+from motifs.subject_generator import parse_note_name
 from shared.midi_writer import SimpleNote, write_midi_notes
+from shared.pitch import midi_to_name as _midi_to_name
 
 def invert_degrees(degrees: tuple[int, ...]) -> tuple[int, ...]:
     """Tonal inversion: negate each degree around the first note."""
@@ -20,7 +23,9 @@ def invert_degrees(degrees: tuple[int, ...]) -> tuple[int, ...]:
     return tuple(pivot - (d - pivot) for d in degrees)
 
 # ── Batch configuration ─────────────────────────────────────────────
-SUPPORTED_METRES: tuple[tuple[int, int], ...] = tuple(RHYTHM_CELLS_BY_METRE.keys())
+SUPPORTED_METRES: tuple[tuple[int, int], ...] = (
+    (4, 4), (3, 4), (2, 4), (2, 2), (6, 8),
+)
 TARGET_BAR_LENGTHS: tuple[int, ...] = (2, 3, 4)
 TARGET_BAR_WEIGHTS: tuple[int, ...] = (4, 3, 2)
 BATCH_BAR_COUNTS: tuple[int, ...] = (2, 2, 3, 3, 4, 4)
@@ -43,12 +48,6 @@ def _bar_duration(metre: tuple[int, int]) -> float:
     """Duration of one bar in whole-note units."""
     return metre[0] / metre[1]
 
-def _midi_to_name(midi: int) -> str:
-    """Convert MIDI number to note name (e.g., 67 -> G4)."""
-    names = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
-    octave = midi // 12 - 1
-    return f"{names[midi % 12]}{octave}"
-
 def generate_fugue_triple(
     mode: str = "minor",
     metre: tuple[int, int] = (4, 4),
@@ -58,21 +57,23 @@ def generate_fugue_triple(
     target_bars: int | None = None,
     note_counts: tuple[int, ...] | None = None,
     pitch_contour: str | None = None,
+    subject: 'GeneratedSubject | None' = None,
 ) -> FugueTriple:
     """Generate coordinated subject, answer, and countersubject."""
     from motifs.answer_generator import generate_answer
     from motifs.countersubject_generator import generate_countersubject
-    from motifs.subject_gen import select_subject
-    subject = select_subject(
-        mode=mode,
-        metre=metre,
-        tonic_midi=tonic_midi,
-        target_bars=target_bars,
-        pitch_contour=pitch_contour,
-        note_counts=note_counts,
-        seed=seed or 0,
-        verbose=verbose,
-    )
+    if subject is None:
+        from motifs.subject_gen import select_subject
+        subject = select_subject(
+            mode=mode,
+            metre=metre,
+            tonic_midi=tonic_midi,
+            target_bars=target_bars,
+            pitch_contour=pitch_contour,
+            note_counts=note_counts,
+            seed=seed or 0,
+            verbose=verbose,
+        )
     answer = generate_answer(
         subject=subject,
         tonic_midi=tonic_midi,
@@ -326,8 +327,8 @@ def main() -> None:
     """Generate subjects and write to .midi and .note files."""
     import argparse
     parser = argparse.ArgumentParser(description="Generate fugue subjects")
-    parser.add_argument("--output", "-o", type=Path, default=Path("output"),
-                        help="Output folder (default: subjects)")
+    parser.add_argument("--output", "-o", type=Path, default=Path(r"motifs\output"),
+                        help=r"Output folder (default: motifs\output)")
     parser.add_argument("--mode", "-m", type=str, default="major",
                         choices=["major", "minor"], help="Mode (default: major)")
     parser.add_argument("--metre", type=str, default="4/4",
@@ -341,9 +342,11 @@ def main() -> None:
     parser.add_argument("--bars", type=int, default=2, choices=[2, 3, 4],
                         help="Subject length in bars (default: random 2-4)")
     parser.add_argument("--notes", type=str, default=12,
-                        help="Note counts, e.g. '9,10' (default: all)")
-    parser.add_argument("--batch", "-b", type=int, default=6,
-                        help="Generate batch of N subjects (default 6: 2x2bar, 2x3bar, 2x4bar)")
+                        help="Note counts, e.g. '9,10,11' (default: all)")
+    parser.add_argument("--batch", "-b", type=int, default=10,
+                        help="Generate N subjects (default 10)")
+    parser.add_argument("--pitches", type=str, default=None,
+                        help="Fixed pitches, e.g. 'c5,d5,e5,f5' (bypasses pitch generation)")
     parser.add_argument("--contour", type=str, default=None,
                         choices=["arch", "valley", "swoop", "dip",
                                  "ascending", "descending", "zigzag"],
@@ -355,7 +358,11 @@ def main() -> None:
     metre = (int(metre_parts[0]), int(metre_parts[1]))
     note_counts = None
     if args.notes:
-        note_counts = tuple(int(x) for x in args.notes.split(","))
+        note_counts = tuple(int(x) for x in str(args.notes).split(","))
+    fixed_midi = None
+    if args.pitches:
+        fixed_midi = tuple(parse_note_name(n) for n in args.pitches.split(","))
+        note_counts = (len(fixed_midi),)
     tonic_midi = {"C": 72, "D": 74, "E": 76, "F": 77, "G": 79, "A": 81, "B": 83,
                   "C#": 73, "Db": 73, "D#": 75, "Eb": 75, "F#": 78, "Gb": 78,
                   "G#": 80, "Ab": 80, "A#": 82, "Bb": 82}.get(args.tonic, 72)
@@ -368,6 +375,27 @@ def main() -> None:
         bar_counts = list(BATCH_BAR_COUNTS)
     else:
         bar_counts = [TARGET_BAR_LENGTHS[i % len(TARGET_BAR_LENGTHS)] for i in range(count)]
+    # ── Batch-wide diverse selection per bar count ────────────
+    from collections import defaultdict
+    from motifs.subject_gen import select_diverse_subjects
+    groups: dict[int, list[int]] = defaultdict(list)
+    for i, n_bars in enumerate(bar_counts):
+        groups[n_bars].append(i)
+    subject_by_index: dict[int, object] = {}
+    for n_bars, indices in groups.items():
+        subjects = select_diverse_subjects(
+            n=len(indices),
+            mode=args.mode,
+            metre=metre,
+            tonic_midi=tonic_midi,
+            target_bars=n_bars,
+            pitch_contour=args.contour,
+            note_counts=note_counts,
+            fixed_midi=fixed_midi,
+            verbose=args.verbose,
+        )
+        for j, idx in enumerate(indices):
+            subject_by_index[idx] = subjects[j % len(subjects)]
     for i, n_bars in enumerate(bar_counts):
         base = outdir / f"subject{i:02d}_{n_bars}bar"
         triple = generate_fugue_triple(
@@ -379,6 +407,7 @@ def main() -> None:
             target_bars=n_bars,
             note_counts=note_counts,
             pitch_contour=args.contour,
+            subject=subject_by_index[i],
         )
         write_note_file(triple=triple, path=base.with_suffix(".note"))
         write_fugue_demo_midi(triple=triple, path=base.with_suffix(".midi"), tempo=args.tempo)
@@ -386,7 +415,7 @@ def main() -> None:
         s = triple.subject
         n_stretto = len(s.stretto_offsets)
         s_notes = ' '.join(_midi_to_name(m) for m in s.midi_pitches)
-        _DUR_ABBREV = {0.0625: '16', 0.125: '8', 0.25: '4', 0.5: '2', 1.0: '1'}
+        _DUR_ABBREV = {0.0625: '16', 0.125: '8', 0.1875: '8.', 0.25: '4', 0.375: '4.', 0.5: '2', 1.0: '1'}
         s_durs = ' '.join(_DUR_ABBREV.get(d, f'{d}') for d in s.durations)
         print(
             f"[{i:02d}] {n_bars}bar | {s.bars}bar actual | "

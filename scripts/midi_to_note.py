@@ -7,7 +7,8 @@ from io import BytesIO
 
 from mido import MidiFile
 
-from shared.constants import NOTE_NAMES, VALID_DURATIONS_SORTED
+from shared.constants import VALID_DURATIONS_SORTED
+from shared.pitch import midi_to_name as midi_to_note_name
 
 
 # MIDI meta-event: FF 59 02 sf mode  (key signature)
@@ -40,13 +41,6 @@ def quantize_duration(duration: float) -> Fraction:
             best = valid
             best_diff = diff
     return best
-
-
-def midi_to_note_name(midi_num: int) -> str:
-    """Convert MIDI number to note name like C4, F#5."""
-    octave = (midi_num // 12) - 1
-    note = NOTE_NAMES[midi_num % 12]
-    return f"{note}{octave}"
 
 
 def convert_midi_to_note(midi_path: Path) -> None:
@@ -93,7 +87,7 @@ def convert_midi_to_note(midi_path: Path) -> None:
         duration = quantize_duration(duration=raw_duration_bars)
         midi_num = n["midi_num"]
         track = n["track"]
-        note_name = midi_to_note_name(midi_num=midi_num)
+        note_name = midi_to_note_name(midi=midi_num)
 
         # Calculate bar and beat (bar 1-indexed)
         bar = int(offset_beats // beats_per_bar) + 1

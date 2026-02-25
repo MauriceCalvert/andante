@@ -1598,7 +1598,7 @@ def write_yaml_usages(usages: dict[str, list[str]], orphaned: list[Path]) -> Pat
     report: dict[str, Any] = {
         "_meta": {
             "description": "YAML file usage report",
-            "generated_by": "scripts/yaml_validator.py",
+            "creator": "scripts/yaml_validator.py",
         },
         "usages": usages,
         "orphaned_files": [str(p.relative_to(PROJECT_DIR)) for p in orphaned],

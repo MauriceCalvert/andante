@@ -19,7 +19,6 @@ def _fit_shift(
     label: str,
 ) -> int:
     """Find the best shift to place midi_pitches within target_range."""
-    print(f'DEBUG _fit_shift: {label} pitches_lo={min(midi_pitches)} pitches_hi={max(midi_pitches)} range=[{target_range.low},{target_range.high}]', flush=True)
     lo: int = min(midi_pitches)
     hi: int = max(midi_pitches)
     span: int = hi - lo
@@ -96,7 +95,7 @@ def answer_to_voice_notes(
             voice=target_track,
         ))
         offset += dur
-    return tuple(replace(n, generated_by="answer") for n in notes)
+    return tuple(replace(n, creator="answer") for n in notes)
 
 
 def countersubject_to_voice_notes(
@@ -131,7 +130,7 @@ def countersubject_to_voice_notes(
             voice=target_track,
         ))
         offset += dur
-    return tuple(replace(n, generated_by="cs") for n in notes)
+    return tuple(replace(n, creator="cs") for n in notes)
 
 
 def subject_to_voice_notes(
@@ -166,4 +165,4 @@ def subject_to_voice_notes(
             voice=target_track,
         ))
         offset += dur
-    return tuple(replace(n, generated_by="subject") for n in notes)
+    return tuple(replace(n, creator="subject") for n in notes)

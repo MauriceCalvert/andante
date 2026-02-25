@@ -39,4 +39,4 @@ def build_structural_soprano(
             duration=duration,
             voice=TRACK_SOPRANO,
         ))
-    return tuple(replace(n, generated_by="structural") for n in notes)
+    return tuple(replace(n, creator="structural") for n in notes)

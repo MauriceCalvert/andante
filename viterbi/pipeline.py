@@ -26,6 +26,9 @@ def solve_phrase(
     chord_pcs_per_beat: list[frozenset[int]] | None = None,
     beats_per_bar: float = 4.0,
     contour: ContourShape | None = None,
+    degree_affinity: tuple[float, ...] | None = None,
+    interval_affinity: dict[int, float] | None = None,
+    genome_entries: tuple[tuple[float, int], ...] | None = None,
 ) -> PhraseResult:
     """Solve a complete phrase: validate, build corridors, pathfind."""
     assert len(follower_knots) >= 2, "Need at least 2 knots"
@@ -69,6 +72,9 @@ def solve_phrase(
         key=key,
         chord_pcs_at=chord_pcs_per_beat,
         contour=contour,
+        degree_affinity=degree_affinity,
+        interval_affinity=interval_affinity,
+        genome_entries=genome_entries,
     )
     if verbose:
         _print_phrase_summary(beats, pitches, leader_map, follower_knots)

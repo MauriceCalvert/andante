@@ -688,11 +688,6 @@ def _rhythm_class(durations: tuple[Fraction, ...]) -> tuple[int, ...]:
     return tuple(result)
 
 
-def _intervals(degrees: tuple[int, ...]) -> tuple[int, ...]:
-    """Successive interval differences; transposition-invariant."""
-    return tuple(degrees[i + 1] - degrees[i] for i in range(len(degrees) - 1))
-
-
 # ---------------------------------------------------------------------------
 # Realisation
 # ---------------------------------------------------------------------------

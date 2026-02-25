@@ -275,8 +275,9 @@ def _group_beat_roles(
             }
         elif (function != current_group["function"] or
               voice_roles != current_group["voice_roles"] or
+              local_key != current_group["local_key"] or
               bar_stretto_mat != current_group["stretto_material"]):
-            # Pattern changed (or stretto delay changed), close and start new
+            # Pattern, key, or stretto delay changed — close and start new
             groups.append(current_group)
             current_group = {
                 "function": function,

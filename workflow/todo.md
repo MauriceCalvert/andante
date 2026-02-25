@@ -4,53 +4,36 @@ Conductor reads at chat start.
 
 ---
 
-## Now: The notes are wrong and the texture is drivel
+## Now: GEL-1 — Generative entry layout
 
-The invention output has two fatal pitch bugs and four texture failures.
-The pitch bugs must be fixed first because everything downstream depends
-on correct pitches.
+TB sequence complete (TB-1 through TB-5). Listening gate passed.
+Free passages are thematically coherent: degree affinity, interval
+vocabulary, cell recombination, and vertical genome all wired.
 
-### Pitch bugs (blocking)
+The invention is fixed at 19 bars because entry_sequence is hardcoded
+in invention.yaml. GEL-1 replaces the hardcoded sequence with a
+vocabulary + brief system: the YAML defines what an invention *is*
+(available entry types, key pools, proportions); a brief defines what
+*this* invention should be (scope, development intensity, stretto
+preference). A runtime generator produces the entry_sequence.
 
-- [x] **CP1 — Fix plumbing.** Phantom bass, missing episodes, bar duplication.
-- [x] **CP2 — Context-aware countersubject.** CS via Viterbi against companion.
-- [x] **CP3 — Musical hold-exchange.** Subject-cell spine in running voice.
-- [x] **F1 — Fragen consonance hardening.** Pipeline adapter.
-- [x] **F2 — Episode integration via fragen.** Paired two-voice episodes.
-- [x] **CP4 — Fix answer transposition + mode.** Real answer used same
-      degrees with dominant_midi. Minor entries now use natural minor.
-
-### Texture failures
-
-- [x] **F3 — Fragen as a class.** Same episode repeated 3 times because
-      used_fragen_indices resets per phrase. Fragen should be a class owning
-      its catalogue and tracking used fragments across the entire composition.
-      Also fixes: proximity-first start selection, cross-relation at
-      boundaries, beat-1 gap fill. See task_f3_holding.md.
-- [x] **F4 — Canonic episode texture.** Episodes were chorale texture
-      (simultaneous attacks, different material). Replaced with staggered
-      canonic imitation: same cell in both voices offset by 1–2 beats,
-      with contrary-motion variants. Fixed leader/follower timing bug.
-
-All pitch bugs and texture failures closed. Listen before briefing
-further — hold-exchange, pedal, and final cadence are still weak
-but may improve with surrounding material now correct.
+Brief: `workflow/gel-1-brief.md`
 
 ---
 
 ## Parked
 
-### Must-do (after current sequence)
+### Must-do (after TB sequence)
 
 - Invertible counterpoint enforcement: CS is optimised per-entry by Viterbi, not composed once to work both above and below the subject. True double counterpoint requires a single CS that is consonant in both orientations, then placed by register at render time.
 - Hold-exchange cross-bar descent: dispatcher sends hold-exchange as two separate 1-bar entries, so cell_iteration>0 never activates. Each bar sequences independently.
-- Pedal soprano tension: `_write_pedal` gives soprano only two boundary knots. Viterbi produces identical bars. Need cadential-approach contour with mid-phrase knots.
 - Final cadence bass formula: cadenza_composta bass is three repeated dominants then bare tonic. No cadential formula (IV–V–I, ii6–V–I).
 - Cadence length reform (remaining): semplice, half, comma in 4/4; all in 3/4; hemiola; grand cadence
 - Structural knot consonance: tritones between voice knots from degree + octave selection
 
 ### Later
 
+- M001–M005 violations: fix all items in `mviolations.md` (34 violations; worst: viterbi/costs.py transition_cost at 20 params)
 - Algorithmic answer_offset_beats
 - Subject generator reform (rhythmic drama), must generate tonal rather than real answers.
 - VG4: rewrite phrase_writer (unified generate_voice dispatch)
@@ -81,13 +64,25 @@ but may improve with surrounding material now correct.
 
 ## Completed
 
+### Pedal + cleanup (2026-02-24)
+
+PED-1, DUP-1, BUG-1, DBG-1, code review refactor. See completed.md.
+
+### Texture failures (2026-02-24)
+
+F3 (Fragen class), F4 (canonic episode texture).
+
+### Pitch bugs (2026-02-23/24)
+
+CP1–CP4, F1–F2. Subject generator reforms: SUBPOOL, SUBDUR, SUBSCORE.
+
 ### Bach Invention Targets (2026-02-15/16)
 
-All closed. B1–B8 infrastructure in place. Musical quality gated by CP sequence.
+B1–B8 infrastructure. Musical quality gated by CP sequence.
 
 ### IMP — Imitative Composition Path (2026-02-15)
 
-IMP-1 through IMP-7 complete. Listening gate passed.
+IMP-1 through IMP-7. Listening gate passed.
 
 ### Earlier work
 

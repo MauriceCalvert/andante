@@ -15,8 +15,19 @@ from builder.phrase_types import (
 )
 from builder.soprano_viterbi import generate_soprano_viterbi
 from builder.types import Note
+from builder.voice_types import VoiceBias
+from motifs.fugue_loader import ThematicBias
+from motifs.thematic_transform import (
+    build_thematic_knots,
+    diminish,
+    invert,
+    nearest_degree_for_midi,
+    retrograde,
+    sequence_cell_knots,
+)
 from planner.thematic import BeatRole, ThematicRole
 from shared.key import Key
+from viterbi.mtypes import Knot
 
 
 def _companion_density(material_character: str) -> str:
@@ -43,6 +54,7 @@ def fill_free_bars(
     next_phrase_entry_degree: int | None,
     next_phrase_entry_key: Key | None,
     bar_length: Fraction,
+    bias: ThematicBias | None = None,
 ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
     """Fill FREE bars (companion alongside material + tail after material).
 
@@ -178,6 +190,7 @@ def fill_free_bars(
         free_runs.append((current_run_start, current_run_count, current_run_voice))
 
     # Generate Viterbi fill for each FREE bar run with companion density
+    run_counter: int = 0
     for first_bar, bar_count, free_voice_idx in free_runs:
         bars_from_phrase_start: int = first_bar - phrase_first_bar
         run_start_offset: Fraction = plan.start_offset + bars_from_phrase_start * bar_length
@@ -198,6 +211,56 @@ def fill_free_bars(
 
         if free_voice_idx == 0:
             # Soprano is FREE, bass has material
+
+            # Build thematic knots for companion soprano (CS-derived pattern)
+            companion_sop_knots: list[Knot] | None = None
+            prev_sop_midi: int = (
+                (soprano_notes[-1].pitch if soprano_notes else run_plan.prev_exit_upper)
+                or run_plan.upper_median
+            )
+            if bias is not None and bias.cell_catalogue is not None and bias.cell_catalogue.all_cells:
+                candidate_sop_knots: list[Knot] = sequence_cell_knots(
+                    catalogue=bias.cell_catalogue,
+                    span_duration=run_plan.phrase_duration,
+                    prefer_family="cs",
+                    start_midi=prev_sop_midi,
+                    key=plan.local_key,
+                    start_offset=run_start_offset,
+                    range_low=run_plan.upper_range.low,
+                    range_high=run_plan.upper_range.high,
+                    max_offset=run_start_offset + run_plan.phrase_duration,
+                    seed=run_counter,
+                )
+                if candidate_sop_knots:
+                    companion_sop_knots = candidate_sop_knots
+            elif bias is not None:
+                # Fallback: whole-pattern approach (TB-3b)
+                cs_pattern = bias.cs_pattern
+                transform_choice: int = run_counter % 3
+                if transform_choice == 0:
+                    transformed_sop = invert(cs_pattern)
+                elif transform_choice == 1:
+                    transformed_sop = cs_pattern  # identity (transpose via start_degree)
+                else:
+                    transformed_sop = retrograde(cs_pattern)
+                sop_start_degree: int
+                sop_start_octave: int
+                sop_start_degree, sop_start_octave = nearest_degree_for_midi(
+                    target_midi=prev_sop_midi, key=plan.local_key,
+                )
+                fallback_sop_knots: list[Knot] = build_thematic_knots(
+                    pattern=transformed_sop,
+                    start_degree=sop_start_degree,
+                    key=plan.local_key,
+                    octave=sop_start_octave,
+                    start_offset=run_start_offset,
+                    range_low=run_plan.upper_range.low,
+                    range_high=run_plan.upper_range.high,
+                    max_offset=run_start_offset + run_plan.phrase_duration,
+                )
+                if fallback_sop_knots:
+                    companion_sop_knots = fallback_sop_knots
+
             structural_free: tuple[Note, ...] = build_structural_soprano(
                 plan=run_plan,
                 prev_exit_midi=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper,
@@ -218,6 +281,12 @@ def fill_free_bars(
                 k: frozenset(v) for k, v in bass_onsets_by_bar.items()
             }
 
+            sop_bias: VoiceBias = VoiceBias(
+                degree_affinity=bias.degree_affinity if bias else None,
+                interval_affinity=bias.cs_interval_affinity if bias else None,
+                structural_knots=companion_sop_knots,
+                vertical_genome=bias.vertical_genome if bias else None,
+            )
             free_soprano: tuple[Note, ...]
             free_soprano, _ = generate_soprano_viterbi(
                 plan=run_plan,
@@ -228,18 +297,76 @@ def fill_free_bars(
                 harmonic_grid=None,
                 density_override=companion_density_level,
                 avoid_onsets_by_bar=avoid_onsets,
+                bias=sop_bias,
             )
             soprano_notes = soprano_notes + free_soprano
         else:
             # Bass is FREE, soprano has material
+
+            # Build thematic knots for companion bass (subject-derived pattern)
+            companion_bass_knots: list[Knot] | None = None
+            prev_bass_midi: int = (
+                (bass_notes[-1].pitch if bass_notes else run_plan.prev_exit_lower)
+                or run_plan.lower_median
+            )
+            if bias is not None and bias.cell_catalogue is not None and bias.cell_catalogue.all_cells:
+                candidate_bass_knots: list[Knot] = sequence_cell_knots(
+                    catalogue=bias.cell_catalogue,
+                    span_duration=run_plan.phrase_duration,
+                    prefer_family="subject",
+                    start_midi=prev_bass_midi,
+                    key=plan.local_key,
+                    start_offset=run_start_offset,
+                    range_low=run_plan.lower_range.low,
+                    range_high=run_plan.lower_range.high,
+                    max_offset=run_start_offset + run_plan.phrase_duration,
+                    seed=run_counter,
+                )
+                if candidate_bass_knots:
+                    companion_bass_knots = candidate_bass_knots
+            elif bias is not None:
+                # Fallback: whole-pattern approach (TB-3b)
+                subj_pattern = bias.subject_pattern
+                bass_transform_choice: int = run_counter % 2
+                if bass_transform_choice == 0:
+                    transformed_bass = subj_pattern  # identity
+                else:
+                    transformed_bass = invert(subj_pattern)
+                bass_start_degree: int
+                bass_start_octave: int
+                bass_start_degree, bass_start_octave = nearest_degree_for_midi(
+                    target_midi=prev_bass_midi, key=plan.local_key,
+                )
+                fallback_bass_knots: list[Knot] = build_thematic_knots(
+                    pattern=transformed_bass,
+                    start_degree=bass_start_degree,
+                    key=plan.local_key,
+                    octave=bass_start_octave,
+                    start_offset=run_start_offset,
+                    range_low=run_plan.lower_range.low,
+                    range_high=run_plan.lower_range.high,
+                    max_offset=run_start_offset + run_plan.phrase_duration,
+                )
+                if fallback_bass_knots:
+                    companion_bass_knots = fallback_bass_knots
+
+            bass_bias: VoiceBias = VoiceBias(
+                degree_affinity=bias.degree_affinity if bias else None,
+                interval_affinity=bias.subject_interval_affinity if bias else None,
+                structural_knots=companion_bass_knots,
+                vertical_genome=bias.vertical_genome if bias else None,
+            )
             free_bass: tuple[Note, ...] = generate_bass_viterbi(
                 plan=run_plan,
                 soprano_notes=soprano_notes,
                 prior_lower=bass_notes,
                 harmonic_grid=None,
                 density_override=companion_density_level,
+                bias=bass_bias,
             )
             bass_notes = bass_notes + free_bass
+
+        run_counter += 1
 
     # Handle FREE tail bars after last material entry (both voices FREE)
     if material_entries:
@@ -262,19 +389,119 @@ def fill_free_bars(
             )
 
             # Galant order: structural soprano → bass Viterbi → soprano Viterbi
+
+            # Build thematic knots for tail bass (subject identity) and soprano (diminished)
+            tail_bass_knots: list[Knot] | None = None
+            tail_sop_knots: list[Knot] | None = None
+            prev_tail_bass_midi: int = (
+                (bass_notes[-1].pitch if bass_notes else tail_plan.prev_exit_lower)
+                or tail_plan.lower_median
+            )
+            prev_tail_sop_midi: int = (
+                (soprano_notes[-1].pitch if soprano_notes else tail_plan.prev_exit_upper)
+                or tail_plan.upper_median
+            )
+            if bias is not None and bias.cell_catalogue is not None and bias.cell_catalogue.all_cells:
+                # Tail bass: subject cells (seed=100)
+                candidate_tail_bass_knots: list[Knot] = sequence_cell_knots(
+                    catalogue=bias.cell_catalogue,
+                    span_duration=tail_plan.phrase_duration,
+                    prefer_family="subject",
+                    start_midi=prev_tail_bass_midi,
+                    key=plan.local_key,
+                    start_offset=tail_start_offset,
+                    range_low=tail_plan.lower_range.low,
+                    range_high=tail_plan.lower_range.high,
+                    max_offset=tail_start_offset + tail_plan.phrase_duration,
+                    seed=100,
+                )
+                if candidate_tail_bass_knots:
+                    tail_bass_knots = candidate_tail_bass_knots
+
+                # Tail soprano: CS cells (seed=200)
+                candidate_tail_sop_knots: list[Knot] = sequence_cell_knots(
+                    catalogue=bias.cell_catalogue,
+                    span_duration=tail_plan.phrase_duration,
+                    prefer_family="cs",
+                    start_midi=prev_tail_sop_midi,
+                    key=plan.local_key,
+                    start_offset=tail_start_offset,
+                    range_low=tail_plan.upper_range.low,
+                    range_high=tail_plan.upper_range.high,
+                    max_offset=tail_start_offset + tail_plan.phrase_duration,
+                    seed=200,
+                )
+                if candidate_tail_sop_knots:
+                    tail_sop_knots = candidate_tail_sop_knots
+            elif bias is not None:
+                # Fallback: whole-pattern approach (TB-3b)
+                subj_pattern_tail = bias.subject_pattern
+
+                # Tail bass: subject identity
+                tb_start_degree: int
+                tb_start_octave: int
+                tb_start_degree, tb_start_octave = nearest_degree_for_midi(
+                    target_midi=prev_tail_bass_midi, key=plan.local_key,
+                )
+                fallback_tail_bass_knots: list[Knot] = build_thematic_knots(
+                    pattern=subj_pattern_tail,
+                    start_degree=tb_start_degree,
+                    key=plan.local_key,
+                    octave=tb_start_octave,
+                    start_offset=tail_start_offset,
+                    range_low=tail_plan.lower_range.low,
+                    range_high=tail_plan.lower_range.high,
+                    max_offset=tail_start_offset + tail_plan.phrase_duration,
+                )
+                if fallback_tail_bass_knots:
+                    tail_bass_knots = fallback_tail_bass_knots
+
+                # Tail soprano: diminished subject
+                diminished_subj = diminish(subj_pattern_tail)
+                ts_start_degree: int
+                ts_start_octave: int
+                ts_start_degree, ts_start_octave = nearest_degree_for_midi(
+                    target_midi=prev_tail_sop_midi, key=plan.local_key,
+                )
+                fallback_tail_sop_knots: list[Knot] = build_thematic_knots(
+                    pattern=diminished_subj,
+                    start_degree=ts_start_degree,
+                    key=plan.local_key,
+                    octave=ts_start_octave,
+                    start_offset=tail_start_offset,
+                    range_low=tail_plan.upper_range.low,
+                    range_high=tail_plan.upper_range.high,
+                    max_offset=tail_start_offset + tail_plan.phrase_duration,
+                )
+                if fallback_tail_sop_knots:
+                    tail_sop_knots = fallback_tail_sop_knots
+
             structural_tail: tuple[Note, ...] = build_structural_soprano(
                 plan=tail_plan,
                 prev_exit_midi=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper,
             )
 
+            tail_bass_bias: VoiceBias = VoiceBias(
+                degree_affinity=bias.degree_affinity if bias else None,
+                interval_affinity=bias.subject_interval_affinity if bias else None,
+                structural_knots=tail_bass_knots,
+                vertical_genome=bias.vertical_genome if bias else None,
+            )
             tail_bass: tuple[Note, ...] = generate_bass_viterbi(
                 plan=tail_plan,
                 soprano_notes=prior_upper + soprano_notes + structural_tail,
                 prior_lower=bass_notes,
                 harmonic_grid=None,
+                bias=tail_bass_bias,
             )
             bass_notes = bass_notes + tail_bass
 
+            tail_sop_bias: VoiceBias = VoiceBias(
+                degree_affinity=bias.degree_affinity if bias else None,
+                interval_affinity=bias.cs_interval_affinity if bias else None,
+                structural_knots=tail_sop_knots,
+                vertical_genome=bias.vertical_genome if bias else None,
+            )
             tail_soprano: tuple[Note, ...]
             tail_soprano, _ = generate_soprano_viterbi(
                 plan=tail_plan,
@@ -283,6 +510,7 @@ def fill_free_bars(
                 next_phrase_entry_degree=next_phrase_entry_degree,
                 next_phrase_entry_key=next_phrase_entry_key,
                 harmonic_grid=None,
+                bias=tail_sop_bias,
             )
             soprano_notes = soprano_notes + tail_soprano
 

@@ -195,7 +195,7 @@ compaction, which is slow and lossy. Keep each brief to ONE concern:
 
 - Code change only (no audit), OR
 - Audit/analysis only (no code change)
-- Max 4 files modified per brief
+- Max 3 files modified per brief, more if changes are minor and low-impact.
 - If a checkpoint requires a full downbeat audit table, make the audit a
   separate follow-up brief after the code change is verified to run
 - If a task naturally has two parts (e.g., fix + validate), split into

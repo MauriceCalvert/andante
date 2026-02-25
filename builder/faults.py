@@ -55,13 +55,13 @@ from shared.constants import (
     DIRECT_MOTION_LEAP_SEMITONES,
     GROTESQUE_LEAP_SEMITONES,
     MAX_PARALLEL_RHYTHM_ATTACKS,
-    NOTE_NAMES_SHARP,
     SKIP_SEMITONES,
     STEP_SEMITONES,
     UGLY_INTERVALS,
     VOICE_NAME_TO_RANGE_IDX,
     VOICE_RANGES,
 )
+from shared.pitch import midi_to_name as _midi_to_name
 
 
 
@@ -96,13 +96,6 @@ def _is_strong_beat(offset: Fraction, metre: str) -> bool:
     bar_dur: Fraction = _bar_duration(metre=metre)
     offset_in_bar: Fraction = offset % bar_dur
     return offset_in_bar == Fraction(0)
-
-
-def _midi_to_name(midi: int) -> str:
-    """Convert MIDI pitch to note name."""
-    octave: int = (midi // 12) - 1
-    pc: int = midi % 12
-    return f"{NOTE_NAMES_SHARP[pc]}{octave}"
 
 
 def _motion_type(

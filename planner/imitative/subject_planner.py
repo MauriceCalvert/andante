@@ -8,9 +8,14 @@ scaffold that tells downstream modules what material goes where.
 IMP-4. Auto-inserts episode bars at section boundaries. Episodes are not
 declared in the YAML — the planner detects where sections change and
 bridges them with sequential fragments of the subject head.
+
+GEL-1. When thematic_config has 'vocabulary' instead of 'entry_sequence',
+generate_entry_sequence() produces the sequence at runtime from vocabulary
++ brief. Downstream of raw_sequence is unchanged.
 """
 from __future__ import annotations
 
+import logging
 import math
 
 from shared.constants import CADENCE_BARS
@@ -18,6 +23,8 @@ from shared.key import Key
 
 from motifs.fugue_loader import LoadedStretto
 from planner.imitative.types import BarAssignment, SubjectPlan, VoiceAssignment
+
+_log: logging.Logger = logging.getLogger(__name__)
 
 # Roles that are not yet supported (IMP-5)
 _UNSUPPORTED_ROLES: frozenset[str] = frozenset({
@@ -30,6 +37,167 @@ _EPISODE_BARS: int = 2
 # Slot-to-beat conversion (from stretto_constraints)
 _SLOTS_PER_CROTCHET: int = 4
 _SLOTS_PER_QUAVER: int = 2
+
+# Scope -> default development entry count (GEL-1)
+_SCOPE_DEV_COUNT: dict[str, int] = {"short": 2, "medium": 3, "extended": 5}
+
+
+def _voice_0_leads(entry_idx: int, voice_lead: str) -> bool:
+    """Return True if voice 0 (upper) should carry the subject in this development entry.
+
+    entry_idx is 0-based counting of subject_cs entries emitted so far.
+    """
+    if voice_lead == "alternate":
+        return entry_idx % 2 == 0
+    if voice_lead == "soprano_heavy":
+        return entry_idx % 3 != 2
+    if voice_lead == "bass_heavy":
+        return entry_idx % 3 == 2
+    assert False, (
+        f"Unknown voice_lead '{voice_lead}'. Use: alternate / soprano_heavy / bass_heavy"
+    )
+
+
+def generate_entry_sequence(
+    vocabulary: dict,
+    brief: dict,
+    home_key: Key,
+    stretto_offsets: tuple[LoadedStretto, ...],
+) -> list[dict | str]:
+    """Generate entry_sequence at runtime from vocabulary + brief (GEL-1).
+
+    Produces a list in exactly the format that plan_subject expects:
+    dicts with upper/lower keys, special type dicts, or the string "cadence".
+    """
+    sequence: list[dict | str] = []
+
+    # ── a. Exposition ─────────────────────────────────────────────────
+    exposition: list = vocabulary.get("exposition", [])
+    assert len(exposition) > 0, (
+        "vocabulary.exposition is empty; add at least one entry"
+    )
+    sequence.extend(exposition)
+
+    # ── d. Scope mapping ──────────────────────────────────────────────
+    scope: str = brief.get("scope", "medium")
+    assert scope in _SCOPE_DEV_COUNT, (
+        f"brief.scope must be 'short'/'medium'/'extended', got '{scope}'"
+    )
+    base_dev_count: int = _SCOPE_DEV_COUNT[scope]
+    dev_count: int = brief.get("development_entries", base_dev_count)
+
+    # Key journey from brief (selected by home key mode)
+    if home_key.mode == "major":
+        base_journey: list[str] = list(brief.get("key_journey_major", []))
+    else:
+        base_journey = list(brief.get("key_journey_minor", []))
+    assert len(base_journey) > 0, (
+        f"brief.key_journey_{home_key.mode} is empty; add at least one key label"
+    )
+
+    # Extend (extended scope) or truncate journey to match dev_count
+    if scope == "extended":
+        journey: list[str] = list(base_journey)
+        while len(journey) < dev_count:
+            journey.append(journey[-1])
+        journey = journey[:dev_count]
+    else:
+        journey = base_journey[:dev_count]
+
+    # ── b. Development ────────────────────────────────────────────────
+    dev_templates: list[dict] = vocabulary.get("development_entries", [])
+    assert len(dev_templates) > 0, (
+        "vocabulary.development_entries is empty; add at least one template"
+    )
+
+    stretto_setting: str = brief.get("stretto", "single")
+    assert stretto_setting in ("none", "single", "multiple"), (
+        f"brief.stretto must be 'none'/'single'/'multiple', got '{stretto_setting}'"
+    )
+    voice_lead: str = brief.get("voice_lead", "alternate")
+
+    hold_exchange_used: bool = False
+    template_idx: int = 0
+    subject_cs_count: int = 0  # tracks voice_lead alternation for subject_cs only
+
+    for key_label in journey:
+        emitted: bool = False
+        for _ in range(len(dev_templates) * 2):
+            tmpl: dict = dev_templates[template_idx % len(dev_templates)]
+            tmpl_name: str = tmpl["template"]
+            template_idx += 1
+
+            if tmpl_name == "stretto" and stretto_setting == "none":
+                continue
+            if tmpl_name == "hold_exchange" and hold_exchange_used:
+                continue
+
+            if tmpl_name == "subject_cs":
+                upper0: bool = _voice_0_leads(
+                    entry_idx=subject_cs_count,
+                    voice_lead=voice_lead,
+                )
+                subject_cs_count += 1
+                if upper0:
+                    sequence.append({"upper": ["subject", key_label], "lower": ["cs", key_label]})
+                else:
+                    sequence.append({"upper": ["cs", key_label], "lower": ["subject", key_label]})
+                emitted = True
+                break
+
+            if tmpl_name == "hold_exchange":
+                he_bars: int = tmpl.get("bars", 2)
+                sequence.append({"type": "hold_exchange", "key": key_label, "bars": he_bars})
+                hold_exchange_used = True
+                emitted = True
+                break
+
+            if tmpl_name == "stretto":
+                sequence.append({"type": "stretto_section", "key": key_label})
+                emitted = True
+                break
+
+            assert False, (
+                f"Unknown development template '{tmpl_name}'. "
+                f"Use: subject_cs / hold_exchange / stretto"
+            )
+
+        assert emitted, (
+            f"All development templates were skipped for key '{key_label}'. "
+            f"Check vocabulary.development_entries has a viable template "
+            f"for brief.stretto='{stretto_setting}'"
+        )
+
+    # ── c. Peroration ─────────────────────────────────────────────────
+    peroration_entries: list[dict] = vocabulary.get("peroration_entries", [])
+
+    if stretto_setting in ("single", "multiple"):
+        sequence.append({"type": "stretto_section", "key": "I"})
+        if stretto_setting == "multiple" and len(stretto_offsets) >= 2:
+            sequence.append({"type": "stretto_section", "key": "I"})
+
+    if brief.get("pedal", False):
+        pedal_tmpl: dict | None = next(
+            (t for t in peroration_entries if t.get("template") == "pedal"),
+            None,
+        )
+        if pedal_tmpl is not None:
+            sequence.append({
+                "type": "pedal",
+                "degree": pedal_tmpl["degree"],
+                "bars": pedal_tmpl["bars"],
+            })
+
+    sequence.append("cadence")
+
+    _log.info(
+        "GEL-1 generated entry_sequence (scope=%s, mode=%s, dev_count=%d): %s",
+        scope,
+        home_key.mode,
+        dev_count,
+        sequence,
+    )
+    return sequence
 
 
 def _extract_lead_voice_and_key(entry: dict | str, home_key: Key) -> tuple[int | None, Key | None]:
@@ -117,31 +285,43 @@ def plan_subject(
     Returns:
         SubjectPlan with one BarAssignment per bar, fully validated.
     """
-    raw_sequence: list = thematic_config["entry_sequence"]
+    if "entry_sequence" in thematic_config:
+        # Legacy: literal entry_sequence (backward compat for other genres)
+        raw_sequence: list = thematic_config["entry_sequence"]
+    else:
+        vocabulary: dict = thematic_config["vocabulary"]
+        brief: dict = thematic_config.get("brief", {})
+        raw_sequence = generate_entry_sequence(
+            vocabulary=vocabulary,
+            brief=brief,
+            home_key=home_key,
+            stretto_offsets=stretto_offsets,
+        )
     assert len(raw_sequence) > 0, "entry_sequence is empty"
 
-    # Expand stretto_section into individual stretto entries
+    # Expand stretto_section into a single stretto entry (tightest offset)
     spb: int = _slots_per_beat(metre=metre)
     entry_sequence: list = []
     for entry in raw_sequence:
         if isinstance(entry, dict) and entry.get("type") == "stretto_section":
             section_key: str = entry["key"]
-            sorted_offsets: list[LoadedStretto] = sorted(
+            assert len(stretto_offsets) > 0, (
+                "stretto_section requested but no viable stretto offsets found"
+            )
+            tightest: LoadedStretto = min(
                 stretto_offsets,
                 key=lambda s: s.offset_slots,
-                reverse=True,
             )
-            for so in sorted_offsets:
-                delay_beats: int = so.offset_slots // spb
-                assert delay_beats * spb == so.offset_slots, (
-                    f"Stretto offset {so.offset_slots} slots not divisible by "
-                    f"{spb} slots/beat"
-                )
-                entry_sequence.append({
-                    "type": "stretto",
-                    "key": section_key,
-                    "delay": delay_beats,
-                })
+            delay_beats: int = tightest.offset_slots // spb
+            assert delay_beats * spb == tightest.offset_slots, (
+                f"Stretto offset {tightest.offset_slots} slots not divisible by "
+                f"{spb} slots/beat"
+            )
+            entry_sequence.append({
+                "type": "stretto",
+                "key": section_key,
+                "delay": delay_beats,
+            })
         else:
             entry_sequence.append(entry)
 

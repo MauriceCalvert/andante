@@ -9,14 +9,9 @@ from fractions import Fraction
 from pathlib import Path
 
 from builder.types import Composition, Note
-from shared.constants import METRE_BAR_LENGTH, NOTE_NAMES
-
-
-def note_name(midi: int) -> str:
-    """Convert MIDI number to note name (e.g., 60 → C4)."""
-    octave: int = (midi // 12) - 1
-    pc: int = midi % 12
-    return f"{NOTE_NAMES[pc]}{octave}"
+from shared.constants import METRE_BAR_LENGTH
+from shared.music_math import parse_metre
+from shared.pitch import midi_to_name as note_name
 
 
 def bar_beat(offset: Fraction, metre: str, upbeat: Fraction = Fraction(0)) -> tuple[int, Fraction]:
@@ -69,7 +64,8 @@ def write_midi_file(
             velocity=80,
             track=note.voice,
         ))
-    time_sig = _parse_time_signature(metre=comp.metre)
+    _bar_len, _beat_unit = parse_metre(metre=comp.metre)
+    time_sig: tuple[int, int] = (int(_bar_len / _beat_unit), int(1 / _beat_unit))
     write_midi_notes(
         path=str(path),
         notes=midi_notes,
@@ -78,12 +74,6 @@ def write_midi_file(
         tonic=tonic,
         mode=mode,
     )
-
-
-def _parse_time_signature(metre: str) -> tuple[int, int]:
-    """Parse metre string to time signature tuple."""
-    parts = metre.split("/")
-    return (int(parts[0]), int(parts[1]))
 
 
 def write_musicxml_file(

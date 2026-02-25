@@ -176,10 +176,9 @@ def generate(
             if sn != prev_sec:
                 unique_sections.append(sn)
                 prev_sec = sn
-        entry_count: int = len(thematic_cfg["entry_sequence"])
         tracer._line(
             f"L3 Imitative SubjectPlan: {subject_plan.total_bars} bars, "
-            f"{entry_count} entries, sections: {' > '.join(unique_sections)}"
+            f"sections: {' > '.join(unique_sections)}"
         )
 
         # L4/L5 imitative: Build PhrasePlans from SubjectPlan (skip galant layers)
@@ -361,6 +360,30 @@ def _attach_thematic_roles(
     return tuple(enriched_plans)
 
 
+def main() -> None:
+    """CLI entry point: python -m planner <genre> <affect> [key] [output_dir] [name]"""
+    import sys
+    if len(sys.argv) < 3:
+        print("Usage: python -m planner <genre> <affect> [key] [output_dir] [name]", file=sys.stderr)
+        print("       Example: python -m planner invention default", file=sys.stderr)
+        print("       Example: python -m planner invention default c_major", file=sys.stderr)
+        print("       When key is omitted, derives from affect per Mattheson", file=sys.stderr)
+        sys.exit(1)
+    genre: str = sys.argv[1]
+    affect: str = sys.argv[2]
+    key: str | None = sys.argv[3] if len(sys.argv) > 3 and "_" in sys.argv[3] else None
+    arg_offset: int = 4 if key else 3
+    output_dir: Path = Path(sys.argv[arg_offset]) if len(sys.argv) > arg_offset else Path("output")
+    name: str = sys.argv[arg_offset + 1] if len(sys.argv) > arg_offset + 1 else f"{genre}_{affect}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key)
+    key_used: str = key if key else "(derived from affect)"
+    total_notes: int = sum(len(v) for v in result.voices.values())
+    print(f"Generated {total_notes} notes across {len(result.voices)} voices")
+    print(f"Key: {key_used}")
+    print(f"Output: {output_dir / name}.note, {output_dir / name}.midi")
+
+
 def generate_to_files(
     genre: str,
     affect: str,
@@ -410,8 +433,6 @@ def generate_to_files(
                     seed=seed,
                     tonic_midi=tonic_midi,
                     verbose=True,
-                    affect=affect,
-                    genre=genre,
                 )
                 write_fugue_file(triple=triple, path=fugue_path)
                 fugue = load_fugue_path(path=fugue_path)

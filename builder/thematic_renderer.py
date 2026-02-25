@@ -197,7 +197,7 @@ def _render_episode_fragment(
             pitch=pitch + shift,
             duration=duration,
             voice=target_track,
-            generated_by="episode_fragment",
+            creator="episode_fragment",
         ))
         offset += duration
 

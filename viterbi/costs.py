@@ -84,6 +84,15 @@ COST_PERFECT_ON_STRONG = 1.5
 # Chord-tone preference (schema-derived)
 COST_NON_CHORD_TONE = 5.0     # non-chord-tone on strong beat
 
+# Degree affinity bonus (tunable proxy — adjusted after TB-1b)
+COST_DEGREE_AFFINITY_BONUS: float = 3.0   # max discount for most-emphasised degree
+
+# Interval affinity bonus (TB-2a)
+COST_INTERVAL_AFFINITY_BONUS: float = 4.0  # max discount for most-common subject interval
+
+# Vertical genome bias (TB-5b)
+COST_VERTICAL_GENOME_BONUS: float = 3.0   # max discount for matching genome interval at phrase position
+
 # Tritone surcharge (ic=6 is uniquely harsh in two-part texture)
 COST_TRITONE = 80.0
 
@@ -100,6 +109,80 @@ _CROSS_RELATION_PAIRS = frozenset({
     (7, 8),   # G / G#
     (9, 10),  # A / A#
 })
+
+
+def _pitch_to_degree_index(
+    pitch: int,
+    key: KeyInfo,
+) -> int:
+    """Return 0-based degree index (0-6) for a diatonic pitch, or -1 if non-diatonic."""
+    pc: int = pitch % 12
+    if pc not in key.pitch_class_set:
+        return -1
+    pcs: list[int] = sorted(key.pitch_class_set)
+    tonic_idx: int = pcs.index(key.tonic_pc)
+    pc_idx: int = pcs.index(pc)
+    return (pc_idx - tonic_idx) % len(pcs)
+
+
+def degree_affinity_cost(
+    curr_pitch: int,
+    degree_affinity: tuple[float, ...],
+    key: KeyInfo,
+) -> float:
+    """Cost bonus (negative) for pitches on subject-emphasised degrees.
+
+    Returns -COST_DEGREE_AFFINITY_BONUS * affinity[degree] for diatonic
+    pitches, 0.0 for non-diatonic.
+    """
+    deg_idx: int = _pitch_to_degree_index(pitch=curr_pitch, key=key)
+    if deg_idx < 0:
+        return 0.0
+    return -COST_DEGREE_AFFINITY_BONUS * degree_affinity[deg_idx]
+
+
+def interval_affinity_cost(
+    prev_pitch: int,
+    curr_pitch: int,
+    interval_affinity: dict[int, float],
+    key: KeyInfo,
+) -> float:
+    """Cost bonus (negative) for transitions matching subject interval vocabulary.
+
+    Returns -COST_INTERVAL_AFFINITY_BONUS * affinity[signed_interval], or 0.0
+    if the interval is absent from the affinity dict.
+    """
+    if prev_pitch == curr_pitch:
+        signed_interval: int = 0
+    else:
+        step_count: int = scale_degree_distance(prev_pitch, curr_pitch, key)
+        direction: int = 1 if curr_pitch > prev_pitch else -1
+        signed_interval = direction * step_count
+    return -COST_INTERVAL_AFFINITY_BONUS * interval_affinity.get(signed_interval, 0.0)
+
+
+def vertical_genome_cost(
+    follower_pitch: int,
+    leader_pitch: int,
+    phrase_position: float,
+    genome_entries: tuple[tuple[float, int], ...],
+    key: KeyInfo,
+) -> float:
+    """Bonus (negative cost) for matching the genome's vertical interval at phrase_position.
+
+    Looks up the target diatonic interval from genome_entries nearest to
+    phrase_position, computes the actual diatonic interval between follower and
+    leader, and returns a discount proportional to how closely they match.
+
+    Maximum discount when actual == target; zero when |diff| >= 4 scale degrees.
+    """
+    if not genome_entries:
+        return 0.0
+    target_interval: int = min(genome_entries, key=lambda e: abs(e[0] - phrase_position))[1]
+    actual_interval: int = scale_degree_distance(follower_pitch, leader_pitch, key)
+    diff: int = abs(actual_interval - target_interval)
+    match_ratio: float = max(0.0, 1.0 - diff / 4.0)
+    return -COST_VERTICAL_GENOME_BONUS * match_ratio
 
 
 def step_cost(
@@ -553,6 +636,9 @@ def transition_cost(
     chord_pcs: frozenset[int] = frozenset(),
     hard_constraints: bool = True,
     contour_weight: float = 1.0,
+    degree_affinity: tuple[float, ...] | None = None,
+    interval_affinity: dict[int, float] | None = None,
+    genome_entries: tuple[tuple[float, int], ...] | None = None,
 ) -> tuple[float, dict[str, float]]:
     """Total cost of one transition, with itemised breakdown.
 
@@ -583,6 +669,30 @@ def transition_cost(
     pp = phrase_position_cost(curr_pitch, target_pitch, phrase_position, key)
     cc = contour_cost(curr_pitch, contour_target, key, contour_weight=contour_weight)
     ctc = chord_tone_cost(curr_pitch, chord_pcs, curr_beat_strength)
+    dac: float = 0.0
+    if degree_affinity is not None:
+        dac = degree_affinity_cost(
+            curr_pitch=curr_pitch,
+            degree_affinity=degree_affinity,
+            key=key,
+        )
+    iac: float = 0.0
+    if interval_affinity is not None:
+        iac = interval_affinity_cost(
+            prev_pitch=prev_pitch,
+            curr_pitch=curr_pitch,
+            interval_affinity=interval_affinity,
+            key=key,
+        )
+    vgc: float = 0.0
+    if genome_entries is not None and curr_others:
+        vgc = vertical_genome_cost(
+            follower_pitch=curr_pitch,
+            leader_pitch=curr_others[0],
+            phrase_position=phrase_position,
+            genome_entries=genome_entries,
+            key=key,
+        )
 
     # Pairwise terms (sum over all existing voices)
     mc_total = 0.0
@@ -615,7 +725,7 @@ def transition_cost(
 
     total = (sc + mc_total + lrc + zc + prc + rp + dc_total
              + pp + xrc_total + spc_total + iqc_total + vcc_total + cc + ctc
-             + dpc_total)
+             + dpc_total + dac + iac + vgc)
     breakdown = {
         "step": sc,
         "motion": mc_total,
@@ -632,6 +742,9 @@ def transition_cost(
         "direct_perf": dpc_total,
         "contour": cc,
         "chord": ctc,
+        "deg_aff": dac,
+        "iv_aff": iac,
+        "vg": vgc,
         "total": total,
     }
     return total, breakdown
