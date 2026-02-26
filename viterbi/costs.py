@@ -6,6 +6,9 @@ Dissonance is assessed at departure: when transitioning from pitch A to
 pitch B, we evaluate A's dissonance with full knowledge of both approach
 (from the predecessor) and departure (to B).
 """
+from dataclasses import dataclass
+
+from viterbi.mtypes import AffinityContext
 from viterbi.scale import (
     is_consonant,
     is_perfect,
@@ -109,6 +112,26 @@ _CROSS_RELATION_PAIRS = frozenset({
     (7, 8),   # G / G#
     (9, 10),  # A / A#
 })
+
+
+@dataclass(frozen=True)
+class FollowerStep:
+    """Per-beat state of the follower voice (M002 bundle for pairwise/transition cost)."""
+    prev_pitch: int
+    curr_pitch: int
+    prev_beat_strength: str
+    curr_beat_strength: str
+    prev_prev_pitch: int | None
+    key: KeyInfo
+
+
+@dataclass(frozen=True)
+class VoiceData:
+    """Pairwise data for all existing voices at one beat transition (M002 bundle)."""
+    prev_others: tuple[int, ...]
+    curr_others: tuple[int, ...]
+    nearby_pcs_per_voice: tuple[frozenset[int], ...]
+    is_above_per_voice: tuple[bool, ...]
 
 
 def _pitch_to_degree_index(
@@ -498,24 +521,25 @@ def voice_crossing_cost(
 
 
 def hard_constraint_cost(
-    prev_prev_pitch: int | None,
-    prev_pitch: int,
-    curr_pitch: int,
-    curr_others: list[int],
-    prev_others: list[int],
-    curr_beat_strength: str,
-    key: KeyInfo,
-    is_above_per_voice: list[bool],
+    step: FollowerStep,
+    voice_data: VoiceData,
 ) -> tuple[float, str]:
     """Hard constraints: return (HARD, rule_name) if violated, else (0.0, "").
 
     Five rules enforcing fundamental counterpoint correctness:
     - HC1: Anti-stasis (three consecutive identical pitches)
-    - HC2: Spacing ceiling (>24 semitones)
+    - HC2: Spacing ceiling (>36 semitones)
     - HC3: Parallel perfects (5ths/octaves)
     - HC4: Tritone on strong beat
-    - HC6: Similar-motion leaps (both voices leap ≥3rd in same direction)
+    - HC6: Similar-motion leaps (both voices leap >=3rd in same direction)
     """
+    prev_pitch = step.prev_pitch
+    curr_pitch = step.curr_pitch
+    prev_prev_pitch = step.prev_prev_pitch
+    key = step.key
+    curr_beat_strength = step.curr_beat_strength
+    curr_others = voice_data.curr_others
+    prev_others = voice_data.prev_others
     # HC1 — Anti-stasis: three consecutive identical pitches
     if prev_prev_pitch is not None:
         if prev_prev_pitch == prev_pitch == curr_pitch:
@@ -540,7 +564,7 @@ def hard_constraint_cost(
             if abs(curr_pitch - curr_others[i]) % 12 == 6:
                 return HARD, "HC4_tritone"
     # HC6 — Similar-motion leaps into perfect consonance
-    # Both voices leap ≥3rd in same direction AND arrive at P1/P5/P8
+    # Both voices leap >=3rd in same direction AND arrive at P1/P5/P8
     for i in range(len(curr_others)):
         f_interval = scale_degree_distance(prev_pitch, curr_pitch, key)
         l_interval = scale_degree_distance(prev_others[i], curr_others[i], key)
@@ -554,14 +578,9 @@ def hard_constraint_cost(
 
 
 def pairwise_cost(
-    prev_pitch: int,
-    curr_pitch: int,
+    step: FollowerStep,
     prev_other: int,
     curr_other: int,
-    prev_beat_strength: str,
-    curr_beat_strength: str,
-    prev_prev_pitch: int | None,
-    key: KeyInfo,
     nearby_other_pcs: frozenset[int],
     is_above: bool,
 ) -> dict[str, float]:
@@ -570,40 +589,40 @@ def pairwise_cost(
     Evaluated once per existing voice, then summed by transition_cost.
     """
     mc = motion_cost(
-        prev_follower=prev_pitch,
-        curr_follower=curr_pitch,
+        prev_follower=step.prev_pitch,
+        curr_follower=step.curr_pitch,
         prev_leader=prev_other,
         curr_leader=curr_other,
     )
     dc = dissonance_at_departure(
-        pitch=prev_pitch,
+        pitch=step.prev_pitch,
         leader_pitch=prev_other,
-        beat_strength=prev_beat_strength,
-        approach_pitch=prev_prev_pitch,
-        departure_pitch=curr_pitch,
-        key=key,
+        beat_strength=step.prev_beat_strength,
+        approach_pitch=step.prev_prev_pitch,
+        departure_pitch=step.curr_pitch,
+        key=step.key,
     )
     xrc = cross_relation_cost(
-        curr_pitch=curr_pitch,
+        curr_pitch=step.curr_pitch,
         nearby_leader_pcs=nearby_other_pcs,
     )
     spc = spacing_cost(
-        follower_pitch=curr_pitch,
+        follower_pitch=step.curr_pitch,
         leader_pitch=curr_other,
     )
     iqc = interval_quality_cost(
-        follower_pitch=curr_pitch,
+        follower_pitch=step.curr_pitch,
         leader_pitch=curr_other,
-        beat_strength=curr_beat_strength,
+        beat_strength=step.curr_beat_strength,
     )
     vcc = voice_crossing_cost(
-        follower_pitch=curr_pitch,
+        follower_pitch=step.curr_pitch,
         other_pitch=curr_other,
         is_above=is_above,
     )
     dpc = direct_perfect_cost(
-        prev_follower=prev_pitch,
-        curr_follower=curr_pitch,
+        prev_follower=step.prev_pitch,
+        curr_follower=step.curr_pitch,
         prev_other=prev_other,
         curr_other=curr_other,
     )
@@ -619,78 +638,66 @@ def pairwise_cost(
 
 
 def transition_cost(
-    prev_pitch: int,
-    curr_pitch: int,
-    prev_beat_strength: str,
-    curr_beat_strength: str,
-    prev_others: list[int],
-    curr_others: list[int],
-    nearby_pcs_per_voice: list[frozenset[int]],
-    is_above_per_voice: list[bool],
-    prev_prev_pitch: int | None = None,
-    phrase_position: float = 0.0,
-    target_pitch: int = 0,
-    run_count: int = 1,
-    key: KeyInfo = CMAJ,
-    contour_target: int = 0,
-    chord_pcs: frozenset[int] = frozenset(),
-    hard_constraints: bool = True,
-    contour_weight: float = 1.0,
-    degree_affinity: tuple[float, ...] | None = None,
-    interval_affinity: dict[int, float] | None = None,
-    genome_entries: tuple[tuple[float, int], ...] | None = None,
+    step: FollowerStep,
+    voice_data: VoiceData,
+    run_count: int,
+    phrase_position: float,
+    target_pitch: int,
+    contour_target: int,
+    chord_pcs: frozenset[int],
+    hard_constraints: bool,
+    affinity: AffinityContext | None = None,
 ) -> tuple[float, dict[str, float]]:
     """Total cost of one transition, with itemised breakdown.
 
     Melodic terms depend on the follower only.  Pairwise terms are
     evaluated once per existing voice and summed.
     """
+    key = step.key
+    prev_pitch = step.prev_pitch
+    curr_pitch = step.curr_pitch
+    curr_others = voice_data.curr_others
+    prev_others = voice_data.prev_others
+    contour_weight: float = (
+        affinity.contour.weight if (affinity is not None and affinity.contour is not None) else 1.0
+    )
     # Hard constraints check (short-circuits if violated)
     if hard_constraints:
-        hc, hc_rule = hard_constraint_cost(
-            prev_prev_pitch=prev_prev_pitch,
-            prev_pitch=prev_pitch,
-            curr_pitch=curr_pitch,
-            curr_others=curr_others,
-            prev_others=prev_others,
-            curr_beat_strength=curr_beat_strength,
-            key=key,
-            is_above_per_voice=is_above_per_voice,
-        )
+        hc, hc_rule = hard_constraint_cost(step=step, voice_data=voice_data)
         if hc == HARD:
             return HARD, {"hard": HARD, "total": HARD, "rule": hc_rule}
 
     # Melodic terms (follower only)
     sc = step_cost(prev_pitch, curr_pitch, key)
-    lrc = leap_recovery_cost(prev_prev_pitch, prev_pitch, curr_pitch, key)
-    zc = zigzag_cost(prev_prev_pitch, prev_pitch, curr_pitch, key)
-    prc = pitch_return_cost(prev_prev_pitch, curr_pitch)
+    lrc = leap_recovery_cost(step.prev_prev_pitch, prev_pitch, curr_pitch, key)
+    zc = zigzag_cost(step.prev_prev_pitch, prev_pitch, curr_pitch, key)
+    prc = pitch_return_cost(step.prev_prev_pitch, curr_pitch)
     rp = run_penalty(run_count)
     pp = phrase_position_cost(curr_pitch, target_pitch, phrase_position, key)
     cc = contour_cost(curr_pitch, contour_target, key, contour_weight=contour_weight)
-    ctc = chord_tone_cost(curr_pitch, chord_pcs, curr_beat_strength)
+    ctc = chord_tone_cost(curr_pitch, chord_pcs, step.curr_beat_strength)
     dac: float = 0.0
-    if degree_affinity is not None:
+    if affinity is not None and affinity.degree_affinity is not None:
         dac = degree_affinity_cost(
             curr_pitch=curr_pitch,
-            degree_affinity=degree_affinity,
+            degree_affinity=affinity.degree_affinity,
             key=key,
         )
     iac: float = 0.0
-    if interval_affinity is not None:
+    if affinity is not None and affinity.interval_affinity is not None:
         iac = interval_affinity_cost(
             prev_pitch=prev_pitch,
             curr_pitch=curr_pitch,
-            interval_affinity=interval_affinity,
+            interval_affinity=affinity.interval_affinity,
             key=key,
         )
     vgc: float = 0.0
-    if genome_entries is not None and curr_others:
+    if affinity is not None and affinity.genome_entries is not None and curr_others:
         vgc = vertical_genome_cost(
             follower_pitch=curr_pitch,
             leader_pitch=curr_others[0],
             phrase_position=phrase_position,
-            genome_entries=genome_entries,
+            genome_entries=affinity.genome_entries,
             key=key,
         )
 
@@ -704,16 +711,11 @@ def transition_cost(
     dpc_total = 0.0
     for i in range(len(prev_others)):
         pw = pairwise_cost(
-            prev_pitch=prev_pitch,
-            curr_pitch=curr_pitch,
+            step=step,
             prev_other=prev_others[i],
             curr_other=curr_others[i],
-            prev_beat_strength=prev_beat_strength,
-            curr_beat_strength=curr_beat_strength,
-            prev_prev_pitch=prev_prev_pitch,
-            key=key,
-            nearby_other_pcs=nearby_pcs_per_voice[i],
-            is_above=is_above_per_voice[i],
+            nearby_other_pcs=voice_data.nearby_pcs_per_voice[i],
+            is_above=voice_data.is_above_per_voice[i],
         )
         mc_total += pw["motion"]
         dc_total += pw["diss"]

@@ -69,6 +69,18 @@ class ContourShape:
     weight: float = 1.0       # multiplier on COST_CONTOUR (1.0 = default)
 
 
+@dataclass(frozen=True)
+class AffinityContext:
+    """Optional affinity and contour params that travel together through call layers (M001).
+
+    All fields are optional; None means "inactive".
+    """
+    contour: ContourShape | None = None
+    degree_affinity: tuple[float, ...] | None = None
+    interval_affinity: dict[int, float] | None = None
+    genome_entries: tuple[tuple[float, int], ...] | None = None
+
+
 @dataclass
 class PhraseResult:
     """Complete solved phrase from single Viterbi pass."""

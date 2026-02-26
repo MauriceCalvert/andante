@@ -5,7 +5,7 @@ contour as structural hints (knots) and the CS rhythm as the grid, letting
 the Viterbi solver choose pitches that are consonant with the companion voice.
 """
 import logging
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from fractions import Fraction
 
 from builder.knot_builder import find_consonant_pitch, strong_beat_offsets
@@ -21,6 +21,14 @@ from viterbi.costs import SPACING_TIGHT
 from viterbi.scale import KeyInfo
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class CSTarget:
+    """Target voice identity for countersubject Viterbi generation (M002)."""
+    key: Key
+    track: int
+    voice_range: Range
 
 
 def _companion_at(
@@ -41,9 +49,7 @@ def generate_cs_viterbi(
     companion_is_above: bool,
     start_offset: Fraction,
     end_offset: Fraction,
-    target_key: Key,
-    target_track: int,
-    target_range: Range,
+    target: CSTarget,
     metre: str,
     local_key: Key,
     cadential_approach: bool,
@@ -71,6 +77,9 @@ def generate_cs_viterbi(
     Returns:
         Tuple of notes for the CS voice, labelled with lyric="cs".
     """
+    target_key: Key = target.key
+    target_track: int = target.track
+    target_range: Range = target.voice_range
     bar_length: Fraction
     beat_unit: Fraction
     bar_length, beat_unit = parse_metre(metre=metre)

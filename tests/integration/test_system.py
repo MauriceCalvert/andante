@@ -8,63 +8,15 @@ from typing import Any
 
 import pytest
 
-from builder.compose import compose_phrases
-from builder.config_loader import load_configs
 from builder.faults import Fault, find_faults_from_composition
-from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan
 from builder.types import Composition, Note
-from planner.metric.layer import layer_4_metric
-from planner.schematic import layer_3_schematic
-from planner.tonal import layer_2_tonal
 from shared.key import Key
 from tests.conftest import KEYS
-from tests.helpers import degree_at, get_phrase_genres
+from tests.helpers import degree_at, get_phrase_genres, run_pipeline_l7
 
 # Genres with rhythm cells for their metre — computed dynamically
 PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()
-
-
-def _run_full_pipeline(genre: str, key: str = "c_major") -> tuple[Composition, list[Fault], Any, Key]:
-    """Run full pipeline and return Composition, faults, GenreConfig, home_key."""
-    config = load_configs(genre=genre, key=key, affect="Zierlich")
-    gc = config["genre"]
-    kc = config["key"]
-    home_mode: str = kc.name.split()[-1].lower() if kc else "major"
-    tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42, home_mode=home_mode)
-    chain = layer_3_schematic(
-        tonal_plan=tonal_plan,
-        genre_config=gc,
-        form_config=config["form"],
-        schemas=config["schemas"],
-        seed=43,
-    )
-    bar_assignments, anchors, total_bars = layer_4_metric(
-        schema_chain=chain,
-        genre_config=gc,
-        form_config=config["form"],
-        key_config=kc,
-        schemas=config["schemas"],
-        tonal_plan=tonal_plan,
-    )
-    phrase_plans: tuple[PhrasePlan, ...] = build_phrase_plans(
-        schema_chain=chain,
-        anchors=anchors,
-        genre_config=gc,
-        schemas=config["schemas"],
-        total_bars=total_bars,
-    )
-    home_key: Key = anchors[0].local_key
-    comp: Composition = compose_phrases(
-        phrase_plans=phrase_plans,
-        home_key=home_key,
-        metre=gc.metre,
-        tempo=gc.tempo,
-        upbeat=gc.upbeat,
-    )
-    faults: list[Fault] = find_faults_from_composition(comp)
-    return comp, faults, gc, home_key
-
 
 _SYS_PARAMS: list[tuple[str, str]] = [
     (g, k) for g in PHRASE_GENRES for k in KEYS
@@ -75,7 +27,9 @@ _SYS_PARAMS: list[tuple[str, str]] = [
 def system_output(request: pytest.FixtureRequest) -> tuple[Composition, list[Fault], Any, Key]:
     """Run full pipeline and return output with faults."""
     genre, key = request.param
-    return _run_full_pipeline(genre=genre, key=key)
+    comp, gc, home_key, _ = run_pipeline_l7(genre=genre, key=key)
+    faults: list[Fault] = find_faults_from_composition(comp)
+    return comp, faults, gc, home_key
 
 
 def _get_soprano_bass(comp: Composition) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
@@ -179,7 +133,7 @@ def test_duration_integrity(system_output: tuple[Composition, list[Fault], Any, 
 @pytest.mark.xfail(reason="Phase 15b pre-existing: 0% crotchets in minuet", strict=True)
 def test_minuet_rhythmic_character() -> None:
     """>30% soprano notes are crotchets (1/4) for minuet genre."""
-    comp, _, gc, _ = _run_full_pipeline("minuet")
+    comp, _, _, _ = run_pipeline_l7(genre="minuet")
     soprano, _ = _get_soprano_bass(comp)
     if not soprano:
         pytest.skip("No soprano notes")
@@ -193,7 +147,7 @@ def test_minuet_rhythmic_character() -> None:
 
 def test_gavotte_rhythmic_character() -> None:
     """Gavotte has varied rhythmic values (not all uniform)."""
-    comp, _, gc, _ = _run_full_pipeline("gavotte")
+    comp, _, _, _ = run_pipeline_l7(genre="gavotte")
     soprano, _ = _get_soprano_bass(comp)
     if not soprano:
         pytest.skip("No soprano notes")
@@ -205,7 +159,7 @@ def test_gavotte_rhythmic_character() -> None:
 
 def test_invention_rhythmic_character() -> None:
     """Invention voices are not always homorhythmic (>30% offset difference)."""
-    comp, _, gc, _ = _run_full_pipeline("invention")
+    comp, _, _, _ = run_pipeline_l7(genre="invention")
     soprano, bass = _get_soprano_bass(comp)
     if not soprano or not bass:
         pytest.skip("Missing voices")
@@ -224,7 +178,7 @@ def test_invention_rhythmic_character() -> None:
 
 def test_sarabande_rhythmic_character() -> None:
     """Sarabande has longer note values on average than faster dances."""
-    comp, _, gc, _ = _run_full_pipeline("sarabande")
+    comp, _, _, _ = run_pipeline_l7(genre="sarabande")
     soprano, _ = _get_soprano_bass(comp)
     if not soprano:
         pytest.skip("No soprano notes")
@@ -237,7 +191,7 @@ def test_sarabande_rhythmic_character() -> None:
 
 def test_bourree_rhythmic_character() -> None:
     """Bourree has rhythmic variety (not all uniform durations)."""
-    comp, _, gc, _ = _run_full_pipeline("bourree")
+    comp, _, _, _ = run_pipeline_l7(genre="bourree")
     soprano, _ = _get_soprano_bass(comp)
     if not soprano:
         pytest.skip("No soprano notes")

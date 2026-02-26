@@ -45,7 +45,6 @@ thematic:
     development_entries:
       # Pool: planner picks from these, assigns keys at runtime
       - template: subject_cs    # subject in one voice, cs in the other
-      - template: hold_exchange
         bars: 2
       - template: stretto
 
@@ -63,12 +62,12 @@ thematic:
 
   # Default brief (used when no external brief is provided)
   brief:
-    scope: medium            # short / medium / extended
+    scope: extended          # short / medium / extended
     # development_entries omitted: scope controls count (short=2, medium=3, extended=5)
-    stretto: single          # none / single / multiple
+    stretto: multiple        # none / single / multiple
     pedal: true
-    key_journey_major: [vi, IV, V]
-    key_journey_minor: [III, iv, v]
+    key_journey_major: [vi, IV, V, ii, iii]
+    key_journey_minor: [III, iv, v, VI, ii]
     voice_lead: alternate    # alternate / soprano_heavy / bass_heavy
 
 sections:

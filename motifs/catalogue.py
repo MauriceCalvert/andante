@@ -107,44 +107,27 @@ class SubjectCatalogue:
         # Store invertible pair
         self._invertible_pair = InvertiblePair(subject=subject_frag, countersubject=cs_frag)
 
-        # Generate head fragments for subject
-        self._generate_heads(base_name="head", intervals=subj_intervals, durations=subj_durations, source="subject")
+        # Generate head and tail fragments for subject and countersubject
+        self._generate_heads(base_name="head", frag=subject_frag)
+        self._generate_tails(base_name="tail", frag=subject_frag)
+        self._generate_heads(base_name="cs_head", frag=cs_frag)
+        self._generate_tails(base_name="cs_tail", frag=cs_frag)
 
-        # Generate tail fragments for subject
-        self._generate_tails(base_name="tail", intervals=subj_intervals, durations=subj_durations, source="subject")
-
-        # Generate head fragments for countersubject
-        self._generate_heads(base_name="cs_head", intervals=cs_intervals, durations=cs_durations, source="countersubject")
-
-        # Generate tail fragments for countersubject
-        self._generate_tails(base_name="cs_tail", intervals=cs_intervals, durations=cs_durations, source="countersubject")
-
-        # Generate transforms of subject
+        # Generate transforms of subject (must precede derived head generation below)
         self._generate_inversion(base_frag=subject_frag, name="inversion")
         self._generate_augmentation(base_frag=subject_frag, name="augmentation")
         self._generate_diminution(base_frag=subject_frag, name="diminution")
 
-        # Generate inverted heads
-        inv_intervals: tuple[int, ...] = _negate_intervals(intervals=subj_intervals)
-        inv_durations: tuple[Fraction, ...] = subj_durations
-        self._generate_heads(base_name="head_inv", intervals=inv_intervals, durations=inv_durations, source="derived")
+        # Generate head fragments for derived transforms (reuse already-stored Fragment objects)
+        self._generate_heads(base_name="head_inv", frag=self._fragments["inversion"])
+        self._generate_heads(base_name="head_aug", frag=self._fragments["augmentation"])
+        self._generate_heads(base_name="head_dim", frag=self._fragments["diminution"])
 
-        # Generate augmented heads
-        aug_durations: tuple[Fraction, ...] = _double_durations(durations=subj_durations)
-        self._generate_heads(base_name="head_aug", intervals=subj_intervals, durations=aug_durations, source="derived")
-
-        # Generate diminished heads
-        dim_durations: tuple[Fraction, ...] = _halve_durations(durations=subj_durations)
-        self._generate_heads(base_name="head_dim", intervals=subj_intervals, durations=dim_durations, source="derived")
-
-    def _generate_heads(
-        self,
-        base_name: str,
-        intervals: tuple[int, ...],
-        durations: tuple[Fraction, ...],
-        source: str,
-    ) -> None:
+    def _generate_heads(self, base_name: str, frag: Fragment) -> None:
         """Generate head(n) fragments for n = 1 beat to len-1 beats."""
+        intervals: tuple[int, ...] = frag.intervals
+        durations: tuple[Fraction, ...] = frag.durations
+        source: str = frag.source
         assert len(intervals) + 1 == len(durations), (
             f"Interval count {len(intervals)} must be len(durations) - 1, got {len(durations)} durations"
         )
@@ -173,14 +156,11 @@ class SubjectCatalogue:
                     )
                     self._fragments[head_frag.name] = head_frag
 
-    def _generate_tails(
-        self,
-        base_name: str,
-        intervals: tuple[int, ...],
-        durations: tuple[Fraction, ...],
-        source: str,
-    ) -> None:
+    def _generate_tails(self, base_name: str, frag: Fragment) -> None:
         """Generate tail(n) fragments for n = 1 beat to len-1 beats."""
+        intervals: tuple[int, ...] = frag.intervals
+        durations: tuple[Fraction, ...] = frag.durations
+        source: str = frag.source
         assert len(intervals) + 1 == len(durations), (
             f"Interval count {len(intervals)} must be len(durations) - 1, got {len(durations)} durations"
         )

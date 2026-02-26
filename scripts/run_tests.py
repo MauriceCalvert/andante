@@ -1,7 +1,7 @@
 """Run all 8 genres to tests/output with fixed seeds. Deterministic."""
 from pathlib import Path
 
-from scripts.run_pipeline import run_from_args
+from scripts.run_pipeline import PipelineOptions, run_from_args
 
 SCRIPT_DIR: Path = Path(__file__).resolve().parent
 PROJECT_DIR: Path = SCRIPT_DIR.parent
@@ -30,7 +30,7 @@ def main() -> None:
             genre=genre,
             affect="default",
             output_dir=OUTPUT_DIR,
-            seed=FIXED_SEED,
+            options=PipelineOptions(seed=FIXED_SEED),
         )
     print(f"\nDone. Output in {OUTPUT_DIR}")
 

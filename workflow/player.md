@@ -133,23 +133,37 @@ Bob catches all of them. Chaz traces the causes. Both are blocking.
 
 ## Workflow
 
-Run the pipeline, do *NOT* run tests. 
-The user runs tests separately and will report any failures.
-After completing all code changes, and writing `result.md`, 
-delete task.md and stop.
+After completing all code changes:
 
-When you run the pipeline, output files go to `andante/output`
-with the genre name only — no key suffix.
+1. **Run the pipeline.** This is mandatory, not optional.
+   ```
+   python -m scripts.run_pipeline briefs\builder\invention.brief -v -trace -seed 42 -o output
+   ```
+   Output files go to `andante/output` with the genre name only — no key
+   suffix. Produces: `output/invention.mid`, `output/invention.note`, etc.
+   Not: `output/invention_c_major.mid`. If the CLI appends the key to
+   filenames by default, override or rename so the output uses the bare
+   genre name.
 
-Example for invention:
-```
-python -m scripts.run_pipeline briefs\builder\invention.brief -v -trace -seed 42 -o output
-```
-Produces: `output/invention.mid`, `output/invention.note`, etc.
-Not: `output/invention_c_major.mid`.
+2. **Run the Bob → Chaz checkpoint** from the task brief. This is the
+   mandatory evaluation described above. Read the .note and .trace files.
+   Write Bob's assessment first (perceptual only), then Chaz's diagnosis
+   (architectural only). Follow the Checkpoint section in the task brief
+   exactly — answer every question it asks.
 
-If the CLI appends the key to filenames by default, override or rename
-so the output uses the bare genre name.
+3. **Write `result.md`** containing: what changed (code), Bob's assessment,
+   Chaz's diagnosis, and the line: "Please listen to the MIDI and let me
+   know what you hear."
+
+4. **Git commit.** If the pipeline ran clean and the task is fully
+   successful, commit all changed files with a message of the form:
+   `[PHASE-ID] one-line summary`. Example: `[ICP-2a] CS2 data layer`.
+   Do not commit if the pipeline failed or Bob flagged blocking faults.
+
+5. **Delete `task.md`** and stop.
+
+Do *NOT* run tests. The user runs tests separately and will report any
+failures.
 
 ## Session Discipline
 

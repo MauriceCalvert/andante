@@ -13,7 +13,7 @@ The layers:
 Category B: Orchestrator that validates and delegates.
 """
 import logging
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +44,20 @@ from shared.constants import TONIC_TO_MIDI
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.tracer import get_tracer
+
+
+@dataclass(frozen=True)
+class GeneratorOptions:
+    """Optional composition parameters forwarded through generate_to_files → generate (M001).
+
+    Bundles the 5 optional params that transit from run_from_args
+    through generate_to_files into generate().
+    """
+    key: str | None = None
+    tempo: int | None = None
+    fugue: "SubjectTriple | None" = None
+    sections_override: "tuple[dict, ...] | None" = None
+    seed: int = 42
 
 
 def _derive_key_from_affect(affect: str) -> str:
@@ -92,14 +106,16 @@ def _with_sections_override(
 def generate(
     genre: str,
     affect: str,
-    key: str | None = None,
-    tempo_override: int | None = None,
-    fugue: SubjectTriple | None = None,
-    sections_override: tuple[dict, ...] | None = None,
-    seed: int = 42,
+    options: GeneratorOptions | None = None,
     trace_name: str | None = None,
 ) -> tuple[Composition, tuple[PhrasePlan, ...], Key]:
     """Generate composition from genre and affect, with optional key and tempo."""
+    opts: GeneratorOptions = options or GeneratorOptions()
+    key: str | None = opts.key
+    tempo_override: int | None = opts.tempo
+    fugue: SubjectTriple | None = opts.fugue
+    sections_override: tuple[dict, ...] | None = opts.sections_override
+    seed: int = opts.seed
     tracer = get_tracer()
     if key is None:
         key = _derive_key_from_affect(affect=affect)
@@ -131,7 +147,7 @@ def generate(
         metre=genre_config.metre,
     )
     # Layer 2: Tonal planning (key areas + cadences)
-    home_mode: str = key_config.name.split()[-1].lower() if key_config else "major"
+    home_mode: str = key_config.mode if key_config else "major"
     tonal_plan: TonalPlan = layer_2_tonal(
         affect_config=affect_config,
         genre_config=genre_config,
@@ -376,7 +392,7 @@ def main() -> None:
     output_dir: Path = Path(sys.argv[arg_offset]) if len(sys.argv) > arg_offset else Path("output")
     name: str = sys.argv[arg_offset + 1] if len(sys.argv) > arg_offset + 1 else f"{genre}_{affect}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key)
+    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, options=GeneratorOptions(key=key))
     key_used: str = key if key else "(derived from affect)"
     total_notes: int = sum(len(v) for v in result.voices.values())
     print(f"Generated {total_notes} notes across {len(result.voices)} voices")
@@ -389,13 +405,15 @@ def generate_to_files(
     affect: str,
     output_dir: Path,
     name: str,
-    key: str | None = None,
-    tempo: int | None = None,
-    fugue: SubjectTriple | None = None,
-    sections_override: tuple[dict, ...] | None = None,
-    seed: int = 42,
+    options: GeneratorOptions | None = None,
 ) -> Composition:
     """Generate composition and write to files."""
+    opts: GeneratorOptions = options or GeneratorOptions()
+    key: str | None = opts.key
+    tempo: int | None = opts.tempo
+    fugue: SubjectTriple | None = opts.fugue
+    sections_override: tuple[dict, ...] | None = opts.sections_override
+    seed: int = opts.seed
     # For invention genre: generate or load cached fugue triple
     if genre == "invention" and fugue is None:
         # Read genre YAML for metre and optional subject name
@@ -452,11 +470,7 @@ def generate_to_files(
     result, phrase_plans, home_key = generate(
         genre=genre,
         affect=affect,
-        key=key,
-        tempo_override=tempo,
-        fugue=fugue,
-        sections_override=sections_override,
-        seed=seed,
+        options=GeneratorOptions(key=key, tempo=tempo, fugue=fugue, sections_override=sections_override, seed=seed),
         trace_name=name,
     )
     note_path: Path = output_dir / f"{name}.note"

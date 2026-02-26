@@ -36,9 +36,6 @@ VALID_TEXTURES: frozenset[str] = frozenset({
 # Cadences
 # =============================================================================
 
-# Number of bars a terminal cadence occupies in subject plans
-CADENCE_BARS: int = 2
-
 # Cadence target degrees (soprano, bass) by cadence type
 CADENCE_DEGREES: dict[str, tuple[int, int]] = {
     "authentic": (1, 1),

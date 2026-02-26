@@ -52,6 +52,7 @@ class BeatRole:
     fragment_iteration: int  # 0-based; for fragmentation envelope
     anchor_pitch: int | None  # MIDI pitch for bariolage/pedal anchor
     render_offset: Fraction = Fraction(0)  # shift start_offset at render time (negative = earlier)
+    entry_index: int = 0  # monotonically increasing per logical entry (for grouping)
 
 
 def plan_thematic_roles(
@@ -127,17 +128,16 @@ def plan_thematic_roles(
         from shared.tracer import get_tracer
         tracer = get_tracer()
         entry_sequence_str = _format_entry_sequence_echo(
-            entry_sequence=thematic_config["entry_sequence"],
+            thematic_config=thematic_config,
             home_key=home_key,
         )
         tracer._line(f"L4b Entries: {entry_sequence_str}")
 
         roles = _place_entry_sequence(
             roles=roles,
-            entry_sequence=thematic_config["entry_sequence"],
+            thematic_config=thematic_config,
             subject_bars=subject_bars,
-            beats_per_bar=beats_per_bar,
-            beat_unit=beat_unit,
+            metre=metre,
             voice_count=voice_count,
             home_key=home_key,
         )
@@ -161,7 +161,7 @@ _MATERIAL_CODE_MAP: dict[str, str] = {
 
 
 def _format_entry_sequence_echo(
-    entry_sequence: list,
+    thematic_config: dict,
     home_key: Key,
 ) -> str:
     """Format entry_sequence as compact one-line echo.
@@ -176,6 +176,7 @@ def _format_entry_sequence_echo(
     - --- = none
     - CAD = cadence
     """
+    entry_sequence: list = thematic_config["entry_sequence"]
     parts: list[str] = []
 
     for entry in entry_sequence:
@@ -214,10 +215,9 @@ def _format_entry_sequence_echo(
 
 def _place_entry_sequence(
     roles: list[BeatRole],
-    entry_sequence: list,
+    thematic_config: dict,
     subject_bars: int,
-    beats_per_bar: int,
-    beat_unit: Fraction,
+    metre: str,
     voice_count: int,
     home_key: Key,
 ) -> list[BeatRole]:
@@ -229,16 +229,19 @@ def _place_entry_sequence(
 
     Args:
         roles: List of BeatRole to modify (all FREE initially)
-        entry_sequence: List of entry dicts from YAML
+        thematic_config: Dict with entry_sequence (source object, not extracted)
         subject_bars: Number of bars each entry occupies
-        beats_per_bar: Beats per bar (from metre)
-        beat_unit: Beat unit as Fraction (e.g., Fraction(1, 4))
+        metre: Metre string like "4/4" (source object, not extracted)
         voice_count: Number of voices (2 for invention)
         home_key: Home key of the piece
 
     Returns:
         Modified roles list with entry assignments
     """
+    entry_sequence: list = thematic_config["entry_sequence"]
+    metre_parts: list[str] = metre.split("/")
+    beats_per_bar: int = int(metre_parts[0])
+    beat_unit: Fraction = Fraction(4, int(metre_parts[1]))
     bar_pointer: int = 1
 
     for entry in entry_sequence:

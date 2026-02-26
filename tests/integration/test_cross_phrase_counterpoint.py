@@ -7,68 +7,20 @@ from fractions import Fraction
 
 import pytest
 
-from builder.compose import compose_phrases
-from builder.config_loader import load_configs
-from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan
 from builder.types import Composition, GenreConfig, Note
-from planner.metric.layer import layer_4_metric
-from planner.schematic import layer_3_schematic
-from planner.tonal import layer_2_tonal
 from shared.key import Key
 from tests.helpers import (
     check_no_parallel,
     check_no_voice_overlap,
     get_phrase_genres,
     parse_metre,
+    run_pipeline_l7,
 )
 
 # Genres with rhythm cells for their metre — computed dynamically
 PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()
 GROTESQUE_LEAP_SEMITONES: int = 19
-
-
-def _run_full_pipeline(
-    genre: str,
-    key: str = "c_major",
-) -> tuple[Composition, GenreConfig, Key, tuple[PhrasePlan, ...]]:
-    """Run L1-L7 pipeline and return Composition, GenreConfig, home_key, phrase_plans."""
-    config = load_configs(genre=genre, key=key, affect="Zierlich")
-    gc: GenreConfig = config["genre"]
-    kc = config["key"]
-    home_mode: str = kc.name.split()[-1].lower() if kc else "major"
-    tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42, home_mode=home_mode)
-    chain = layer_3_schematic(
-        tonal_plan=tonal_plan,
-        genre_config=gc,
-        form_config=config["form"],
-        schemas=config["schemas"],
-        seed=43,
-    )
-    bar_assignments, anchors, total_bars = layer_4_metric(
-        schema_chain=chain,
-        genre_config=gc,
-        form_config=config["form"],
-        key_config=kc,
-        schemas=config["schemas"],
-        tonal_plan=tonal_plan,
-    )
-    phrase_plans: tuple[PhrasePlan, ...] = build_phrase_plans(
-        schema_chain=chain,
-        anchors=anchors,
-        genre_config=gc,
-        schemas=config["schemas"],
-        total_bars=total_bars,
-    )
-    home_key: Key = anchors[0].local_key
-    comp: Composition = compose_phrases(
-        phrase_plans=phrase_plans,
-        home_key=home_key,
-        metre=gc.metre,
-        tempo=gc.tempo,
-        upbeat=gc.upbeat,
-    )
-    return comp, gc, home_key, phrase_plans
 
 
 @pytest.fixture(scope="module", params=PHRASE_GENRES)
@@ -77,7 +29,7 @@ def composition_data(
 ) -> tuple[Composition, GenreConfig, Key, tuple[PhrasePlan, ...]]:
     """Run full pipeline for each genre."""
     genre: str = request.param
-    return _run_full_pipeline(genre)
+    return run_pipeline_l7(genre=genre)
 
 
 def _get_soprano_bass(comp: Composition) -> tuple[tuple[Note, ...], tuple[Note, ...]]:

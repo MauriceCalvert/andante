@@ -7,6 +7,7 @@ Generates a countersubject that:
 
 Works entirely in scale degrees mod 7 for mode-independence.
 """
+import warnings
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -25,7 +26,9 @@ FALLBACK_MAX_CS_DEGREE = 14
 CS_MIN_BELOW_SUBJECT = 2   # At least a 3rd below subject's lowest note
 CS_MAX_BELOW_SUBJECT = 14  # At most 2 octaves below subject's highest note
 CS_MAX_OVERLAP = 3         # CS may overlap up to a 4th into subject range
-INVERTIBLE_CONSONANCES = frozenset({0, 2, 5})
+STANDARD_CONSONANCES: frozenset[int] = frozenset({0, 2, 4, 5})
+VALID_INVERSION_DISTANCES: frozenset[int] = frozenset({7, 9, 11})
+INVERTIBLE_CONSONANCES: frozenset[int] = frozenset({0, 2, 5})
 WEAK_BEAT_ALLOWED = frozenset({0, 1, 2, 4, 5, 6})
 TRITONE_INTERVAL = 3
 PENALTY_WEAK_BEAT_FIFTH = 20
@@ -45,6 +48,23 @@ LARGE_LEAP_THRESHOLD = 4
 MIN_GOOD_RANGE = 4           # A 5th — minimum span for melodic interest
 SOLVER_TIMEOUT_SECONDS = 5
 
+def _consonances_for_distance(distance: int) -> frozenset[int]:
+    """Compute strong-beat consonances valid in both orientations at the given inversion distance."""
+    assert distance in VALID_INVERSION_DISTANCES, (
+        f"Unsupported inversion distance: {distance}. "
+        f"Must be one of {sorted(VALID_INVERSION_DISTANCES)} (octave, tenth, twelfth)."
+    )
+    d_mod7 = distance % 7
+    return frozenset(
+        c for c in STANDARD_CONSONANCES
+        if (d_mod7 - c) % 7 in STANDARD_CONSONANCES
+    )
+
+assert _consonances_for_distance(7) == INVERTIBLE_CONSONANCES, (
+    f"_consonances_for_distance(7) returned {_consonances_for_distance(7)}, "
+    f"expected {INVERTIBLE_CONSONANCES}"
+)
+
 @dataclass(frozen=True)
 class GeneratedCountersubject:
     """Result of countersubject generation."""
@@ -52,6 +72,7 @@ class GeneratedCountersubject:
     durations: tuple[float, ...]
     midi_pitches: tuple[int, ...]
     vertical_intervals: tuple[int, ...]
+    inversion_distance: int = 7
 
 def _compute_beat_positions(
     durations: tuple[float, ...],
@@ -183,11 +204,41 @@ def _derive_cs_range(
         cs_min = cs_max - 7
     return cs_min, cs_max
 
+def _validate_inverted_orientation(
+    cs_degrees: tuple[int, ...],
+    subject_degrees: tuple[int, ...],
+    onset_indices: tuple[int, ...],
+    beat_positions: list[int],
+    strong_beats: frozenset[int],
+    inversion_distance: int,
+) -> list[str]:
+    """Check strong-beat intervals in the inverted orientation (subject below, CS above).
+
+    For each strong-beat CS note, the inverted interval is:
+        inverted = (inversion_distance - abs(cs_degree - subject_degree)) % 7
+    This must lie in STANDARD_CONSONANCES for the inversion to be valid.
+    Should return zero violations when the solver constraint is correct.
+    """
+    violations: list[str] = []
+    for i, (cs_deg, bp) in enumerate(zip(cs_degrees, beat_positions)):
+        if bp not in strong_beats:
+            continue
+        subj_deg = subject_degrees[onset_indices[i]]
+        raw_interval = abs(cs_deg - subj_deg)
+        inverted = (inversion_distance - raw_interval) % 7
+        if inverted not in STANDARD_CONSONANCES:
+            violations.append(
+                f"Note {i}: inverted interval {inverted} not in STANDARD_CONSONANCES "
+                f"(distance={inversion_distance}, raw={raw_interval % 7})"
+            )
+    return violations
+
 def generate_countersubject(
     subject: GeneratedSubject,
     metre: tuple[int, int] = (4, 4),
     tonic_midi: int = 60,
     answer_degrees: tuple[int, ...] | None = None,
+    inversion_distance: int = 7,
 ) -> GeneratedCountersubject | None:
     """Generate countersubject using CP-SAT optimisation.
 
@@ -217,6 +268,7 @@ def generate_countersubject(
         metre=metre,
     )
     strong_beats = _get_strong_beats(metre=metre)
+    strong_beat_consonances = _consonances_for_distance(inversion_distance)
     model = cp_model.CpModel()
     cs = [model.NewIntVar(min_degree, max_degree, f"cs_{i}") for i in range(m)]
     interval_mod7 = []
@@ -232,7 +284,7 @@ def generate_countersubject(
     for i in range(m):
         is_strong = beat_positions[i] in strong_beats
         if is_strong:
-            model.AddAllowedAssignments([interval_mod7[i]], [(0,), (2,), (5,)])
+            model.AddAllowedAssignments([interval_mod7[i]], [(c,) for c in sorted(strong_beat_consonances)])
         else:
             model.AddAllowedAssignments([interval_mod7[i]], [(0,), (1,), (2,), (4,), (5,), (6,)])
     # --- Answer interval variables and constraints (dual validation) ---
@@ -250,7 +302,7 @@ def generate_countersubject(
         for i in range(m):
             is_strong = beat_positions[i] in strong_beats
             if is_strong:
-                model.AddAllowedAssignments([answer_imod7[i]], [(0,), (2,), (5,)])
+                model.AddAllowedAssignments([answer_imod7[i]], [(c,) for c in sorted(strong_beat_consonances)])
             else:
                 model.AddAllowedAssignments([answer_imod7[i]], [(0,), (1,), (2,), (4,), (5,), (6,)])
     penalties = []
@@ -500,6 +552,16 @@ def generate_countersubject(
         return None
     cs_degrees = tuple(solver.Value(cs[i]) for i in range(m))
     intervals = tuple(solver.Value(interval_mod7[i]) for i in range(m))
+    inv_violations = _validate_inverted_orientation(
+        cs_degrees=cs_degrees,
+        subject_degrees=subj_degrees,
+        onset_indices=onset_indices,
+        beat_positions=beat_positions,
+        strong_beats=strong_beats,
+        inversion_distance=inversion_distance,
+    )
+    for v in inv_violations:
+        warnings.warn(f"[CS invertibility] {v}", stacklevel=2)
     midi_pitches = degrees_to_midi(
         degrees=cs_degrees,
         tonic_midi=tonic_midi,
@@ -510,18 +572,24 @@ def generate_countersubject(
         durations=tuple(float(d) for d in cs_durations),
         midi_pitches=midi_pitches,
         vertical_intervals=intervals,
+        inversion_distance=inversion_distance,
     )
 
 def verify_countersubject(
     subject: GeneratedSubject,
     cs: GeneratedCountersubject,
     metre: tuple[int, int],
+    inversion_distance: int | None = None,
 ) -> list[str]:
     """Verify countersubject satisfies all constraints.
 
     CS has its own rhythm (fewer, longer notes than subject). Intervals
     are checked at CS onset positions using CS beat positions.
+    Also checks inverted orientation (subject below, CS above) on strong beats.
     """
+    dist = inversion_distance if inversion_distance is not None else cs.inversion_distance
+    strong_beat_consonances = _consonances_for_distance(dist)
+    d_mod7 = dist % 7
     violations = []
     beat_positions = _compute_beat_positions(
         durations=cs.durations,
@@ -537,8 +605,15 @@ def verify_countersubject(
     )
     for i, interval in enumerate(cs.vertical_intervals):
         is_strong = beat_positions[i] in strong_beats
-        if is_strong and interval not in INVERTIBLE_CONSONANCES:
-            violations.append(f"Note {i}: strong-beat interval {interval} not invertible")
+        if is_strong and interval not in strong_beat_consonances:
+            violations.append(f"Note {i}: strong-beat interval {interval} not in consonances for distance {dist}")
+        if is_strong:
+            inverted = (d_mod7 - interval) % 7
+            if inverted not in STANDARD_CONSONANCES:
+                violations.append(
+                    f"Note {i}: inverted interval {inverted} not consonant "
+                    f"(distance={dist}, forward={interval})"
+                )
         if interval == TRITONE_INTERVAL:
             violations.append(f"Note {i}: tritone interval")
     for i in range(m - 1):

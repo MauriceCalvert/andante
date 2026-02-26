@@ -7,6 +7,7 @@ between each section.
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
@@ -37,6 +38,18 @@ from motifs.head_generator import degrees_to_midi
 # Configuration
 # ---------------------------------------------------------------------------
 
+@dataclass(frozen=True)
+class TonicContext:
+    """Tonic identity for MIDI note conversion (M001).
+
+    Bundles the 3 params that transit from main() into
+    _write_notes() and _collect_note_rows().
+    """
+    tonic_midi: int
+    tonic: str
+    mode: str
+
+
 FUGUE_NAME: str = "call_response"
 NOTE_RELEASE: float = 0.95
 TEMPO_BPM: int = 120
@@ -61,13 +74,12 @@ def _write_notes(
     midi: MIDIFile,
     notes: list[Note],
     t_start: float,
-    tonic_midi: int,
-    mode: str,
+    tonic: TonicContext,
 ) -> float:
     """Write note events to MIDI. Returns the end time in beats."""
     end: float = t_start
     for n in notes:
-        pitch: int = degrees_to_midi((n.degree,), tonic_midi, mode)[0]
+        pitch: int = degrees_to_midi((n.degree,), tonic.tonic_midi, tonic.mode)[0]
         track: int = 0 if n.voice == VOICE_SOPRANO else 1
         onset: float = t_start + float(n.offset) * 4
         dur: float = float(n.duration) * 4 * NOTE_RELEASE
@@ -87,9 +99,7 @@ def _collect_note_rows(
     notes: list[Note],
     t_start: float,
     bar_length: Fraction,
-    tonic_midi: int,
-    tonic: str,
-    mode: str,
+    tonic: TonicContext,
     section_idx: int,
     frag: Fragment,
 ) -> list[str]:
@@ -99,12 +109,12 @@ def _collect_note_rows(
     frag_name: str = f"{frag.upper.name}+{frag.lower.name}"
     bar_beats: float = float(bar_length) * 4
     for n in notes:
-        pitch: int = degrees_to_midi((n.degree,), tonic_midi, mode)[0]
+        pitch: int = degrees_to_midi((n.degree,), tonic.tonic_midi, tonic.mode)[0]
         track: int = 0 if n.voice == VOICE_SOPRANO else 1
         abs_offset: float = t_start + float(n.offset) * 4
         bar: int = int(abs_offset / bar_beats) + 1
         beat_in_bar: float = round((abs_offset % bar_beats) + 1, 4)
-        name: str = _midi_to_name(pitch=pitch, tonic=tonic)
+        name: str = _midi_to_name(pitch=pitch, tonic=tonic.tonic)
         rows.append(
             f"{abs_offset},{pitch},{n.duration},{track},"
             f"{bar},{beat_in_bar},{name},{n.degree},"
@@ -141,11 +151,14 @@ def main() -> None:
     """Run the FRAGEN proof-of-concept."""
     fugue = load_triple(name=FUGUE_NAME)
     bar_length: Fraction = Fraction(fugue.metre[0], fugue.metre[1])
-    tonic_midi: int = fugue.tonic_midi
-    mode: str = fugue.subject.mode
+    tonic: TonicContext = TonicContext(
+        tonic_midi=fugue.tonic_midi,
+        tonic=fugue.tonic,
+        mode=fugue.subject.mode,
+    )
     bar_beats: float = float(bar_length) * 4
     print(f"{'=' * 60}")
-    print(f"FRAGEN  {FUGUE_NAME}  {fugue.tonic} {mode}  "
+    print(f"FRAGEN  {FUGUE_NAME}  {tonic.tonic} {tonic.mode}  "
           f"{fugue.metre[0]}/{fugue.metre[1]}")
     print(f"{'=' * 60}")
     # --- Cells ---
@@ -164,14 +177,14 @@ def main() -> None:
     # --- Fragments ---
     fragments: list[Fragment] = build_fragments(
         cells=chains,
-        tonic_midi=tonic_midi,
-        mode=mode,
+        tonic_midi=tonic.tonic_midi,
+        mode=tonic.mode,
         bar_length=bar_length,
     )
     holds: list[Fragment] = build_hold_fragments(
         cells=chains,
-        tonic_midi=tonic_midi,
-        mode=mode,
+        tonic_midi=tonic.tonic_midi,
+        mode=tonic.mode,
         bar_length=bar_length,
     )
     raw_count: int = len(fragments) + len(holds)
@@ -223,16 +236,16 @@ def main() -> None:
             n_bars=n_bars,
             step=step,
             bar_length=bar_length,
-            tonic_midi=tonic_midi,
-            mode=mode,
+            tonic_midi=tonic.tonic_midi,
+            mode=tonic.mode,
         )
         if notes is None:
             skipped += 1
             continue
         if not validate_realisation(
             notes=notes,
-            tonic_midi=tonic_midi,
-            mode=mode,
+            tonic_midi=tonic.tonic_midi,
+            mode=tonic.mode,
             bar_length=bar_length,
         ):
             skipped += 1
@@ -245,9 +258,7 @@ def main() -> None:
             notes=notes,
             t_start=t,
             bar_length=bar_length,
-            tonic_midi=tonic_midi,
-            tonic=fugue.tonic,
-            mode=mode,
+            tonic=tonic,
             section_idx=written + 1,
             frag=frag,
         ))
@@ -255,8 +266,7 @@ def main() -> None:
             midi=midi,
             notes=notes,
             t_start=t,
-            tonic_midi=tonic_midi,
-            mode=mode,
+            tonic=tonic,
         )
         t += bar_beats  # one empty bar between sections
         written += 1
@@ -283,7 +293,7 @@ def main() -> None:
     # Write .note CSV
     note_path: Path = output_dir / "fragen_poc.note"
     with open(note_path, "w") as nf:
-        nf.write(f"## key: {fugue.tonic} {mode}\n")
+        nf.write(f"## key: {tonic.tonic} {tonic.mode}\n")
         nf.write(f"## time: {fugue.metre[0]}/{fugue.metre[1]}\n")
         nf.write(_NOTE_CSV_HEADER + "\n")
         for row in all_note_rows:

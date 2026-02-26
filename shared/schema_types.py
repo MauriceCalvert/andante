@@ -74,3 +74,10 @@ class Schema:
     @property
     def exit_bass(self) -> int:
         return self.exit.bass
+
+    @property
+    def bar_count(self) -> int:
+        """Minimum bar count (sequential: max segment, else degree count)."""
+        if self.sequential:
+            return max(self.segments)
+        return len(self.soprano_degrees)

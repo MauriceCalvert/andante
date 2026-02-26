@@ -62,6 +62,13 @@ class Anchor:
     lower_direction: str | None = None
     section: str = ""
 
+    def sort_key(self) -> float:
+        """Float key for chronological sorting (bar.beat string → comparable float)."""
+        parts: list[str] = self.bar_beat.split(".")
+        bar: int = int(parts[0])
+        beat: float = float(parts[1]) if len(parts) > 1 else 1.0
+        return bar + (beat - 1) / 4.0
+
 
 @dataclass(frozen=True)
 class MotiveWeights:
@@ -96,6 +103,11 @@ class KeyConfig:
     name: str
     pitch_class_set: frozenset[int]
     bridge_pitch_set: frozenset[int]
+
+    @property
+    def mode(self) -> str:
+        """Mode string extracted from key name (e.g. 'C major' → 'major')."""
+        return self.name.split()[-1].lower()
 
 
 @dataclass(frozen=True)

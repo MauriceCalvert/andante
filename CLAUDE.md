@@ -35,13 +35,33 @@ Defer updates. Track what needs changing, execute only when explicitly told.
 
 ## Testing
 
-Do not run tests. Do not run `run_tests`. Do not run `run_pipeline`.
-Do not ask the user to run tests. Do not prompt for test execution.
-After completing all code changes and writing `result.md`, stop.
-The user runs tests separately and will report any failures.
-The `output/` directory is reserved for the user's pipeline runs.
-NEVER create output2, output3, output_vg3, or any other output variant.
+Do not run test suites (`pytest`, `run_tests`, or any test runner).
+The user runs test suites separately and will report any failures.
 NEVER invent your own test runner.
+
+## Pipeline and Evaluation
+
+After completing all code changes, you MUST:
+
+1. **Run the pipeline yourself.** This is not a test suite — it is the
+   composition pipeline and you must run it to evaluate your work.
+   ```
+   python -m scripts.run_pipeline briefs\builder\invention.brief -v -trace -seed 42 -o output
+   ```
+   Output goes to `andante/output/` with bare genre name (e.g.
+   `invention.mid`, not `invention_c_major.mid`). NEVER create output2,
+   output3, or any variant directory.
+
+2. **Run the Bob → Chaz checkpoint** from the task brief. Read the .note
+   and .trace files. Write Bob's assessment first (perceptual only), then
+   Chaz's diagnosis (architectural only). Answer every question in the
+   task brief's Checkpoint section.
+
+3. **Write `result.md`** with: code changes, Bob's assessment, Chaz's
+   diagnosis, and end with: "Please listen to the MIDI and let me know
+   what you hear."
+
+4. **Delete `task.md`** and stop.
 
 ---
 

@@ -2,6 +2,7 @@
 
 One voice holds a whole note while the other runs in consonant counterpoint via Viterbi.
 """
+from dataclasses import dataclass
 from fractions import Fraction
 
 from builder.knot_builder import find_consonant_pitch
@@ -19,23 +20,32 @@ from viterbi.mtypes import ExistingVoice, Knot
 from viterbi.scale import KeyInfo
 
 
+@dataclass(frozen=True)
+class HeldVoice:
+    """Held voice identity: pitch and position relative to running voice (M002)."""
+    held_pitch: int
+    held_is_above: bool
+
+
+@dataclass(frozen=True)
+class CellContext:
+    """Subject-cell structural knot data for hold-exchange running voice (M002)."""
+    cell_degrees: tuple[int, ...]
+    cell_iteration: int
+    material_key: Key | None
+    subject_mode: str
+
 
 def _generate_running_voice_bar(
-    held_pitch: int,
-    held_is_above: bool,
+    held_voice: HeldVoice,
     running_track: int,
     running_range: Range,
     bar_start_offset: Fraction,
     bar_length: Fraction,
-    beat_unit: Fraction,
     rhythm_durations: tuple[Fraction, ...],
     local_key: Key,
     prior_running_notes: tuple[Note, ...],
-    prior_held_notes: tuple[Note, ...],
-    cell_degrees: tuple[int, ...] = (),
-    cell_iteration: int = 0,
-    material_key: Key | None = None,
-    subject_mode: str = "major",
+    cell_ctx: CellContext | None = None,
 ) -> tuple[Note, ...]:
     """Generate one bar of running-voice notes against a held pitch.
 
@@ -43,6 +53,7 @@ def _generate_running_voice_bar(
     When cell_degrees is provided, builds structural knots from a descending
     diatonic sequence of the subject cell, giving the running voice motivic identity.
     """
+    held_pitch: int = held_voice.held_pitch
     # Build rhythm grid: onset + duration for each note
     rhythm_grid: list[tuple[Fraction, Fraction]] = []
     cumulative: Fraction = Fraction(0)
@@ -58,9 +69,9 @@ def _generate_running_voice_bar(
     held_pitches_at_beat: dict[float, int] = {}
     for onset, _ in rhythm_grid:
         held_pitches_at_beat[float(onset)] = held_pitch
-    held_voice: ExistingVoice = ExistingVoice(
+    held_ev: ExistingVoice = ExistingVoice(
         pitches_at_beat=held_pitches_at_beat,
-        is_above=held_is_above,
+        is_above=held_voice.held_is_above,
     )
 
     # Build KeyInfo from local_key
@@ -74,7 +85,11 @@ def _generate_running_voice_bar(
     # -----------------------------------------------------------
     # Build structural knots from subject cell (descending sequence)
     # -----------------------------------------------------------
-    if len(cell_degrees) > 0 and material_key is not None:
+    if cell_ctx is not None and len(cell_ctx.cell_degrees) > 0 and cell_ctx.material_key is not None:
+        cell_degrees: tuple[int, ...] = cell_ctx.cell_degrees
+        cell_iteration: int = cell_ctx.cell_iteration
+        material_key: Key = cell_ctx.material_key
+        subject_mode: str = cell_ctx.subject_mode
         cell_duration: Fraction = sum(rhythm_durations[:len(cell_degrees)])
         iterations: int = int(bar_length / cell_duration) if cell_duration > 0 else 0
         tonic_midi: int = 60 + material_key.tonic_pc
@@ -169,7 +184,7 @@ def _generate_running_voice_bar(
     running_notes: tuple[Note, ...] = generate_voice(
         structural_knots=structural_knots,
         rhythm_grid=rhythm_grid,
-        existing_voices=[held_voice],
+        existing_voices=[held_ev],
         range_low=running_range.low,
         range_high=running_range.high,
         key=key_info,
@@ -287,21 +302,20 @@ def render_hold_entry(
 
             # Soprano runs: generate via Viterbi against held bass
             sop_notes: tuple[Note, ...] = _generate_running_voice_bar(
-                held_pitch=prev_bass_pitch,
-                held_is_above=False,
+                held_voice=HeldVoice(held_pitch=prev_bass_pitch, held_is_above=False),
                 running_track=TRACK_SOPRANO,
                 running_range=plan.upper_range,
                 bar_start_offset=bar_start_offset,
                 bar_length=bar_length,
-                beat_unit=beat_unit,
                 rhythm_durations=rhythm_durations,
                 local_key=hold_beat_role.material_key,
                 prior_running_notes=soprano_notes,
-                prior_held_notes=bass_notes,
-                cell_degrees=cell_degrees,
-                cell_iteration=bar_offset,
-                material_key=hold_beat_role.material_key,
-                subject_mode=subject_mode,
+                cell_ctx=CellContext(
+                    cell_degrees=cell_degrees,
+                    cell_iteration=bar_offset,
+                    material_key=hold_beat_role.material_key,
+                    subject_mode=subject_mode,
+                ),
             )
             soprano_notes = soprano_notes + sop_notes
             last_bar_running_notes = sop_notes
@@ -337,21 +351,20 @@ def render_hold_entry(
 
             # Bass runs: generate via Viterbi against held soprano
             bass_result: tuple[Note, ...] = _generate_running_voice_bar(
-                held_pitch=prev_sop_pitch,
-                held_is_above=True,
+                held_voice=HeldVoice(held_pitch=prev_sop_pitch, held_is_above=True),
                 running_track=TRACK_BASS,
                 running_range=plan.lower_range,
                 bar_start_offset=bar_start_offset,
                 bar_length=bar_length,
-                beat_unit=beat_unit,
                 rhythm_durations=rhythm_durations,
                 local_key=hold_beat_role.material_key,
                 prior_running_notes=bass_notes,
-                prior_held_notes=soprano_notes,
-                cell_degrees=cell_degrees,
-                cell_iteration=bar_offset,
-                material_key=hold_beat_role.material_key,
-                subject_mode=subject_mode,
+                cell_ctx=CellContext(
+                    cell_degrees=cell_degrees,
+                    cell_iteration=bar_offset,
+                    material_key=hold_beat_role.material_key,
+                    subject_mode=subject_mode,
+                ),
             )
             bass_notes = bass_notes + bass_result
             last_bar_running_notes = bass_result

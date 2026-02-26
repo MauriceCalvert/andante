@@ -6,60 +6,14 @@ import pytest
 from fractions import Fraction
 from typing import Any
 
-from builder.compose import compose_phrases
-from builder.config_loader import load_configs
-from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan
 from builder.types import Composition, Note
-from planner.metric.layer import layer_4_metric
-from planner.schematic import layer_3_schematic
-from planner.tonal import layer_2_tonal
 from shared.key import Key
 from tests.conftest import KEYS
-from tests.helpers import degree_at, get_phrase_genres, parse_metre
+from tests.helpers import degree_at, get_phrase_genres, parse_metre, run_pipeline_l7
 
 # Genres with rhythm cells for their metre — computed dynamically
 PHRASE_GENRES: tuple[str, ...] = get_phrase_genres()
-
-
-def _run_full_pipeline(genre: str, key: str = "c_major") -> tuple[Composition, Any, Key, tuple[PhrasePlan, ...]]:
-    """Run L1-L7 pipeline and return Composition, GenreConfig, home_key, phrase_plans."""
-    config = load_configs(genre=genre, key=key, affect="Zierlich")
-    gc = config["genre"]
-    kc = config["key"]
-    tonal_plan = layer_2_tonal(affect_config=config["affect"], genre_config=gc, seed=42)
-    chain = layer_3_schematic(
-        tonal_plan=tonal_plan,
-        genre_config=gc,
-        form_config=config["form"],
-        schemas=config["schemas"],
-        seed=43,
-    )
-    bar_assignments, anchors, total_bars = layer_4_metric(
-        schema_chain=chain,
-        genre_config=gc,
-        form_config=config["form"],
-        key_config=kc,
-        schemas=config["schemas"],
-        tonal_plan=tonal_plan,
-    )
-    phrase_plans: tuple[PhrasePlan, ...] = build_phrase_plans(
-        schema_chain=chain,
-        anchors=anchors,
-        genre_config=gc,
-        schemas=config["schemas"],
-        total_bars=total_bars,
-    )
-    home_key: Key = anchors[0].local_key
-    comp: Composition = compose_phrases(
-        phrase_plans=phrase_plans,
-        home_key=home_key,
-        metre=gc.metre,
-        tempo=gc.tempo,
-        upbeat=gc.upbeat,
-    )
-    return comp, gc, home_key, phrase_plans
-
 
 _L7_PARAMS: list[tuple[str, str]] = [
     (g, k) for g in PHRASE_GENRES for k in KEYS
@@ -70,7 +24,7 @@ _L7_PARAMS: list[tuple[str, str]] = [
 def composition_data(request: pytest.FixtureRequest) -> tuple[Composition, Any, Key, tuple[PhrasePlan, ...], int]:
     """Run full pipeline for each genre+key."""
     genre, key = request.param
-    comp, gc, home_key, phrase_plans = _run_full_pipeline(genre=genre, key=key)
+    comp, gc, home_key, phrase_plans = run_pipeline_l7(genre=genre, key=key)
     bar_length, _ = parse_metre(gc.metre)
     total_bars: int = int(sum(p.phrase_duration for p in phrase_plans) / bar_length)
     return comp, gc, home_key, phrase_plans, total_bars

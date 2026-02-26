@@ -3,7 +3,7 @@ import logging
 from dataclasses import replace
 from fractions import Fraction
 
-from builder.bass_viterbi import generate_bass_viterbi
+from builder.bass_viterbi import BassOptions, generate_bass_viterbi
 from builder.cadence_writer import write_cadence, write_thematic_cadence
 from builder.galant.bass_writer import generate_bass_phrase
 from builder.galant.harmony import build_harmonic_grid, HarmonicGrid
@@ -11,7 +11,7 @@ from builder.galant.soprano_writer import build_structural_soprano
 from builder.figuration.rhythm_calc import compute_rhythmic_distribution
 from builder.phrase_types import BeatPosition, PhrasePlan, PhraseResult, make_tail_plan, make_free_companion_plan
 from builder.voice_types import VoiceBias
-from builder.soprano_viterbi import generate_soprano_viterbi
+from builder.soprano_viterbi import SopranoOptions, generate_soprano_viterbi
 from builder.types import Note
 from motifs.fragen import (
     Fragment,
@@ -65,7 +65,7 @@ def _bass_for_plan(
             plan=plan,
             soprano_notes=soprano_notes,
             prior_lower=prior_bass,
-            harmonic_grid=harmonic_grid,
+            options=BassOptions(harmonic_grid=harmonic_grid),
         )
     return generate_bass_phrase(
         plan=plan,
@@ -202,7 +202,7 @@ def _write_thematic(
 
     Voice-agnostic rendering via entry_renderer, hold_writer, free_fill modules.
     """
-    from builder.entry_renderer import render_entry_voice
+    from builder.entry_renderer import EntryTimeSpan, render_entry_voice
     from builder.free_fill import fill_free_bars
     from builder.hold_writer import render_hold_entry
     from planner.thematic import ThematicRole
@@ -397,9 +397,7 @@ def _write_thematic(
                 plan=pedal_plan,
                 soprano_notes=soprano_notes,
                 prior_lower=bass_notes,
-                harmonic_grid=None,
-                density_override="low",
-                bias=pedal_bass_bias,
+                options=BassOptions(density_override="low", bias=pedal_bass_bias),
             )
 
             # Label first note
@@ -427,16 +425,16 @@ def _write_thematic(
                     role=voice0_role,
                     beat_role=beat_role_v0,
                     fugue=fugue,
-                    start_offset=entry_start_offset,
-                    end_offset=next_entry_start_offset,
-                    entry_first_bar=entry_first_bar,
-                    entry_bar_count=entry_bar_count,
+                    time_span=EntryTimeSpan(
+                        start_offset=entry_start_offset,
+                        end_offset=next_entry_start_offset,
+                        first_bar=entry_first_bar,
+                        bar_count=entry_bar_count,
+                    ),
                     target_track=TRACK_SOPRANO,
                     target_range=plan.upper_range,
                     voice_name="U",
                     plan=plan,
-                    thematic_roles=plan.thematic_roles,
-                    metre=plan.metre,
                 )
                 soprano_notes = soprano_notes + voice0_notes
                 _v0_window_start: Fraction = (
@@ -470,16 +468,16 @@ def _write_thematic(
                 role=comp_role,
                 beat_role=comp_beat,
                 fugue=fugue,
-                start_offset=entry_start_offset,
-                end_offset=next_entry_start_offset,
-                entry_first_bar=entry_first_bar,
-                entry_bar_count=entry_bar_count,
+                time_span=EntryTimeSpan(
+                    start_offset=entry_start_offset,
+                    end_offset=next_entry_start_offset,
+                    first_bar=entry_first_bar,
+                    bar_count=entry_bar_count,
+                ),
                 target_track=comp_track,
                 target_range=comp_range,
                 voice_name=comp_vname,
                 plan=plan,
-                thematic_roles=plan.thematic_roles,
-                metre=plan.metre,
             )
             _comp_window_start: Fraction = (
                 entry_start_offset + comp_beat.render_offset
@@ -507,7 +505,7 @@ def _write_thematic(
             )
 
             if companion_entry_notes:
-                from builder.cs_writer import generate_cs_viterbi
+                from builder.cs_writer import CSTarget, generate_cs_viterbi
 
                 assert cs_beat is not None, f"No BeatRole for CS at entry bar {entry_first_bar}"
                 cs_entry_notes: tuple[Note, ...] = generate_cs_viterbi(
@@ -516,9 +514,11 @@ def _write_thematic(
                     companion_is_above=(comp_idx == 0),
                     start_offset=entry_start_offset,
                     end_offset=next_entry_start_offset,
-                    target_key=cs_beat.material_key,
-                    target_track=cs_track,
-                    target_range=cs_range,
+                    target=CSTarget(
+                        key=cs_beat.material_key,
+                        track=cs_track,
+                        voice_range=cs_range,
+                    ),
                     metre=plan.metre,
                     local_key=plan.local_key,
                     cadential_approach=plan.cadential_approach,
@@ -530,16 +530,16 @@ def _write_thematic(
                     role=ThematicRole.CS,
                     beat_role=cs_beat,
                     fugue=fugue,
-                    start_offset=entry_start_offset,
-                    end_offset=next_entry_start_offset,
-                    entry_first_bar=entry_first_bar,
-                    entry_bar_count=entry_bar_count,
+                    time_span=EntryTimeSpan(
+                        start_offset=entry_start_offset,
+                        end_offset=next_entry_start_offset,
+                        first_bar=entry_first_bar,
+                        bar_count=entry_bar_count,
+                    ),
                     target_track=cs_track,
                     target_range=cs_range,
                     voice_name=cs_vname,
                     plan=plan,
-                    thematic_roles=plan.thematic_roles,
-                    metre=plan.metre,
                 )
 
             # Trace CS render (role_name includes cs_index for verification)
@@ -580,16 +580,16 @@ def _write_thematic(
                 role=role,
                 beat_role=beat_role,
                 fugue=fugue,
-                start_offset=entry_start_offset,
-                end_offset=next_entry_start_offset,
-                entry_first_bar=entry_first_bar,
-                entry_bar_count=entry_bar_count,
+                time_span=EntryTimeSpan(
+                    start_offset=entry_start_offset,
+                    end_offset=next_entry_start_offset,
+                    first_bar=entry_first_bar,
+                    bar_count=entry_bar_count,
+                ),
                 target_track=track,
                 target_range=vrange,
                 voice_name=vname,
                 plan=plan,
-                thematic_roles=plan.thematic_roles,
-                metre=plan.metre,
             )
             _gen_window_start: Fraction = (
                 entry_start_offset + beat_role.render_offset
@@ -915,11 +915,12 @@ def _write_pedal(
         prior_upper=(),
         next_phrase_entry_degree=next_phrase_entry_degree,
         next_phrase_entry_key=next_phrase_entry_key,
-        harmonic_grid=None,
-        density_override="high",
-        contour=pedal_contour,
-        chord_pcs_per_beat=chord_pcs_per_beat,
-        bias=pedal_sop_bias,
+        options=SopranoOptions(
+            density_override="high",
+            contour=pedal_contour,
+            chord_pcs_per_beat=chord_pcs_per_beat,
+            bias=pedal_sop_bias,
+        ),
     )
     # Trace
     first_bar: int = plan.thematic_roles[0].bar if plan.thematic_roles else plan.start_bar
@@ -977,8 +978,6 @@ def _write_cadential(
             prior_lower=prior_lower,
             upper_range=(plan.upper_range.low, plan.upper_range.high),
             lower_range=(plan.lower_range.low, plan.lower_range.high),
-            upper_median=plan.upper_median,
-            lower_median=plan.lower_median,
             fugue=fugue,
             is_final=is_final,
         )
@@ -992,8 +991,6 @@ def _write_cadential(
             prior_lower=prior_lower,
             upper_range=(plan.upper_range.low, plan.upper_range.high),
             lower_range=(plan.lower_range.low, plan.lower_range.high),
-            upper_median=plan.upper_median,
-            lower_median=plan.lower_median,
             is_final=is_final,
         )
     return PhraseResult(

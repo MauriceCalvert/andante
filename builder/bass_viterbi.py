@@ -1,5 +1,6 @@
 """Bass Viterbi: walking-bass generation via Viterbi pathfinding against soprano."""
 import logging
+from dataclasses import dataclass
 from fractions import Fraction
 
 from builder.knot_builder import ensure_final_knot, sort_and_dedup_knots
@@ -18,8 +19,16 @@ from shared.constants import STRONG_BEAT_DISSONANT, TRACK_BASS
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
 from viterbi.generate import generate_voice
-from viterbi.mtypes import ExistingVoice, Knot
+from viterbi.mtypes import AffinityContext, ExistingVoice, Knot
 from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
+
+
+@dataclass(frozen=True)
+class BassOptions:
+    """Optional bass Viterbi generation params bundled for transit (M001)."""
+    harmonic_grid: "HarmonicGrid | None" = None
+    density_override: str | None = None
+    bias: VoiceBias | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +48,7 @@ def generate_bass_viterbi(
     plan: PhrasePlan,
     soprano_notes: tuple[Note, ...],
     prior_lower: tuple[Note, ...] = (),
-    harmonic_grid: "HarmonicGrid | None" = None,
-    density_override: str | None = None,
-    bias: VoiceBias | None = None,
+    options: BassOptions | None = None,
 ) -> tuple[Note, ...]:
     """Generate walking bass via Viterbi pathfinding against soprano.
 
@@ -57,6 +64,9 @@ def generate_bass_viterbi(
     assert not plan.is_cadential, (
         f"generate_bass_viterbi called with cadential plan '{plan.schema_name}'"
     )
+    harmonic_grid = options.harmonic_grid if options else None
+    density_override: str | None = options.density_override if options else None
+    bias: VoiceBias | None = options.bias if options else None
 
     bar_length: Fraction
     beat_unit: Fraction
@@ -269,9 +279,11 @@ def generate_bass_viterbi(
         voice_id=TRACK_BASS,
         beats_per_bar=float(bar_length),
         chord_pcs_per_beat=chord_pcs,
-        degree_affinity=bias.degree_affinity if bias else None,
-        interval_affinity=bias.interval_affinity if bias else None,
-        genome_entries=bias.vertical_genome.entries if bias and bias.vertical_genome else None,
+        affinity=AffinityContext(
+            degree_affinity=bias.degree_affinity if bias else None,
+            interval_affinity=bias.interval_affinity if bias else None,
+            genome_entries=bias.vertical_genome.entries if bias and bias.vertical_genome else None,
+        ) if bias is not None else None,
     )
 
     # ================================================================

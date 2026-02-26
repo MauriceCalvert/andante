@@ -7,7 +7,7 @@ from dataclasses import replace
 from fractions import Fraction
 
 from builder.types import Note
-from viterbi.mtypes import ContourShape, ExistingVoice, Knot
+from viterbi.mtypes import AffinityContext, ContourShape, ExistingVoice, Knot
 from viterbi.pipeline import solve_phrase
 from viterbi.scale import KeyInfo
 
@@ -22,10 +22,7 @@ def generate_voice(
     voice_id: int,
     beats_per_bar: float,
     chord_pcs_per_beat: list[frozenset[int]] | None = None,
-    contour: ContourShape | None = None,
-    degree_affinity: tuple[float, ...] | None = None,
-    interval_affinity: dict[int, float] | None = None,
-    genome_entries: tuple[tuple[float, int], ...] | None = None,
+    affinity: AffinityContext | None = None,
 ) -> tuple[Note, ...]:
     """Generate one voice via Viterbi pathfinding against existing voices.
 
@@ -60,10 +57,7 @@ def generate_voice(
         key=key,
         chord_pcs_per_beat=chord_pcs_per_beat,
         beats_per_bar=beats_per_bar,
-        contour=contour,
-        degree_affinity=degree_affinity,
-        interval_affinity=interval_affinity,
-        genome_entries=genome_entries,
+        affinity=affinity,
     )
 
     # d. Convert solver result to Notes

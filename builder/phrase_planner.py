@@ -27,7 +27,6 @@ def build_phrase_plans(
     tension_curve: TensionCurve | None = None,
 ) -> tuple[PhrasePlan, ...]:
     """Build PhrasePlan objects from schema chain and anchors."""
-    bar_length, beat_unit = parse_metre(metre=genre_config.metre)
     upbeat: Fraction = genre_config.upbeat
     assert len(anchors) > 0, "Cannot build phrase plans with no anchors"
     home_key: Key = anchors[0].local_key
@@ -37,8 +36,6 @@ def build_phrase_plans(
     )
     upper_range: Range = Range(low=MIN_SOPRANO_MIDI, high=VOICE_RANGES[0][1])
     lower_range: Range = Range(low=VOICE_RANGES[3][0], high=VOICE_RANGES[3][1])
-    upper_median: int = (upper_range.low + upper_range.high) // 2
-    lower_median: int = (lower_range.low + lower_range.high) // 2
     cumulative_bar: int = 0 if upbeat > 0 else 1
     genre_rhythmic_unit: Fraction = Fraction(genre_config.rhythmic_unit)
     max_char_rank: int = RHYTHMIC_UNIT_MAX_RANK.get(genre_rhythmic_unit, 4)
@@ -58,18 +55,12 @@ def build_phrase_plans(
         plan: PhrasePlan = _build_single_plan(
             schema_name=schema_name,
             schema_def=schema_def,
-            anchor_group=anchor_group,
             schema_index=i,
             schema_chain=schema_chain,
             genre_config=genre_config,
-            bar_length=bar_length,
-            beat_unit=beat_unit,
-            upbeat=upbeat,
             section_name=section_name,
             upper_range=upper_range,
             lower_range=lower_range,
-            upper_median=upper_median,
-            lower_median=lower_median,
             cumulative_bar=cumulative_bar,
             home_key=home_key,
         )
@@ -118,22 +109,20 @@ def build_phrase_plans(
 def _build_single_plan(
     schema_name: str,
     schema_def: Schema,
-    anchor_group: list[Anchor],
     schema_index: int,
     schema_chain: SchemaChain,
     genre_config: GenreConfig,
-    bar_length: Fraction,
-    beat_unit: Fraction,
-    upbeat: Fraction,
     section_name: str,
     upper_range: Range,
     lower_range: Range,
-    upper_median: int,
-    lower_median: int,
     cumulative_bar: int,
     home_key: Key,
 ) -> PhrasePlan:
     """Build a single PhrasePlan for one schema."""
+    bar_length, beat_unit = parse_metre(metre=genre_config.metre)
+    upbeat: Fraction = genre_config.upbeat
+    upper_median: int = (upper_range.low + upper_range.high) // 2
+    lower_median: int = (lower_range.low + lower_range.high) // 2
     bar_span: int = _compute_bar_span(schema_def=schema_def, schema_name=schema_name, metre=genre_config.metre)
     is_cadential: bool = schema_def.position == CADENTIAL_POSITION
     # Resolve per-schema key from chain key_areas (canonical source of truth)

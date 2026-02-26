@@ -6,6 +6,7 @@ Three anchor levels:
   2. Section-level: cadence targets
   3. Phrase-level: schema stage arrivals (delegated to schema_anchors.py)
 """
+from dataclasses import dataclass
 from fractions import Fraction
 
 from builder.types import (
@@ -17,10 +18,27 @@ from builder.types import (
     TonalPlan,
 )
 from shared.schema_types import Schema
-from planner.metric.distribution import bar_beat_to_float
 from planner.metric.schema_anchors import compute_upbeat_bar_beat, generate_schema_anchors
 from shared.constants import CADENCE_DEGREES
 from shared.key import Key
+
+
+@dataclass(frozen=True)
+class AnchorGenerationContext:
+    """All inputs required to generate anchors at all three levels (M001).
+
+    Bundles the 9 params that travel from layer_4_metric through
+    _generate_all_anchors and into each level-specific helper.
+    """
+    schema_chain: SchemaChain
+    genre_config: GenreConfig
+    schemas: dict  # dict[str, Schema]
+    home_key: Key
+    tonal_plan_dict: dict  # dict[str, tuple[str, ...]]
+    tonal_plan_obj: TonalPlan | None
+    answer_interval: int
+    bar_assignments: dict  # dict[str, tuple[int, int]]
+    total_bars: int
 
 
 def get_schema_stages(
@@ -66,7 +84,7 @@ def layer_4_metric(
     key: Key = _key_config_to_key(key_config=key_config)
     if tonal_plan_dict is None:
         tonal_plan_dict = {}
-    anchors: list[Anchor] = _generate_all_anchors(
+    ctx: AnchorGenerationContext = AnchorGenerationContext(
         schema_chain=schema_chain,
         genre_config=genre_config,
         schemas=schemas,
@@ -77,7 +95,8 @@ def layer_4_metric(
         bar_assignments=bar_assignments,
         total_bars=total_bars,
     )
-    anchors.sort(key=lambda a: (bar_beat_to_float(bar_beat=a.bar_beat), a.upper_degree))
+    anchors: list[Anchor] = _generate_all_anchors(ctx=ctx)
+    anchors.sort(key=lambda a: (a.sort_key(), a.upper_degree))
     anchors = _deduplicate_anchors(anchors=anchors)
     return bar_assignments, anchors, total_bars
 
@@ -158,78 +177,43 @@ def _build_bar_assignments_legacy(
     return assignments
 
 
-def _generate_all_anchors(
-    schema_chain: SchemaChain,
-    genre_config: GenreConfig,
-    schemas: dict[str, Schema],
-    home_key: Key,
-    tonal_plan_dict: dict[str, tuple[str, ...]],
-    tonal_plan_obj: TonalPlan | None,
-    answer_interval: int,
-    bar_assignments: dict[str, tuple[int, int]],
-    total_bars: int,
-) -> list[Anchor]:
+def _generate_all_anchors(ctx: AnchorGenerationContext) -> list[Anchor]:
     """Generate all three levels of anchors."""
     anchors: list[Anchor] = []
     # Level 1: Piece-level anchors
-    piece_anchors: list[Anchor] = _generate_piece_anchors(
-        home_key=home_key,
-        total_bars=total_bars,
-        metre=genre_config.metre,
-        upbeat=genre_config.upbeat,
-    )
-    anchors.extend(piece_anchors)
+    anchors.extend(_generate_piece_anchors(ctx=ctx))
     # Level 2: Section-level anchors (cadence targets)
-    if tonal_plan_obj is not None:
-        section_anchors: list[Anchor] = _generate_section_anchors_from_plan(
-            tonal_plan=tonal_plan_obj,
-            home_key=home_key,
-            bar_assignments=bar_assignments,
-        )
-        anchors.extend(section_anchors)
+    if ctx.tonal_plan_obj is not None:
+        anchors.extend(_generate_section_anchors_from_plan(ctx=ctx))
     # Level 3: Phrase-level anchors (schema stages)
-    phrase_anchors: list[Anchor] = _generate_phrase_anchors(
-        schema_chain=schema_chain,
-        genre_config=genre_config,
-        schemas=schemas,
-        home_key=home_key,
-        tonal_plan_dict=tonal_plan_dict,
-        answer_interval=answer_interval,
-        bar_assignments=bar_assignments,
-    )
-    anchors.extend(phrase_anchors)
+    anchors.extend(_generate_phrase_anchors(ctx=ctx))
     return anchors
 
 
-def _generate_piece_anchors(
-    home_key: Key,
-    total_bars: int,
-    metre: str,
-    upbeat: Fraction,
-) -> list[Anchor]:
+def _generate_piece_anchors(ctx: AnchorGenerationContext) -> list[Anchor]:
     """Level 1: piece start and end anchors."""
-    if total_bars < 1:
+    if ctx.total_bars < 1:
         return []
     start_bar, start_beat = compute_upbeat_bar_beat(
         start_bar=1,
-        upbeat=upbeat,
-        metre=metre,
+        upbeat=ctx.genre_config.upbeat,
+        metre=ctx.genre_config.metre,
     )
     return [
         Anchor(
             bar_beat=f"{start_bar}.{start_beat}",
             upper_degree=1,
             lower_degree=1,
-            local_key=home_key,
+            local_key=ctx.home_key,
             schema="piece_start",
             stage=1,
             section="piece",
         ),
         Anchor(
-            bar_beat=f"{total_bars}.1",
+            bar_beat=f"{ctx.total_bars}.1",
             upper_degree=1,
             lower_degree=1,
-            local_key=home_key,
+            local_key=ctx.home_key,
             schema="piece_end",
             stage=1,
             section="piece",
@@ -237,29 +221,25 @@ def _generate_piece_anchors(
     ]
 
 
-def _generate_section_anchors_from_plan(
-    tonal_plan: TonalPlan,
-    home_key: Key,
-    bar_assignments: dict[str, tuple[int, int]],
-) -> list[Anchor]:
+def _generate_section_anchors_from_plan(ctx: AnchorGenerationContext) -> list[Anchor]:
     """Level 2: section cadence target anchors."""
     anchors: list[Anchor] = []
-    for section in tonal_plan.sections:
-        if section.name not in bar_assignments:
+    for section in ctx.tonal_plan_obj.sections:
+        if section.name not in ctx.bar_assignments:
             continue
-        _, end_bar = bar_assignments[section.name]
+        _, end_bar = ctx.bar_assignments[section.name]
         cadence_type: str = section.cadence_type
         degrees: tuple[int, int] = CADENCE_DEGREES.get(cadence_type, (1, 1))
         soprano_deg: int = degrees[0]
         bass_deg: int = degrees[1]
-        section_key: Key = home_key
+        section_key: Key = ctx.home_key
         if section.key_area != "I":
-            section_key = home_key.modulate_to(target=section.key_area)
+            section_key = ctx.home_key.modulate_to(target=section.key_area)
         anchors.append(Anchor(
             bar_beat=f"{end_bar}.1",
             upper_degree=soprano_deg,
             lower_degree=bass_deg,
-            local_key=section_key if cadence_type != "authentic" else home_key,
+            local_key=section_key if cadence_type != "authentic" else ctx.home_key,
             schema=f"section_cadence_{cadence_type}",
             stage=1,
             upper_direction="down" if soprano_deg < 5 else None,
@@ -269,73 +249,42 @@ def _generate_section_anchors_from_plan(
     return anchors
 
 
-def _generate_phrase_anchors(
-    schema_chain: SchemaChain,
-    genre_config: GenreConfig,
-    schemas: dict[str, Schema],
-    home_key: Key,
-    tonal_plan_dict: dict[str, tuple[str, ...]],
-    answer_interval: int,
-    bar_assignments: dict[str, tuple[int, int]],
-) -> list[Anchor]:
+def _generate_phrase_anchors(ctx: AnchorGenerationContext) -> list[Anchor]:
     """Level 3: phrase-level schema stage anchors."""
-    if schema_chain.section_boundaries:
-        return _phrase_anchors_from_chain(
-            schema_chain=schema_chain,
-            genre_config=genre_config,
-            schemas=schemas,
-            home_key=home_key,
-            tonal_plan_dict=tonal_plan_dict,
-            answer_interval=answer_interval,
-            bar_assignments=bar_assignments,
-        )
-    return _phrase_anchors_legacy(
-        genre_config=genre_config,
-        schemas=schemas,
-        home_key=home_key,
-        tonal_plan_dict=tonal_plan_dict,
-        answer_interval=answer_interval,
-        bar_assignments=bar_assignments,
-    )
+    if ctx.schema_chain.section_boundaries:
+        return _phrase_anchors_from_chain(ctx=ctx)
+    return _phrase_anchors_legacy(ctx=ctx)
 
 
-def _phrase_anchors_from_chain(
-    schema_chain: SchemaChain,
-    genre_config: GenreConfig,
-    schemas: dict[str, Schema],
-    home_key: Key,
-    tonal_plan_dict: dict[str, tuple[str, ...]],
-    answer_interval: int,
-    bar_assignments: dict[str, tuple[int, int]],
-) -> list[Anchor]:
+def _phrase_anchors_from_chain(ctx: AnchorGenerationContext) -> list[Anchor]:
     """Generate phrase anchors from SchemaChain with section boundaries."""
     anchors: list[Anchor] = []
     prev_boundary: int = 0
     is_first_section: bool = True
-    for section_idx, section in enumerate(genre_config.sections):
+    for section_idx, section in enumerate(ctx.genre_config.sections):
         section_name: str = section["name"]
-        if section_name not in bar_assignments:
+        if section_name not in ctx.bar_assignments:
             continue
-        boundary: int = schema_chain.section_boundaries[section_idx] if section_idx < len(schema_chain.section_boundaries) else len(schema_chain.schemas)
-        section_schemas: list[str] = list(schema_chain.schemas[prev_boundary:boundary])
-        start_bar: int = bar_assignments[section_name][0]
-        key_areas: tuple[str, ...] = tuple(schema_chain.key_areas[prev_boundary:boundary])
+        boundary: int = ctx.schema_chain.section_boundaries[section_idx] if section_idx < len(ctx.schema_chain.section_boundaries) else len(ctx.schema_chain.schemas)
+        section_schemas: list[str] = list(ctx.schema_chain.schemas[prev_boundary:boundary])
+        start_bar: int = ctx.bar_assignments[section_name][0]
+        key_areas: tuple[str, ...] = tuple(ctx.schema_chain.key_areas[prev_boundary:boundary])
         is_exordium: bool = section_name == "exordium"
-        section_upbeat: Fraction = genre_config.upbeat if is_first_section else Fraction(0)
+        section_upbeat: Fraction = ctx.genre_config.upbeat if is_first_section else Fraction(0)
         current_bar: int = start_bar
         is_first_schema: bool = True
         for i, schema_name in enumerate(section_schemas):
-            if schema_name not in schemas:
+            if schema_name not in ctx.schemas:
                 continue
-            schema_def: Schema = schemas[schema_name]
-            stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas, metre=genre_config.metre)
+            schema_def: Schema = ctx.schemas[schema_name]
+            stages: int = get_schema_stages(schema_name=schema_name, schemas=ctx.schemas, metre=ctx.genre_config.metre)
             schema_end: int = current_bar + stages - 1
             local_key: Key = _get_local_key(
-                home_key=home_key,
+                home_key=ctx.home_key,
                 schema_index=i,
                 is_exordium=is_exordium,
                 key_areas=key_areas,
-                answer_interval=answer_interval,
+                answer_interval=ctx.answer_interval,
             )
             schema_upbeat: Fraction = section_upbeat if is_first_schema else Fraction(0)
             if schema_upbeat > 0:
@@ -346,7 +295,7 @@ def _phrase_anchors_from_chain(
                 start_bar=current_bar,
                 end_bar=schema_end,
                 home_key=local_key,
-                metre=genre_config.metre,
+                metre=ctx.genre_config.metre,
                 upbeat=schema_upbeat,
                 section=section_name,
                 expected_stages=stages,
@@ -363,41 +312,34 @@ def _phrase_anchors_from_chain(
     return anchors
 
 
-def _phrase_anchors_legacy(
-    genre_config: GenreConfig,
-    schemas: dict[str, Schema],
-    home_key: Key,
-    tonal_plan_dict: dict[str, tuple[str, ...]],
-    answer_interval: int,
-    bar_assignments: dict[str, tuple[int, int]],
-) -> list[Anchor]:
+def _phrase_anchors_legacy(ctx: AnchorGenerationContext) -> list[Anchor]:
     """Legacy phrase anchor generation from genre_config sections."""
     anchors: list[Anchor] = []
     is_first_section: bool = True
-    for section in genre_config.sections:
+    for section in ctx.genre_config.sections:
         section_name: str = section["name"]
-        if section_name not in bar_assignments:
+        if section_name not in ctx.bar_assignments:
             continue
-        start_bar: int = bar_assignments[section_name][0]
+        start_bar: int = ctx.bar_assignments[section_name][0]
         schema_sequence: list[str] = section.get("schema_sequence", [])
         real_schemas: list[str] = [s for s in schema_sequence if s != "episode"]
-        key_areas: tuple[str, ...] = tonal_plan_dict.get(section_name, ("I",))
+        key_areas: tuple[str, ...] = ctx.tonal_plan_dict.get(section_name, ("I",))
         is_exordium: bool = section_name == "exordium"
-        section_upbeat: Fraction = genre_config.upbeat if is_first_section else Fraction(0)
+        section_upbeat: Fraction = ctx.genre_config.upbeat if is_first_section else Fraction(0)
         current_bar: int = start_bar
         is_first_schema: bool = True
         for i, schema_name in enumerate(real_schemas):
-            if schema_name not in schemas:
+            if schema_name not in ctx.schemas:
                 continue
-            schema_def: Schema = schemas[schema_name]
-            stages: int = get_schema_stages(schema_name=schema_name, schemas=schemas, metre=genre_config.metre)
+            schema_def: Schema = ctx.schemas[schema_name]
+            stages: int = get_schema_stages(schema_name=schema_name, schemas=ctx.schemas, metre=ctx.genre_config.metre)
             schema_end: int = current_bar + stages - 1
             local_key: Key = _get_local_key(
-                home_key=home_key,
+                home_key=ctx.home_key,
                 schema_index=i,
                 is_exordium=is_exordium,
                 key_areas=key_areas,
-                answer_interval=answer_interval,
+                answer_interval=ctx.answer_interval,
             )
             schema_upbeat: Fraction = section_upbeat if is_first_schema else Fraction(0)
             if schema_upbeat > 0:
@@ -408,7 +350,7 @@ def _phrase_anchors_legacy(
                 start_bar=current_bar,
                 end_bar=schema_end,
                 home_key=local_key,
-                metre=genre_config.metre,
+                metre=ctx.genre_config.metre,
                 upbeat=schema_upbeat,
                 section=section_name,
                 expected_stages=stages,
@@ -457,7 +399,7 @@ def _deduplicate_anchors(anchors: list[Anchor]) -> list[Anchor]:
         elif anchor.schema.startswith("section_cadence"):
             seen[anchor.bar_beat] = anchor  # cadence targets take priority over schema
     result: list[Anchor] = list(seen.values())
-    result.sort(key=lambda a: bar_beat_to_float(bar_beat=a.bar_beat))
+    result.sort(key=lambda a: a.sort_key())
     return result
 
 
@@ -465,5 +407,4 @@ def _key_config_to_key(key_config: KeyConfig) -> Key:
     """Convert KeyConfig to Key object."""
     parts: list[str] = key_config.name.split()
     tonic: str = parts[0]
-    mode: str = parts[1].lower() if len(parts) > 1 else "major"
-    return Key(tonic=tonic, mode=mode)
+    return Key(tonic=tonic, mode=key_config.mode)

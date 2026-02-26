@@ -3,7 +3,7 @@
 Renders one voice of one entry (SUBJECT, ANSWER, CS, EPISODE, STRETTO, FREE).
 Eliminates voice-0/voice-1 duplication from phrase_writer (D011, L017).
 """
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from fractions import Fraction
 
 from builder.imitation import subject_to_voice_notes
@@ -16,20 +16,24 @@ from shared.tracer import get_tracer, _key_str
 from shared.voice_types import Range
 
 
+@dataclass(frozen=True)
+class EntryTimeSpan:
+    """Time window and bar coordinates for one thematic entry (M002)."""
+    start_offset: Fraction
+    end_offset: Fraction
+    first_bar: int
+    bar_count: int
+
+
 def render_entry_voice(
     role: ThematicRole,
     beat_role: BeatRole | None,
     fugue: SubjectTriple,
-    start_offset: Fraction,
-    end_offset: Fraction,
-    entry_first_bar: int,
-    entry_bar_count: int,
+    time_span: EntryTimeSpan,
     target_track: int,
     target_range: Range,
     voice_name: str,
     plan: "PhrasePlan",
-    thematic_roles: tuple[BeatRole, ...],
-    metre: str,
 ) -> tuple[Note, ...]:
     """Render one voice of one entry in a voice-agnostic way.
 
@@ -52,6 +56,12 @@ def render_entry_voice(
         Tuple of notes for this voice
     """
     tracer = get_tracer()
+    start_offset: Fraction = time_span.start_offset
+    end_offset: Fraction = time_span.end_offset
+    entry_first_bar: int = time_span.first_bar
+    entry_bar_count: int = time_span.bar_count
+    thematic_roles: tuple[BeatRole, ...] = plan.thematic_roles
+    metre: str = plan.metre
 
     # SUBJECT, ANSWER, CS
     if role in (ThematicRole.SUBJECT, ThematicRole.ANSWER, ThematicRole.CS):

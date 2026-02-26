@@ -23,6 +23,7 @@ Options:
 """
 import argparse
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -30,13 +31,21 @@ import yaml
 from builder.faults import find_faults_from_composition, print_faults
 from motifs.subject_loader import SubjectTriple, load_triple, load_triple_path
 from builder.types import Composition
-from planner.planner import generate_to_files
+from planner.planner import GeneratorOptions, generate_to_files
 from shared.tracer import get_tracer, reset_tracer, set_trace_enabled
 
 
 SCRIPT_DIR: Path = Path(__file__).resolve().parent
 PROJECT_DIR: Path = SCRIPT_DIR.parent
 DEFAULT_OUTPUT_DIR: Path = PROJECT_DIR / "output"
+
+@dataclass(frozen=True)
+class PipelineOptions:
+    """Optional pipeline control params bundled for transit (M001/M002)."""
+    verbose: bool = False
+    trace: bool = False
+    seed: int | None = None
+
 
 AFFECT_ALIASES: dict[str, str] = {
     "joy": "Freudigkeit",
@@ -96,14 +105,15 @@ def run_from_args(
     output_dir: Path,
     key: str | None = None,
     output_name: str | None = None,
-    verbose: bool = False,
     tempo: int | None = None,
-    trace: bool = False,
     fugue: SubjectTriple | None = None,
     sections_override: tuple[dict, ...] | None = None,
-    seed: int | None = None,
+    options: PipelineOptions | None = None,
 ) -> Composition:
     """Generate from explicit genre/affect arguments."""
+    verbose: bool = options.verbose if options else False
+    trace: bool = options.trace if options else False
+    seed: int | None = options.seed if options else None
     affect = normalize_affect(affect=affect)
     if key is not None:
         key = normalize_key(key=key)
@@ -126,7 +136,13 @@ def run_from_args(
     print(f"  Seed: {seed}")
     reset_tracer()
     set_trace_enabled(enabled=trace)
-    result = generate_to_files(genre=genre, affect=affect, output_dir=output_dir, name=name, key=key, tempo=tempo, fugue=fugue, sections_override=sections_override, seed=seed)
+    result = generate_to_files(
+        genre=genre,
+        affect=affect,
+        output_dir=output_dir,
+        name=name,
+        options=GeneratorOptions(key=key, tempo=tempo, fugue=fugue, sections_override=sections_override, seed=seed),
+    )
     for vid, vnotes in result.voices.items():
         print(f"  {vid}: {len(vnotes)} notes")
     print(f"  Tempo: {result.tempo} BPM")
@@ -177,11 +193,10 @@ def _convert_brief_sections(brief_sections: list[dict]) -> tuple[dict, ...]:
 def run_from_brief(
     brief_path: Path,
     output_dir: Path,
-    verbose: bool = False,
-    trace: bool = False,
-    seed: int | None = None,
+    options: PipelineOptions | None = None,
 ) -> Composition:
     """Generate from a .brief file."""
+    verbose: bool = options.verbose if options else False
     print(f"Loading {brief_path.name}...")
     with open(brief_path, encoding="utf-8") as f:
         data: dict = yaml.safe_load(f)
@@ -214,17 +229,16 @@ def run_from_brief(
         if verbose:
             print(f"  Sections override: {len(sections_override)} sections")
     output_name: str = brief_path.stem
-    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace=trace, fugue=fugue, sections_override=sections_override, seed=seed)
+    return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, tempo=tempo, fugue=fugue, sections_override=sections_override, options=options)
 
 
 def run_from_subject(
     fugue_path: Path,
     output_dir: Path,
-    verbose: bool = False,
-    trace: bool = False,
-    seed: int | None = None,
+    options: PipelineOptions | None = None,
 ) -> Composition:
     """Generate an invention from a .subject file."""
+    verbose: bool = options.verbose if options else False
     print(f"Loading {fugue_path.name}...")
     fugue: SubjectTriple = load_triple_path(path=fugue_path)
     tonic_letter: str = fugue.tonic.upper()
@@ -243,19 +257,15 @@ def run_from_subject(
         output_dir=output_dir,
         key=key,
         output_name=output_name,
-        verbose=verbose,
-        trace=trace,
         fugue=fugue,
-        seed=seed,
+        options=options,
     )
 
 
 def run_from_directory(
     directory: Path,
     output_dir: Path,
-    verbose: bool = False,
-    trace: bool = False,
-    seed: int | None = None,
+    options: PipelineOptions | None = None,
 ) -> int:
     """Generate from all .brief files in a directory."""
     briefs: list[Path] = sorted(directory.glob("*.brief"))
@@ -265,7 +275,7 @@ def run_from_directory(
     print(f"Found {len(briefs)} brief files in {directory}\n")
     total_notes: int = 0
     for brief_path in briefs:
-        result = run_from_brief(brief_path=brief_path, output_dir=output_dir, verbose=verbose, trace=trace, seed=seed)
+        result = run_from_brief(brief_path=brief_path, output_dir=output_dir, options=options)
         total_notes += sum(len(v) for v in result.voices.values())
         print()
     print(f"Generated {len(briefs)} pieces ({total_notes} total notes)")
@@ -330,20 +340,25 @@ Use -trace to write a <piece>.trace diagnostic file.
     )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    pipeline_options: PipelineOptions = PipelineOptions(
+        verbose=args.verbose,
+        trace=args.trace,
+        seed=args.seed,
+    )
     first_arg: str = args.args[0]
     first_arg_clean: str = first_arg.lstrip("/\\")
     first_path: Path = Path(first_arg_clean)
     if not first_path.exists() and (PROJECT_DIR / first_arg_clean).exists():
         first_path = PROJECT_DIR / first_arg_clean
     if first_path.is_dir():
-        run_from_directory(directory=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace, seed=args.seed)
+        run_from_directory(directory=first_path, output_dir=args.output_dir, options=pipeline_options)
         return
     if first_path.suffix == ".subject":
         if not first_path.exists():
             print(f"File not found: {first_arg_clean}")
             print(f"  (also checked: {PROJECT_DIR / first_arg_clean})")
             return
-        run_from_subject(fugue_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace, seed=args.seed)
+        run_from_subject(fugue_path=first_path, output_dir=args.output_dir, options=pipeline_options)
         print("\nDone!")
         return
     if first_path.suffix == ".brief" or (first_path.exists() and first_path.is_file()):
@@ -351,7 +366,7 @@ Use -trace to write a <piece>.trace diagnostic file.
             print(f"File not found: {first_arg_clean}")
             print(f"  (also checked: {PROJECT_DIR / first_arg_clean})")
             return
-        run_from_brief(brief_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace, seed=args.seed)
+        run_from_brief(brief_path=first_path, output_dir=args.output_dir, options=pipeline_options)
         print("\nDone!")
         return
     if len(args.args) < 2:
@@ -369,7 +384,7 @@ Use -trace to write a <piece>.trace diagnostic file.
             output_name = args.args[3] if len(args.args) > 3 else None
         else:
             output_name = args.args[2]
-    run_from_args(genre=genre, affect=affect, output_dir=args.output_dir, key=key, output_name=output_name, verbose=args.verbose, trace=args.trace, seed=args.seed)
+    run_from_args(genre=genre, affect=affect, output_dir=args.output_dir, key=key, output_name=output_name, options=pipeline_options)
     print("\nDone!")
 
 

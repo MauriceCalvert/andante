@@ -33,6 +33,13 @@ _ROLE_MAP: dict[str, ThematicRole] = {
 
 _HOLD_EXCHANGE_ROLES: frozenset[ThematicRole] = frozenset({ThematicRole.HOLD, ThematicRole.FREE})
 
+_CADENCE_TYPE_MAP: dict[str, str] = {
+    "cadenza_semplice": "authentic",
+    "cadenza_composta": "authentic",
+    "half_cadence": "half",
+    "comma": "authentic",
+}
+
 _MATERIAL_MAP: dict[str, str | None] = {
     "subject": "subject",
     "answer": "answer",
@@ -78,8 +85,7 @@ def build_imitative_plans(
     # Stamp ALL BeatRoles from ALL BarAssignments first
     all_beat_roles: tuple[BeatRole, ...] = _build_thematic_roles(
         bar_assignments=list(subject_plan.bars),
-        beats_per_bar=beats_per_bar,
-        beat_unit=beat_unit,
+        metre=subject_plan.metre,
         answer_offset_beats=0,
     )
 
@@ -111,16 +117,21 @@ def build_imitative_plans(
         )
 
         if function == "cadence":
-            # Cadential phrase: use cadenza_composta schema
-            cadence_schema = get_schema(name="cadenza_composta")
+            # Cadential phrase: schema name comes from SubjectPlan (read from genre YAML)
+            cadence_schema_name: str = subject_plan.cadence_schema
+            assert cadence_schema_name in _CADENCE_TYPE_MAP, (
+                f"Unknown cadence schema '{cadence_schema_name}'. "
+                f"Add it to _CADENCE_TYPE_MAP in entry_layout.py"
+            )
+            cadence_schema_def = get_schema(name=cadence_schema_name)
             phrase_plans.append(PhrasePlan(
-                schema_name="cadenza_composta",
-                degrees_upper=cadence_schema.soprano_degrees,
-                degrees_lower=cadence_schema.bass_degrees,
+                schema_name=cadence_schema_name,
+                degrees_upper=cadence_schema_def.soprano_degrees,
+                degrees_lower=cadence_schema_def.bass_degrees,
                 degree_positions=_build_cadence_degree_positions(
                     bar_count=bar_count,
                     beats_per_bar=beats_per_bar,
-                    soprano_degrees=cadence_schema.soprano_degrees,
+                    soprano_degrees=cadence_schema_def.soprano_degrees,
                 ),
                 local_key=home_key,
                 bar_span=bar_count,
@@ -130,7 +141,7 @@ def build_imitative_plans(
                 metre=subject_plan.metre,
                 rhythm_profile=genre_config.rhythmic_unit or "default",
                 is_cadential=True,
-                cadence_type="authentic",
+                cadence_type=_CADENCE_TYPE_MAP[cadence_schema_name],
                 prev_exit_upper=None,
                 prev_exit_lower=None,
                 section_name=section_name,
@@ -374,14 +385,17 @@ def _build_cadence_degree_positions(
 
 def _build_thematic_roles(
     bar_assignments: list[BarAssignment],
-    beats_per_bar: int,
-    beat_unit: Fraction,
+    metre: str,
     answer_offset_beats: int = 0,
 ) -> tuple[BeatRole, ...]:
     """Build BeatRole tuple for an entry group.
 
     Creates BeatRole for each bar × beat × voice.
     """
+    bar_length: Fraction
+    beat_unit: Fraction
+    bar_length, beat_unit = parse_metre(metre=metre)
+    beats_per_bar: int = int(bar_length / beat_unit)
     roles: list[BeatRole] = []
 
     for bar_assignment in bar_assignments:

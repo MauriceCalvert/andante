@@ -61,42 +61,31 @@ def _degree_to_roman(degree: str, mode: str) -> str:
     return table.get(degree, "?")
 
 
-def _build_key_map(
+def _build_annotation_maps(
     phrase_plans: tuple[PhrasePlan, ...],
     home_key: Key,
-) -> dict[int, Key]:
-    """Map bar numbers to local keys from phrase plans."""
+) -> tuple[dict[int, Key], dict[Fraction, str], dict[int, str]]:
+    """Build key_map, phrase_map, and cadence_map in a single pass over phrase_plans.
+
+    Returns:
+        key_map: bar number → local Key
+        phrase_map: phrase start offset → section label
+        cadence_map: cadential final-bar number → cadence abbreviation
+    """
     key_map: dict[int, Key] = {}
+    phrase_map: dict[Fraction, str] = {}
+    cadence_map: dict[int, str] = {}
     for plan in phrase_plans:
         for i in range(plan.bar_span):
             key_map[plan.start_bar + i] = plan.local_key
-    return key_map
-
-
-def _build_phrase_map(
-    phrase_plans: tuple[PhrasePlan, ...],
-    home_key: Key,
-) -> dict[Fraction, str]:
-    """Map phrase start offsets to section labels."""
-    phrase_map: dict[Fraction, str] = {}
-    for plan in phrase_plans:
         label: str = plan.section_name
         if plan.local_key != home_key:
             label = f"{label} [{_key_label(key=plan.local_key)}]"
         phrase_map[plan.start_offset] = label
-    return phrase_map
-
-
-def _build_cadence_map(
-    phrase_plans: tuple[PhrasePlan, ...],
-) -> dict[int, str]:
-    """Map cadential bar numbers to cadence abbreviations."""
-    cadence_map: dict[int, str] = {}
-    for plan in phrase_plans:
         if plan.is_cadential and plan.cadence_type:
             final_bar: int = plan.start_bar + plan.bar_span - 1
             cadence_map[final_bar] = CADENCE_ABBREV.get(plan.cadence_type, plan.cadence_type)
-    return cadence_map
+    return key_map, phrase_map, cadence_map
 
 
 def _build_harmony_map(
@@ -190,15 +179,13 @@ def write_note_file(
     phrase_plans: tuple[PhrasePlan, ...] = (),
 ) -> None:
     """Write enriched .note CSV file with analytical annotations."""
-    key_map: dict[int, Key] = _build_key_map(
+    key_map: dict[int, Key]
+    phrase_map: dict[Fraction, str]
+    cadence_map: dict[int, str]
+    key_map, phrase_map, cadence_map = _build_annotation_maps(
         phrase_plans=phrase_plans,
         home_key=home_key,
     )
-    phrase_map: dict[Fraction, str] = _build_phrase_map(
-        phrase_plans=phrase_plans,
-        home_key=home_key,
-    )
-    cadence_map: dict[int, str] = _build_cadence_map(phrase_plans=phrase_plans)
     harmony_map: dict[Fraction, str] = _build_harmony_map(
         comp=comp,
         key_map=key_map,

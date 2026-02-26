@@ -1,5 +1,61 @@
 # Completed
 
+## M005: Remaining violations (2026-02-26)
+
+**M005-3 — `catalogue.py` Fragment dispatch**: Changed `_generate_heads` and `_generate_tails` to accept `frag: Fragment` directly instead of `(intervals, durations, source)`. Updated 7 call sites in `_build_catalogue`. Removed redundant `inv_intervals`, `aug_durations`, `dim_durations` local variables.
+
+**M005-5 — `note_writer.py` single-pass maps**: Replaced 3 separate `_build_key_map`, `_build_phrase_map`, `_build_cadence_map` functions with single `_build_annotation_maps` that iterates `phrase_plans` once, returning a 3-tuple.
+
+**M005-7 — `KeyConfig.mode` property**: Added `mode` property to `KeyConfig` frozen dataclass (`builder/types.py`). Updated 2 production sites (`planner/planner.py`, `planner/metric/layer.py`). Updated 2 test files (`test_system.py`, `test_cross_phrase_counterpoint.py`).
+
+**M005-6 — Test pipeline consolidation**: Added `run_pipeline_l5` and `run_pipeline_l7` to `tests/helpers.py`. Removed duplicated 35-line pipeline setup from 4 test files (`test_L6_phrase_writer.py`, `test_L7_compose.py`, `test_cross_phrase_counterpoint.py`, `test_system.py`). Standardized `home_mode=kc.mode if kc else "major"` across all pipeline calls (fixes test_L7's bug where minor keys used `home_mode="major"`).
+
+Pipeline: 200 soprano + 134 bass notes, unchanged.
+
+## CLR-1: Dynamic cadence type from genre YAML (2026-02-26)
+
+**Plumbing-only task. No audible change.**
+
+- `planner/imitative/types.py`: Added `cadence_schema: str = "cadenza_composta"` to `SubjectPlan`
+- `planner/imitative/subject_planner.py`: Reads `cadence_schema` from `thematic_config.get("cadence", ...)`, looks up bar count from `load_cadence_templates()`, replaces `CADENCE_BARS` constant with template-derived value. Removed `CADENCE_BARS` import.
+- `planner/imitative/entry_layout.py`: Added `_CADENCE_TYPE_MAP`. Uses `subject_plan.cadence_schema` to select schema and cadence type dynamically instead of hardcoded strings.
+- `shared/constants.py`: Removed `CADENCE_BARS: int = 2` (dead).
+
+Pipeline: 200 soprano + 134 bass notes, unchanged.
+
+## M-violations Tasks 6-8: M005-2, M005-1, M003-6 (2026-02-26)
+
+**M005-2 — `Schema.bar_count` property** (`shared/schema_types.py`):
+Added `bar_count` property (sequential: `max(segments)`, else `len(soprano_degrees)`).
+Replaced all 10 `_schema_bars()` call sites in `planner/schematic.py` with `schema_def.bar_count` / `schema_defs[s].bar_count`. Deleted `_schema_bars()` function.
+
+**M005-1 — `Anchor.sort_key()` method** (`builder/types.py`):
+Added `sort_key() -> float` that inlines `bar_beat_to_float` logic directly on the dataclass.
+Updated 2 sort lambdas in `planner/metric/layer.py` to use `a.sort_key()`. Removed `bar_beat_to_float` import from `layer.py`.
+
+**M003-6 — `_build_thematic_roles` accepts `metre`** (`planner/imitative/entry_layout.py`):
+Changed signature from `(beats_per_bar: int, beat_unit: Fraction)` to `(metre: str)`. Function now calls `parse_metre` internally. Updated call site in `build_imitative_plans`.
+
+Pipeline verified: 200 soprano + 134 bass notes, identical to pre-change output.
+
+## ICP-2c: CS lyric labels cs1 / cs2 (2026-02-26)
+
+**Work**: Labelling-only fix. CS notes now carry `cs1` or `cs2` in the MusicXML lyric
+instead of bare `cs`.
+
+**`builder/cs_writer.py`**: Step 9 label changed from `"cs"` to `f"cs{cs_index + 1}"`.
+
+**`builder/entry_renderer.py`**: CS branch now parses `cs_index` from `beat_role.material`
+and sets `lyric=f"cs{cs_index + 1}"`.
+
+**`builder/compose.py`**: `_stamp_lyrics` whitelist guard extended from exact `"cs"` match
+to `startswith("cs")` so any `csN` label survives the schema-metadata stamp-over. This was
+the root bug: `cs1`/`cs2` were being silently overwritten by `subject_entry/exordium/plain`.
+
+**Verified**: 4 CS lyrics in output XML — 2× `cs1` (bars 2, 11) and 2× `cs2` (bars 4, 18).
+
+---
+
 ## ICP-2b: CS2 scheduling and rendering (2026-02-26)
 
 **Work**: Wired CS variant selection through the full pipeline so development entries

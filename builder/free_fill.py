@@ -4,7 +4,7 @@ Fills bars where one or both voices have no thematic material (FREE role).
 """
 from fractions import Fraction
 
-from builder.bass_viterbi import generate_bass_viterbi
+from builder.bass_viterbi import BassOptions, generate_bass_viterbi
 from builder.knot_builder import enrich_companion_knots
 from builder.galant.soprano_writer import build_structural_soprano
 from builder.phrase_types import (
@@ -14,7 +14,7 @@ from builder.phrase_types import (
     phrase_bar_start,
     phrase_offset_to_bar,
 )
-from builder.soprano_viterbi import generate_soprano_viterbi
+from builder.soprano_viterbi import SopranoOptions, generate_soprano_viterbi
 from builder.types import Note
 from builder.voice_types import VoiceBias
 from motifs.subject_loader import ThematicBias
@@ -308,10 +308,11 @@ def fill_free_bars(
                 prior_upper=soprano_notes,
                 next_phrase_entry_degree=None,
                 next_phrase_entry_key=None,
-                harmonic_grid=None,
-                density_override=companion_density_level,
-                avoid_onsets_by_bar=avoid_onsets,
-                bias=sop_bias,
+                options=SopranoOptions(
+                    density_override=companion_density_level,
+                    avoid_onsets_by_bar=avoid_onsets,
+                    bias=sop_bias,
+                ),
             )
             soprano_notes = soprano_notes + free_soprano
         else:
@@ -387,9 +388,7 @@ def fill_free_bars(
                 plan=run_plan,
                 soprano_notes=soprano_notes,
                 prior_lower=bass_notes,
-                harmonic_grid=None,
-                density_override=companion_density_level,
-                bias=bass_bias,
+                options=BassOptions(density_override=companion_density_level, bias=bass_bias),
             )
             bass_notes = bass_notes + free_bass
 
@@ -518,8 +517,7 @@ def fill_free_bars(
                 plan=tail_plan,
                 soprano_notes=prior_upper + soprano_notes + structural_tail,
                 prior_lower=bass_notes,
-                harmonic_grid=None,
-                bias=tail_bass_bias,
+                options=BassOptions(bias=tail_bass_bias),
             )
             bass_notes = bass_notes + tail_bass
 
@@ -536,8 +534,7 @@ def fill_free_bars(
                 prior_upper=soprano_notes,
                 next_phrase_entry_degree=next_phrase_entry_degree,
                 next_phrase_entry_key=next_phrase_entry_key,
-                harmonic_grid=None,
-                bias=tail_sop_bias,
+                options=SopranoOptions(bias=tail_sop_bias),
             )
             soprano_notes = soprano_notes + tail_soprano
 

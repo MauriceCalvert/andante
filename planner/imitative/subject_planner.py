@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import math
 
-from shared.constants import CADENCE_BARS
+from builder.cadence_writer import load_cadence_templates
 from shared.key import Key
 
 from motifs.subject_loader import LoadedStretto
@@ -294,6 +294,15 @@ def plan_subject(
     Returns:
         SubjectPlan with one BarAssignment per bar, fully validated.
     """
+    cadence_schema: str = thematic_config.get("cadence", "cadenza_composta")
+    templates = load_cadence_templates()
+    cadence_key: tuple[str, str] = (cadence_schema, metre)
+    assert cadence_key in templates, (
+        f"No cadence template for '{cadence_schema}' in metre '{metre}'. "
+        f"Add it to data/cadence_templates/templates.yaml"
+    )
+    cadence_bars: int = templates[cadence_key].bars
+
     if "entry_sequence" in thematic_config:
         # Legacy: literal entry_sequence (backward compat for other genres)
         raw_sequence: list = thematic_config["entry_sequence"]
@@ -349,7 +358,7 @@ def plan_subject(
     entry_costs: list[int] = []
     for entry in entry_sequence:
         if entry == "cadence":
-            entry_costs.append(CADENCE_BARS)
+            entry_costs.append(cadence_bars)
             continue
         assert isinstance(entry, dict), (
             f"entry_sequence element must be dict or 'cadence', got {type(entry).__name__}: {entry}"
@@ -795,4 +804,5 @@ def plan_subject(
         home_key=home_key,
         metre=metre,
         answer_offset_beats=answer_offset_beats,
+        cadence_schema=cadence_schema,
     )

@@ -27,6 +27,7 @@ class BarAssignment:
     function: str         # "entry", "episode", "cadence", "stretto", "pedal"
     local_key: Key
     voices: dict[int, VoiceAssignment]
+    entry_index: int = 0  # monotonically increasing per logical entry
 
 
 @dataclass(frozen=True)
@@ -37,3 +38,4 @@ class SubjectPlan:
     home_key: Key
     metre: str
     answer_offset_beats: int = 0
+    cadence_schema: str = "cadenza_composta"

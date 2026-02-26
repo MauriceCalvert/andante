@@ -5,6 +5,7 @@ from viterbi.corridors import build_corridors
 from viterbi.pathfinder import find_path
 from viterbi.scale import interval_name, is_consonant, KeyInfo, CMAJ
 from viterbi.mtypes import (
+    AffinityContext,
     ContourShape,
     ExistingVoice,
     Knot,
@@ -25,10 +26,7 @@ def solve_phrase(
     key: KeyInfo = CMAJ,
     chord_pcs_per_beat: list[frozenset[int]] | None = None,
     beats_per_bar: float = 4.0,
-    contour: ContourShape | None = None,
-    degree_affinity: tuple[float, ...] | None = None,
-    interval_affinity: dict[int, float] | None = None,
-    genome_entries: tuple[tuple[float, int], ...] | None = None,
+    affinity: AffinityContext | None = None,
 ) -> PhraseResult:
     """Solve a complete phrase: validate, build corridors, pathfind."""
     assert len(follower_knots) >= 2, "Need at least 2 knots"
@@ -71,10 +69,7 @@ def solve_phrase(
         verbose=verbose,
         key=key,
         chord_pcs_at=chord_pcs_per_beat,
-        contour=contour,
-        degree_affinity=degree_affinity,
-        interval_affinity=interval_affinity,
-        genome_entries=genome_entries,
+        affinity=affinity,
     )
     if verbose:
         _print_phrase_summary(beats, pitches, leader_map, follower_knots)

@@ -186,3 +186,106 @@ def parse_metre(
     bar_length: Fraction = Fraction(numerator, denominator)
     beat_unit: Fraction = Fraction(1, denominator)
     return bar_length, beat_unit
+
+
+def run_pipeline_l5(
+    genre: str,
+    key: str = "c_major",
+    seed_tonal: int = 42,
+    seed_schematic: int = 43,
+) -> tuple[Any, ...]:
+    """Run L1-L5 pipeline and return all PhrasePlans."""
+    from builder.config_loader import load_configs
+    from builder.phrase_planner import build_phrase_plans
+    from planner.metric.layer import layer_4_metric
+    from planner.schematic import layer_3_schematic
+    from planner.tonal import layer_2_tonal
+    config = load_configs(genre=genre, key=key, affect="Zierlich")
+    gc = config["genre"]
+    kc = config["key"]
+    home_mode: str = kc.mode if kc else "major"
+    tonal_plan = layer_2_tonal(
+        affect_config=config["affect"],
+        genre_config=gc,
+        seed=seed_tonal,
+        home_mode=home_mode,
+    )
+    chain = layer_3_schematic(
+        tonal_plan=tonal_plan,
+        genre_config=gc,
+        form_config=config["form"],
+        schemas=config["schemas"],
+        seed=seed_schematic,
+    )
+    bar_assignments, anchors, total_bars = layer_4_metric(
+        schema_chain=chain,
+        genre_config=gc,
+        form_config=config["form"],
+        key_config=kc,
+        schemas=config["schemas"],
+        tonal_plan=tonal_plan,
+    )
+    plans: tuple[Any, ...] = build_phrase_plans(
+        schema_chain=chain,
+        anchors=anchors,
+        genre_config=gc,
+        schemas=config["schemas"],
+        total_bars=total_bars,
+    )
+    return plans
+
+
+def run_pipeline_l7(
+    genre: str,
+    key: str = "c_major",
+    seed_tonal: int = 42,
+    seed_schematic: int = 43,
+) -> tuple[Any, Any, Key, tuple[Any, ...]]:
+    """Run L1-L7 pipeline and return (Composition, GenreConfig, home_key, phrase_plans)."""
+    from builder.compose import compose_phrases
+    from builder.config_loader import load_configs
+    from builder.phrase_planner import build_phrase_plans
+    from planner.metric.layer import layer_4_metric
+    from planner.schematic import layer_3_schematic
+    from planner.tonal import layer_2_tonal
+    config = load_configs(genre=genre, key=key, affect="Zierlich")
+    gc = config["genre"]
+    kc = config["key"]
+    home_mode: str = kc.mode if kc else "major"
+    tonal_plan = layer_2_tonal(
+        affect_config=config["affect"],
+        genre_config=gc,
+        seed=seed_tonal,
+        home_mode=home_mode,
+    )
+    chain = layer_3_schematic(
+        tonal_plan=tonal_plan,
+        genre_config=gc,
+        form_config=config["form"],
+        schemas=config["schemas"],
+        seed=seed_schematic,
+    )
+    bar_assignments, anchors, total_bars = layer_4_metric(
+        schema_chain=chain,
+        genre_config=gc,
+        form_config=config["form"],
+        key_config=kc,
+        schemas=config["schemas"],
+        tonal_plan=tonal_plan,
+    )
+    phrase_plans: tuple[Any, ...] = build_phrase_plans(
+        schema_chain=chain,
+        anchors=anchors,
+        genre_config=gc,
+        schemas=config["schemas"],
+        total_bars=total_bars,
+    )
+    home_key: Key = anchors[0].local_key
+    comp = compose_phrases(
+        phrase_plans=phrase_plans,
+        home_key=home_key,
+        metre=gc.metre,
+        tempo=gc.tempo,
+        upbeat=gc.upbeat,
+    )
+    return comp, gc, home_key, phrase_plans

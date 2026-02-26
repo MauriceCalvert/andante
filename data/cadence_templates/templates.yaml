@@ -36,8 +36,8 @@ cadenza_composta:
       degrees: [4, 3, 2, 1]
       durations: ["1/2", "1/2", "1/2", "1/2"]
     bass:
-      degrees: [4, 5, 5, 1]
-      durations: ["1/2", "1/2", "1/2", "1/2"]
+      degrees: [4, 2, 5, 5, 1]
+      durations: ["1/4", "1/4", "1/2", "1/2", "1/2"]
 
 half_cadence:
   "3/4":

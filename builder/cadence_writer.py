@@ -184,11 +184,11 @@ def write_cadence(
     prior_lower: tuple[Note, ...],
     upper_range: tuple[int, int],
     lower_range: tuple[int, int],
-    upper_median: int,
-    lower_median: int,
     is_final: bool = False,
 ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
     """Write soprano and bass notes for a cadential schema."""
+    upper_median: int = (upper_range[0] + upper_range[1]) // 2
+    lower_median: int = (lower_range[0] + lower_range[1]) // 2
     prev_upper_midi: int | None = prior_upper[-1].pitch if prior_upper else None
     prev_lower_midi: int | None = prior_lower[-1].pitch if prior_lower else None
     templates: dict[tuple[str, str], CadenceTemplate] = load_cadence_templates()
@@ -290,8 +290,6 @@ def write_thematic_cadence(
     prior_lower: tuple[Note, ...],
     upper_range: tuple[int, int],
     lower_range: tuple[int, int],
-    upper_median: int,
-    lower_median: int,
     fugue: SubjectTriple,
     is_final: bool = False,
 ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
@@ -303,6 +301,8 @@ def write_thematic_cadence(
     Bar 2 beats 3-4: degree 1 (1-based) resolution
     Bass: unchanged from template (V-pedal through approach, I on resolution)
     """
+    upper_median: int = (upper_range[0] + upper_range[1]) // 2
+    lower_median: int = (lower_range[0] + lower_range[1]) // 2
     assert metre in METRE_BAR_LENGTH, f"Unknown metre: {metre}"
     bar_length: Fraction = METRE_BAR_LENGTH[metre]
     prev_upper_midi: int | None = prior_upper[-1].pitch if prior_upper else None

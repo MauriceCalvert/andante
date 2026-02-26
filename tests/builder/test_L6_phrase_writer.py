@@ -7,14 +7,9 @@ from fractions import Fraction
 
 import pytest
 
-from builder.config_loader import load_configs
-from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan, PhraseResult, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Note
-from planner.metric.layer import layer_4_metric
-from planner.schematic import layer_3_schematic
-from planner.tonal import layer_2_tonal
 from shared.constants import STRONG_BEAT_DISSONANT, TRACK_BASS, TRACK_SOPRANO, VALID_DURATIONS
 from shared.key import Key
 from tests.helpers import (
@@ -25,6 +20,7 @@ from tests.helpers import (
     is_strong_beat,
     notes_at_offsets,
     parse_metre,
+    run_pipeline_l5,
 )
 
 VALID_DURATIONS_SET: frozenset[Fraction] = frozenset(VALID_DURATIONS)
@@ -32,49 +28,13 @@ ALL_GENRES: tuple[str, ...] = (
     "bourree", "chorale", "fantasia", "gavotte",
     "invention", "minuet", "sarabande", "trio_sonata",
 )
-PIPELINE_SEED_TONAL: int = 42
-PIPELINE_SEED_SCHEMATIC: int = 43
-
-
-def _run_pipeline_for_genre(genre: str) -> tuple[PhrasePlan, ...]:
-    """Run L1-L5 pipeline and return all PhrasePlans."""
-    config = load_configs(genre=genre, key="c_major", affect="Zierlich")
-    gc = config["genre"]
-    tonal_plan = layer_2_tonal(
-        affect_config=config["affect"],
-        genre_config=gc,
-        seed=PIPELINE_SEED_TONAL,
-    )
-    chain = layer_3_schematic(
-        tonal_plan=tonal_plan,
-        genre_config=gc,
-        form_config=config["form"],
-        schemas=config["schemas"],
-        seed=PIPELINE_SEED_SCHEMATIC,
-    )
-    bar_assignments, anchors, total_bars = layer_4_metric(
-        schema_chain=chain,
-        genre_config=gc,
-        form_config=config["form"],
-        key_config=config["key"],
-        schemas=config["schemas"],
-        tonal_plan=tonal_plan,
-    )
-    plans: tuple[PhrasePlan, ...] = build_phrase_plans(
-        schema_chain=chain,
-        anchors=anchors,
-        genre_config=gc,
-        schemas=config["schemas"],
-        total_bars=total_bars,
-    )
-    return plans
 
 
 def _build_all_fixtures() -> list[tuple[str, PhrasePlan, PhraseResult]]:
     """Build (genre, plan, result) for first occurrence of each schema per genre."""
     fixtures: list[tuple[str, PhrasePlan, PhraseResult]] = []
     for genre in ALL_GENRES:
-        plans: tuple[PhrasePlan, ...] = _run_pipeline_for_genre(genre)
+        plans: tuple[PhrasePlan, ...] = run_pipeline_l5(genre=genre)
         seen: set[str] = set()
         all_upper: list[Note] = []
         all_lower: list[Note] = []

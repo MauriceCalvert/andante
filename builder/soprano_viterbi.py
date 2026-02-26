@@ -2,6 +2,7 @@
 import logging
 from fractions import Fraction
 
+from dataclasses import dataclass
 from builder.knot_builder import check_structural_tone_consonance, ensure_final_knot, sort_and_dedup_knots
 from builder.figuration.rhythm_calc import compute_rhythmic_distribution
 from builder.figuration.soprano import character_to_density
@@ -21,8 +22,18 @@ from shared.key import Key
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
 from viterbi.generate import generate_voice
-from viterbi.mtypes import ContourShape, ExistingVoice, Knot
+from viterbi.mtypes import AffinityContext, ContourShape, ExistingVoice, Knot
 from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
+
+
+@dataclass(frozen=True)
+class SopranoOptions:
+    """Optional soprano Viterbi generation params bundled for transit (M001)."""
+    density_override: str | None = None
+    contour: ContourShape | None = None
+    avoid_onsets_by_bar: dict[int, frozenset[Fraction]] | None = None
+    chord_pcs_per_beat: list[frozenset[int]] | None = None
+    bias: VoiceBias | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +87,7 @@ def generate_soprano_viterbi(
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
     harmonic_grid: "HarmonicGrid | None" = None,
-    density_override: str | None = None,
-    contour: ContourShape | None = None,
-    avoid_onsets_by_bar: dict[int, frozenset[Fraction]] | None = None,
-    chord_pcs_per_beat: list[frozenset[int]] | None = None,
-    bias: VoiceBias | None = None,
+    options: SopranoOptions | None = None,
 ) -> tuple[tuple[Note, ...], tuple[str, ...]]:
     """Generate soprano notes using Viterbi pathfinding against finished bass.
 
@@ -92,6 +99,11 @@ def generate_soprano_viterbi(
     Returns (notes, figure_names) where figure_names is empty (Viterbi doesn't
     use diminution figures).
     """
+    density_override: str | None = options.density_override if options else None
+    contour: ContourShape | None = options.contour if options else None
+    avoid_onsets_by_bar = options.avoid_onsets_by_bar if options else None
+    chord_pcs_per_beat: list[frozenset[int]] | None = options.chord_pcs_per_beat if options else None
+    bias: VoiceBias | None = options.bias if options else None
     # Step 1: Place structural tones and convert to Knots
     prev_exit_midi: int | None = prior_upper[-1].pitch if prior_upper else None
     structural_tones: list[tuple[Fraction, int, Key]]
@@ -336,10 +348,12 @@ def generate_soprano_viterbi(
         voice_id=TRACK_SOPRANO,
         beats_per_bar=float(bar_length),
         chord_pcs_per_beat=chord_pcs_per_beat_built,
-        contour=contour,
-        degree_affinity=bias.degree_affinity if bias else None,
-        interval_affinity=bias.interval_affinity if bias else None,
-        genome_entries=bias.vertical_genome.entries if bias and bias.vertical_genome else None,
+        affinity=AffinityContext(
+            contour=contour,
+            degree_affinity=bias.degree_affinity if bias else None,
+            interval_affinity=bias.interval_affinity if bias else None,
+            genome_entries=bias.vertical_genome.entries if bias and bias.vertical_genome else None,
+        ) if (contour is not None or bias is not None) else None,
     )
 
     # Step 6: Validate and audit

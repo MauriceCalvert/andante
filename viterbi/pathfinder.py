@@ -13,8 +13,9 @@ optimal because the penalty already exceeds alternative costs.
 """
 from collections import Counter
 
-from viterbi.costs import transition_cost
+from viterbi.costs import transition_cost, FollowerStep, VoiceData
 from viterbi.mtypes import (
+    AffinityContext,
     ContourShape,
     Corridor,
     ExistingVoice,
@@ -122,10 +123,7 @@ def find_path(
     key: KeyInfo = CMAJ,
     chord_pcs_at: list[frozenset[int]] | None = None,
     hard_constraints: bool = True,
-    contour: ContourShape | None = None,
-    degree_affinity: tuple[float, ...] | None = None,
-    interval_affinity: dict[int, float] | None = None,
-    genome_entries: tuple[tuple[float, int], ...] | None = None,
+    affinity: AffinityContext | None = None,
 ) -> tuple[list[float], list[int], float]:
     """Find minimum-cost path through corridors with knot constraints."""
     knot_map = {k.beat: k.midi_pitch for k in knots}
@@ -161,8 +159,8 @@ def find_path(
     ]
     is_above_list: list[bool] = [v.is_above for v in existing_voices]
 
+    contour: ContourShape | None = affinity.contour if affinity is not None else None
     contour_targets = compute_contour_targets(corridors, legal, contour=contour, key=key)
-    contour_weight: float = contour.weight if contour is not None else 1.0
 
     # DP tables: dp[t] maps State -> cost, bt[t] maps State -> predecessor State or None
     dp: list[dict[State, float]] = [{} for _ in range(n_beats)]
@@ -179,26 +177,27 @@ def find_path(
         new_dir = _sign(curr_p - start_pitch)
         phrase_pos = 1 / max(n_beats - 1, 1)
         cost, bd = transition_cost(
-            prev_pitch=start_pitch,
-            curr_pitch=curr_p,
-            prev_beat_strength=corridors[0].beat_strength,
-            curr_beat_strength=corridors[1].beat_strength,
-            prev_others=voice_pitches[0],
-            curr_others=voice_pitches[1],
-            nearby_pcs_per_voice=nearby_pcs[1],
-            is_above_per_voice=is_above_list,
-            prev_prev_pitch=None,
+            step=FollowerStep(
+                prev_pitch=start_pitch,
+                curr_pitch=curr_p,
+                prev_beat_strength=corridors[0].beat_strength,
+                curr_beat_strength=corridors[1].beat_strength,
+                prev_prev_pitch=None,
+                key=key,
+            ),
+            voice_data=VoiceData(
+                prev_others=tuple(voice_pitches[0]),
+                curr_others=tuple(voice_pitches[1]),
+                nearby_pcs_per_voice=tuple(nearby_pcs[1]),
+                is_above_per_voice=tuple(is_above_list),
+            ),
+            run_count=1,
             phrase_position=phrase_pos,
             target_pitch=final_pitch,
-            run_count=1,
-            key=key,
             contour_target=contour_targets[1],
             chord_pcs=chord_pcs_at[1] if chord_pcs_at else frozenset(),
             hard_constraints=hard_constraints,
-            contour_weight=contour_weight,
-            degree_affinity=degree_affinity,
-            interval_affinity=interval_affinity,
-            genome_entries=genome_entries,
+            affinity=affinity,
         )
         if cost == INF:
             hc_blocks_1[bd.get("rule", "unknown")] += 1
@@ -228,10 +227,7 @@ def find_path(
             key=key,
             chord_pcs_at=chord_pcs_at,
             hard_constraints=False,
-            contour=contour,
-            degree_affinity=degree_affinity,
-            interval_affinity=interval_affinity,
-            genome_entries=genome_entries,
+            affinity=affinity,
         )
     # Beats 2..n-1: full second-order transitions
     for t in range(2, n_beats):
@@ -247,26 +243,27 @@ def find_path(
                 new_dir = _sign(curr_p - prev_p)
                 new_rd, new_rc = _next_run(rd, rc, new_dir)
                 cost, bd = transition_cost(
-                    prev_pitch=prev_p,
-                    curr_pitch=curr_p,
-                    prev_beat_strength=corridors[t - 1].beat_strength,
-                    curr_beat_strength=corridors[t].beat_strength,
-                    prev_others=t_prev_others,
-                    curr_others=t_curr_others,
-                    nearby_pcs_per_voice=t_nearby_pcs,
-                    is_above_per_voice=is_above_list,
-                    prev_prev_pitch=pp,
+                    step=FollowerStep(
+                        prev_pitch=prev_p,
+                        curr_pitch=curr_p,
+                        prev_beat_strength=corridors[t - 1].beat_strength,
+                        curr_beat_strength=corridors[t].beat_strength,
+                        prev_prev_pitch=pp,
+                        key=key,
+                    ),
+                    voice_data=VoiceData(
+                        prev_others=tuple(t_prev_others),
+                        curr_others=tuple(t_curr_others),
+                        nearby_pcs_per_voice=tuple(t_nearby_pcs),
+                        is_above_per_voice=tuple(is_above_list),
+                    ),
+                    run_count=new_rc,
                     phrase_position=phrase_pos,
                     target_pitch=final_pitch,
-                    run_count=new_rc,
-                    key=key,
                     contour_target=contour_targets[t],
                     chord_pcs=chord_pcs_at[t] if chord_pcs_at else frozenset(),
                     hard_constraints=hard_constraints,
-                    contour_weight=contour_weight,
-                    degree_affinity=degree_affinity,
-                    interval_affinity=interval_affinity,
-                    genome_entries=genome_entries,
+                    affinity=affinity,
                 )
                 if cost == INF:
                     hc_blocks_t[bd.get("rule", "unknown")] += 1
@@ -299,10 +296,7 @@ def find_path(
                 key=key,
                 chord_pcs_at=chord_pcs_at,
                 hard_constraints=False,
-                contour=contour,
-                degree_affinity=degree_affinity,
-                interval_affinity=interval_affinity,
-                genome_entries=genome_entries,
+                affinity=affinity,
             )
     # Find best final state
     end_pitch = knot_map[beats[-1]]
