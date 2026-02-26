@@ -53,6 +53,7 @@ class BeatRole:
     anchor_pitch: int | None  # MIDI pitch for bariolage/pedal anchor
     render_offset: Fraction = Fraction(0)  # shift start_offset at render time (negative = earlier)
     entry_index: int = 0  # monotonically increasing per logical entry (for grouping)
+    cadence_schema: str | None = None  # cadence template name; None for non-cadence beats
 
 
 def plan_thematic_roles(

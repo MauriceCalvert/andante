@@ -1,5 +1,16 @@
 # Completed
 
+## CLR-2: Internal section cadences (2026-02-26)
+
+Added half cadences at every internal section boundary (exordium→narratio, narratio→confirmatio, confirmatio→peroratio).
+
+- `types.py`: Added `cadence_schema: str | None = None` to `BarAssignment`.
+- `thematic.py`: Added `cadence_schema: str | None = None` to `BeatRole`.
+- `subject_planner.py`: Loaded half_cadence template at startup; in step 2b, inserted `_internal_cadence` entry (schema="half_cadence", key=prev_key) before each auto-episode at section boundaries; added handler in step 3 to stamp function="cadence", local_key, and cadence_schema on those BarAssignments; stamped cadence_schema on final cadence BarAssignments.
+- `entry_layout.py`: Propagated cadence_schema from BarAssignment through BeatRole into group dicts; `build_imitative_plans` cadence branch now reads cadence_schema and local_key from the group (not from SubjectPlan.cadence_schema / home_key).
+
+Result: 3 internal HCs at bars 6, 17, 28 (A min, D min, C maj); final cadenza_composta at bars 33-34 unchanged. All HCs in local key, soprano 3→2, bass 1→5, breath 3/8. Total 34 bars (+3). Pipeline clean.
+
 ## M005: Remaining violations (2026-02-26)
 
 **M005-3 — `catalogue.py` Fragment dispatch**: Changed `_generate_heads` and `_generate_tails` to accept `frag: Fragment` directly instead of `(intervals, durations, source)`. Updated 7 call sites in `_build_catalogue`. Removed redundant `inv_intervals`, `aug_durations`, `dim_durations` local variables.

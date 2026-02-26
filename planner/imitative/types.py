@@ -27,7 +27,8 @@ class BarAssignment:
     function: str         # "entry", "episode", "cadence", "stretto", "pedal"
     local_key: Key
     voices: dict[int, VoiceAssignment]
-    entry_index: int = 0  # monotonically increasing per logical entry
+    entry_index: int = 0           # monotonically increasing per logical entry
+    cadence_schema: str | None = None  # cadence template name; None for non-cadence bars
 
 
 @dataclass(frozen=True)

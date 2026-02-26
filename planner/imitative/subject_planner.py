@@ -303,6 +303,13 @@ def plan_subject(
     )
     cadence_bars: int = templates[cadence_key].bars
 
+    hc_key: tuple[str, str] = ("half_cadence", metre)
+    assert hc_key in templates, (
+        f"No cadence template for 'half_cadence' in metre '{metre}'. "
+        f"Add it to data/cadence_templates/templates.yaml"
+    )
+    hc_bars: int = templates[hc_key].bars
+
     if "entry_sequence" in thematic_config:
         # Legacy: literal entry_sequence (backward compat for other genres)
         raw_sequence: list = thematic_config["entry_sequence"]
@@ -449,7 +456,7 @@ def plan_subject(
         )
 
         if is_boundary:
-            # Insert episode between entry i-1 and entry i
+            # Insert half cadence in outgoing section's key, then episode
             prev_voice_idx, prev_key = _extract_lead_voice_and_key(entry_sequence[i - 1], home_key)
             next_voice_idx, next_key = _extract_lead_voice_and_key(entry_sequence[i], home_key)
 
@@ -460,7 +467,16 @@ def plan_subject(
                 f"Cannot auto-insert episode: entry {i} has no thematic material"
             )
 
-            # Compute direction from key distance
+            # 1. Half cadence in outgoing section's key (before episode)
+            augmented_entries.append({
+                "_internal_cadence": True,
+                "schema": "half_cadence",
+                "key": prev_key,
+            })
+            augmented_sections.append(entry_section_names[i - 1])
+            augmented_costs.append(hc_bars)
+
+            # Compute direction from key distance (for the episode below)
             dist = _semitone_distance(prev_key, next_key)
             # Positive dist = target is higher → ascending episode (negative iterations)
             # Negative dist = target is lower → descending episode (positive iterations)
@@ -501,7 +517,7 @@ def plan_subject(
         cost: int = augmented_costs[entry_idx]
 
         if entry == "cadence":
-            # Cadence bars: both voices get role="cadence"
+            # Final cadence bars: both voices get role="cadence", stamp cadence_schema
             for offset in range(cost):
                 bar_num: int = bar_pointer + offset
                 voices: dict[int, VoiceAssignment] = {}
@@ -521,6 +537,35 @@ def plan_subject(
                     local_key=home_key,
                     voices=voices,
                     entry_index=entry_idx,
+                    cadence_schema=cadence_schema,
+                ))
+            bar_pointer += cost
+            continue
+
+        # Internal cadence (half cadence at section boundary)
+        if isinstance(entry, dict) and entry.get("_internal_cadence"):
+            ic_key: Key = entry["key"]
+            ic_schema: str = entry["schema"]
+            for offset in range(cost):
+                bar_num = bar_pointer + offset
+                voices = {}
+                for voice_idx in range(2):
+                    voices[voice_idx] = VoiceAssignment(
+                        role="cadence",
+                        material_key=ic_key,
+                        texture="plain",
+                        pairing="independent",
+                        fragment=None,
+                        fragment_iteration=0,
+                    )
+                bar_assignments.append(BarAssignment(
+                    bar=bar_num,
+                    section=section_name,
+                    function="cadence",
+                    local_key=ic_key,
+                    voices=voices,
+                    entry_index=entry_idx,
+                    cadence_schema=ic_schema,
                 ))
             bar_pointer += cost
             continue

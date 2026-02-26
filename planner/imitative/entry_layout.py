@@ -117,8 +117,12 @@ def build_imitative_plans(
         )
 
         if function == "cadence":
-            # Cadential phrase: schema name comes from SubjectPlan (read from genre YAML)
-            cadence_schema_name: str = subject_plan.cadence_schema
+            # Cadential phrase: schema name comes from the group's BarAssignment cadence_schema
+            cadence_schema_name: str | None = group["cadence_schema"]
+            assert cadence_schema_name is not None, (
+                f"Cadence group at bar {first_bar} has cadence_schema=None — "
+                f"ensure BarAssignment.cadence_schema is stamped in plan_subject()"
+            )
             assert cadence_schema_name in _CADENCE_TYPE_MAP, (
                 f"Unknown cadence schema '{cadence_schema_name}'. "
                 f"Add it to _CADENCE_TYPE_MAP in entry_layout.py"
@@ -133,7 +137,7 @@ def build_imitative_plans(
                     beats_per_bar=beats_per_bar,
                     soprano_degrees=cadence_schema_def.soprano_degrees,
                 ),
-                local_key=home_key,
+                local_key=local_key,
                 bar_span=bar_count,
                 start_bar=first_bar,
                 start_offset=start_offset,
@@ -211,11 +215,14 @@ def _group_beat_roles(
                     "section": None,
                     "local_key": None,
                     "entry_index": role.entry_index,
+                    "cadence_schema": None,
                 }
             bars_data[role.bar]["roles"][role.voice] = role.role
             bars_data[role.bar]["section"] = bar_to_section.get(role.bar, "unknown")
             if bars_data[role.bar]["local_key"] is None:
                 bars_data[role.bar]["local_key"] = role.material_key
+            if bars_data[role.bar]["cadence_schema"] is None:
+                bars_data[role.bar]["cadence_schema"] = role.cadence_schema
 
     sorted_bars: list[int] = sorted(bars_data.keys())
 
@@ -253,6 +260,8 @@ def _group_beat_roles(
 
         bar_entry_index: int = bar_data["entry_index"]
 
+        bar_cadence_schema: str | None = bar_data.get("cadence_schema")
+
         if current_group is None:
             # Start first group
             current_group = {
@@ -264,6 +273,7 @@ def _group_beat_roles(
                 "voice_roles": voice_roles,
                 "stretto_material": bar_stretto_mat,
                 "entry_index": bar_entry_index,
+                "cadence_schema": bar_cadence_schema,
                 "bar_assignments": [],  # Not needed for BeatRole-based groups
             }
         elif (current_group["function"] == "hold_exchange"
@@ -290,6 +300,7 @@ def _group_beat_roles(
                 "voice_roles": voice_roles,
                 "stretto_material": bar_stretto_mat,
                 "entry_index": bar_entry_index,
+                "cadence_schema": bar_cadence_schema,
                 "bar_assignments": [],
             }
         else:
@@ -441,6 +452,7 @@ def _build_thematic_roles(
                     fragment_iteration=voice_assignment.fragment_iteration,
                     anchor_pitch=None,
                     entry_index=bar_assignment.entry_index,
+                    cadence_schema=bar_assignment.cadence_schema,
                 ))
 
     return tuple(roles)

@@ -20,7 +20,7 @@ Order matters: cadences and harmony feed into everything downstream.
 1. **CLR — Cadence reform**
    - ~~CLR-1: Dynamic cadence type from YAML~~ _(done)_
    - CLR-2: Internal section cadences (half cadences at section boundaries)
-   - CLR-3: New templates (hemiola 3/4, grand cadence, cadenza doppia)
+   - CLR-3: New templates (grand cadence, cadenza doppia) — 4/4 only, 3/4 covered by galant
    - CLR-4: Cadence breath rests (non-final phrases)
 
 2. **HRL — Harmonic language** (Phases 2–6)
