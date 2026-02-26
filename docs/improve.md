@@ -61,7 +61,7 @@ head — it begins at the ascending run. The defining gesture of the
 subject is missing from the answer. A listener who expects imitation
 hears half a subject.
 
-**What the data shows.** The `.fugue` file defines the answer with the
+**What the data shows.** The `.subject` file defines the answer with the
 same 10 degrees as the subject (4,2,0,0,1,2,3,4,5,4), so the degrees
 are present. The bug is in rendering: the answer starts at bar 3 beat
 3 (offset 2.5), which is halfway through bar 3. The first half-bar of
@@ -185,7 +185,7 @@ subject is answered in inversion — the ascending scale becomes
 descending. This creates the "mathematical puzzle solving itself"
 quality.
 
-**What the system supports.** The `.fugue` file defines a `real`
+**What the system supports.** The `.subject` file defines a `real`
 answer (same intervals, transposed). There is no `inverted` answer
 type. The subject planner and answer generator would need an inversion
 path: negate the degree intervals, adjust octave to maintain range.
@@ -195,7 +195,7 @@ path: negate the degree intervals, adjust octave to maintain range.
    `answer_generator.py`. Inverted answer = negate each interval
    (ascending becomes descending), then adjust to fit the dominant
    key. This is a well-defined transformation.
-2. **Subject definition** — the `.fugue` file needs a flag or the
+2. **Subject definition** — the `.subject` file needs a flag or the
    subject generator needs to detect which subjects benefit from
    inversion (subjects with a clear ascending/descending asymmetry).
 
@@ -271,7 +271,7 @@ ends, the bass's begins (or continues). The half-note at the end of
 each subject statement is a natural breathing point, but the other
 voice should be filling it.
 
-**Fix.** The countersubject rhythm (from the `.fugue` file) already
+**Fix.** The countersubject rhythm (from the `.subject` file) already
 has contrasting durations, but they're quarter and half notes. A
 more active CS — or free counterpoint with semiquaver fragments
 during the subject's held notes — would create continuous motion.

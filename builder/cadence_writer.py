@@ -12,7 +12,7 @@ import yaml
 
 from builder.types import Note
 from motifs.fragment_catalogue import extract_head, extract_sixteenth_cell
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from motifs.head_generator import degrees_to_midi
 from shared.constants import METRE_BAR_LENGTH, TRACK_BASS, TRACK_SOPRANO, VALID_DURATIONS_SET
 from shared.key import Key
@@ -160,7 +160,7 @@ def get_schema_bars(
 def cadence_entry_degree(
     schema_name: str,
     metre: str,
-    fugue: LoadedFugue | None = None,
+    fugue: SubjectTriple | None = None,
 ) -> int:
     """First soprano degree (1-based) that a cadence will produce."""
     if (fugue is not None
@@ -292,7 +292,7 @@ def write_thematic_cadence(
     lower_range: tuple[int, int],
     upper_median: int,
     lower_median: int,
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     is_final: bool = False,
 ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
     """Write soprano and bass for cadenza_composta 4/4 using subject fragments.

@@ -14,14 +14,14 @@ from builder.imitation import (
     subject_to_voice_notes,
 )
 from builder.types import Note
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from planner.thematic import BeatRole, ThematicRole
 from shared.voice_types import Range
 
 
 def render_thematic_beat(
     role: BeatRole,
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     start_offset: Fraction,
     target_range: Range,
     end_offset: Fraction,
@@ -30,7 +30,7 @@ def render_thematic_beat(
 
     Args:
         role: BeatRole specifying what to render
-        fugue: LoadedFugue containing subject/answer/CS data
+        fugue: SubjectTriple containing subject/answer/CS data
         start_offset: Absolute offset where this beat starts
         target_range: Voice range for octave selection
         end_offset: Absolute offset where time window ends (exclusive)
@@ -118,7 +118,7 @@ def render_thematic_beat(
 
 def _render_episode_fragment(
     role: BeatRole,
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     start_offset: Fraction,
     target_track: int,
     target_range: Range,
@@ -127,7 +127,7 @@ def _render_episode_fragment(
 
     Args:
         role: BeatRole with role=EPISODE, material="head" or "tail", fragment_iteration=N
-        fugue: LoadedFugue containing the subject
+        fugue: SubjectTriple containing the subject
         start_offset: Absolute offset where this beat starts
         target_track: Track number for the notes
         target_range: Voice range for octave selection

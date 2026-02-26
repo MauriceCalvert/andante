@@ -30,7 +30,7 @@ from motifs.fragen import (
     realise,
     validate_realisation,
 )
-from motifs.fugue_loader import load_fugue
+from motifs.subject_loader import load_triple
 from motifs.head_generator import degrees_to_midi
 
 # ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ _GROUP_LABELS: tuple[str, ...] = (
 
 def main() -> None:
     """Run the FRAGEN proof-of-concept."""
-    fugue = load_fugue(name=FUGUE_NAME)
+    fugue = load_triple(name=FUGUE_NAME)
     bar_length: Fraction = Fraction(fugue.metre[0], fugue.metre[1])
     tonic_midi: int = fugue.tonic_midi
     mode: str = fugue.subject.mode

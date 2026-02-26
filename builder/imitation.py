@@ -5,7 +5,7 @@ from dataclasses import replace
 from fractions import Fraction
 
 from builder.types import Note
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from shared.constants import DURATION_DENOMINATOR_LIMIT
 from shared.key import Key
 from shared.voice_types import Range
@@ -67,7 +67,7 @@ def _fit_shift(
 
 
 def answer_to_voice_notes(
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     start_offset: Fraction,
     target_track: int,
     target_range: Range,
@@ -99,7 +99,7 @@ def answer_to_voice_notes(
 
 
 def countersubject_to_voice_notes(
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     start_offset: Fraction,
     target_key: Key,
     target_track: int,
@@ -134,7 +134,7 @@ def countersubject_to_voice_notes(
 
 
 def subject_to_voice_notes(
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     start_offset: Fraction,
     target_key: Key,
     target_track: int,

@@ -13,7 +13,7 @@ Examples:
     python -m scripts.run_pipeline invention default c_major
     python -m scripts.run_pipeline briefs/builder/freude_invention.brief
     python -m scripts.run_pipeline briefs/tests/
-    python -m scripts.run_pipeline motifs/output/subject00_2bar.fugue
+    python -m scripts.run_pipeline motifs/output/subject00_2bar.subject
 
 Options:
     -o, --output-dir DIR    Output directory (default: output/)
@@ -28,7 +28,7 @@ from pathlib import Path
 import yaml
 
 from builder.faults import find_faults_from_composition, print_faults
-from motifs.fugue_loader import LoadedFugue, load_fugue, load_fugue_path
+from motifs.subject_loader import SubjectTriple, load_triple, load_triple_path
 from builder.types import Composition
 from planner.planner import generate_to_files
 from shared.tracer import get_tracer, reset_tracer, set_trace_enabled
@@ -99,7 +99,7 @@ def run_from_args(
     verbose: bool = False,
     tempo: int | None = None,
     trace: bool = False,
-    fugue: LoadedFugue | None = None,
+    fugue: SubjectTriple | None = None,
     sections_override: tuple[dict, ...] | None = None,
     seed: int | None = None,
 ) -> Composition:
@@ -203,9 +203,9 @@ def run_from_brief(
         )
         tempo = raw_tempo
     subject_name: str | None = brief_data.get("subject") or frame_data.get("subject")
-    fugue: LoadedFugue | None = None
+    fugue: SubjectTriple | None = None
     if subject_name:
-        fugue = load_fugue(name=subject_name)
+        fugue = load_triple(name=subject_name)
         if verbose:
             print(f"  Loaded fugue: {subject_name}")
     sections_override: tuple[dict, ...] | None = None
@@ -217,16 +217,16 @@ def run_from_brief(
     return run_from_args(genre=genre, affect=affect, output_dir=output_dir, key=key, output_name=output_name, verbose=verbose, tempo=tempo, trace=trace, fugue=fugue, sections_override=sections_override, seed=seed)
 
 
-def run_from_fugue(
+def run_from_subject(
     fugue_path: Path,
     output_dir: Path,
     verbose: bool = False,
     trace: bool = False,
     seed: int | None = None,
 ) -> Composition:
-    """Generate an invention from a .fugue file."""
+    """Generate an invention from a .subject file."""
     print(f"Loading {fugue_path.name}...")
-    fugue: LoadedFugue = load_fugue_path(path=fugue_path)
+    fugue: SubjectTriple = load_triple_path(path=fugue_path)
     tonic_letter: str = fugue.tonic.upper()
     mode: str = fugue.subject.mode
     key: str = normalize_key(key=f"{tonic_letter}{'m' if mode == 'minor' else ''}")
@@ -338,12 +338,12 @@ Use -trace to write a <piece>.trace diagnostic file.
     if first_path.is_dir():
         run_from_directory(directory=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace, seed=args.seed)
         return
-    if first_path.suffix == ".fugue":
+    if first_path.suffix == ".subject":
         if not first_path.exists():
             print(f"File not found: {first_arg_clean}")
             print(f"  (also checked: {PROJECT_DIR / first_arg_clean})")
             return
-        run_from_fugue(fugue_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace, seed=args.seed)
+        run_from_subject(fugue_path=first_path, output_dir=args.output_dir, verbose=args.verbose, trace=args.trace, seed=args.seed)
         print("\nDone!")
         return
     if first_path.suffix == ".brief" or (first_path.exists() and first_path.is_file()):

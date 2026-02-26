@@ -1,7 +1,7 @@
-"""Fugue triple assembly and file output.
+"""Subject triple assembly and file output.
 
 Coordinates subject, answer, countersubject, and stretto analysis
-into a FugueTriple, then writes MIDI, YAML (.fugue), and .note files.
+into a SubjectTriple, then writes MIDI, YAML (.subject), and .note files.
 """
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,7 +31,7 @@ TARGET_BAR_WEIGHTS: tuple[int, ...] = (4, 3, 2)
 BATCH_BAR_COUNTS: tuple[int, ...] = (2, 2, 3, 3, 4, 4)
 
 @dataclass(frozen=True)
-class FugueTriple:
+class SubjectTriple:
     """Subject, answer, and countersubject as a coordinated unit."""
     subject: GeneratedSubject
     answer: 'GeneratedAnswer'
@@ -48,7 +48,7 @@ def _bar_duration(metre: tuple[int, int]) -> float:
     """Duration of one bar in whole-note units."""
     return metre[0] / metre[1]
 
-def generate_fugue_triple(
+def generate_triple(
     mode: str = "minor",
     metre: tuple[int, int] = (4, 4),
     seed: int | None = None,
@@ -58,7 +58,7 @@ def generate_fugue_triple(
     note_counts: tuple[int, ...] | None = None,
     pitch_contour: str | None = None,
     subject: 'GeneratedSubject | None' = None,
-) -> FugueTriple:
+) -> SubjectTriple:
     """Generate coordinated subject, answer, and countersubject."""
     from motifs.answer_generator import generate_answer
     from motifs.countersubject_generator import generate_countersubject
@@ -100,7 +100,7 @@ def generate_fugue_triple(
         metre=metre,
         voice_label="inversion",
     )
-    return FugueTriple(
+    return SubjectTriple(
         subject=subject,
         answer=answer,
         countersubject=cs,
@@ -112,8 +112,8 @@ def generate_fugue_triple(
         inversion_stretto=tuple(inv_stretto),
     )
 
-def write_fugue_file(triple: FugueTriple, path: Path) -> None:
-    """Write fugue triple to YAML .fugue file."""
+def write_subject_file(triple: SubjectTriple, path: Path) -> None:
+    """Write fugue triple to YAML .subject file."""
     tonic_name = _midi_to_name(midi=triple.tonic_midi).rstrip('0123456789')
     data = {
         'subject': {
@@ -182,7 +182,7 @@ def _add_melody(
 
 OCTAVE_SHIFT: int = 12
 
-def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> None:
+def write_subject_demo_midi(triple: SubjectTriple, path: Path, tempo: int = 80) -> None:
     """Write demo MIDI: subject, answer, CS, then stretto pairs at each viable offset."""
     bar_dur = _bar_duration(metre=triple.metre)
     notes: list[SimpleNote] = []
@@ -258,7 +258,7 @@ def _notes_to_csv(
         )
     return "\n".join(lines)
 
-def write_note_file(triple: FugueTriple, path: Path) -> None:
+def write_note_file(triple: SubjectTriple, path: Path) -> None:
     """Write .note CSV reflecting the full demo MIDI layout."""
     bar_dur = _bar_duration(metre=triple.metre)
     notes: list[SimpleNote] = []
@@ -406,7 +406,7 @@ def main() -> None:
         if i not in subject_by_index:
             continue
         base = outdir / f"subject{i:02d}_{n_bars}bar"
-        triple = generate_fugue_triple(
+        triple = generate_triple(
             mode=args.mode,
             metre=metre,
             seed=(args.seed or 0) + i,
@@ -418,8 +418,8 @@ def main() -> None:
             subject=subject_by_index[i],
         )
         write_note_file(triple=triple, path=base.with_suffix(".note"))
-        write_fugue_demo_midi(triple=triple, path=base.with_suffix(".midi"), tempo=args.tempo)
-        write_fugue_file(triple=triple, path=base.with_suffix(".fugue"))
+        write_subject_demo_midi(triple=triple, path=base.with_suffix(".midi"), tempo=args.tempo)
+        write_subject_file(triple=triple, path=base.with_suffix(".subject"))
         s = triple.subject
         bar_dur = _bar_duration(metre=metre)
         max_stretto_slots: int = int(bar_dur * X2_TICKS_PER_WHOLE)

@@ -6,7 +6,7 @@ from fractions import Fraction
 
 from builder.types import Note
 from motifs.fragment_catalogue import extract_sixteenth_cell
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from motifs.head_generator import degrees_to_midi
 from planner.thematic import BeatRole, ThematicRole
 from shared.constants import TRACK_BASS, TRACK_SOPRANO, STRONG_BEAT_DISSONANT
@@ -205,7 +205,7 @@ def render_hold_entry(
     voice1_role: ThematicRole,
     beat_role_v0: BeatRole | None,
     beat_role_v1: BeatRole | None,
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     bar_length: Fraction,
     beat_unit: Fraction,
     plan: "PhrasePlan",
@@ -222,7 +222,7 @@ def render_hold_entry(
         voice1_role: ThematicRole for voice 1
         beat_role_v0: BeatRole for voice 0
         beat_role_v1: BeatRole for voice 1
-        fugue: LoadedFugue for rhythm extraction
+        fugue: SubjectTriple for rhythm extraction
         bar_length: Length of one bar
         beat_unit: Beat unit for metre
         plan: PhrasePlan for ranges and keys

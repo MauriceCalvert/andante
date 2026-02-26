@@ -12,7 +12,7 @@ from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_bar
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
 from motifs.fragen import FragenProvider
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.tracer import get_tracer
@@ -224,7 +224,7 @@ def compose_phrases(
     metre: str,
     tempo: int,
     upbeat: Fraction,
-    fugue: LoadedFugue | None = None,
+    fugue: SubjectTriple | None = None,
 ) -> Composition:
     """Compose a piece phrase by phrase using the phrase writer."""
     assert len(phrase_plans) > 0, "Must have at least one PhrasePlan"

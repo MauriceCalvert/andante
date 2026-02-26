@@ -307,7 +307,7 @@ sections. Each section starts at a bar boundary.
 
 ## Validation Target
 
-### Primary: `call_response.fugue`
+### Primary: `call_response.subject`
 
 C major, 4/4, subject degrees `4 2 0 0 1 2 3 4 5 4`.
 
@@ -344,5 +344,5 @@ workflow/fragen.md        — this specification
   CONSONANT_INTERVALS_ABOVE_BASS, VOICE_RANGES)
 - `motifs.head_generator.degrees_to_midi`
 - `motifs.fragment_catalogue` (extract_head, extract_tail)
-- `motifs.fugue_loader` (LoadedFugue, load_fugue)
+- `motifs.subject_loader` (SubjectTriple, load_triple)
 - `midiutil` (MIDI output in test script only)

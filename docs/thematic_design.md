@@ -40,17 +40,17 @@ Each entry has two voice slots: `upper` and `lower`. Each slot is one of:
 
 | Material   | Source                        | Meaning                          |
 |------------|-------------------------------|----------------------------------|
-| `subject`  | .fugue subject degrees        | Subject statement                |
-| `answer`   | .fugue answer degrees         | Answer (subject at the dominant) |
-| `cs`       | .fugue countersubject degrees | Countersubject                   |
-| `stretto`  | .fugue subject degrees × 2   | Both voices state subject with delay |
+| `subject`  | .subject subject degrees        | Subject statement                |
+| `answer`   | .subject answer degrees         | Answer (subject at the dominant) |
+| `cs`       | .subject countersubject degrees | Countersubject                   |
+| `stretto`  | .subject subject degrees × 2   | Both voices state subject with delay |
 
 ### Key labels
 
 Key labels are Roman numerals relative to home key: `I`, `V`, `IV`,
 `vi`, `iii`, `ii`. Resolved at render time via `home_key.modulate_to()`.
 
-The answer material has its own built-in transposition (the .fugue file
+The answer material has its own built-in transposition (the .subject file
 encodes the dominant-level degrees). The key label tells the renderer
 which key context to place the answer in, not which interval to
 transpose by. So `[answer, V]` means "render the pre-composed answer
@@ -67,8 +67,8 @@ Final line. Rendered by cadence_writer using existing clausula templates.
 
 ## Entry duration
 
-Each entry occupies `subject.bars` bars (from the .fugue file). For
-call_response.fugue that is 2 bars. The subject, answer, and CS all
+Each entry occupies `subject.bars` bars (from the .subject file). For
+call_response.subject that is 2 bars. The subject, answer, and CS all
 have the same duration by construction.
 
 ## Episodes
@@ -135,7 +135,7 @@ The planner does not:
 
 For each entry, the renderer reads the voice slots and calls:
 - `subject_to_voice_notes()` for subject material
-- `answer_to_voice_notes()` for answer material (new function, uses .fugue answer data)
+- `answer_to_voice_notes()` for answer material (new function, uses .subject answer data)
 - `countersubject_to_voice_notes()` for CS material
 - Stretto handler for stretto entries
 - Nothing for `none` slots (voice rests)

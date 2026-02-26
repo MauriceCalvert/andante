@@ -79,7 +79,7 @@ Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate
 - pathfinder.py, corridors.py, costs.py, scale.py, mtypes.py, pipeline.py
 
 ### motifs/
-- fugue_loader.py (LoadedFugue), subject_generator.py, answer_generator.py
+- subject_loader.py (SubjectTriple), subject_generator.py, answer_generator.py
 - countersubject_generator.py, head/tail generators, enumerator, melodic_features
 
 ## Pitch Types

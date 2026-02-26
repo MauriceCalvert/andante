@@ -150,7 +150,7 @@ shared/
   tracer.py           debug trace
 
 motifs/
-  fugue_loader.py     .fugue file loading
+  subject_loader.py   .subject file loading
   subject_generator.py subject generation
   answer_generator.py tonal/real answers
   countersubject_generator.py

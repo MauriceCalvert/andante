@@ -16,7 +16,7 @@ from builder.phrase_types import (
 from builder.soprano_viterbi import generate_soprano_viterbi
 from builder.types import Note
 from builder.voice_types import VoiceBias
-from motifs.fugue_loader import ThematicBias
+from motifs.subject_loader import ThematicBias
 from motifs.thematic_transform import (
     build_thematic_knots,
     diminish,

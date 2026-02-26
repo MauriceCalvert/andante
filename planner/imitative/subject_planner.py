@@ -21,7 +21,7 @@ import math
 from shared.constants import CADENCE_BARS
 from shared.key import Key
 
-from motifs.fugue_loader import LoadedStretto
+from motifs.subject_loader import LoadedStretto
 from planner.imitative.types import BarAssignment, SubjectPlan, VoiceAssignment
 
 _log: logging.Logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
-"""Fugue file loader.
+"""Subject triple loader.
 
-Loads .fugue YAML files containing pre-composed subject, answer, and countersubject.
+Loads .subject YAML files containing pre-composed subject, answer, and countersubject.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ LIBRARY_DIR = Path(__file__).parent / "library"
 
 @dataclass(frozen=True)
 class LoadedSubject:
-    """Subject loaded from .fugue file."""
+    """Subject loaded from .subject file."""
     degrees: tuple[int, ...]
     durations: tuple[float, ...]
     mode: str
@@ -33,7 +33,7 @@ class LoadedSubject:
 
 @dataclass(frozen=True)
 class LoadedAnswer:
-    """Answer loaded from .fugue file."""
+    """Answer loaded from .subject file."""
     degrees: tuple[int, ...]
     durations: tuple[float, ...]
     answer_type: str
@@ -41,21 +41,21 @@ class LoadedAnswer:
 
 @dataclass(frozen=True)
 class LoadedCountersubject:
-    """Countersubject loaded from .fugue file."""
+    """Countersubject loaded from .subject file."""
     degrees: tuple[int, ...]
     durations: tuple[float, ...]
     vertical_intervals: tuple[int, ...]
 
 @dataclass(frozen=True)
 class LoadedStretto:
-    """One viable stretto offset from .fugue file."""
+    """One viable stretto offset from .subject file."""
     offset_slots: int
     quality: float
 
 
 @dataclass(frozen=True)
 class ThematicBias:
-    """Bundled thematic bias data extracted from a LoadedFugue (M001)."""
+    """Bundled thematic bias data extracted from a SubjectTriple (M001)."""
     degree_affinity: tuple[float, ...] | None
     subject_interval_affinity: dict[int, float] | None
     cs_interval_affinity: dict[int, float] | None
@@ -66,7 +66,7 @@ class ThematicBias:
 
 
 @dataclass(frozen=True)
-class LoadedFugue:
+class SubjectTriple:
     """Complete fugue triple loaded from file."""
     subject: LoadedSubject
     answer: LoadedAnswer
@@ -316,8 +316,8 @@ class LoadedFugue:
         )
 
 
-def _parse_fugue_data(data: dict) -> LoadedFugue:
-    """Parse fugue YAML data dict into a LoadedFugue."""
+def _parse_triple_data(data: dict) -> SubjectTriple:
+    """Parse .subject YAML data dict into a SubjectTriple."""
     subj_data: dict = data["subject"]
     ans_data: dict = data["answer"]
     cs_data: dict = data["countersubject"]
@@ -348,7 +348,7 @@ def _parse_fugue_data(data: dict) -> LoadedFugue:
             offset_slots=s["offset_slots"],
             quality=s["quality"],
         ))
-    return LoadedFugue(
+    return SubjectTriple(
         subject=subject,
         answer=answer,
         countersubject=countersubject,
@@ -359,23 +359,23 @@ def _parse_fugue_data(data: dict) -> LoadedFugue:
         stretto=tuple(stretto_entries),
     )
 
-def load_fugue(name: str) -> LoadedFugue:
-    """Load a fugue triple from the library by name."""
-    if name.endswith(".fugue"):
-        name = name[:-6]
-    path: Path = LIBRARY_DIR / f"{name}.fugue"
-    assert path.exists(), f"Fugue file not found: {path}"
+def load_triple(name: str) -> SubjectTriple:
+    """Load a subject triple from the library by name."""
+    if name.endswith(".subject"):
+        name = name[:-8]
+    path: Path = LIBRARY_DIR / f"{name}.subject"
+    assert path.exists(), f"Subject file not found: {path}"
     with open(path, encoding="utf-8") as f:
         data: dict = yaml.safe_load(f)
-    return _parse_fugue_data(data=data)
+    return _parse_triple_data(data=data)
 
-def load_fugue_path(path: Path) -> LoadedFugue:
-    """Load a fugue triple from an explicit file path."""
-    assert path.exists(), f"Fugue file not found: {path}"
+def load_triple_path(path: Path) -> SubjectTriple:
+    """Load a subject triple from an explicit file path."""
+    assert path.exists(), f"Subject file not found: {path}"
     with open(path, encoding="utf-8") as f:
         data: dict = yaml.safe_load(f)
-    return _parse_fugue_data(data=data)
+    return _parse_triple_data(data=data)
 
-def list_fugues() -> list[str]:
-    """List available fugue names in the library."""
-    return [p.stem for p in LIBRARY_DIR.glob("*.fugue")]
+def list_triples() -> list[str]:
+    """List available subject triple names in the library."""
+    return [p.stem for p in LIBRARY_DIR.glob("*.subject")]

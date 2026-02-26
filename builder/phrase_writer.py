@@ -20,7 +20,7 @@ from motifs.fragen import (
     VOICE_SOPRANO as FRAGEN_SOPRANO,
     realise_to_notes,
 )
-from motifs.fugue_loader import LoadedFugue, ThematicBias
+from motifs.subject_loader import SubjectTriple, ThematicBias
 from planner.schema_loader import get_schema
 from planner.thematic import BeatRole
 from shared.constants import TRACK_BASS, TRACK_SOPRANO
@@ -191,7 +191,7 @@ def _assert_within_entry(
 
 def _write_thematic(
     plan: PhrasePlan,
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     prior_upper: tuple[Note, ...],
     prior_lower: tuple[Note, ...],
     next_phrase_entry_degree: int | None,
@@ -699,7 +699,7 @@ def _write_pedal(
     prior_lower: tuple[Note, ...],
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
-    fugue: LoadedFugue | None = None,
+    fugue: SubjectTriple | None = None,
 ) -> PhraseResult:
     """Write pedal phrase: held bass + cup-contour soprano via Viterbi."""
     from planner.thematic import ThematicRole
@@ -928,7 +928,7 @@ def _write_cadential(
     prior_upper: tuple[Note, ...],
     prior_lower: tuple[Note, ...],
     is_final: bool,
-    fugue: LoadedFugue | None = None,
+    fugue: SubjectTriple | None = None,
 ) -> PhraseResult:
     """Write cadential phrase using fixed templates or thematic fragments."""
     soprano_notes: tuple[Note, ...]
@@ -982,7 +982,7 @@ def write_phrase(
     next_phrase_entry_degree: int | None = None,
     next_phrase_entry_key: Key | None = None,
     recall_figure_name: str | None = None,
-    fugue: LoadedFugue | None = None,
+    fugue: SubjectTriple | None = None,
     is_final: bool = False,
     fragen_provider: FragenProvider | None = None,
 ) -> PhraseResult:

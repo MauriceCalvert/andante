@@ -494,7 +494,7 @@ Voice 3:                               [--SUBJ--]...
 
 ### 6.3 File Format
 
-Proposed `.fugue` YAML format:
+Proposed `.subject` YAML format:
 
 ```yaml
 subject:

@@ -29,8 +29,8 @@ from builder.phrase_planner import build_phrase_plans
 from builder.phrase_types import PhrasePlan
 from builder.types import Composition, SchemaChain, TonalPlan
 from motifs.catalogue import SubjectCatalogue
-from motifs.fugue_loader import LoadedFugue, load_fugue_path
-from scripts.generate_subjects import generate_fugue_triple, write_fugue_file
+from motifs.subject_loader import SubjectTriple, load_triple_path
+from scripts.generate_subjects import generate_triple, write_subject_file
 from planner.arc import load_named_curve
 from planner.dramaturgy import get_suggested_key
 from planner.imitative.subject_planner import plan_subject
@@ -94,7 +94,7 @@ def generate(
     affect: str,
     key: str | None = None,
     tempo_override: int | None = None,
-    fugue: LoadedFugue | None = None,
+    fugue: SubjectTriple | None = None,
     sections_override: tuple[dict, ...] | None = None,
     seed: int = 42,
     trace_name: str | None = None,
@@ -391,7 +391,7 @@ def generate_to_files(
     name: str,
     key: str | None = None,
     tempo: int | None = None,
-    fugue: LoadedFugue | None = None,
+    fugue: SubjectTriple | None = None,
     sections_override: tuple[dict, ...] | None = None,
     seed: int = 42,
 ) -> Composition:
@@ -410,16 +410,16 @@ def generate_to_files(
         subject_name: str | None = genre_data.get("subject")
         library_dir: Path = Path(__file__).parent.parent / "motifs" / "library"
         if subject_name is not None:
-            library_path: Path = library_dir / f"{subject_name}.fugue"
+            library_path: Path = library_dir / f"{subject_name}.subject"
             assert library_path.exists(), (
                 f"Subject '{subject_name}' not found at {library_path}"
             )
-            fugue = load_fugue_path(path=library_path)
+            fugue = load_triple_path(path=library_path)
             _log.info("Loaded library subject: %s", subject_name)
         else:
-            fugue_path: Path = output_dir / f"{name}.fugue"
+            fugue_path: Path = output_dir / f"{name}.subject"
             if fugue_path.exists():
-                fugue = load_fugue_path(path=fugue_path)
+                fugue = load_triple_path(path=fugue_path)
                 _log.info("Loaded cached fugue: %s", fugue_path.name)
             else:
                 assert key is not None, (
@@ -427,15 +427,15 @@ def generate_to_files(
                     f"Provide explicit key or add 'subject' field to genre YAML."
                 )
                 mode, tonic_midi = _parse_key_string(key=key)
-                triple = generate_fugue_triple(
+                triple = generate_triple(
                     mode=mode,
                     metre=metre_tuple,
                     seed=seed,
                     tonic_midi=tonic_midi,
                     verbose=True,
                 )
-                write_fugue_file(triple=triple, path=fugue_path)
-                fugue = load_fugue_path(path=fugue_path)
+                write_subject_file(triple=triple, path=fugue_path)
+                fugue = load_triple_path(path=fugue_path)
                 _log.info("Generated fugue: %s", fugue_path.name)
         # Log summary
         _log.info(

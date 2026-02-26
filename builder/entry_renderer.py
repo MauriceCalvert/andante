@@ -9,7 +9,7 @@ from fractions import Fraction
 from builder.imitation import subject_to_voice_notes
 from builder.thematic_renderer import render_thematic_beat, _render_episode_fragment
 from builder.types import Note
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from planner.thematic import BeatRole, ThematicRole
 from shared.music_math import parse_metre
 from shared.tracer import get_tracer, _key_str
@@ -19,7 +19,7 @@ from shared.voice_types import Range
 def render_entry_voice(
     role: ThematicRole,
     beat_role: BeatRole | None,
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     start_offset: Fraction,
     end_offset: Fraction,
     entry_first_bar: int,
@@ -36,7 +36,7 @@ def render_entry_voice(
     Args:
         role: ThematicRole for this voice (SUBJECT, ANSWER, CS, EPISODE, STRETTO, FREE)
         beat_role: BeatRole for this voice (None if role is FREE)
-        fugue: LoadedFugue containing subject/answer/CS data
+        fugue: SubjectTriple containing subject/answer/CS data
         start_offset: Absolute offset where this entry starts
         end_offset: Absolute offset where time window ends (exclusive)
         entry_first_bar: First bar number of this entry (1-based)

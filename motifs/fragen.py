@@ -13,7 +13,7 @@ from typing import NamedTuple
 
 from builder.types import Note as BuilderNote
 from motifs.fragment_catalogue import extract_head, extract_tail
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from motifs.head_generator import degrees_to_midi
 from shared.constants import (
     CONSONANT_INTERVALS_ABOVE_BASS,
@@ -109,7 +109,7 @@ class Fragment:
 
 
 def extract_cells(
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     bar_length: Fraction,
 ) -> list[Motivic]:
     """Extract motivic cells as contiguous sub-sequences from subject material."""
@@ -1145,7 +1145,7 @@ class FragenProvider:
     Never repeats a signature until all available signatures are exhausted.
     """
 
-    def __init__(self, fugue: LoadedFugue, bar_length: Fraction):
+    def __init__(self, fugue: SubjectTriple, bar_length: Fraction):
         # Build catalogue once
         cells = extract_cells(fugue=fugue, bar_length=bar_length)
         chains = build_chains(cells=cells, bar_length=bar_length)

@@ -9,7 +9,7 @@ from dataclasses import replace
 from fractions import Fraction
 
 from builder.types import Note
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from shared.constants import DURATION_DENOMINATOR_LIMIT, STRONG_BEAT_DISSONANT
 from shared.key import Key
 from shared.music_math import parse_metre
@@ -69,7 +69,7 @@ def _find_consonant_near(
 
 
 def generate_cs_viterbi(
-    fugue: LoadedFugue,
+    fugue: SubjectTriple,
     companion_notes: tuple[Note, ...],
     companion_is_above: bool,
     start_offset: Fraction,
@@ -88,7 +88,7 @@ def generate_cs_viterbi(
     with the companion.
 
     Args:
-        fugue: LoadedFugue containing the CS data
+        fugue: SubjectTriple containing the CS data
         companion_notes: Already-rendered companion voice notes
         companion_is_above: True if companion is registrally above the CS
         start_offset: Absolute offset where the CS starts

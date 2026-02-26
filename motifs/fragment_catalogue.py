@@ -1,4 +1,4 @@
-"""Fragment catalogue: extract thematic fragments from LoadedFugue.
+"""Fragment catalogue: extract thematic fragments from SubjectTriple.
 
 Provides head/tail fragment extraction for episode rendering (TP-B2).
 """
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from math import ceil
 
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 
 
 @dataclass(frozen=True)
@@ -24,7 +24,7 @@ class Fragment:
     bar_span: int
 
 
-def extract_head(fugue: LoadedFugue, bar_length: Fraction) -> Fragment:
+def extract_head(fugue: SubjectTriple, bar_length: Fraction) -> Fragment:
     """Extract the head fragment from the subject.
 
     The head fragment contains the first N notes of the subject whose cumulative
@@ -32,7 +32,7 @@ def extract_head(fugue: LoadedFugue, bar_length: Fraction) -> Fragment:
     to the last note that starts before bar_length.
 
     Args:
-        fugue: LoadedFugue containing the subject
+        fugue: SubjectTriple containing the subject
         bar_length: Length of one bar as a Fraction (e.g., Fraction(1) for 4/4)
 
     Returns:
@@ -73,13 +73,13 @@ def extract_head(fugue: LoadedFugue, bar_length: Fraction) -> Fragment:
     )
 
 
-def extract_tail(fugue: LoadedFugue, bar_length: Fraction) -> Fragment:
+def extract_tail(fugue: SubjectTriple, bar_length: Fraction) -> Fragment:
     """Extract the tail fragment from the subject.
 
     The tail fragment contains all notes after the head fragment.
 
     Args:
-        fugue: LoadedFugue containing the subject
+        fugue: SubjectTriple containing the subject
         bar_length: Length of one bar as a Fraction
 
     Returns:
@@ -110,14 +110,14 @@ def extract_tail(fugue: LoadedFugue, bar_length: Fraction) -> Fragment:
     )
 
 
-def extract_sixteenth_cell(fugue: LoadedFugue, bar_length: Fraction) -> Fragment:
+def extract_sixteenth_cell(fugue: SubjectTriple, bar_length: Fraction) -> Fragment:
     """Extract the initial run of sixteenth-note durations from the subject's tail.
 
     For subjects with rhythmic unit 1/16, this extracts the ascending cell used
     for hold-exchange sequencing (e.g., degrees 0,1,2,3 with durations 1/16 each).
 
     Args:
-        fugue: LoadedFugue containing the subject
+        fugue: SubjectTriple containing the subject
         bar_length: Length of one bar as a Fraction
 
     Returns:

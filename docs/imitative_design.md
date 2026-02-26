@@ -823,7 +823,7 @@ What survives:
   notes. This is the right tool; it was just being fed bad plans.
 - `builder/cadence_writer.py` — shared.
 - `motifs/fragment_catalogue.py` — episode fragments.
-- `motifs/fugue_loader.py` — subject/answer data.
+- `motifs/subject_loader.py` — subject/answer data.
 - The Viterbi solver — fills companion voices in episodes and free
   passages. This is its proper role: counterpoint against given
   material, not wallpaper over empty bars.

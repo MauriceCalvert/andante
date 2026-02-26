@@ -1,6 +1,6 @@
 """Subject catalogue: extracts and stores fragment library from fugue triple.
 
-Builds the complete fragment library from a LoadedFugue, including:
+Builds the complete fragment library from a SubjectTriple, including:
 - Primary material (subject, answer, countersubject)
 - Head and tail extractions
 - Melodic transforms (inversion, augmentation, diminution)
@@ -10,7 +10,7 @@ All fragments stored in relative form (signed diatonic intervals + durations).
 from dataclasses import dataclass
 from fractions import Fraction
 
-from motifs.fugue_loader import LoadedFugue
+from motifs.subject_loader import SubjectTriple
 from shared.pitch import degrees_to_intervals
 
 @dataclass(frozen=True)
@@ -54,13 +54,13 @@ class SubjectCatalogue:
     Frozen after construction. Provides query methods for fragment lookup.
     """
 
-    def __init__(self, fugue: LoadedFugue):
-        """Build catalogue from LoadedFugue."""
+    def __init__(self, fugue: SubjectTriple):
+        """Build catalogue from SubjectTriple."""
         self._fragments: dict[str, Fragment] = {}
         self._invertible_pair: InvertiblePair | None = None
         self._build_catalogue(fugue=fugue)
 
-    def _build_catalogue(self, fugue: LoadedFugue) -> None:
+    def _build_catalogue(self, fugue: SubjectTriple) -> None:
         """Extract all fragments from the fugue triple."""
         # Convert subject
         subj_intervals: tuple[int, ...] = degrees_to_intervals(degrees=fugue.subject.degrees)
