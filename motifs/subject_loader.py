@@ -45,6 +45,7 @@ class LoadedCountersubject:
     degrees: tuple[int, ...]
     durations: tuple[float, ...]
     vertical_intervals: tuple[int, ...]
+    inversion_distance: int = 7
 
 @dataclass(frozen=True)
 class LoadedStretto:
@@ -76,6 +77,7 @@ class SubjectTriple:
     tonic_midi: int
     seed: int
     stretto: tuple[LoadedStretto, ...]
+    countersubject_2: LoadedCountersubject | None = None
 
     def subject_midi(self, tonic_midi: int | None = None, mode: str | None = None) -> tuple[int, ...]:
         """Get subject as MIDI pitches.
@@ -116,6 +118,24 @@ class SubjectTriple:
             tonic_midi=midi,
             mode=effective_mode,
         )
+
+    def get_countersubject(self, index: int = 0) -> LoadedCountersubject:
+        """Return CS by index. Falls back to primary if index 1 unavailable."""
+        if index == 1 and self.countersubject_2 is not None:
+            return self.countersubject_2
+        return self.countersubject
+
+    def get_countersubject_midi(
+        self,
+        index: int = 0,
+        tonic_midi: int | None = None,
+        mode: str | None = None,
+    ) -> tuple[int, ...]:
+        """Return CS MIDI pitches by index. Falls back to primary."""
+        cs = self.get_countersubject(index=index)
+        midi = tonic_midi if tonic_midi is not None else self.tonic_midi
+        effective_mode = mode if mode is not None else self.subject.mode
+        return degrees_to_midi(degrees=cs.degrees, tonic_midi=midi, mode=effective_mode)
 
     def degree_affinity(self) -> tuple[float, ...]:
         """Compute 7-element degree affinity profile from the subject.
@@ -341,6 +361,7 @@ def _parse_triple_data(data: dict) -> SubjectTriple:
         degrees=tuple(cs_data["degrees"]),
         durations=tuple(cs_data["durations"]),
         vertical_intervals=tuple(cs_data["vertical_intervals"]),
+        inversion_distance=int(cs_data.get("inversion_distance", 7)),
     )
     stretto_entries: list[LoadedStretto] = []
     for s in data.get("stretto", []):
@@ -348,6 +369,15 @@ def _parse_triple_data(data: dict) -> SubjectTriple:
             offset_slots=s["offset_slots"],
             quality=s["quality"],
         ))
+    countersubject_2: LoadedCountersubject | None = None
+    if "countersubject_2" in data:
+        cs2_data: dict = data["countersubject_2"]
+        countersubject_2 = LoadedCountersubject(
+            degrees=tuple(cs2_data["degrees"]),
+            durations=tuple(cs2_data["durations"]),
+            vertical_intervals=tuple(cs2_data["vertical_intervals"]),
+            inversion_distance=int(cs2_data.get("inversion_distance", 9)),
+        )
     return SubjectTriple(
         subject=subject,
         answer=answer,
@@ -357,6 +387,7 @@ def _parse_triple_data(data: dict) -> SubjectTriple:
         tonic_midi=meta["tonic_midi"],
         seed=meta["seed"],
         stretto=tuple(stretto_entries),
+        countersubject_2=countersubject_2,
     )
 
 def load_triple(name: str) -> SubjectTriple:

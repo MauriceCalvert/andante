@@ -9,6 +9,7 @@ from typing import Tuple
 
 import yaml
 
+from motifs.countersubject_generator import GeneratedCountersubject, generate_countersubject
 from motifs.head_generator import degrees_to_midi
 from motifs.stretto_constraints import OffsetResult
 from motifs.subject_gen import GeneratedSubject
@@ -16,6 +17,8 @@ from motifs.subject_gen.constants import X2_TICKS_PER_WHOLE
 from motifs.subject_generator import parse_note_name
 from shared.midi_writer import SimpleNote, write_midi_notes
 from shared.pitch import midi_to_name as _midi_to_name
+
+CS2_INVERSION_DISTANCE: int = 9  # tenth — alternate invertible distance
 
 def invert_degrees(degrees: tuple[int, ...]) -> tuple[int, ...]:
     """Tonal inversion: negate each degree around the first note."""
@@ -35,7 +38,7 @@ class SubjectTriple:
     """Subject, answer, and countersubject as a coordinated unit."""
     subject: GeneratedSubject
     answer: 'GeneratedAnswer'
-    countersubject: 'GeneratedCountersubject'
+    countersubject: GeneratedCountersubject
     metre: tuple[int, int]
     tonic_midi: int
     seed: int
@@ -43,6 +46,7 @@ class SubjectTriple:
     inversion_degrees: tuple[int, ...] = ()
     inversion_midi: tuple[int, ...] = ()
     inversion_stretto: Tuple = ()
+    countersubject_2: GeneratedCountersubject | None = None
 
 def _bar_duration(metre: tuple[int, int]) -> float:
     """Duration of one bar in whole-note units."""
@@ -58,10 +62,10 @@ def generate_triple(
     note_counts: tuple[int, ...] | None = None,
     pitch_contour: str | None = None,
     subject: 'GeneratedSubject | None' = None,
+    inversion_distance: int = 7,
 ) -> SubjectTriple:
     """Generate coordinated subject, answer, and countersubject."""
     from motifs.answer_generator import generate_answer
-    from motifs.countersubject_generator import generate_countersubject
     if subject is None:
         from motifs.subject_gen import select_subject
         subject = select_subject(
@@ -83,8 +87,17 @@ def generate_triple(
         metre=metre,
         tonic_midi=tonic_midi,
         answer_degrees=answer.scale_indices,
+        inversion_distance=inversion_distance,
     )
     assert cs is not None, "Countersubject generation failed"
+    cs2 = generate_countersubject(
+        subject=subject,
+        metre=metre,
+        tonic_midi=tonic_midi,
+        answer_degrees=answer.scale_indices,
+        inversion_distance=CS2_INVERSION_DISTANCE,
+    )
+    # cs2 may be None — solver infeasible at distance 9. That's fine.
     inv_deg = invert_degrees(degrees=subject.scale_indices)
     inv_midi = degrees_to_midi(
         degrees=inv_deg,
@@ -110,6 +123,7 @@ def generate_triple(
         inversion_degrees=inv_deg,
         inversion_midi=tuple(inv_midi),
         inversion_stretto=tuple(inv_stretto),
+        countersubject_2=cs2,
     )
 
 def write_subject_file(triple: SubjectTriple, path: Path) -> None:
@@ -135,6 +149,7 @@ def write_subject_file(triple: SubjectTriple, path: Path) -> None:
             'degrees': list(triple.countersubject.scale_indices),
             'durations': [float(d) for d in triple.countersubject.durations],
             'vertical_intervals': list(triple.countersubject.vertical_intervals),
+            'inversion_distance': triple.countersubject.inversion_distance,
         },
         'metadata': {
             'metre': list(triple.metre),
@@ -162,6 +177,13 @@ def write_subject_file(triple: SubjectTriple, path: Path) -> None:
             for r in sorted(triple.inversion_stretto, key=lambda r: r.offset)
         ],
     }
+    if triple.countersubject_2 is not None:
+        data['countersubject_2'] = {
+            'degrees': list(triple.countersubject_2.scale_indices),
+            'durations': [float(d) for d in triple.countersubject_2.durations],
+            'vertical_intervals': list(triple.countersubject_2.vertical_intervals),
+            'inversion_distance': triple.countersubject_2.inversion_distance,
+        }
     with open(path, 'w', encoding='utf-8') as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
@@ -325,6 +347,81 @@ def write_midi_file(
         mode=subject.mode,
     )
 
+def patch_library_files(verbose: bool = False) -> None:
+    """Add countersubject_2 to all library .subject files that lack it.
+
+    Loads each file, builds a minimal GeneratedSubject shim from its data,
+    runs the CS generator at distance 9, and writes CS2 back if feasible.
+    Does not touch CS1 or any other section.
+    """
+    library_dir = Path(__file__).parent.parent / "motifs" / "library"
+    subject_files = sorted(library_dir.glob("*.subject"))
+    assert subject_files, f"No .subject files found in {library_dir}"
+
+    for path in subject_files:
+        with open(path, encoding="utf-8") as f:
+            data: dict = yaml.safe_load(f)
+
+        if "countersubject_2" in data:
+            if verbose:
+                print(f"[patch] {path.name}: already has CS2 — skipping")
+            continue
+
+        subj_data: dict = data["subject"]
+        ans_data: dict = data["answer"]
+        meta: dict = data["metadata"]
+
+        degrees: tuple[int, ...] = tuple(subj_data["degrees"])
+        durations: tuple[float, ...] = tuple(float(d) for d in subj_data["durations"])
+        mode: str = subj_data["mode"]
+        tonic_midi: int = int(meta["tonic_midi"])
+        metre: tuple[int, int] = (int(meta["metre"][0]), int(meta["metre"][1]))
+        answer_degrees: tuple[int, ...] = tuple(ans_data["degrees"])
+
+        midi_pitches = degrees_to_midi(degrees=degrees, tonic_midi=tonic_midi, mode=mode)
+
+        # Build minimal shim — CS generator only uses scale_indices, durations, mode
+        subject_shim = GeneratedSubject(
+            scale_indices=degrees,
+            durations=durations,
+            midi_pitches=midi_pitches,
+            bars=int(subj_data["bars"]),
+            score=0.0,
+            seed=int(meta["seed"]),
+            mode=mode,
+            head_name=subj_data["head_name"],
+            leap_size=int(subj_data["leap_size"]),
+            leap_direction=subj_data["leap_direction"],
+            tail_direction="",
+        )
+
+        cs2 = generate_countersubject(
+            subject=subject_shim,
+            metre=metre,
+            tonic_midi=tonic_midi,
+            answer_degrees=answer_degrees,
+            inversion_distance=CS2_INVERSION_DISTANCE,
+        )
+
+        if cs2 is None:
+            if verbose:
+                print(f"[patch] {path.name}: CS2 infeasible at distance 9 — skipping")
+            continue
+
+        data["countersubject_2"] = {
+            "degrees": list(cs2.scale_indices),
+            "durations": [float(d) for d in cs2.durations],
+            "vertical_intervals": list(cs2.vertical_intervals),
+            "inversion_distance": cs2.inversion_distance,
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+        if verbose:
+            print(f"[patch] {path.name}: CS2 added ({len(cs2.scale_indices)} notes)")
+
+
 def main() -> None:
     """Generate subjects and write to .midi and .note files."""
     import argparse
@@ -353,9 +450,18 @@ def main() -> None:
                         choices=["arch", "valley", "swoop", "dip",
                                  "ascending", "descending", "zigzag"],
                         help="Pitch contour filter")
+    parser.add_argument("--inversion-distance", type=int, default=7,
+                        choices=[7, 9, 11],
+                        help="Inversion distance in semitones: 7=octave, 9=tenth, 11=twelfth (default: 7)")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Print details")
+    parser.add_argument("--patch-library", action="store_true",
+                        help="Patch library .subject files to add countersubject_2 at distance 9")
     args = parser.parse_args()
+
+    if args.patch_library:
+        patch_library_files(verbose=args.verbose)
+        return
     metre_parts = args.metre.split("/")
     metre = (int(metre_parts[0]), int(metre_parts[1]))
     note_counts = None
@@ -416,6 +522,7 @@ def main() -> None:
             note_counts=note_counts,
             pitch_contour=args.contour,
             subject=subject_by_index[i],
+            inversion_distance=args.inversion_distance,
         )
         write_note_file(triple=triple, path=base.with_suffix(".note"))
         write_subject_demo_midi(triple=triple, path=base.with_suffix(".midi"), tempo=args.tempo)
