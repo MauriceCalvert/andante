@@ -1,0 +1,141 @@
+subject:
+  degrees:
+  - 4
+  - 3
+  - 0
+  - 2
+  - 0
+  - -1
+  - -3
+  - -1
+  - 1
+  - 2
+  - 3
+  - 4
+  durations:
+  - 0.0625
+  - 0.0625
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.25
+  - 0.1875
+  - 0.0625
+  - 0.25
+  - 0.25
+  mode: major
+  bars: 2
+  head_name: dip
+  leap_size: 3
+  leap_direction: down
+answer:
+  degrees:
+  - 8
+  - 6
+  - 3
+  - 5
+  - 3
+  - 3
+  - 1
+  - 3
+  - 4
+  - 5
+  - 6
+  - 8
+  durations:
+  - 0.0625
+  - 0.0625
+  - 0.125
+  - 0.125
+  - 0.25
+  - 0.125
+  - 0.25
+  - 0.25
+  - 0.1875
+  - 0.0625
+  - 0.25
+  - 0.25
+  type: tonal
+  mutation_points:
+  - 0
+  - 4
+  - 7
+  - 10
+countersubject:
+  degrees:
+  - -8
+  - -7
+  - -5
+  - -9
+  - -6
+  - -5
+  - -1
+  - -6
+  - -6
+  - -8
+  - -10
+  - -6
+  - -6
+  - -8
+  - -10
+  durations:
+  - 0.25
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.1875
+  - 0.0625
+  - 0.125
+  - 0.125
+  - 0.125
+  - 0.125
+  vertical_intervals:
+  - 5
+  - 4
+  - 5
+  - 2
+  - 5
+  - 2
+  - 2
+  - 5
+  - 5
+  - 2
+  - 5
+  - 2
+  - 2
+  - 5
+  - 0
+metadata:
+  metre:
+  - 4
+  - 4
+  tonic: C
+  tonic_midi: 72
+  seed: 34
+inversion:
+  degrees:
+  - 4
+  - 5
+  - 8
+  - 6
+  - 8
+  - 9
+  - 11
+  - 9
+  - 7
+  - 6
+  - 5
+  - 4
+stretto:
+- offset_slots: 4
+  consonant: 9/13
+  dissonance_cost: 16
+  quality: 0.69
+inversion_stretto: []

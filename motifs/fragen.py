@@ -83,7 +83,7 @@ class Note(NamedTuple):
 
 
 @dataclass(frozen=True)
-class Cell:
+class Motivic:
     """Motivic cell: contiguous sub-sequence of subject or its inversion."""
     name: str
     degrees: tuple[int, ...]
@@ -95,8 +95,8 @@ class Cell:
 @dataclass(frozen=True)
 class Fragment:
     """Two-voice episode texture, unique under transposition."""
-    upper: Cell
-    lower: Cell
+    upper: Motivic
+    lower: Motivic
     leader_voice: int
     separation: int
     offset: Fraction
@@ -111,11 +111,11 @@ class Fragment:
 def extract_cells(
     fugue: LoadedFugue,
     bar_length: Fraction,
-) -> list[Cell]:
+) -> list[Motivic]:
     """Extract motivic cells as contiguous sub-sequences from subject material."""
     head = extract_head(fugue=fugue, bar_length=bar_length)
     tail = extract_tail(fugue=fugue, bar_length=bar_length)
-    raw: list[Cell] = []
+    raw: list[Motivic] = []
     sources: list[tuple[str, tuple[int, ...], tuple]] = [
         ("head", head.degrees, head.durations),
         ("tail", tail.degrees, tail.durations),
@@ -131,14 +131,14 @@ def extract_cells(
             durations=durs,
             source=source,
         ))
-    inverted: list[Cell] = [_invert(c) for c in raw]
+    inverted: list[Motivic] = [_invert(c) for c in raw]
     return _dedup_cells(raw + inverted)
 
 
-def _dedup_cells(cells: list[Cell]) -> list[Cell]:
+def _dedup_cells(cells: list[Motivic]) -> list[Motivic]:
     """Remove cells with identical (degrees, durations)."""
     seen: set[tuple[tuple[int, ...], tuple[Fraction, ...]]] = set()
-    result: list[Cell] = []
+    result: list[Motivic] = []
     for c in cells:
         key = (c.degrees, c.durations)
         if key not in seen:
@@ -147,10 +147,10 @@ def _dedup_cells(cells: list[Cell]) -> list[Cell]:
     return result
 
 
-def _invert(cell: Cell) -> Cell:
+def _invert(cell: Motivic) -> Motivic:
     """Diatonic inversion around first degree."""
     inv_source: str = cell.source + "_inv"
-    return Cell(
+    return Motivic(
         name=cell.name.replace(cell.source, inv_source),
         degrees=tuple(-d for d in cell.degrees),
         durations=cell.durations,
@@ -163,10 +163,10 @@ def _subsequence_cells(
     degrees: tuple[int, ...],
     durations: tuple[Fraction, ...],
     source: str,
-) -> list[Cell]:
+) -> list[Motivic]:
     """Extract every contiguous sub-sequence of 2+ notes."""
     n: int = len(degrees)
-    cells: list[Cell] = []
+    cells: list[Motivic] = []
     for start in range(n):
         for end in range(start + _MIN_CELL_NOTES, n + 1):
             sub_deg: tuple[int, ...] = degrees[start:end]
@@ -178,7 +178,7 @@ def _subsequence_cells(
                 tag: str = source
             else:
                 tag = f"{source}[{start}:{end}]"
-            cells.append(Cell(
+            cells.append(Motivic(
                 name=tag,
                 degrees=relative,
                 durations=sub_dur,
@@ -194,24 +194,24 @@ def _subsequence_cells(
 
 
 def build_chains(
-    cells: list[Cell],
+    cells: list[Motivic],
     bar_length: Fraction,
-) -> list[Cell]:
+) -> list[Motivic]:
     """Assemble sub-bar cells into bar-filling chains."""
-    eligible: list[Cell] = [
+    eligible: list[Motivic] = [
         c for c in cells
         if c.total_duration >= _MIN_CHAIN_CELL_DUR
         and c.total_duration <= bar_length
     ]
     eligible.sort(key=lambda c: c.total_duration, reverse=True)
-    combos: list[list[Cell]] = []
+    combos: list[list[Motivic]] = []
     _find_chain_combos(
         cells=eligible,
         remaining=bar_length,
         current=[],
         results=combos,
     )
-    raw: list[Cell] = []
+    raw: list[Motivic] = []
     penalties: list[int] = []
     for combo in combos:
         if len(combo) == 1:
@@ -221,10 +221,10 @@ def build_chains(
             raw.append(_chain_to_cell(combo))
             penalties.append(_chain_boundary_penalty(combo))
     # Sort by ascending penalty, keep top _MAX_SCORED_CHAINS
-    sorted_pairs: list[tuple[int, Cell]] = sorted(
+    sorted_pairs: list[tuple[int, Motivic]] = sorted(
         zip(penalties, raw), key=lambda p: p[0],
     )
-    capped: list[Cell] = [c for _, c in sorted_pairs[:_MAX_SCORED_CHAINS]]
+    capped: list[Motivic] = [c for _, c in sorted_pairs[:_MAX_SCORED_CHAINS]]
     return _dedup_chains(capped)
 
 
@@ -238,10 +238,10 @@ def _contour(degrees: tuple[int, ...]) -> int:
     return 0
 
 
-def _dedup_chains(cells: list[Cell]) -> list[Cell]:
+def _dedup_chains(cells: list[Motivic]) -> list[Motivic]:
     """Dedup chains by rhythm profile + contour direction (spec 2c)."""
     seen: set[tuple[tuple[Fraction, ...], int]] = set()
-    result: list[Cell] = []
+    result: list[Motivic] = []
     for c in cells:
         key: tuple = (c.durations, _contour(c.degrees))
         if key not in seen:
@@ -250,7 +250,7 @@ def _dedup_chains(cells: list[Cell]) -> list[Cell]:
     return result
 
 
-def _chain_boundary_penalty(chain: list[Cell]) -> int:
+def _chain_boundary_penalty(chain: list[Motivic]) -> int:
     """Penalise boundary leaps and non-terminal cells with long final notes."""
     penalty: int = 0
     for i in range(len(chain) - 1):
@@ -264,7 +264,7 @@ def _chain_boundary_penalty(chain: list[Cell]) -> int:
     return penalty
 
 
-def _chain_to_cell(chain: list[Cell]) -> Cell:
+def _chain_to_cell(chain: list[Motivic]) -> Motivic:
     """Convert a sequence of cells into a single composite cell."""
     assert len(chain) >= 2, "Chain must have at least 2 cells"
     degrees: list[int] = []
@@ -277,7 +277,7 @@ def _chain_to_cell(chain: list[Cell]) -> Cell:
     base: int = degrees[0]
     normalised: tuple[int, ...] = tuple(d - base for d in degrees)
     names: str = "+".join(c.name for c in chain)
-    return Cell(
+    return Motivic(
         name=f"chain({names})",
         degrees=normalised,
         durations=tuple(durations),
@@ -287,10 +287,10 @@ def _chain_to_cell(chain: list[Cell]) -> Cell:
 
 
 def _find_chain_combos(
-    cells: list[Cell],
+    cells: list[Motivic],
     remaining: Fraction,
-    current: list[Cell],
-    results: list[list[Cell]],
+    current: list[Motivic],
+    results: list[list[Motivic]],
 ) -> None:
     """Recursively find cell sequences summing to bar_length."""
     if remaining == Fraction(0):
@@ -321,7 +321,7 @@ def _find_chain_combos(
 
 
 def _degree_at(
-    cell: Cell,
+    cell: Motivic,
     t: Fraction,
 ) -> int:
     """Return the degree sounding at time t within a cell."""
@@ -336,8 +336,8 @@ def _degree_at(
 
 
 def _consonance_score(
-    upper: Cell,
-    lower: Cell,
+    upper: Motivic,
+    lower: Motivic,
     separation: int,
     offset: Fraction,
     bar_length: Fraction,
@@ -495,7 +495,7 @@ def _consonance_score(
 
 
 def build_fragments(
-    cells: list[Cell],
+    cells: list[Motivic],
     tonic_midi: int,
     mode: str,
     bar_length: Fraction,
@@ -503,9 +503,9 @@ def build_fragments(
     """Build canonic two-voice episode textures from cells."""
     fragments: list[Fragment] = []
     for cell in cells:
-        inv: Cell = _invert(cell)
+        inv: Motivic = _invert(cell)
         # Two canon types: parallel (same cell) and contrary (cell + inversion)
-        pairings: list[tuple[Cell, Cell]] = [
+        pairings: list[tuple[Motivic, Motivic]] = [
             (cell, cell),   # parallel canon
             (cell, inv),    # contrary motion
         ]
@@ -514,8 +514,8 @@ def build_fragments(
                 for voice in (VOICE_SOPRANO, VOICE_BASS):
                     # Upper/lower assignment: leader goes to leader_voice register
                     if voice == VOICE_SOPRANO:
-                        upper: Cell = leader_cell
-                        lower: Cell = follower_cell
+                        upper: Motivic = leader_cell
+                        lower: Motivic = follower_cell
                     else:
                         upper = follower_cell
                         lower = leader_cell
@@ -569,7 +569,7 @@ def build_fragments(
 
 
 def build_hold_fragments(
-    cells: list[Cell],
+    cells: list[Motivic],
     tonic_midi: int,
     mode: str,
     bar_length: Fraction,
@@ -580,7 +580,7 @@ def build_hold_fragments(
     for cell in cells:
         if cell.total_duration < min_dur:
             continue
-        hold: Cell = Cell(
+        hold: Motivic = Motivic(
             name="hold",
             degrees=(0,),
             durations=(cell.total_duration,),
@@ -588,8 +588,8 @@ def build_hold_fragments(
             source="hold",
         )
         for voice in (VOICE_SOPRANO, VOICE_BASS):
-            upper: Cell = cell if voice == VOICE_SOPRANO else hold
-            lower: Cell = hold if voice == VOICE_SOPRANO else cell
+            upper: Motivic = cell if voice == VOICE_SOPRANO else hold
+            lower: Motivic = hold if voice == VOICE_SOPRANO else cell
             for sep in _SEPARATION_RANGE:
                 rate: float = _consonance_score(
                     upper=upper,
@@ -656,7 +656,7 @@ def dedup_fragments(fragments: list[Fragment]) -> list[Fragment]:
     seen: set[tuple] = set()
     unique: list[Fragment] = []
     for f in fragments:
-        leader: Cell = (
+        leader: Motivic = (
             f.upper if f.leader_voice == VOICE_SOPRANO else f.lower
         )
         is_contrary: bool = f.upper.source != f.lower.source
@@ -941,7 +941,7 @@ def _emit_notes(
 
 def _emit_voice_notes(
     notes: list[Note],
-    cell: Cell,
+    cell: Motivic,
     base_degree: int,
     time_base: Fraction,
     time_offset: Fraction,
@@ -1119,7 +1119,7 @@ def _fragment_signature(
 
     Fragments with different signatures sound perceptually distinct.
     """
-    leader_cell: Cell = frag.upper if frag.leader_voice == VOICE_SOPRANO else frag.lower
+    leader_cell: Motivic = frag.upper if frag.leader_voice == VOICE_SOPRANO else frag.lower
     degrees: tuple[int, ...] = leader_cell.degrees
 
     # Compute full interval sequence (complete melodic fingerprint)

@@ -17,7 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from midiutil import MIDIFile
 
 from motifs.fragen import (
-    Cell,
+    Motivic,
     Fragment,
     Note,
     VOICE_BASS,
@@ -149,14 +149,14 @@ def main() -> None:
           f"{fugue.metre[0]}/{fugue.metre[1]}")
     print(f"{'=' * 60}")
     # --- Cells ---
-    cells: list[Cell] = extract_cells(fugue=fugue, bar_length=bar_length)
+    cells: list[Motivic] = extract_cells(fugue=fugue, bar_length=bar_length)
     print(f"\n{len(cells)} cells (raw vocabulary):")
     for c in cells:
         durs: str = "+".join(str(d) for d in c.durations)
         bars_tag: str = f"{float(c.total_duration / bar_length):.2f}"
         print(f"  {c.name:28s}  {str(c.degrees):36s}  {durs}  ({bars_tag}bar)")
     # --- Chains ---
-    chains: list[Cell] = build_chains(cells=cells, bar_length=bar_length)
+    chains: list[Motivic] = build_chains(cells=cells, bar_length=bar_length)
     print(f"\n{len(chains)} bar-filling chains:")
     for c in chains:
         durs = "+".join(str(d) for d in c.durations)

@@ -19,7 +19,7 @@ from shared.key import Key
 from shared.pitch import build_pitch_class_set, diatonic_step_count
 
 if TYPE_CHECKING:
-    from motifs.fragen import Cell
+    from motifs.fragen import Motivic
 
 
 @dataclass(frozen=True)
@@ -286,7 +286,7 @@ def build_thematic_knots(
     return knots
 
 
-def cell_to_pattern(cell: Cell) -> IntervalPattern:
+def cell_to_pattern(cell: Motivic) -> IntervalPattern:
     """Convert a fragen Cell to an IntervalPattern.
 
     Cell.degrees are relative diatonic offsets (first note = 0).
@@ -308,7 +308,7 @@ def cell_to_pattern(cell: Cell) -> IntervalPattern:
 
 
 def build_cell_catalogue(
-    cells: list[Cell],
+    cells: list[Motivic],
     bar_length: Fraction,
 ) -> CellCatalogue:
     """Build transformation catalogue from fragen cells.

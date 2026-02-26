@@ -18,6 +18,7 @@ class GeneratedSubject:
     leap_direction: str
     tail_direction: str
     stretto_offsets: tuple[OffsetResult, ...] = ()
+    inverted_stretto_offsets: tuple[OffsetResult, ...] = ()
     affect: str | None = None
     figurae_score: float = 0.0
     satisfied_figurae: tuple[str, ...] = ()

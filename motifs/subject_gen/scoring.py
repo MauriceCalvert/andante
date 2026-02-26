@@ -6,47 +6,24 @@ Feature vector extraction for diversity selection lives here too.
 import math
 
 from motifs.subject_gen.constants import (
+    DEGREES_PER_OCTAVE,
     DURATION_TICKS,
+    HEAD_IV_FEATURE_SCALE,
+    HEAD_IV_FEATURE_WINDOW,
+    HEAD_SIZE,
     W_DIRECTION_COMMITMENT,
+    W_DURATION_VARIETY,
+    W_FAST_NOTE_DENSITY,
+    W_HARMONIC_VARIETY,
+    W_HEAD_CHARACTER,
     W_RANGE,
     W_REPETITION_PENALTY,
-    W_RHYTHMIC_CONTRAST,
-    W_SIGNATURE_INTERVAL,
+    W_SCALIC_MONOTONY,
+    W_TAIL_MOMENTUM,
 )
 
-
-def _intervallic_range(degrees: tuple[int, ...]) -> float:
-    """Score 0–1 for pitch span. 5th (range 4) = 0.5, octave (7) = 1.0, >octave clipped."""
-    span: int = max(degrees) - min(degrees)
-    if span <= 2:
-        return 0.0
-    return min(span / 7.0, 1.0)
-
-
-def _signature_interval(ivs: tuple[int, ...]) -> float:
-    """Score 0–1 for largest single interval. 2nd=0, 3rd=0.4, 4th=0.6, 5th=0.8, >=6th=1."""
-    max_leap: int = max(abs(iv) for iv in ivs)
-    if max_leap <= 1:
-        return 0.0
-    if max_leap == 2:
-        return 0.4
-    if max_leap == 3:
-        return 0.6
-    if max_leap == 4:
-        return 0.8
-    return 1.0
-
-
-def _rhythmic_contrast(dur_indices: tuple[int, ...]) -> float:
-    """Score 0–1 for ratio of longest to shortest duration tick."""
-    ticks: list[int] = [DURATION_TICKS[d] for d in dur_indices]
-    shortest: int = min(ticks)
-    longest: int = max(ticks)
-    if shortest == longest:
-        return 0.0
-    ratio: float = longest / shortest
-    # ratio 2 (quaver vs semiquaver) = 0.5; ratio 4 (crotchet vs semiquaver) = 1.0
-    return min((ratio - 1.0) / 3.0, 1.0)
+# Semiquaver tick value for fast-note density scoring.
+_SEMIQUAVER_TICKS: int = 1
 
 
 def _direction_commitment(degrees: tuple[int, ...]) -> float:
@@ -61,6 +38,61 @@ def _direction_commitment(degrees: tuple[int, ...]) -> float:
     if span == 0:
         return 0.0
     return min(net / (span * 0.6), 1.0)
+
+
+def _duration_variety(dur_indices: tuple[int, ...]) -> float:
+    """Score 0–1 for count of distinct duration values used."""
+    distinct: int = len(set(DURATION_TICKS[d] for d in dur_indices))
+    return min((distinct - 1) / 3.0, 1.0)
+
+
+def _fast_note_density(dur_indices: tuple[int, ...]) -> float:
+    """Score 0–1 for proportion of notes at semiquaver duration."""
+    n: int = len(dur_indices)
+    if n == 0:
+        return 0.0
+    fast_count: int = sum(1 for d in dur_indices if DURATION_TICKS[d] == _SEMIQUAVER_TICKS)
+    return min(fast_count / (n * 0.4), 1.0)
+
+
+def _harmonic_variety(degrees: tuple[int, ...]) -> float:
+    """Score 0-1 for how many distinct chords the degree sequence touches.
+
+    Checks I ({0,2,4}), IV ({3,5,0}), V ({4,6,1}), ii ({1,3,5}) in major.
+    Score = (touched - 1) / 3.0, clamped to [0.0, 1.0].
+    """
+    _CHORD_SETS: tuple[frozenset[int], ...] = (
+        frozenset({0, 2, 4}),  # I
+        frozenset({3, 5, 0}),  # IV
+        frozenset({4, 6, 1}),  # V
+        frozenset({1, 3, 5}),  # ii
+    )
+    degree_classes: frozenset[int] = frozenset(d % 7 for d in degrees)
+    touched: int = sum(1 for chord in _CHORD_SETS if chord & degree_classes)
+    return min(max((touched - 1) / 3.0, 0.0), 1.0)
+
+
+def _head_character(ivs: tuple[int, ...]) -> float:
+    """Score 0–1 for a characteristic interval in the Kopfmotiv."""
+    head_ivs: tuple[int, ...] = ivs[:HEAD_SIZE]
+    if not head_ivs:
+        return 0.0
+    max_leap: int = max(abs(iv) for iv in head_ivs)
+    if max_leap <= 1:
+        return 0.0
+    if max_leap == 2:
+        return 0.5
+    if max_leap == 3:
+        return 0.8
+    return 1.0
+
+
+def _intervallic_range(degrees: tuple[int, ...]) -> float:
+    """Score 0–1 for pitch span. 5th (range 4) = 0.5, octave (7) = 1.0, >octave clipped."""
+    span: int = max(degrees) - min(degrees)
+    if span <= 2:
+        return 0.0
+    return min(span / 7.0, 1.0)
 
 
 def _repetition_penalty(degrees: tuple[int, ...]) -> float:
@@ -85,18 +117,59 @@ def _repetition_penalty(degrees: tuple[int, ...]) -> float:
     return 1.0 - (repeat_count / max_possible)
 
 
+
+def _tail_momentum(dur_indices: tuple[int, ...]) -> float:
+    """Score 0-1 penalising consecutive long notes at the subject's end.
+
+    One long final note is fine (standard practice). Two or more consecutive
+    crotchets-or-longer at the tail kills rhythmic drive.
+    """
+    _LONG_THRESHOLD: int = 6  # dotted crotchet in x2 ticks
+    n: int = len(dur_indices)
+    if n < 3:
+        return 1.0
+    tail_long_run: int = 0
+    for i in range(n - 1, -1, -1):
+        if DURATION_TICKS[dur_indices[i]] >= _LONG_THRESHOLD:
+            tail_long_run += 1
+        else:
+            break
+    if tail_long_run <= 1:
+        return 1.0
+    if tail_long_run == 2:
+        return 0.3
+    return 0.0
+
+
+def _scalic_monotony(ivs: tuple[int, ...]) -> float:
+    """Score 0–1 penalising overwhelmingly stepwise motion."""
+    if not ivs:
+        return 1.0
+    step_count: int = sum(1 for iv in ivs if abs(iv) <= 1)
+    step_frac: float = step_count / len(ivs)
+    if step_frac <= 0.55:
+        return 1.0
+    if step_frac >= 0.80:
+        return 0.0
+    return 1.0 - (step_frac - 0.55) / 0.25
+
+
 def score_subject(
     degrees: tuple[int, ...],
     ivs: tuple[int, ...],
     dur_indices: tuple[int, ...],
 ) -> float:
-    """Weighted aesthetic score for a subject candidate. Returns 0–5."""
+    """Weighted aesthetic score for a subject candidate. Returns 0–10.5."""
     return (
         W_RANGE * _intervallic_range(degrees=degrees)
-        + W_SIGNATURE_INTERVAL * _signature_interval(ivs=ivs)
-        + W_RHYTHMIC_CONTRAST * _rhythmic_contrast(dur_indices=dur_indices)
         + W_DIRECTION_COMMITMENT * _direction_commitment(degrees=degrees)
         + W_REPETITION_PENALTY * _repetition_penalty(degrees=degrees)
+        + W_HARMONIC_VARIETY * _harmonic_variety(degrees=degrees)
+        + W_FAST_NOTE_DENSITY * _fast_note_density(dur_indices=dur_indices)
+        + W_DURATION_VARIETY * _duration_variety(dur_indices=dur_indices)
+        + W_SCALIC_MONOTONY * _scalic_monotony(ivs=ivs)
+        + W_HEAD_CHARACTER * _head_character(ivs=ivs)
+        + W_TAIL_MOMENTUM * _tail_momentum(dur_indices=dur_indices)
     )
 
 
@@ -105,21 +178,11 @@ def subject_features(
     ivs: tuple[int, ...],
     dur_indices: tuple[int, ...],
 ) -> tuple[float, ...]:
-    """6D feature vector for diversity distance computation."""
+    """10D feature vector for diversity distance computation."""
     n: int = len(degrees)
     span: int = max(degrees) - min(degrees)
     # range normalised to octave
     f_range: float = min(span / 7.0, 1.0)
-    # leap fraction: proportion of intervals >= 3rd
-    leap_count: int = sum(1 for iv in ivs if abs(iv) >= 2)
-    f_leap_fraction: float = leap_count / len(ivs) if ivs else 0.0
-    # max interval normalised
-    max_iv: int = max(abs(iv) for iv in ivs) if ivs else 0
-    f_max_interval: float = min(max_iv / 7.0, 1.0)
-    # rhythmic contrast
-    ticks: list[int] = [DURATION_TICKS[d] for d in dur_indices]
-    ratio: float = max(ticks) / min(ticks) if min(ticks) > 0 else 1.0
-    f_rhythmic_contrast: float = min(math.log2(ratio) / 2.0, 1.0)
     # climax position: index of highest pitch / note_count
     hi_idx: int = 0
     for i in range(n):
@@ -129,4 +192,18 @@ def subject_features(
     # direction: net displacement / range
     net: int = degrees[-1] - degrees[0]
     f_direction: float = (net / span) if span > 0 else 0.0
-    return (f_range, f_leap_fraction, f_max_interval, f_rhythmic_contrast, f_climax_pos, f_direction)
+    # harmonic variety score
+    f_harmonic_variety: float = _harmonic_variety(degrees=degrees)
+    # fast note density
+    f_fast_density: float = _fast_note_density(dur_indices=dur_indices)
+    # duration variety
+    f_dur_variety: float = _duration_variety(dur_indices=dur_indices)
+    # scalic monotony
+    f_scalic: float = _scalic_monotony(ivs=ivs)
+    # head intervals (normalised) — sequential similarity of opening gesture
+    head_ivs: tuple[int, ...] = ivs[:HEAD_IV_FEATURE_WINDOW] if len(ivs) >= HEAD_IV_FEATURE_WINDOW else ivs
+    f_head_ivs: tuple[float, ...] = tuple(iv * HEAD_IV_FEATURE_SCALE / DEGREES_PER_OCTAVE for iv in head_ivs)
+    # tail intervals (normalised) — sequential similarity of closing gesture
+    tail_ivs: tuple[int, ...] = ivs[-HEAD_IV_FEATURE_WINDOW:] if len(ivs) >= HEAD_IV_FEATURE_WINDOW else ivs
+    f_tail_ivs: tuple[float, ...] = tuple(iv * HEAD_IV_FEATURE_SCALE / DEGREES_PER_OCTAVE for iv in tail_ivs)
+    return (f_range, f_climax_pos, f_direction, f_harmonic_variety, f_fast_density, f_dur_variety, f_scalic) + f_head_ivs + f_tail_ivs

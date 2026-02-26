@@ -4,20 +4,22 @@ Conductor reads at chat start.
 
 ---
 
-## Now: GEL-1 — Generative entry layout
+## Now: BM — Baroque melody generation (harmonic-grid subject pitch engine)
 
-TB sequence complete (TB-1 through TB-5). Listening gate passed.
-Free passages are thematically coherent: degree affinity, interval
-vocabulary, cell recombination, and vertical genome all wired.
+Replaces head enumeration + CP-SAT tail generation + melodic validation
+with harmonically-grounded pitch generation per `docs/baroque_melody.md`.
 
-The invention is fixed at 19 bars because entry_sequence is hardcoded
-in invention.yaml. GEL-1 replaces the hardcoded sequence with a
-vocabulary + brief system: the YAML defines what an invention *is*
-(available entry types, key pools, proportions); a brief defines what
-*this* invention should be (scope, development intensity, stretto
-preference). A runtime generator produces the entry_sequence.
-
-Brief: `workflow/gel-1-brief.md`
+Four phases:
+- **BM-1**: Harmonic grid data module (`harmonic_grid.py`) — progressions,
+  chord tones, lookups.  Brief: `workflow/bm-1-brief.md`
+- **BM-2**: Melody generator (`melody_generator.py`) — C/P grid, skeleton
+  enumeration, P-slot fill, validation.  Brief: `workflow/bm-2-brief.md`
+- **BM-3a**: Wire into pipeline — rewrite pitch_generator.py, update
+  duration_generator.py return type, update selector.py loop.
+  Brief: `workflow/bm-3a-brief.md`
+- **BM-3b**: Scoring extension + dead code removal — harmonic variety
+  score, delete head_enumerator/cpsat_generator/cpsat_prototype.
+  Brief: `workflow/bm-3b-brief.md`
 
 ---
 
@@ -49,6 +51,7 @@ Brief: `workflow/gel-1-brief.md`
 - Mixed-rhythm semiquaver templates
 - Restore validate_voice melodic interval assert
 - Inner voices
+- Multiple countersubjects: generate 2nd (3rd, 4th) CS against subject + all prior CSs in invertible counterpoint. Coordination in generate_subjects.py; countersubject_generator needs mutual-consonance constraint.
 - Figurenlehre labelling
 - Figuration strong-beat consonance / metric alignment
 - Thematic cadence 3/4

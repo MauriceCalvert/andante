@@ -198,8 +198,8 @@ def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> N
     offset = _add_melody(notes, subj, subj_dur, 0, offset)
     offset += bar_dur
     # 2. Answer solo
-    offset = _add_melody(notes, ans, ans_dur, 0, offset)
-    offset += bar_dur
+    # offset = _add_melody(notes, ans, ans_dur, 0, offset)
+    # offset += bar_dur
     # 3. Subject + countersubject together
     _add_melody(notes, subj, subj_dur, 0, offset)
     offset = _add_melody(notes, cs, cs_dur, 1, offset)
@@ -207,11 +207,12 @@ def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> N
     # 4. Inversion solo
     inv = triple.inversion_midi
     inv_dur = subj_dur  # Same rhythm
-    offset = _add_melody(notes, inv, inv_dur, 0, offset)
-    offset += bar_dur
-    # 5. Subject vs subject stretto pairs, tightest first
+    # offset = _add_melody(notes, inv, inv_dur, 0, offset)
+    # offset += bar_dur
+    # 5. Subject vs subject stretto pairs, tightest first (entry within bar 1)
     viable: list[OffsetResult] = sorted(
-        triple.subject.stretto_offsets,
+        [r for r in triple.subject.stretto_offsets
+         if r.offset_slots / X2_TICKS_PER_WHOLE <= bar_dur],
         key=lambda r: r.offset_slots,
     )
     for r in viable:
@@ -219,10 +220,10 @@ def write_fugue_demo_midi(triple: FugueTriple, path: Path, tempo: int = 80) -> N
         leader_end = _add_melody(notes, subj, subj_dur, 0, offset)
         follower_end = _add_melody(notes, subj_low, subj_dur, 1, offset + stretto_delay)
         offset = max(leader_end, follower_end) + bar_dur
-    # 6. Subject vs inversion stretto pairs
+    # 6. Subject vs inversion stretto pairs (entry within bar 1)
     from motifs.stretto_analyser import StrettoOffset
     inv_stretto: list[StrettoOffset] = sorted(
-        triple.inversion_stretto,
+        [r for r in triple.inversion_stretto if r.offset <= bar_dur],
         key=lambda r: r.offset,
     )
     for r in inv_stretto:
@@ -284,9 +285,10 @@ def write_note_file(triple: FugueTriple, path: Path) -> None:
     inv_dur = subj_dur
     offset = _add_melody(notes, inv, inv_dur, 0, offset)
     offset += bar_dur
-    # 5. Subject vs subject stretto pairs
+    # 5. Subject vs subject stretto pairs (entry within bar 1)
     viable: list[OffsetResult] = sorted(
-        triple.subject.stretto_offsets,
+        [r for r in triple.subject.stretto_offsets
+         if r.offset_slots / X2_TICKS_PER_WHOLE <= bar_dur],
         key=lambda r: r.offset_slots,
     )
     for r in viable:
@@ -294,10 +296,10 @@ def write_note_file(triple: FugueTriple, path: Path) -> None:
         leader_end = _add_melody(notes, subj, subj_dur, 0, offset)
         follower_end = _add_melody(notes, subj_low, subj_dur, 1, offset + stretto_delay)
         offset = max(leader_end, follower_end) + bar_dur
-    # 6. Subject vs inversion stretto pairs
+    # 6. Subject vs inversion stretto pairs (entry within bar 1)
     from motifs.stretto_analyser import StrettoOffset
     inv_stretto: list[StrettoOffset] = sorted(
-        triple.inversion_stretto,
+        [r for r in triple.inversion_stretto if r.offset <= bar_dur],
         key=lambda r: r.offset,
     )
     for r in inv_stretto:
@@ -394,9 +396,15 @@ def main() -> None:
             fixed_midi=fixed_midi,
             verbose=args.verbose,
         )
+        if len(subjects) < len(indices):
+            print(f"[subject_gen] only {len(subjects)} candidates found "
+                  f"(requested {len(indices)} for {n_bars}-bar)")
+            indices = indices[:len(subjects)]
         for j, idx in enumerate(indices):
-            subject_by_index[idx] = subjects[j % len(subjects)]
+            subject_by_index[idx] = subjects[j]
     for i, n_bars in enumerate(bar_counts):
+        if i not in subject_by_index:
+            continue
         base = outdir / f"subject{i:02d}_{n_bars}bar"
         triple = generate_fugue_triple(
             mode=args.mode,
@@ -413,7 +421,9 @@ def main() -> None:
         write_fugue_demo_midi(triple=triple, path=base.with_suffix(".midi"), tempo=args.tempo)
         write_fugue_file(triple=triple, path=base.with_suffix(".fugue"))
         s = triple.subject
-        n_stretto = len(s.stretto_offsets)
+        bar_dur = _bar_duration(metre=metre)
+        max_stretto_slots: int = int(bar_dur * X2_TICKS_PER_WHOLE)
+        n_stretto = sum(1 for r in s.stretto_offsets if r.offset_slots <= max_stretto_slots)
         s_notes = ' '.join(_midi_to_name(m) for m in s.midi_pitches)
         _DUR_ABBREV = {0.0625: '16', 0.125: '8', 0.1875: '8.', 0.25: '4', 0.375: '4.', 0.5: '2', 1.0: '1'}
         s_durs = ' '.join(_DUR_ABBREV.get(d, f'{d}') for d in s.durations)
@@ -430,19 +440,22 @@ def main() -> None:
             print(f"     Answer:  {a_notes}")
             print(f"     CS:      {c_notes}")
             slots_per_beat = 4 if metre[1] == 4 else 2
+            max_offset_slots: int = int(bar_dur * X2_TICKS_PER_WHOLE)
             for r in sorted(s.stretto_offsets, key=lambda r: r.offset_slots):
+                if r.offset_slots > max_offset_slots:
+                    continue
                 print(f"     Stretto: offset={r.offset_slots} slots "
                       f"({r.offset_slots / slots_per_beat:.1f} beats) "
                       f"cost={r.dissonance_cost} "
                       f"quality={r.quality:.2f}")
             inv_notes = ' '.join(_midi_to_name(m) for m in triple.inversion_midi)
             print(f"     Inv:     {inv_notes}")
-            n_inv_stretto = len(triple.inversion_stretto)
-            print(f"     Inv stretto: {n_inv_stretto} offsets")
-            for r in sorted(triple.inversion_stretto, key=lambda r: r.offset):
+            inv_viable = [r for r in triple.inversion_stretto if r.offset <= bar_dur]
+            print(f"     Inv stretto: {len(inv_viable)} offsets")
+            for r in sorted(inv_viable, key=lambda r: r.offset):
                 print(f"       offset={r.offset_beats:.1f} beats "
                       f"quality={r.quality:.2f}")
-    print(f"Generated {count} fugue triples in {outdir}")
+    print(f"Generated {len(subject_by_index)} fugue triples in {outdir}")
 
 if __name__ == "__main__":
     main()

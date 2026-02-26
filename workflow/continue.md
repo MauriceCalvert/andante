@@ -1,76 +1,84 @@
-# Continue — Post SH-2: Subject Generator Refactored
+# Continue — Subject Generator: Diversity & Stretto Overhaul
 
-## What just happened
+## Status: all changes made, tested, working
 
-SH-2 refactored the subject generator from random CP-SAT sampling to
-exhaustive head enumeration + tail solving. Also restored dotted
-durations and removed mediant from allowed finals.
+## What was done this session
 
-### Changes made
+### 1. Aesthetic floor filter (selector.py, constants.py)
+MIN_AESTHETIC_SCORE (7.0, now 8.0) was defined but never applied. Added
+filter after scoring/sorting, before pitch dedup and diversity selection.
+Prevents weak subjects from being pulled in by the max-min distance loop.
 
-1. **`constants.py`** — Added `HEAD_LENGTHS = (4,)` (prepared for
-   `(3, 4, 5)` later). Restored `DURATION_TICKS` to `(1, 2, 3, 4, 6)`.
-   Changed `ALLOWED_FINALS` to `{0, 4}`. Replaced old CP-SAT sampling
-   params with `CPSAT_SOLUTIONS_PER_HEAD = 200` and
-   `CPSAT_TAIL_TIMEOUT = 2.0`. Old `CPSAT_NUM_RESTARTS`,
-   `CPSAT_SOLUTIONS_PER_RESTART`, `CPSAT_SOLVER_TIMEOUT` removed.
+### 2. Head interval features (scoring.py, constants.py)
+Diversity metric used only aggregate statistics (range, leap fraction,
+climax position…). Subjects with identical openings looked distant
+because tails differed. Fix: appended first 3 intervals (normalised by
+DEGREES_PER_OCTAVE, scaled by HEAD_IV_FEATURE_SCALE=2.0) to the feature
+vector. Subjects with similar Kopfmotiv now cluster in feature space.
 
-2. **`head_enumerator.py`** — New file. Exhaustive enumeration of valid
-   heads (leap ≥ 4th + stepwise contrary recovery). For HEAD_LENGTHS=(4,)
-   produces 208 heads.
+### 3. Tail interval features (scoring.py, constants.py)
+Mirror problem: subjects sharing the last 10 of 12 degrees survived
+because heads differed. Added last 3 intervals to feature vector,
+same scaling. Replaced 3 redundant aggregate features (f_leap_fraction,
+f_max_interval, f_head_character) to keep vector at 13D.
 
-3. **`cpsat_generator.py`** — Rewritten. No longer does random-objective
-   sampling. Exports `build_consonant_pairs(mode)` and
-   `generate_tails_for_head(head, num_notes, ...)`. The old
-   `generate_cpsat_degrees()` function is gone.
+### 4. HEAD_IV_FEATURE_WINDOW decoupled from HEAD_SIZE (constants.py, scoring.py)
+HEAD_LENGTHS expanded to (3,4,5) made HEAD_SIZE=5, widening the feature
+window to 4 intervals and diluting per-interval weight. Fix: new constant
+HEAD_IV_FEATURE_WINDOW=3 controls feature extraction independently of
+HEAD_SIZE. Feature vector stays 13D (7 aggregate + 3 head + 3 tail).
 
-4. **`pitch_generator.py`** — Rewritten. Iterates HEAD_LENGTHS, calls
-   `enumerate_heads()` per length, then `generate_tails_for_head()` per
-   head. The old `_has_valid_head()` post-filter is gone — heads are
-   valid by construction. Cache key includes head lengths tag.
-   Accepts `verbose` parameter.
+### 5. Stretto offset cap: bar-1 only (stretto_constraints.py, stretto_gpu.py)
+Replaced MAX_OFFSET_FRACTION=0.5 with `onset >= bar_slots` (strict <).
+Offsets at or past bar 2 downbeat no longer count. Musically grounded
+limit that generalises across metres. MAX_OFFSET_FRACTION removed entirely.
 
-5. **`selector.py`** — Pitch dedup (one candidate per degree sequence)
-   runs before diversity selection. Rhythm dedup removed — with 3,813
-   distinct pitches, the diversity selector handles variety. Passes
-   `verbose` through to `_cached_validated_pitch`.
+### 6. Stretto consonance relaxation (stretto_constraints.py, stretto_gpu.py)
+Two changes to increase viable stretto offsets:
+- **P4 on strong beats**: now consonant. Uses CONSONANT_INTERVALS instead
+  of CONSONANT_INTERVALS_ABOVE_BASS. In stretto, leader isn't always bass.
+- **Weak-beat semitone/minor-9th**: no longer fatal. Incurs fixed penalty
+  (_SEMITONE_COST=4) instead of immediate rejection. Only tritone remains
+  fatal on weak beats.
+Both CPU and GPU paths updated in parallel.
 
-### Pipeline numbers (12n, major, 4/4, 2 bars)
+### 7. Minim duration (constants.py, rhythm_cells.py)
+Added 8-tick minim to DURATION_TICKS/DURATION_NAMES. Added scale factor 4
+to SCALES (was (1,2), now (1,2,4)). Enables minim via 2-tick cells × 4.
+12n duration generation time increased from 6s to 46s due to 3× scale
+combinations. Duration cache key unchanged — must delete cache manually.
 
-- 208 heads enumerated (len=4)
-- 71 fertile heads (have ≥1 valid tail)
-- 11,539 raw degree sequences
-- 4,767 pass melodic validation
-- 2,898,336 pitch × duration pairs
-- 90,431 stretto-capable
-- 3,813 distinct pitch sequences with stretto
-- 20 selected with diversity
+### 8. Minimum diversity distance (selector.py, constants.py)
+Greedy diversity selector previously had early-out bypass when
+`len(scored) <= n` — returned entire pool with no filtering. Removed
+bypass; loop always runs. Added MIN_DIVERSITY_DISTANCE=1.0: candidates
+closer than this in feature space to any already-picked subject are
+rejected. Prevents near-duplicates when pool is small.
 
-### Caches
+### 9. Batch output cap (generate_subjects.py)
+Script previously wrapped `j % len(subjects)` to fill requested count,
+silently duplicating. Now warns "only N candidates found" and outputs
+only distinct subjects. Skips unpopulated indices in output loop.
 
-All `.pkl` files in `.cache/subject/` were deleted. They rebuild on
-first run (~230s for stretto GPU eval, then cached).
+## Current constants state
+- MIN_AESTHETIC_SCORE: 8.0
+- MIN_STRETTO_OFFSETS: 2
+- MIN_DIVERSITY_DISTANCE: 1.0
+- HEAD_IV_FEATURE_SCALE: 2.0
+- HEAD_IV_FEATURE_WINDOW: 3
+- HEAD_LENGTHS: (3, 4, 5)
+- SCALES: (1, 2, 4)
+- DURATION_TICKS: (1, 2, 3, 4, 6, 8)
 
-## What to do next
+## Files modified this session
+- `motifs/subject_gen/constants.py` — MIN_AESTHETIC_SCORE, HEAD_IV_FEATURE_SCALE, HEAD_IV_FEATURE_WINDOW, MIN_DIVERSITY_DISTANCE, DURATION_TICKS, DURATION_NAMES, HEAD_IV_FEATURE_SCALE
+- `motifs/subject_gen/scoring.py` — subject_features: replaced 3 redundant features with head+tail intervals, decoupled from HEAD_SIZE
+- `motifs/subject_gen/selector.py` — aesthetic floor filter, diversity distance threshold, removed early-out bypass
+- `motifs/subject_gen/rhythm_cells.py` — SCALES: (1,2,4)
+- `motifs/stretto_constraints.py` — bar-1 cap, P4 consonant on strong beats, semitone cost penalty, removed MAX_OFFSET_FRACTION
+- `motifs/subject_gen/stretto_gpu.py` — same changes mirrored for GPU path
+- `scripts/generate_subjects.py` — batch cap with warning, no modular wrap
 
-Discuss with the user which direction to take. Options:
-
-1. **Extend HEAD_LENGTHS to (3, 4, 5)** — change one constant, delete
-   pitch cache, run. Should significantly expand the pool. 3-note heads
-   give longer tails with more freedom; 5-note heads give more
-   distinctive openings.
-
-2. **Add minim (tick 8)** to DURATION_TICKS — enables long-note heads
-   and running-tail subjects. Independent of head length change.
-
-3. **Allow other note counts** — drop `--notes 12` restriction and run
-   across 8–12 notes. Shorter subjects have more rhythmic slack.
-
-4. **Tune aesthetic scoring** — some selected subjects score below 4.0.
-   Review scoring weights or add new criteria now that the pool is large
-   enough to be selective.
-
-5. **Listen** — generate MIDI output and evaluate by ear. The numbers
-   look good but the only real test is hearing.
-
-6. **Something else** the user has in mind.
+## Caches to delete before next run
+All stretto and duration caches in `.cache/subject/` are stale after
+these changes. Delete `stretto_eval_*` and `cell_dur_v6_*` files.

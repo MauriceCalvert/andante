@@ -9,11 +9,13 @@ from dataclasses import dataclass
 
 from shared.constants import (
     CONSONANT_INTERVALS,
-    CONSONANT_INTERVALS_ABOVE_BASS,
     STRETTO_MIN_QUALITY,
     STRETTO_OFFSET_COUNT_CEILING,
     TRITONE_SEMITONES,
 )
+
+_SEMITONE_INTERVALS: frozenset[int] = frozenset({1, 11})
+_SEMITONE_COST: int = 4  # penalty slots for weak-beat semitone/minor-9th
 
 
 # ── Strong-beat slot sets per metre (bar-relative) ───────────────────
@@ -178,6 +180,7 @@ def evaluate_offset(
     dur_slots: tuple[int, ...],
     offset_slots: int,
     metre: tuple[int, int],
+    follower_midi: tuple[int, ...] | None = None,
 ) -> OffsetResult:
     """Check one stretto offset using MIDI pitches in semitone space.
 
@@ -187,8 +190,13 @@ def evaluate_offset(
     Weak beats: tritone is fatal; other dissonance adds collision cost;
     P4 is consonant (passing fourths are idiomatic).
     """
+    if follower_midi is None:
+        follower_midi = midi
     assert len(midi) == len(dur_slots), (
         f"midi ({len(midi)}) != durations ({len(dur_slots)})"
+    )
+    assert len(follower_midi) == len(dur_slots), (
+        f"follower_midi ({len(follower_midi)}) != durations ({len(dur_slots)})"
     )
     # ── Follower onset alignment rules ───────────────────────
     # 1. First follower onset must land on a leader onset
@@ -233,9 +241,9 @@ def evaluate_offset(
     consonant_count: int = 0
     total_cost: int = 0
     for ck in checks:
-        semitones: int = abs(midi[ck.leader_idx] - midi[ck.follower_idx]) % 12
+        semitones: int = abs(midi[ck.leader_idx] - follower_midi[ck.follower_idx]) % 12
         if ck.is_strong:
-            if semitones not in CONSONANT_INTERVALS_ABOVE_BASS:
+            if semitones not in CONSONANT_INTERVALS:
                 return OffsetResult(
                     offset_slots=offset_slots, viable=False,
                     consonant_count=consonant_count, total_count=total_count,
@@ -243,13 +251,15 @@ def evaluate_offset(
                 )
             consonant_count += 1
         else:
-            if semitones == TRITONE_SEMITONES or semitones == 1 or semitones == 11:
+            if semitones == TRITONE_SEMITONES:
                 return OffsetResult(
                     offset_slots=offset_slots, viable=False,
                     consonant_count=consonant_count, total_count=total_count,
                     dissonance_cost=0, quality=0.0,
                 )
-            if semitones in CONSONANT_INTERVALS:
+            if semitones in _SEMITONE_INTERVALS:
+                total_cost += _SEMITONE_COST
+            elif semitones in CONSONANT_INTERVALS:
                 consonant_count += 1
             else:
                 total_cost += ck.collision_slots
@@ -267,27 +277,24 @@ def evaluate_offset(
     )
 
 
-# ── Stretto viability filters ────────────────────────────────────────
-MAX_OFFSET_FRACTION: float = 0.5
-
-
 def evaluate_all_offsets(
     *,
     midi: tuple[int, ...],
     dur_slots: tuple[int, ...],
     metre: tuple[int, int],
+    follower_midi: tuple[int, ...] | None = None,
 ) -> tuple[OffsetResult, ...]:
-    """Evaluate stretto at every leader note onset up to half the subject."""
-    total_slots: int = sum(dur_slots)
-    max_offset: int = int(total_slots * MAX_OFFSET_FRACTION)
+    """Evaluate stretto at every leader note onset within the first bar."""
+    bar_slots: int = _slots_per_bar(metre)
     onsets: tuple[int, ...] = _note_onsets(dur_slots)
     results: list[OffsetResult] = []
     for onset in onsets:
-        if onset < 1 or onset > max_offset:
+        if onset < 1 or onset >= bar_slots:
             continue
         results.append(evaluate_offset(
             midi=midi, dur_slots=dur_slots,
             offset_slots=onset, metre=metre,
+            follower_midi=follower_midi,
         ))
     return tuple(results)
 

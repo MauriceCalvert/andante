@@ -1,246 +1,307 @@
-"""Stage 2: Bar-fill duration enumeration."""
+"""Cell-based baroque rhythm generator.
+
+Builds duration sequences by concatenating named rhythm cells (iamb,
+trochee, dotted, dactyl, anapaest, tirata) subject to a transition
+table that encodes idiomatic successions.
+
+Supports mixed-scale sequences: each cell can independently use scale 1
+(semiquaver level) or scale 2 (quaver level), allowing semiquaver runs
+embedded in a mostly-quaver rhythm framework.
+"""
+import logging
+from itertools import product as iter_product
+from typing import Iterator
+
 from motifs.subject_gen.cache import _load_cache, _save_cache
 from motifs.subject_gen.constants import (
     DURATION_TICKS,
-    MAX_DUR_RATIO,
     MAX_DURS_PER_COUNT,
-    MAX_NOTES_PER_BAR,
-    MAX_SAME_DUR_RUN,
     MAX_SUBJECT_NOTES,
     MIN_LAST_DUR_TICKS,
-    MIN_NOTES_PER_BAR,
     MIN_SUBJECT_NOTES,
-    NUM_DURATIONS,
+)
+from motifs.subject_gen.rhythm_cells import (
+    CELLS_BY_SIZE,
+    Cell,
+    SCALES,
+    TRANSITION,
 )
 
-MAX_FILLS_PER_BAR_GROUP: int = 200
+logger = logging.getLogger(__name__)
 
+# ── Tick-to-index lookup (built once at import) ──────────────────────
 
-def enumerate_bar_fills(bar_ticks: int) -> list[tuple[int, ...]]:
-    """Enumerate all valid duration-index sequences filling one bar."""
-    results: list[tuple[int, ...]] = []
-    max_notes: int = min(MAX_NOTES_PER_BAR, bar_ticks // min(DURATION_TICKS))
-    buf: list[int] = [0] * max_notes
-    def _recurse(
-        pos: int,
-        remaining: int,
-        last_di: int,
-        same_run: int,
-    ) -> None:
-        if remaining == 0:
-            if pos >= MIN_NOTES_PER_BAR:
-                results.append(tuple(buf[:pos]))
-            return
-        if pos >= max_notes:
-            return
-        for di in range(NUM_DURATIONS):
-            dt = DURATION_TICKS[di]
-            if dt > remaining:
-                continue
-            if remaining - dt > 0 and remaining - dt < min(DURATION_TICKS):
-                continue
-            if last_di >= 0:
-                prev_t = DURATION_TICKS[last_di]
-                if max(dt, prev_t) > MAX_DUR_RATIO * min(dt, prev_t):
-                    continue
-            new_run = (same_run + 1) if di == last_di else 1
-            if new_run > MAX_SAME_DUR_RUN:
-                continue
-            buf[pos] = di
-            _recurse(pos + 1, remaining - dt, di, new_run)
-    _recurse(0, bar_ticks, -1, 0)
-    return results
-
-
-def _bar_fill_score(fill: tuple[int, ...]) -> float:
-    """Score a single bar fill by rhythmic interest."""
-    ticks = [DURATION_TICKS[d] for d in fill]
-    shortest = min(ticks)
-    longest = max(ticks)
-    if shortest == longest:
-        return 0.0
-    contrast = min((longest / shortest - 1.0) / 5.0, 1.0)
-    distinct = len(set(fill)) / NUM_DURATIONS
-    return contrast + distinct
-
-
-def _group_and_cap_fills(
-    fills: list[tuple[int, ...]],
-    cap: int,
-) -> dict[int, list[tuple[int, ...]]]:
-    """Group fills by note count, keep top `cap` per group by score."""
-    by_count: dict[int, list[tuple[int, ...]]] = {}
-    for f in fills:
-        by_count.setdefault(len(f), []).append(f)
-    for nc in by_count:
-        if len(by_count[nc]) > cap:
-            by_count[nc].sort(key=_bar_fill_score, reverse=True)
-            by_count[nc] = by_count[nc][:cap]
-    return by_count
-
-
-def enumerate_durations(
-    n_bars: int,
-    bar_ticks: int,
-    note_counts: tuple[int, ...] | None = None,
-) -> list[tuple[int, ...]]:
-    """Combine per-bar fills into full-subject duration sequences."""
-    raw_fills = enumerate_bar_fills(bar_ticks)
-    if not raw_fills:
-        return []
-    fills_by_count = _group_and_cap_fills(raw_fills, MAX_FILLS_PER_BAR_GROUP)
-    results: list[tuple[int, ...]] = []
-    all_counts = sorted(fills_by_count.keys())
-    if n_bars == 2:
-        _combine_2bars(fills_by_count, all_counts, note_counts, results)
-    elif n_bars == 3:
-        _combine_3bars(fills_by_count, all_counts, note_counts, results)
-    else:
-        _combine_nbars(fills_by_count, all_counts, note_counts, n_bars, results)
-    return results
-
-
-def _valid_ending(seq: tuple[int, ...]) -> bool:
-    """Last note must be at least MIN_LAST_DUR_TICKS."""
-    return DURATION_TICKS[seq[-1]] >= MIN_LAST_DUR_TICKS
-
-
-def _smooth_boundary(fill_a: tuple[int, ...], fill_b: tuple[int, ...]) -> bool:
-    """Check adjacent-duration ratio at the bar boundary."""
-    t_a: int = DURATION_TICKS[fill_a[-1]]
-    t_b: int = DURATION_TICKS[fill_b[0]]
-    return max(t_a, t_b) <= MAX_DUR_RATIO * min(t_a, t_b)
-
-
-def _combine_2bars(
-    fills_by_count: dict[int, list[tuple[int, ...]]],
-    all_counts: list[int],
-    note_counts: tuple[int, ...] | None,
-    results: list[tuple[int, ...]],
-) -> None:
-    """Combine two bars, skipping pairs that can't hit target note counts."""
-    for nc1 in all_counts:
-        for nc2 in all_counts:
-            total_n = nc1 + nc2
-            if total_n < MIN_SUBJECT_NOTES or total_n > MAX_SUBJECT_NOTES:
-                continue
-            if note_counts is not None and total_n not in note_counts:
-                continue
-            for f1 in fills_by_count[nc1]:
-                for f2 in fills_by_count[nc2]:
-                    if f1 == f2:
-                        continue
-                    if not _smooth_boundary(f1, f2):
-                        continue
-                    seq = f1 + f2
-                    if not _valid_ending(seq):
-                        continue
-                    if len(set(seq)) < 2:
-                        continue
-                    results.append(seq)
-
-
-def _combine_3bars(
-    fills_by_count: dict[int, list[tuple[int, ...]]],
-    all_counts: list[int],
-    note_counts: tuple[int, ...] | None,
-    results: list[tuple[int, ...]],
-) -> None:
-    """Combine three bars."""
-    for nc1 in all_counts:
-        for nc2 in all_counts:
-            for nc3 in all_counts:
-                total_n = nc1 + nc2 + nc3
-                if total_n < MIN_SUBJECT_NOTES or total_n > MAX_SUBJECT_NOTES:
-                    continue
-                if note_counts is not None and total_n not in note_counts:
-                    continue
-                for f1 in fills_by_count[nc1]:
-                    for f2 in fills_by_count[nc2]:
-                        if f2 == f1:
-                            continue
-                        if not _smooth_boundary(f1, f2):
-                            continue
-                        for f3 in fills_by_count[nc3]:
-                            if f3 == f1 or f3 == f2:
-                                continue
-                            if not _smooth_boundary(f2, f3):
-                                continue
-                            seq = f1 + f2 + f3
-                            if not _valid_ending(seq):
-                                continue
-                            if len(set(seq)) < 2:
-                                continue
-                            results.append(seq)
-
-
-def _combine_nbars(
-    fills_by_count: dict[int, list[tuple[int, ...]]],
-    all_counts: list[int],
-    note_counts: tuple[int, ...] | None,
-    n_bars: int,
-    results: list[tuple[int, ...]],
-) -> None:
-    """Generic n-bar combiner (fallback for 4+ bars)."""
-    from itertools import product as iter_product
-    all_fills: list[tuple[int, ...]] = []
-    for nc in all_counts:
-        all_fills.extend(fills_by_count[nc])
-    for combo in iter_product(all_fills, repeat=n_bars):
-        if len(set(combo)) < len(combo):
-            continue
-        if not all(_smooth_boundary(combo[i], combo[i + 1]) for i in range(len(combo) - 1)):
-            continue
-        seq: tuple[int, ...] = sum(combo, ())
-        n_notes = len(seq)
-        if n_notes < MIN_SUBJECT_NOTES or n_notes > MAX_SUBJECT_NOTES:
-            continue
-        if note_counts is not None and n_notes not in note_counts:
-            continue
-        if not _valid_ending(seq):
-            continue
-        if len(set(seq)) < 2:
-            continue
-        results.append(seq)
-
-
-def _rhythm_score(dur_seq: tuple[int, ...]) -> float:
-    """Score rhythm pattern by contrast and variety. Higher = more interesting."""
-    ticks = [DURATION_TICKS[d] for d in dur_seq]
-    shortest = min(ticks)
-    longest = max(ticks)
-    if shortest == longest:
-        return 0.0
-    contrast = min((longest / shortest - 1.0) / 5.0, 1.0)
-    distinct = len(set(dur_seq)) / NUM_DURATIONS
-    return contrast + distinct
+_TICK_TO_INDEX: dict[int, int] = {
+    tick: idx for idx, tick in enumerate(DURATION_TICKS)
+}
 
 
 def _cached_scored_durations(
     n_bars: int,
     bar_ticks: int,
     verbose: bool = False,
-) -> dict[int, list[tuple[int, ...]]]:
-    """Top-K valid duration patterns per note count, cached to disk."""
-    key = f"dur_top_{n_bars}b_{bar_ticks}t_{MAX_DURS_PER_COUNT}.pkl"
+) -> dict[int, list[tuple[tuple[int, ...], tuple[Cell, ...]]]]:
+    """Top-K valid duration patterns per note count, cached to disk.
+
+    Each entry is (dur_indices, cell_sequence).
+    """
+    assert n_bars > 0, f"n_bars must be positive, got {n_bars}"
+    assert bar_ticks > 0, f"bar_ticks must be positive, got {bar_ticks}"
+
+    key: str = f"cell_dur_v6_{n_bars}b_{bar_ticks}t_{MAX_DURS_PER_COUNT}.pkl"
     cached = _load_cache(key)
     if cached is not None:
         if verbose:
             for nc in sorted(cached.keys()):
-                print(f"    durations {nc}n: {len(cached[nc])} (cached)")
+                logger.info("    durations %dn: %d (cached)", nc, len(cached[nc]))
         return cached
-    all_durs = enumerate_durations(n_bars=n_bars, bar_ticks=bar_ticks)
-    by_count: dict[int, list[tuple[int, ...]]] = {}
-    for d in all_durs:
-        by_count.setdefault(len(d), []).append(d)
+
+    total_ticks: int = n_bars * bar_ticks
+    by_count: dict[int, list[tuple[tuple[int, ...], tuple[Cell, ...], float]]] = {}
+
+    for n_notes in range(MIN_SUBJECT_NOTES, MAX_SUBJECT_NOTES + 1):
+        for seq, cells, score in _generate_sequences(
+            n_notes=n_notes,
+            total_ticks=total_ticks,
+            bar_ticks=bar_ticks,
+        ):
+            by_count.setdefault(n_notes, []).append((seq, cells, score))
+
+    result: dict[int, list[tuple[tuple[int, ...], tuple[Cell, ...]]]] = {}
     for nc in sorted(by_count.keys()):
-        raw: int = len(by_count[nc])
+        entries: list[tuple[tuple[int, ...], tuple[Cell, ...], float]] = by_count[nc]
+        entries.sort(key=lambda x: x[2], reverse=True)
+        raw: int = len(entries)
         if raw > MAX_DURS_PER_COUNT:
-            by_count[nc].sort(key=_rhythm_score, reverse=True)
-            by_count[nc] = by_count[nc][:MAX_DURS_PER_COUNT]
+            entries = entries[:MAX_DURS_PER_COUNT]
+        result[nc] = [(seq, cells) for seq, cells, _ in entries]
         if verbose:
-            kept: int = len(by_count[nc])
+            kept: int = len(result[nc])
             capped: str = f" (capped from {raw})" if raw > kept else ""
-            print(f"    durations {nc}n: {kept}{capped}")
-    _save_cache(key, by_count)
-    return by_count
+            logger.info("    durations %dn: %d%s", nc, kept, capped)
+
+    _save_cache(key, result)
+    return result
+
+
+def _spans_barline(
+    indices: tuple[int, ...],
+    bar_ticks: int,
+) -> bool:
+    """True if any note's duration crosses a bar boundary."""
+    if bar_ticks <= 0:
+        return False
+    onset: int = 0
+    for idx in indices:
+        dur: int = DURATION_TICKS[idx]
+        bar_of_onset: int = onset // bar_ticks
+        bar_of_end: int = (onset + dur - 1) // bar_ticks
+        if bar_of_end != bar_of_onset:
+            return True
+        onset += dur
+    return False
+
+
+def _distinct_permutations(seq: list[int]) -> Iterator[tuple[int, ...]]:
+    """Yield all distinct permutations of a sorted sequence.
+
+    Uses the Pandita next-permutation algorithm on a mutable list.
+    The input must be sorted ascending.
+    """
+    arr: list[int] = list(seq)
+    n: int = len(arr)
+    yield tuple(arr)
+    while True:
+        # Find largest i such that arr[i] < arr[i+1]
+        i: int = n - 2
+        while i >= 0 and arr[i] >= arr[i + 1]:
+            i -= 1
+        if i < 0:
+            return
+        # Find largest j such that arr[i] < arr[j]
+        j: int = n - 1
+        while arr[j] <= arr[i]:
+            j -= 1
+        arr[i], arr[j] = arr[j], arr[i]
+        # Reverse from i+1 to end
+        arr[i + 1:] = arr[i + 1:][::-1]
+        yield tuple(arr)
+
+
+def _generate_sequences(
+    n_notes: int,
+    total_ticks: int,
+    bar_ticks: int = 0,
+) -> Iterator[tuple[tuple[int, ...], tuple[Cell, ...], float]]:
+    """Yield (duration_index_tuple, cell_sequence, score) for all valid cell sequences.
+
+    Two passes:
+      1. Standard partitions from {2,3,4} — no longa cells.
+      2. Longa-final: partitions of (n_notes-1) from {2,3,4} with a
+         single longa appended at the end.  This gives minim/crotchet/
+         quaver finals without permuting longa into every position.
+    """
+    import time
+    t0 = time.time()
+    checked: int = 0
+    yielded: int = 0
+    last_report: float = t0
+    # Phase 1: no-longa partitions
+    for seq, cells, score, checked, yielded, last_report in _emit_partitions(
+        partitions=list(_partitions(n=n_notes)),
+        n_notes=n_notes,
+        total_ticks=total_ticks,
+        bar_ticks=bar_ticks,
+        longa_suffix=False,
+        checked=checked,
+        yielded=yielded,
+        t0=t0,
+        last_report=last_report,
+    ):
+        yield (seq, cells, score)
+    # Phase 2: longa-final (only if n_notes > 1)
+    if n_notes > 1:
+        for seq, cells, score, checked, yielded, last_report in _emit_partitions(
+            partitions=list(_partitions(n=n_notes - 1)),
+            n_notes=n_notes,
+            total_ticks=total_ticks,
+            bar_ticks=bar_ticks,
+            longa_suffix=True,
+            checked=checked,
+            yielded=yielded,
+            t0=t0,
+            last_report=last_report,
+        ):
+            yield (seq, cells, score)
+    elapsed = time.time() - t0
+    print(f"[dur_gen] {n_notes}n done: checked {checked:,} yielded {yielded} in {elapsed:.1f}s")
+
+
+def _emit_partitions(
+    partitions: list[tuple[int, ...]],
+    n_notes: int,
+    total_ticks: int,
+    bar_ticks: int,
+    longa_suffix: bool,
+    checked: int,
+    yielded: int,
+    t0: float,
+    last_report: float,
+) -> Iterator[tuple[tuple[int, ...], tuple[Cell, ...], float, int, int, float]]:
+    """Inner loop shared by both passes of _generate_sequences."""
+    import time
+    longa_cells: list[Cell] = CELLS_BY_SIZE.get(1, [])
+    for pi, partition in enumerate(partitions):
+        sorted_sizes: list[int] = sorted(partition)
+        for perm in _distinct_permutations(sorted_sizes):
+            cell_lists: list[list[Cell]] = [CELLS_BY_SIZE[s] for s in perm]
+            if longa_suffix:
+                cell_lists.append(longa_cells)
+            for cells in iter_product(*cell_lists):
+                score: float = _transition_score(cells=cells)
+                if score <= 0.0:
+                    continue
+                n_cells: int = len(cells)
+                for scale_combo in iter_product(SCALES, repeat=n_cells):
+                    checked += 1
+                    now = time.time()
+                    if now - last_report >= 10.0:
+                        tag: str = "+longa" if longa_suffix else "std"
+                        print(f"[dur_gen] {n_notes}n ({tag}): checked {checked:,} "
+                              f"yielded={yielded} partition {pi+1}/{len(partitions)} "
+                              f"{partition} elapsed={now - t0:.1f}s")
+                        last_report = now
+                    indices: tuple[int, ...] | None = _cells_to_indices(
+                        cells=cells,
+                        scales=scale_combo,
+                    )
+                    if indices is None:
+                        continue
+                    tick_sum: int = sum(DURATION_TICKS[i] for i in indices)
+                    if tick_sum != total_ticks:
+                        continue
+                    if _spans_barline(indices=indices, bar_ticks=bar_ticks):
+                        continue
+                    if DURATION_TICKS[indices[-1]] < MIN_LAST_DUR_TICKS:
+                        continue
+                    if DURATION_TICKS[indices[-1]] < DURATION_TICKS[indices[-2]]:
+                        continue
+                    yielded += 1
+                    yield (indices, cells, score, checked, yielded, last_report)
+
+
+def _cells_to_indices(
+    cells: tuple[Cell, ...],
+    scales: tuple[int, ...],
+) -> tuple[int, ...] | None:
+    """Convert a cell sequence to duration-index tuple with per-cell scales.
+
+    Returns None if any scaled tick has no matching DURATION_TICKS entry.
+    """
+    assert len(cells) == len(scales), (
+        f"cells length {len(cells)} != scales length {len(scales)}"
+    )
+    indices: list[int] = []
+    for cell, scale in zip(cells, scales):
+        for tick in cell.ticks:
+            scaled: int = tick * scale
+            idx: int | None = _TICK_TO_INDEX.get(scaled)
+            if idx is None:
+                return None
+            indices.append(idx)
+    return tuple(indices)
+
+
+def _partitions(n: int) -> Iterator[tuple[int, ...]]:
+    """Yield all ways to write n as an ordered multiset of 2s, 3s, and 4s.
+
+    Each result is a tuple of sizes summing to n. Only one representative
+    per multiset is yielded (sorted ascending); distinct orderings are
+    handled by _distinct_permutations in the caller.
+    """
+    assert n >= 0, f"Cannot partition negative n={n}"
+    yield from _partition_recurse(
+        remaining=n,
+        min_size=2,
+        acc=[],
+    )
+
+
+def _partition_recurse(
+    remaining: int,
+    min_size: int,
+    acc: list[int],
+) -> Iterator[tuple[int, ...]]:
+    """Recursive helper for _partitions."""
+    if remaining == 0:
+        yield tuple(acc)
+        return
+    if remaining == 1:
+        return
+    for size in (2, 3, 4):
+        if size < min_size:
+            continue
+        if size > remaining:
+            continue
+        acc.append(size)
+        yield from _partition_recurse(
+            remaining=remaining - size,
+            min_size=size,
+            acc=acc,
+        )
+        acc.pop()
+
+
+def _transition_score(cells: tuple[Cell, ...]) -> float:
+    """Product of transition weights for adjacent cell pairs.
+
+    Returns 0.0 if any pair is forbidden (N). Otherwise the product
+    of all Y (1.0) and W (0.5) weights.
+    """
+    score: float = 1.0
+    for i in range(len(cells) - 1):
+        weight: float = TRANSITION[(cells[i].name, cells[i + 1].name)]
+        if weight <= 0.0:
+            return 0.0
+        score *= weight
+    return score
