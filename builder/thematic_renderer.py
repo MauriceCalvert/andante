@@ -74,12 +74,18 @@ def render_thematic_beat(
 
     elif role.role == ThematicRole.CS:
         # Render countersubject in material_key
+        cs_index: int = (
+            int(role.material)
+            if role.material is not None and role.material.isdigit()
+            else 0
+        )
         raw_notes = countersubject_to_voice_notes(
             fugue=fugue,
             start_offset=start_offset,
             target_key=role.material_key,
             target_track=target_track,
             target_range=target_range,
+            cs_index=cs_index,
         )
 
     elif role.role == ThematicRole.EPISODE:

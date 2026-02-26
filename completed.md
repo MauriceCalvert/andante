@@ -1,5 +1,54 @@
 # Completed
 
+## ICP-2b: CS2 scheduling and rendering (2026-02-26)
+
+**Work**: Wired CS variant selection through the full pipeline so development entries
+alternate between CS1 (index 0) and CS2 (index 1). Six files modified, no new files.
+
+**`planner/imitative/subject_planner.py`**: `generate_entry_sequence()` assigns
+`cs_variant = (subject_cs_count + 1) % 2` before incrementing, stores it in the
+entry dict. `plan_subject()` reads it into `VoiceAssignment.fragment`.
+
+**`planner/imitative/entry_layout.py`**: `_build_thematic_roles()` overrides
+`material = voice_assignment.fragment` for the "cs" role when fragment is not None.
+
+**`builder/imitation.py`**: `countersubject_to_voice_notes()` gains `cs_index: int = 0`
+param; uses `fugue.get_countersubject_midi(index=cs_index)` and
+`fugue.get_countersubject(index=cs_index).durations`.
+
+**`builder/thematic_renderer.py`**: `render_thematic_beat()` parses `cs_index` from
+`role.material.isdigit()` guard; passes to `countersubject_to_voice_notes`.
+
+**`builder/cs_writer.py`**: `generate_cs_viterbi()` gains `cs_index: int = 0` param;
+uses indexed CS accessor methods.
+
+**`builder/phrase_writer.py`**: `_write_thematic()` hoists `cs_index` computation
+before Viterbi/fallback branches; passes to `generate_cs_viterbi`; trace updated to
+`role_name=f"CS[{cs_index}]"` for verification.
+
+**Result**: Trace confirms CS[0] at exposition (bar 2) and second dev entry (bar 11),
+CS[1] at first dev entry (bar 4) and third dev entry (bar 18). Pipeline runs clean.
+CS2 degrees `[-10,-9,-7,-8,...]` differ structurally from CS1 `[-8,-7,0,-1,...]`,
+producing audibly distinct companion contours (steady descent vs hook-and-drop).
+
+## ICP-2a: Second countersubject data layer (2026-02-26)
+
+**Work**: Added CS2 infrastructure — generate at invertible tenth (distance 9),
+store in YAML, load with backward compatibility, expose via accessor methods.
+
+**`scripts/generate_subjects.py`**: Added `CS2_INVERSION_DISTANCE = 9` constant,
+`countersubject_2` field to local SubjectTriple, CS2 generation in `generate_triple()`,
+CS2 YAML output in `write_subject_file()`, `patch_library_files()` function, and
+`--patch-library` CLI flag.
+
+**`motifs/subject_loader.py`**: Added `countersubject_2: LoadedCountersubject | None = None`
+to SubjectTriple, CS2 parsing in `_parse_triple_data()`, and `get_countersubject()` /
+`get_countersubject_midi()` methods with CS1 fallback.
+
+**`motifs/library/*.subject`**: All 6 library files patched with CS2 at distance 9.
+`countersubject_midi()` and ThematicBias untouched.
+Pipeline output unchanged.
+
 ## Knot Consolidation + Fix-1 verification (2026-02-26)
 
 **Work**: Created `builder/knot_builder.py` as the single home for shared

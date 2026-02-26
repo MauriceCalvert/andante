@@ -498,6 +498,13 @@ def _write_thematic(
             cs_track: int = TRACK_SOPRANO if cs_idx == 0 else TRACK_BASS
             cs_range: Range = plan.upper_range if cs_idx == 0 else plan.lower_range
             cs_vname: str = "U" if cs_idx == 0 else "L"
+            cs_index: int = (
+                int(cs_beat.material)
+                if cs_beat is not None
+                and cs_beat.material is not None
+                and cs_beat.material.isdigit()
+                else 0
+            )
 
             if companion_entry_notes:
                 from builder.cs_writer import generate_cs_viterbi
@@ -515,6 +522,7 @@ def _write_thematic(
                     metre=plan.metre,
                     local_key=plan.local_key,
                     cadential_approach=plan.cadential_approach,
+                    cs_index=cs_index,
                 )
             else:
                 # Fallback: stamp-in CS via render_entry_voice (silent companion)
@@ -534,14 +542,14 @@ def _write_thematic(
                     metre=plan.metre,
                 )
 
-            # Trace CS render
+            # Trace CS render (role_name includes cs_index for verification)
             if cs_entry_notes:
                 tracer = get_tracer()
                 cs_pitches: list[int] = [n.pitch for n in cs_entry_notes]
                 tracer.trace_thematic_render(
                     bar=entry_first_bar,
                     voice_name=cs_vname,
-                    role_name="CS",
+                    role_name=f"CS[{cs_index}]",
                     key_str=_key_str(key=cs_beat.material_key) if cs_beat else "",
                     note_count=len(cs_entry_notes),
                     low_pitch=min(cs_pitches),
@@ -703,7 +711,7 @@ def _write_pedal(
 ) -> PhraseResult:
     """Write pedal phrase: held bass + cup-contour soprano via Viterbi."""
     from planner.thematic import ThematicRole
-    from viterbi.mtypes import ContourShape
+    from viterbi.mtypes import ContourShape, Knot
     assert plan.thematic_roles is not None, "Pedal phrase requires thematic_roles"
     bias: ThematicBias | None = fugue.thematic_bias() if fugue is not None else None
     # Find the PEDAL BeatRole (voice 1, beat 0 of first bar)
@@ -767,23 +775,17 @@ def _write_pedal(
     # Build harmonic knots and chord grid for 2-bar 4/4 pedals (PED-1).
     # For other bar spans or metres, fall back to single-knot behaviour.
     chord_pcs_per_beat: list[frozenset[int]] | None = None
+    pedal_knot_spec: tuple[tuple[int, float], ...] | None = None
     if plan.bar_span == 2 and plan.metre == "4/4":
         # Four structural knots at strong beats imply a directed harmonic arc
         # (I → IV → viio → I) over the static bass pedal.
-        pedal_knot_degrees: tuple[int, ...] = (5, 4, 7, 1)
-        pedal_knot_positions: tuple[BeatPosition, ...] = (
-            BeatPosition(bar=1, beat=1),  # I   (5th above pedal — consonant)
-            BeatPosition(bar=1, beat=3),  # IV  (4th above pedal — mild tension)
-            BeatPosition(bar=2, beat=1),  # viio (leading tone — maximum tension)
-            BeatPosition(bar=2, beat=3),  # I   (pre-cadential resolution)
-        )
-        pedal_knot_keys: tuple[Key, ...] = tuple(plan.local_key for _ in pedal_knot_degrees)
-        pedal_plan = replace(
-            pedal_plan,
-            degrees_upper=pedal_knot_degrees,
-            degree_positions=pedal_knot_positions,
-            degree_keys=pedal_knot_keys,
-            registral_bias=PEDAL_REGISTRAL_BIAS,
+        # Knot degrees and their progress within the 2-bar span.
+        # Progress 0.0 = bar 1 beat 1, 0.25 = bar 1 beat 3, etc.
+        pedal_knot_spec = (
+            (5, 0.00),   # I   (5th above pedal — consonant)
+            (4, 0.25),   # IV  (4th above pedal — mild tension)
+            (7, 0.50),   # viio (leading tone — maximum tension)
+            (1, 0.75),   # I   (pre-cadential resolution)
         )
         # Build chord PCS for each of the 4 harmony steps.
         # Bar 1 steps use natural PCS; bar 2 steps use cadential PCS
@@ -873,10 +875,40 @@ def _write_pedal(
     # Pass empty prior_upper so place_structural_tones uses
     # pedal_plan.prev_exit_upper (our high bias) instead of the
     # actual prior phrase exit which may be low.
+    # Pre-compute contour-aware structural knots for 2-bar 4/4 pedal.
+    # Each knot's octave follows the cup contour rather than uniformly
+    # targeting the ceiling — prevents 7th leaps at the nadir.
+    pedal_structural_knots: list[Knot] | None = None
+    if pedal_knot_spec is not None:
+        range_mid: int = (plan.upper_range.low + plan.upper_range.high) // 2
+        pc_count: int = len(plan.local_key.pitch_class_set)
+        avg_step: float = 12.0 / max(pc_count, 1)
+        pedal_structural_knots = []
+        for knot_degree, knot_progress in pedal_knot_spec:
+            # Interpolate cup contour at this progress position
+            if knot_progress <= PEDAL_CONTOUR_NADIR_POS:
+                contour_frac: float = knot_progress / PEDAL_CONTOUR_NADIR_POS
+                contour_val: float = PEDAL_CONTOUR_START + contour_frac * (PEDAL_CONTOUR_NADIR - PEDAL_CONTOUR_START)
+            else:
+                contour_frac = (knot_progress - PEDAL_CONTOUR_NADIR_POS) / (1.0 - PEDAL_CONTOUR_NADIR_POS)
+                contour_val = PEDAL_CONTOUR_NADIR + contour_frac * (contour_end - PEDAL_CONTOUR_NADIR)
+            target_midi: int = round(range_mid + contour_val * avg_step)
+            knot_midi: int = degree_to_nearest_midi(
+                degree=knot_degree,
+                key=plan.local_key,
+                target_midi=target_midi,
+                midi_range=(plan.upper_range.low, plan.upper_range.high),
+            )
+            knot_offset: float = float(plan.start_offset) + knot_progress * float(pedal_plan.phrase_duration)
+            pedal_structural_knots.append(Knot(beat=knot_offset, midi_pitch=knot_midi))
     pedal_sop_bias: VoiceBias | None = VoiceBias(
         degree_affinity=bias.degree_affinity if bias else None,
         interval_affinity=bias.subject_interval_affinity if bias else None,
-    ) if bias is not None else None
+        structural_knots=pedal_structural_knots,
+    ) if bias is not None else (
+        VoiceBias(structural_knots=pedal_structural_knots)
+        if pedal_structural_knots else None
+    )
     soprano_notes, soprano_figures = generate_soprano_viterbi(
         plan=pedal_plan,
         bass_notes=tuple(bass_notes),

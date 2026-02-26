@@ -31,6 +31,8 @@ _ROLE_MAP: dict[str, ThematicRole] = {
     "hold": ThematicRole.HOLD,
 }
 
+_HOLD_EXCHANGE_ROLES: frozenset[ThematicRole] = frozenset({ThematicRole.HOLD, ThematicRole.FREE})
+
 _MATERIAL_MAP: dict[str, str | None] = {
     "subject": "subject",
     "answer": "answer",
@@ -80,34 +82,6 @@ def build_imitative_plans(
         beat_unit=beat_unit,
         answer_offset_beats=0,
     )
-
-    # Set render_offset on every ANSWER BeatRole so the renderer
-    # shifts it backwards by answer_offset_beats.  The renderer
-    # stamps the full answer once from (start_offset + render_offset)
-    # and windows it, instead of the old approach that stamped
-    # overlapping BeatRoles causing double-rendering.
-    if subject_plan.answer_offset_beats > 0:
-        answer_shift: Fraction = -Fraction(subject_plan.answer_offset_beats) * beat_unit
-        patched: list[BeatRole] = []
-        for role in all_beat_roles:
-            if role.role == ThematicRole.ANSWER:
-                patched.append(BeatRole(
-                    bar=role.bar,
-                    beat=role.beat,
-                    voice=role.voice,
-                    role=role.role,
-                    material=role.material,
-                    material_key=role.material_key,
-                    sequence_type=role.sequence_type,
-                    pairing=role.pairing,
-                    texture=role.texture,
-                    fragment_iteration=role.fragment_iteration,
-                    anchor_pitch=role.anchor_pitch,
-                    render_offset=answer_shift,
-                ))
-            else:
-                patched.append(role)
-        all_beat_roles = tuple(patched)
 
     # Group BeatRoles into phrase-level entries
     bar_to_section: dict[int, str] = {ba.bar: ba.section for ba in subject_plan.bars}
@@ -221,7 +195,12 @@ def _group_beat_roles(
     for role in beat_roles:
         if role.beat == Fraction(0):
             if role.bar not in bars_data:
-                bars_data[role.bar] = {"roles": {}, "section": None, "local_key": None}
+                bars_data[role.bar] = {
+                    "roles": {},
+                    "section": None,
+                    "local_key": None,
+                    "entry_index": role.entry_index,
+                }
             bars_data[role.bar]["roles"][role.voice] = role.role
             bars_data[role.bar]["section"] = bar_to_section.get(role.bar, "unknown")
             if bars_data[role.bar]["local_key"] is None:
@@ -261,6 +240,8 @@ def _group_beat_roles(
         section_name: str = bar_data["section"]
         bar_stretto_mat: str | None = stretto_material.get(bar_num)
 
+        bar_entry_index: int = bar_data["entry_index"]
+
         if current_group is None:
             # Start first group
             current_group = {
@@ -271,13 +252,23 @@ def _group_beat_roles(
                 "section_name": section_name,
                 "voice_roles": voice_roles,
                 "stretto_material": bar_stretto_mat,
+                "entry_index": bar_entry_index,
                 "bar_assignments": [],  # Not needed for BeatRole-based groups
             }
+        elif (current_group["function"] == "hold_exchange"
+              and function == "hold_exchange"
+              and current_group["voice_roles"] == _HOLD_EXCHANGE_ROLES
+              and voice_roles == _HOLD_EXCHANGE_ROLES
+              and bar_entry_index == current_group["entry_index"]):
+            # Hold-exchange: roles swap bar-to-bar (HOLD↔FREE) but the group
+            # must span both bars so cell_iteration advances across the swap.
+            current_group["bar_count"] += 1
         elif (function != current_group["function"] or
               voice_roles != current_group["voice_roles"] or
               local_key != current_group["local_key"] or
-              bar_stretto_mat != current_group["stretto_material"]):
-            # Pattern, key, or stretto delay changed — close and start new
+              bar_stretto_mat != current_group["stretto_material"] or
+              bar_entry_index != current_group["entry_index"]):
+            # Pattern, key, stretto delay, or entry boundary changed — close and start new
             groups.append(current_group)
             current_group = {
                 "function": function,
@@ -287,6 +278,7 @@ def _group_beat_roles(
                 "section_name": section_name,
                 "voice_roles": voice_roles,
                 "stretto_material": bar_stretto_mat,
+                "entry_index": bar_entry_index,
                 "bar_assignments": [],
             }
         else:
@@ -411,13 +403,16 @@ def _build_thematic_roles(
                 thematic_role: ThematicRole = _ROLE_MAP[role_str]
                 material: str | None = _MATERIAL_MAP[role_str]
 
-                # Override material for episode, pedal, and stretto roles (read from VoiceAssignment.fragment)
+                # Override material for episode, pedal, stretto, and cs roles (read from VoiceAssignment.fragment)
                 if role_str == "episode":
                     material = voice_assignment.fragment  # "head" or "tail"
                 elif role_str == "pedal":
                     material = voice_assignment.fragment  # degree as string, e.g. "5"
                 elif role_str == "stretto":
                     material = voice_assignment.fragment  # delay as string, e.g. "2"
+                elif role_str == "cs":
+                    if voice_assignment.fragment is not None:
+                        material = voice_assignment.fragment  # "0" or "1"
 
                 roles.append(BeatRole(
                     bar=bar_num,
@@ -431,6 +426,7 @@ def _build_thematic_roles(
                     texture=voice_assignment.texture,
                     fragment_iteration=voice_assignment.fragment_iteration,
                     anchor_pitch=None,
+                    entry_index=bar_assignment.entry_index,
                 ))
 
     return tuple(roles)

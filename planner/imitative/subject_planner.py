@@ -137,11 +137,20 @@ def generate_entry_sequence(
                     entry_idx=subject_cs_count,
                     voice_lead=voice_lead,
                 )
+                cs_variant: int = (subject_cs_count + 1) % 2
                 subject_cs_count += 1
                 if upper0:
-                    sequence.append({"upper": ["subject", key_label], "lower": ["cs", key_label]})
+                    sequence.append({
+                        "upper": ["subject", key_label],
+                        "lower": ["cs", key_label],
+                        "cs_variant": cs_variant,
+                    })
                 else:
-                    sequence.append({"upper": ["cs", key_label], "lower": ["subject", key_label]})
+                    sequence.append({
+                        "upper": ["cs", key_label],
+                        "lower": ["subject", key_label],
+                        "cs_variant": cs_variant,
+                    })
                 emitted = True
                 break
 
@@ -299,22 +308,30 @@ def plan_subject(
         )
     assert len(raw_sequence) > 0, "entry_sequence is empty"
 
-    # Expand stretto_section into a single stretto entry (tightest offset)
+    # Expand stretto_section into stretto entries.
+    # Peroration strettos (key="I") use the tightest offset for maximum urgency.
+    # Development strettos cycle widest-first for variety and forward arc.
     spb: int = _slots_per_beat(metre=metre)
+    sorted_stretto_offsets: list[LoadedStretto] = sorted(
+        stretto_offsets, key=lambda s: s.offset_slots, reverse=True
+    )  # index 0 = widest; index -1 = tightest
+    dev_stretto_count: int = 0
     entry_sequence: list = []
     for entry in raw_sequence:
         if isinstance(entry, dict) and entry.get("type") == "stretto_section":
             section_key: str = entry["key"]
-            assert len(stretto_offsets) > 0, (
+            assert len(sorted_stretto_offsets) > 0, (
                 "stretto_section requested but no viable stretto offsets found"
             )
-            tightest: LoadedStretto = min(
-                stretto_offsets,
-                key=lambda s: s.offset_slots,
-            )
-            delay_beats: int = tightest.offset_slots // spb
-            assert delay_beats * spb == tightest.offset_slots, (
-                f"Stretto offset {tightest.offset_slots} slots not divisible by "
+            is_peroration: bool = section_key == "I"
+            if is_peroration:
+                chosen: LoadedStretto = sorted_stretto_offsets[-1]  # tightest
+            else:
+                chosen = sorted_stretto_offsets[dev_stretto_count % len(sorted_stretto_offsets)]
+                dev_stretto_count += 1
+            delay_beats: int = chosen.offset_slots // spb
+            assert delay_beats * spb == chosen.offset_slots, (
+                f"Stretto offset {chosen.offset_slots} slots not divisible by "
                 f"{spb} slots/beat"
             )
             entry_sequence.append({
@@ -357,6 +374,42 @@ def plan_subject(
                     f"{slot[0]} entries not yet supported (IMP-5)"
                 )
         entry_costs.append(subject_bars)
+
+    # EXP-1: When answer_offset_beats > 0 the answer enters mid-way through
+    # the preceding (solo-subject) entry.  Shorten that entry by overlap_bars
+    # so that phrase [1] starts exactly where the answer enters.  After this
+    # adjustment the answer's render_offset is 0 — no backward shift needed.
+    if answer_offset_beats > 0:
+        beats_per_bar_expos: int = int(metre.split("/")[0])
+        assert answer_offset_beats % beats_per_bar_expos == 0, (
+            f"answer_offset_beats={answer_offset_beats} must be divisible by "
+            f"beats_per_bar={beats_per_bar_expos} — sub-bar overlaps are not supported"
+        )
+        overlap_bars: int = answer_offset_beats // beats_per_bar_expos
+        _answer_found: bool = False
+        for _ans_idx, _ans_entry in enumerate(entry_sequence):
+            if not isinstance(_ans_entry, dict):
+                continue
+            _has_answer: bool = any(
+                isinstance(_ans_entry.get(slot), list) and _ans_entry[slot][0] == "answer"
+                for slot in ("upper", "lower")
+            )
+            if _has_answer:
+                assert _ans_idx > 0, (
+                    f"answer entry is at index 0 in entry_sequence — no preceding "
+                    f"solo-subject entry to shorten for answer_offset_beats={answer_offset_beats}"
+                )
+                assert entry_costs[_ans_idx - 1] > overlap_bars, (
+                    f"Preceding entry cost {entry_costs[_ans_idx - 1]} must exceed "
+                    f"overlap_bars={overlap_bars}; reduce answer_offset_beats or lengthen subject"
+                )
+                entry_costs[_ans_idx - 1] -= overlap_bars
+                _answer_found = True
+                break
+        assert _answer_found, (
+            f"answer_offset_beats={answer_offset_beats} is set but no 'answer' entry "
+            f"found in entry_sequence; add an answer entry or set answer_offset_beats=0"
+        )
 
     # ── 2. Assign sections proportionally ───────────────────────────
     n_entries: int = len(entry_sequence)
@@ -458,6 +511,7 @@ def plan_subject(
                     function="cadence",
                     local_key=home_key,
                     voices=voices,
+                    entry_index=entry_idx,
                 ))
             bar_pointer += cost
             continue
@@ -513,6 +567,7 @@ def plan_subject(
                     function="episode",
                     local_key=source_key,
                     voices=voices,
+                    entry_index=entry_idx,
                 ))
 
             bar_pointer += cost
@@ -558,6 +613,7 @@ def plan_subject(
                     function="stretto",
                     local_key=stretto_key,
                     voices=voices,
+                    entry_index=entry_idx,
                 ))
 
             bar_pointer += cost
@@ -599,6 +655,7 @@ def plan_subject(
                     function="pedal",
                     local_key=home_key,
                     voices=voices,
+                    entry_index=entry_idx,
                 ))
 
             bar_pointer += pedal_bars
@@ -647,6 +704,7 @@ def plan_subject(
                     function="hold_exchange",
                     local_key=he_key,
                     voices=voices,
+                    entry_index=entry_idx,
                 ))
 
             bar_pointer += he_bars
@@ -685,12 +743,13 @@ def plan_subject(
             )
 
             material_key: Key = home_key.modulate_to(key_label)
+            cs_v: int | None = entry.get("cs_variant") if material_name == "cs" else None
             voice_assignments[voice_idx] = VoiceAssignment(
                 role=material_name,
                 material_key=material_key,
                 texture="plain",
                 pairing="independent",
-                fragment=None,
+                fragment=str(cs_v) if cs_v is not None else None,
                 fragment_iteration=0,
             )
 
@@ -707,6 +766,7 @@ def plan_subject(
                 function="entry",
                 local_key=bar_local_key,
                 voices=voice_assignments,
+                entry_index=entry_idx,
             ))
 
         bar_pointer += cost
