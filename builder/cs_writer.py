@@ -294,6 +294,6 @@ def generate_cs_viterbi(
     # Step 9 -- Label first note with lyric="cs"
     # ================================================================
     if windowed:
-        windowed[0] = replace(windowed[0], lyric="cs")
+        windowed[0] = replace(windowed[0], lyric=f"cs{cs_index + 1}")
 
     return tuple(windowed)

@@ -53,6 +53,8 @@ def _stamp_lyrics(plan: PhrasePlan, result: PhraseResult) -> tuple[Note, ...]:
         first_parts.append(plan.cadence_type)
     first_lyric: str = "/".join(first_parts)
 
+    thematic_exact: frozenset[str] = frozenset({"subject", "answer", "stretto", "stretto-2", "episode"})
+
     if not plan.is_cadential and result.soprano_figures:
         bar_length, beat_unit = parse_metre(metre=plan.metre)
         structural_offsets: list[Fraction] = [
@@ -67,7 +69,7 @@ def _stamp_lyrics(plan: PhrasePlan, result: PhraseResult) -> tuple[Note, ...]:
             offset_to_figure[structural_offsets[fig_idx]] = fig_name
         for j, sn in enumerate(notes):
             # Preserve existing thematic lyrics
-            if sn.lyric and sn.lyric in ("subject", "answer", "cs", "stretto", "stretto-2", "episode"):
+            if sn.lyric and (sn.lyric in thematic_exact or sn.lyric.startswith("cs")):
                 continue
             parts: list[str] = []
             if j == 0:
@@ -78,7 +80,7 @@ def _stamp_lyrics(plan: PhrasePlan, result: PhraseResult) -> tuple[Note, ...]:
                 notes[j] = replace(sn, lyric="/".join(parts))
     else:
         # Only stamp first note if it doesn't have a thematic lyric
-        if notes[0].lyric not in ("subject", "answer", "cs", "stretto", "stretto-2", "episode"):
+        if not (notes[0].lyric in thematic_exact or notes[0].lyric.startswith("cs")):
             notes[0] = replace(notes[0], lyric=first_lyric)
 
     return tuple(notes)

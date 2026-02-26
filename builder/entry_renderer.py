@@ -66,11 +66,20 @@ def render_entry_voice(
         )
         if voice_notes:
             # Label first note
-            lyric: str = {
-                ThematicRole.SUBJECT: "subject",
-                ThematicRole.ANSWER: "answer",
-                ThematicRole.CS: "cs",
-            }[role]
+            if role == ThematicRole.CS:
+                cs_index: int = (
+                    int(beat_role.material)
+                    if beat_role is not None
+                    and beat_role.material is not None
+                    and beat_role.material.isdigit()
+                    else 0
+                )
+                lyric: str = f"cs{cs_index + 1}"
+            else:
+                lyric = {
+                    ThematicRole.SUBJECT: "subject",
+                    ThematicRole.ANSWER: "answer",
+                }[role]
             voice_notes = (replace(voice_notes[0], lyric=lyric),) + voice_notes[1:]
 
             # Trace render
