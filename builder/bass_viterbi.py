@@ -2,6 +2,7 @@
 import logging
 from fractions import Fraction
 
+from builder.knot_builder import ensure_final_knot, sort_and_dedup_knots
 from builder.galant.bass_writer import validate_bass_notes
 from builder.voice_types import VoiceBias
 from builder.phrase_types import (
@@ -18,7 +19,7 @@ from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
 from viterbi.generate import generate_voice
 from viterbi.mtypes import ExistingVoice, Knot
-from viterbi.scale import KeyInfo
+from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +113,7 @@ def generate_bass_viterbi(
 
     # Final knot at phrase_end (same pattern as soprano Viterbi)
     final_midi: int = knots[-1].midi_pitch if knots else plan.lower_median
-    if len(knots) == 0 or abs(float(phrase_end) - knots[-1].beat) > 1e-6:
-        knots.append(Knot(beat=float(phrase_end), midi_pitch=final_midi))
+    ensure_final_knot(knots, float(phrase_end), final_midi)
 
     # ================================================================
     # Step 2 — Build rhythm grid via select_cell (bar-by-bar)
@@ -199,8 +199,7 @@ def generate_bass_viterbi(
         start_midi: int = prev_exit_midi if prev_exit_midi is not None else plan.lower_median
         knots.insert(0, Knot(beat=first_beat, midi_pitch=start_midi))
     # Sort by beat and deduplicate (thematic overrides + alignment knots may overlap)
-    knots.sort(key=lambda k: k.beat)
-    knots = [k for i, k in enumerate(knots) if i == 0 or abs(k.beat - knots[i - 1].beat) > 1e-6]
+    knots = sort_and_dedup_knots(knots)
 
     # ================================================================
     # Step 3 — Build soprano ExistingVoice at each grid position
@@ -237,10 +236,28 @@ def generate_bass_viterbi(
         tonic_pc=plan.local_key.degree_to_midi(degree=1, octave=0) % 12,
     )
 
-    # HRL-2: Build chord awareness from harmonic grid
+    # HRL-2: Build chord awareness from harmonic grid or surface soprano
     chord_pcs: list[frozenset[int]] | None = None
     if harmonic_grid is not None:
         chord_pcs = harmonic_grid.to_beat_list(beat_grid)
+    else:
+        # Surface inference: derive triads from soprano pitches at each
+        # grid position.  Root-position assumption — imprecise when the
+        # soprano is on the 3rd or 5th of the actual chord, but still
+        # constrains toward consonant intervals.  Skip non-diatonic
+        # soprano pitches (chromatic approach tones, raised leading
+        # tones) to avoid triad_pcs assertion failure.
+        chord_pcs = []
+        for beat_f in beat_grid:
+            sop_midi: int = soprano_pitches_at_beat[beat_f]
+            sop_pc: int = sop_midi % 12
+            if sop_pc in key_info.pitch_class_set:
+                chord_pcs.append(viterbi_triad_pcs(
+                    bass_midi=sop_midi,
+                    key=key_info,
+                ))
+            else:
+                chord_pcs.append(frozenset())
 
     notes_tuple = generate_voice(
         structural_knots=knots,

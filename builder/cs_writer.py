@@ -8,6 +8,7 @@ import logging
 from dataclasses import replace
 from fractions import Fraction
 
+from builder.knot_builder import find_consonant_pitch, strong_beat_offsets
 from builder.types import Note
 from motifs.subject_loader import SubjectTriple
 from shared.constants import DURATION_DENOMINATOR_LIMIT, STRONG_BEAT_DISSONANT
@@ -32,40 +33,6 @@ def _companion_at(
             return note.pitch
     return None
 
-
-def _strong_beat_offsets(bar_length: Fraction, metre: str) -> frozenset[Fraction]:
-    """Return strong-beat offsets within a bar for the given metre.
-
-    4/4: downbeat and half-bar (beats 1, 3).
-    6/8: downbeat and half-bar (beats 1, 4).
-    All others: downbeat only.
-    """
-    parts: list[str] = metre.split("/")
-    numerator: int = int(parts[0])
-
-    if numerator in (4, 6):
-        return frozenset({Fraction(0), bar_length / 2})
-    return frozenset({Fraction(0)})
-
-
-def _find_consonant_near(
-    cs_midi: int,
-    companion_midi: int,
-    range_low: int,
-    range_high: int,
-) -> int:
-    """Find nearest pitch to cs_midi that is consonant with companion_midi.
-
-    Searches outward from cs_midi within target range.  Falls back to
-    range midpoint if nothing consonant is reachable (should not happen
-    in practice).
-    """
-    for distance in range(13):
-        for candidate in (cs_midi + distance, cs_midi - distance):
-            if range_low <= candidate <= range_high:
-                if abs(candidate - companion_midi) % 12 not in STRONG_BEAT_DISSONANT:
-                    return candidate
-    return (range_low + range_high) // 2
 
 
 def generate_cs_viterbi(
@@ -119,23 +86,22 @@ def generate_cs_viterbi(
     )
 
     # ================================================================
-    # Step 2 -- Octave-shift into target_range
+    # Step 2 -- Shift CS into target_range
     # ================================================================
-    highest: int = max(midi_pitches)
-    shift: int = 0
-    while highest + shift > target_range.high:
-        shift -= 12
-    while min(midi_pitches) + shift < target_range.low:
-        shift += 12
+    cs_lo: int = min(midi_pitches)
+    cs_hi: int = max(midi_pitches)
+    lo_shift: int = target_range.low - cs_lo    # shift must be >= this for min to fit
+    hi_shift: int = target_range.high - cs_hi   # shift must be <= this for max to fit
+    assert lo_shift <= hi_shift, (
+        f"CS span {cs_hi - cs_lo} semitones exceeds voice range "
+        f"{target_range.high - target_range.low} — cannot place CS "
+        f"in [{target_range.low}, {target_range.high}]; "
+        f"voice range must be at least {cs_hi - cs_lo} semitones wide"
+    )
+    center_shift: int = (lo_shift + hi_shift) // 2
+    oct_shift: int = int(round(center_shift / 12)) * 12
+    shift: int = oct_shift if lo_shift <= oct_shift <= hi_shift else center_shift
     shifted_pitches: tuple[int, ...] = tuple(p + shift for p in midi_pitches)
-    assert min(shifted_pitches) >= target_range.low, (
-        f"CS cannot fit in range [{target_range.low}, {target_range.high}]: "
-        f"after shift {shift}, lowest pitch {min(shifted_pitches)} < {target_range.low}"
-    )
-    assert max(shifted_pitches) <= target_range.high, (
-        f"CS cannot fit in range [{target_range.low}, {target_range.high}]: "
-        f"after shift {shift}, highest pitch {max(shifted_pitches)} > {target_range.high}"
-    )
 
     # ================================================================
     # Step 3 -- Build rhythm grid from CS durations
@@ -165,7 +131,7 @@ def generate_cs_viterbi(
     # ================================================================
     # Step 4 -- Build Knots from CS contour
     # ================================================================
-    strong_offsets: frozenset[Fraction] = _strong_beat_offsets(
+    strong_offsets: frozenset[Fraction] = strong_beat_offsets(
         bar_length=bar_length, metre=metre,
     )
 
@@ -183,9 +149,9 @@ def generate_cs_viterbi(
         companion_notes=companion_notes, offset=first_onset,
     )
     if first_comp is not None and abs(first_cs_midi - first_comp) % 12 in STRONG_BEAT_DISSONANT:
-        first_cs_midi = _find_consonant_near(
-            cs_midi=first_cs_midi,
-            companion_midi=first_comp,
+        first_cs_midi = find_consonant_pitch(
+            target_midi=first_cs_midi,
+            reference_midi=first_comp,
             range_low=target_range.low,
             range_high=target_range.high,
         )
@@ -228,9 +194,9 @@ def generate_cs_viterbi(
         companion_notes=companion_notes, offset=last_grid_onset,
     )
     if last_comp is not None and abs(last_cs_midi - last_comp) % 12 in STRONG_BEAT_DISSONANT:
-        last_cs_midi = _find_consonant_near(
-            cs_midi=last_cs_midi,
-            companion_midi=last_comp,
+        last_cs_midi = find_consonant_pitch(
+            target_midi=last_cs_midi,
+            reference_midi=last_comp,
             range_low=target_range.low,
             range_high=target_range.high,
         )

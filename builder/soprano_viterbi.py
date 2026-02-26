@@ -2,6 +2,7 @@
 import logging
 from fractions import Fraction
 
+from builder.knot_builder import check_structural_tone_consonance, ensure_final_knot, sort_and_dedup_knots
 from builder.figuration.rhythm_calc import compute_rhythmic_distribution
 from builder.figuration.soprano import character_to_density
 from builder.phrase_types import (
@@ -15,7 +16,7 @@ from builder.rhythm_cells import select_cell
 from builder.types import Note
 from builder.voice_types import VoiceBias, VoiceConfig
 from builder.voice_writer import validate_voice, audit_voice
-from shared.constants import MIN_SOPRANO_MIDI, TRACK_SOPRANO, TRACK_BASS
+from shared.constants import MIN_SOPRANO_MIDI, STRONG_BEAT_DISSONANT, TRACK_SOPRANO, TRACK_BASS
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.pitch import degree_to_nearest_midi
@@ -24,6 +25,7 @@ from viterbi.mtypes import ContourShape, ExistingVoice, Knot
 from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
 
 logger = logging.getLogger(__name__)
+
 
 
 def place_structural_tones(
@@ -107,6 +109,12 @@ def generate_soprano_viterbi(
         structural_tones = place_structural_tones(
             plan=plan, prev_exit_midi=prev_exit_midi,
         )
+        if bass_notes:
+            structural_tones = check_structural_tone_consonance(
+                structural_tones=structural_tones,
+                bass_notes=bass_notes,
+                midi_range=(plan.upper_range.low, plan.upper_range.high),
+            )
         knots = [
             Knot(beat=float(offset), midi_pitch=midi)
             for offset, midi, _ in structural_tones
@@ -125,11 +133,9 @@ def generate_soprano_viterbi(
         final_midi = structural_tones[-1][1] if structural_tones else prev_exit_midi or plan.upper_median
 
     # Add final knot at phrase_end (required by Viterbi solver)
-    if len(knots) == 0 or abs(float(final_offset) - knots[-1].beat) > 1e-6:
-        knots.append(Knot(beat=float(final_offset), midi_pitch=final_midi))
+    knots = ensure_final_knot(knots, float(final_offset), final_midi)
     # Sort by beat and deduplicate (thematic overrides + alignment knots may overlap)
-    knots.sort(key=lambda k: k.beat)
-    knots = [k for i, k in enumerate(knots) if i == 0 or abs(k.beat - knots[i - 1].beat) > 1e-6]
+    knots = sort_and_dedup_knots(knots)
 
     # Step 2: Build rhythm grid (onset positions with durations)
     bar_length, beat_unit = parse_metre(metre=plan.metre)

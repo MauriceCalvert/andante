@@ -17,9 +17,12 @@ from motifs.head_generator import degrees_to_midi
 from shared.constants import VALID_DURATIONS_SORTED, exact_fraction
 from shared.key import Key
 from shared.pitch import build_pitch_class_set, diatonic_step_count
+from viterbi.mtypes import Knot
 
 if TYPE_CHECKING:
     from motifs.fragen import Motivic
+
+MAX_KNOT_LEAP: int = 9  # semitones — major 6th; wider = reject or try octave shift
 
 
 @dataclass(frozen=True)
@@ -262,7 +265,6 @@ def build_thematic_knots(
     Returns:
         List of Knot objects at realised positions.
     """
-    from viterbi.mtypes import Knot
     realised: tuple[tuple[int, Fraction], ...] = realise_pattern(
         pattern=pattern,
         start_degree=start_degree,
@@ -398,8 +400,6 @@ def sequence_cell_knots(
     Returns:
         List of Knot objects.
     """
-    from viterbi.mtypes import Knot
-
     if not catalogue.all_cells:
         return []
 
@@ -493,11 +493,32 @@ def sequence_cell_knots(
             range_high=range_high,
             max_offset=max_offset,
         )
-        result.extend(new_knots)
+        # Leap guard: reject knots that leap more than MAX_KNOT_LEAP semitones
+        # from the previous accepted pitch. Try an octave shift before skipping.
+        filtered_knots: list[Knot] = []
+        prev_midi: int = current_midi
+        for knot in new_knots:
+            leap: int = abs(knot.midi_pitch - prev_midi)
+            if leap <= MAX_KNOT_LEAP:
+                filtered_knots.append(knot)
+                prev_midi = knot.midi_pitch
+            else:
+                shifted_up: int = knot.midi_pitch + 12
+                shifted_down: int = knot.midi_pitch - 12
+                candidate: int = (
+                    shifted_up
+                    if abs(shifted_up - prev_midi) <= abs(shifted_down - prev_midi)
+                    else shifted_down
+                )
+                if range_low <= candidate <= range_high and abs(candidate - prev_midi) <= MAX_KNOT_LEAP:
+                    filtered_knots.append(Knot(beat=knot.beat, midi_pitch=candidate))
+                    prev_midi = candidate
+                # else: skip this knot entirely
+        result.extend(filtered_knots)
 
         # i. Update tracking
-        if new_knots:
-            current_midi = new_knots[-1].midi_pitch
+        if filtered_knots:
+            current_midi = filtered_knots[-1].midi_pitch
         current_offset += chosen.total_duration
         remaining -= chosen.total_duration
         last_family = chosen.source_family

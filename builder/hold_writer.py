@@ -4,6 +4,7 @@ One voice holds a whole note while the other runs in consonant counterpoint via 
 """
 from fractions import Fraction
 
+from builder.knot_builder import find_consonant_pitch
 from builder.types import Note
 from motifs.fragment_catalogue import extract_sixteenth_cell
 from motifs.subject_loader import SubjectTriple
@@ -17,23 +18,6 @@ from viterbi.generate import generate_voice
 from viterbi.mtypes import ExistingVoice, Knot
 from viterbi.scale import KeyInfo
 
-
-def _find_consonant_near(
-    target_midi: int,
-    held_pitch: int,
-    range_low: int,
-    range_high: int,
-) -> int:
-    """Find nearest pitch to target_midi consonant with held_pitch, within range.
-
-    Searches outward ±1..±12. Falls back to range midpoint.
-    """
-    for distance in range(13):
-        for candidate in (target_midi + distance, target_midi - distance):
-            if range_low <= candidate <= range_high:
-                if abs(candidate - held_pitch) % 12 not in STRONG_BEAT_DISSONANT:
-                    return candidate
-    return (range_low + range_high) // 2
 
 
 def _generate_running_voice_bar(
@@ -125,9 +109,9 @@ def _generate_running_voice_bar(
             shifted = max(running_range.low, min(running_range.high, shifted))
 
             # Consonance-check against held pitch
-            adjusted: int = _find_consonant_near(
+            adjusted: int = find_consonant_pitch(
                 target_midi=shifted,
-                held_pitch=held_pitch,
+                reference_midi=held_pitch,
                 range_low=running_range.low,
                 range_high=running_range.high,
             )
@@ -148,9 +132,9 @@ def _generate_running_voice_bar(
         )[0]
         end_shifted: int = end_raw + common_shift
         end_shifted = max(running_range.low, min(running_range.high, end_shifted))
-        end_adjusted: int = _find_consonant_near(
+        end_adjusted: int = find_consonant_pitch(
             target_midi=end_shifted,
-            held_pitch=held_pitch,
+            reference_midi=held_pitch,
             range_low=running_range.low,
             range_high=running_range.high,
         )
@@ -284,9 +268,9 @@ def render_hold_entry(
                 prev_bass_pitch = last_bar_running_notes[-1].pitch
                 # Ensure consonance with running range median
                 if abs(prev_bass_pitch - ((plan.upper_range.low + plan.upper_range.high) // 2)) % 12 in STRONG_BEAT_DISSONANT:
-                    prev_bass_pitch = _find_consonant_near(
+                    prev_bass_pitch = find_consonant_pitch(
                         target_midi=prev_bass_pitch,
-                        held_pitch=(plan.upper_range.low + plan.upper_range.high) // 2,
+                        reference_midi=(plan.upper_range.low + plan.upper_range.high) // 2,
                         range_low=plan.lower_range.low,
                         range_high=plan.lower_range.high,
                     )
@@ -334,9 +318,9 @@ def render_hold_entry(
                 prev_sop_pitch = last_bar_running_notes[-1].pitch
                 # Ensure consonance with running range median
                 if abs(prev_sop_pitch - ((plan.lower_range.low + plan.lower_range.high) // 2)) % 12 in STRONG_BEAT_DISSONANT:
-                    prev_sop_pitch = _find_consonant_near(
+                    prev_sop_pitch = find_consonant_pitch(
                         target_midi=prev_sop_pitch,
-                        held_pitch=(plan.lower_range.low + plan.lower_range.high) // 2,
+                        reference_midi=(plan.lower_range.low + plan.lower_range.high) // 2,
                         range_low=plan.upper_range.low,
                         range_high=plan.upper_range.high,
                     )

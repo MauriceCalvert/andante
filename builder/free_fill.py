@@ -5,6 +5,7 @@ Fills bars where one or both voices have no thematic material (FREE role).
 from fractions import Fraction
 
 from builder.bass_viterbi import generate_bass_viterbi
+from builder.knot_builder import enrich_companion_knots
 from builder.galant.soprano_writer import build_structural_soprano
 from builder.phrase_types import (
     PhrasePlan,
@@ -261,6 +262,19 @@ def fill_free_bars(
                 if fallback_sop_knots:
                     companion_sop_knots = fallback_sop_knots
 
+            # USI-1: Supplement sparse thematic knots with consonant strong-beat pitches.
+            companion_sop_knots = enrich_companion_knots(
+                existing_knots=companion_sop_knots,
+                material_notes=bass_notes,
+                run_start_offset=run_start_offset,
+                run_end_offset=run_start_offset + run_plan.phrase_duration,
+                bar_length=bar_length,
+                companion_range_low=run_plan.upper_range.low,
+                companion_range_high=run_plan.upper_range.high,
+                companion_is_above=True,
+                seed_pitch=soprano_notes[-1].pitch if soprano_notes else None,
+            )
+
             structural_free: tuple[Note, ...] = build_structural_soprano(
                 plan=run_plan,
                 prev_exit_midi=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper,
@@ -349,6 +363,19 @@ def fill_free_bars(
                 )
                 if fallback_bass_knots:
                     companion_bass_knots = fallback_bass_knots
+
+            # USI-1: Supplement sparse thematic knots with consonant strong-beat pitches.
+            companion_bass_knots = enrich_companion_knots(
+                existing_knots=companion_bass_knots,
+                material_notes=soprano_notes,
+                run_start_offset=run_start_offset,
+                run_end_offset=run_start_offset + run_plan.phrase_duration,
+                bar_length=bar_length,
+                companion_range_low=run_plan.lower_range.low,
+                companion_range_high=run_plan.lower_range.high,
+                companion_is_above=False,
+                seed_pitch=bass_notes[-1].pitch if bass_notes else None,
+            )
 
             bass_bias: VoiceBias = VoiceBias(
                 degree_affinity=bias.degree_affinity if bias else None,
