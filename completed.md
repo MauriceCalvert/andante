@@ -1,5 +1,22 @@
 # Completed
 
+## STR-1: Stretto overflow bars become episodes (2026-02-27)
+
+Modified stretto stamping loop in `planner/imitative/subject_planner.py` so that
+only `subject_bars` (2) get SUBJECT+STRETTO stamping. Overflow bars are now stamped
+as EPISODE+EPISODE with head/tail fragment assignments and direction derived from
+the next episode's key journey. Peroration strettos default to descending.
+
+**Bob's verdict:** Bar 12 (F major) succeeds — staggered semiquaver descents in
+both voices, genuine dialogic handoff after stretto. Bars 34/37 (peroration) serve
+as adequate breath marks with bass-led ascending motion. Bar 23 (D minor) fails —
+crotchet oscillation in bass, near-silence in soprano (2 notes). Fragen's fragment
+cells are too short to fill the bar.
+
+**Open:** Bar 23 sparse output needs Fragen minimum note density filter.
+Soprano enters late in peroration bars (beats 3-4 only) — acceptable for
+breath marks but not ideal.
+
 ## SUB-2b: Density trajectory tuning (2026-02-27)
 
 Filtered equal note-count splits (MIN_NOTE_COUNT_DIFFERENCE=2) in

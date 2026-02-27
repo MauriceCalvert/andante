@@ -663,15 +663,13 @@ def plan_subject(
             stretto_delay: int = entry["delay"]
             stretto_key: Key = home_key.modulate_to(stretto_key_label)
 
-            # Stretto spans subject_bars + extra bars for follower's delayed entry
-            for offset in range(cost):
+            # STR-1: Only subject_bars get SUBJECT+STRETTO stamping.
+            # Overflow bars (offset >= subject_bars) become episodes with
+            # sequential fragment material in contrary motion.
+            for offset in range(min(subject_bars, cost)):
                 bar_num: int = bar_pointer + offset
                 voices: dict[int, VoiceAssignment] = {}
 
-                # Voice 0 (upper/leader): SUBJECT throughout so grouping
-                # keeps the stretto as one entry. The subject renderer
-                # naturally produces no notes past its duration;
-                # fill_free_bars handles the tail.
                 voices[0] = VoiceAssignment(
                     role="subject",
                     material_key=stretto_key,
@@ -681,7 +679,6 @@ def plan_subject(
                     fragment_iteration=0,
                 )
 
-                # Voice 1 (lower/follower): stretto throughout
                 voices[1] = VoiceAssignment(
                     role="stretto",
                     material_key=stretto_key,
@@ -699,6 +696,62 @@ def plan_subject(
                     voices=voices,
                     entry_index=entry_idx,
                 ))
+
+            # STR-1: Overflow bars become episode bridging material.
+            # Direction derived from the next episode's key journey.
+            overflow_count: int = cost - subject_bars
+            if overflow_count > 0:
+                # Look ahead for the next episode to determine direction
+                overflow_ascending: bool = False  # default: descending (cadential)
+                for ahead_entry in augmented_entries[entry_idx + 1:]:
+                    if (isinstance(ahead_entry, dict)
+                            and ahead_entry.get("type") == "episode"):
+                        ep_to_key: Key = home_key.modulate_to(ahead_entry["to_key"])
+                        overflow_ascending = _semitone_distance(
+                            key1=stretto_key, key2=ep_to_key,
+                        ) > 0
+                        break
+
+                for overflow_offset in range(overflow_count):
+                    bar_num = bar_pointer + subject_bars + overflow_offset
+                    voices = {}
+
+                    if overflow_ascending:
+                        ov_iteration: int = -(overflow_offset + 1)
+                    else:
+                        ov_iteration = overflow_offset + 1
+
+                    ov_upper_iteration: int = ov_iteration
+                    ov_lower_iteration: int = -ov_iteration
+
+                    # Voice 0 (soprano): tail fragment
+                    voices[0] = VoiceAssignment(
+                        role="episode",
+                        material_key=stretto_key,
+                        texture="plain",
+                        pairing="independent",
+                        fragment="tail",
+                        fragment_iteration=ov_upper_iteration,
+                    )
+
+                    # Voice 1 (bass): head fragment (leads)
+                    voices[1] = VoiceAssignment(
+                        role="episode",
+                        material_key=stretto_key,
+                        texture="plain",
+                        pairing="independent",
+                        fragment="head",
+                        fragment_iteration=ov_lower_iteration,
+                    )
+
+                    bar_assignments.append(BarAssignment(
+                        bar=bar_num,
+                        section=section_name,
+                        function="episode",
+                        local_key=stretto_key,
+                        voices=voices,
+                        entry_index=entry_idx,
+                    ))
 
             bar_pointer += cost
             continue
