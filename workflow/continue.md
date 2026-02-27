@@ -1,46 +1,40 @@
 # Continue
 
-## Status: between tasks — listen and decide next priority.
+## Status: EPI-4a brief issued — waiting for "go" in Claude Code.
 
 ## What just happened
 
-SUB-1, SUB-2, SUB-2b complete. Subject generation now has:
-- Tonal answers (fixed double-transposition bug)
-- Per-segment density (head and tail have independent rhythmic density)
-- Note-count asymmetry filter (no 6+6 splits)
-- Cadential weight filter (final note ≥ penultimate, both subject and CS)
-- W_REPETITION_PENALTY reduced to 0.5 (interim, pending SUB-3)
+EPI-3 (parallel 3rds/6ths lockstep) was a failure — lockstep doubling
+violated Principle 2 (voices in relation), sounded like an organ coupler.
+Reverted to STR-1 commit (85fbbe7). Fault count back to pre-EPI-3 baseline.
 
-Additional fix: `write_subject_demo_midi` now includes CS solo between
-inversion and subject+CS sections. Section order: subject → answer →
-inversion → CS solo → subject+CS → stretto → inversion stretto.
+Root cause analysis: the entire Fragen bar-length composite approach is
+wrong. Bach's episodes use tiny kernels (2–4 notes) sequenced beat-by-beat
+at stepping pitch levels. Our system chains cells into bar-length
+Frankenstein composites, producing either lockstep or shuffled subject
+recombinations.
 
-## What to do next
+## What's in progress
 
-Generate subjects (`python -m scripts.generate_subjects -v`), listen to
-the MIDI demos, and decide which problem is most audible:
+EPI-4a: standalone kernel episode demo (soprano only). New `extract_kernels`
+and `sequence_kernel` functions in fragen.py, plus a demo script that
+writes MIDI for human evaluation. No pipeline integration — hear it first.
 
-1. **SUB-3: Cell-group repetition (sequencing)** — tail reuses head's
-   cell sequence at different pitch. The primary memorability device.
-   Medium effort, high impact if subjects still sound "generated not
-   composed."
+After EPI-4a: EPI-4b will add the bass voice (countermelody kernel or
+inversion at canonic offset), EPI-4c will wire into the planner (planner
+selects kernel per episode, Fragen just realises). Dead code removal of
+build_chains/build_fragments/get_fragment after integration.
 
-2. **EPI-2c: Episode character arc** — position-aware fragment selection,
-   minimum note density, octave-doubling rejection. Addresses bars 28–30
-   sparsity in episodes.
+## Also agreed
 
-3. **MEL: Melodic quality** — Viterbi cost improvements, figuration
-   consonance, mixed-rhythm templates. Addresses smooth/predictable
-   pitch fill.
-
-4. **SUB housekeeping: algorithmic answer_offset_beats** — currently
-   hardcoded. Low priority.
-
-The ear decides priority order.
+Subject (and tonal answer) may appear literally no more than 3 times total.
+Inversions, augmentation, diminution, stretto do not count against the cap.
+This constraint belongs in the planner and will be implemented after
+episode rework is complete.
 
 ## Project state
 
-- Pipeline runs clean on invention with seed 42, 16 faults (all pre-existing)
-- Library subjects in motifs/library/ (6 files)
-- Stretto caches will need regenerating after any subject changes
-- todo.md is current
+- Pipeline runs clean on STR-1 baseline
+- EPI-3 reverted (uncommitted changes were discarded)
+- Minor script renames (midi_to_note, note_to_midi, generate_subjects)
+  remain as uncommitted changes — unrelated to EPI-3

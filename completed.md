@@ -1,5 +1,15 @@
 # Completed
 
+## EPI-4a: Kernel episode demo - soprano only (2026-02-27)
+
+Added `Kernel` dataclass and `extract_kernels()` to `motifs/fragen.py`: extracts
+2/3/4-note contiguous subsequences from head, tail, cs, answer + inversions,
+deduplicated by (degrees, durations). Added `sequence_kernel()` for pure
+sequential transposition at stepping pitch levels. Created standalone demo
+script `scripts/episode_kernel_demo.py` that loads all subjects, generates
+descending and ascending 5-iteration sequences per kernel, writes MIDI files
+to `output/`. No existing functions modified; no pipeline changes.
+
 ## STR-1: Stretto overflow bars become episodes (2026-02-27)
 
 Modified stretto stamping loop in `planner/imitative/subject_planner.py` so that
