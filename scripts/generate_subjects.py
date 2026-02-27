@@ -220,18 +220,21 @@ def write_subject_demo_midi(triple: SubjectTriple, path: Path, tempo: int = 80) 
     offset = _add_melody(notes, subj, subj_dur, 0, offset)
     offset += bar_dur
     # 2. Answer solo
-    # offset = _add_melody(notes, ans, ans_dur, 0, offset)
-    # offset += bar_dur
-    # 3. Subject + countersubject together
+    offset = _add_melody(notes, ans, ans_dur, 0, offset)
+    offset += bar_dur
+    # 3. Inversion solo
+    inv = triple.inversion_midi
+    inv_dur = subj_dur  # Same rhythm
+    offset = _add_melody(notes, inv, inv_dur, 0, offset)
+    offset += bar_dur
+    # 4. Countersubject solo
+    offset = _add_melody(notes, cs, cs_dur, 0, offset)
+    offset += bar_dur
+    # 5. Subject + countersubject together
     _add_melody(notes, subj, subj_dur, 0, offset)
     offset = _add_melody(notes, cs, cs_dur, 1, offset)
     offset += bar_dur
-    # 4. Inversion solo
-    inv = triple.inversion_midi
-    inv_dur = subj_dur  # Same rhythm
-    # offset = _add_melody(notes, inv, inv_dur, 0, offset)
-    # offset += bar_dur
-    # 5. Subject vs subject stretto pairs, tightest first (entry within bar 1)
+    # 6. Subject vs subject stretto pairs, tightest first (entry within bar 1)
     viable: list[OffsetResult] = sorted(
         [r for r in triple.subject.stretto_offsets
          if r.offset_slots / X2_TICKS_PER_WHOLE <= bar_dur],
@@ -242,7 +245,7 @@ def write_subject_demo_midi(triple: SubjectTriple, path: Path, tempo: int = 80) 
         leader_end = _add_melody(notes, subj, subj_dur, 0, offset)
         follower_end = _add_melody(notes, subj_low, subj_dur, 1, offset + stretto_delay)
         offset = max(leader_end, follower_end) + bar_dur
-    # 6. Subject vs inversion stretto pairs (entry within bar 1)
+    # 7. Subject vs inversion stretto pairs (entry within bar 1)
     from motifs.stretto_analyser import StrettoOffset
     inv_stretto: list[StrettoOffset] = sorted(
         [r for r in triple.inversion_stretto if r.offset <= bar_dur],

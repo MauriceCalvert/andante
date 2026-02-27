@@ -184,6 +184,16 @@ def _generate_cs_rhythm(
     assert sum(cs_durations) == total, (
         f"CS duration {sum(cs_durations)} != subject duration {total}"
     )
+    # Ensure final note is longer than penultimate (cadential weight).
+    if len(cs_durations) >= 2 and cs_durations[-1] < cs_durations[-2]:
+        merged: Fraction = cs_durations[-2] + cs_durations[-1]
+        if merged in VALID_DURATIONS:
+            cs_durations[-2:] = [merged]
+            onset_indices = list(onset_indices)
+            onset_indices[-2:] = [onset_indices[-2]]
+            onset_indices = tuple(onset_indices)
+        else:
+            cs_durations[-1], cs_durations[-2] = cs_durations[-2], cs_durations[-1]
     return tuple(cs_durations), tuple(onset_indices)
 
 def _derive_cs_range(

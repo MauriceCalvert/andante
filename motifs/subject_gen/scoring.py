@@ -11,6 +11,7 @@ from motifs.subject_gen.constants import (
     HEAD_IV_FEATURE_SCALE,
     HEAD_IV_FEATURE_WINDOW,
     HEAD_SIZE,
+    W_DENSITY_TRAJECTORY,
     W_DIRECTION_COMMITMENT,
     W_DURATION_VARIETY,
     W_FAST_NOTE_DENSITY,
@@ -154,12 +155,41 @@ def _scalic_monotony(ivs: tuple[int, ...]) -> float:
     return 1.0 - (step_frac - 0.55) / 0.25
 
 
+def _density_trajectory(
+    dur_indices: tuple[int, ...],
+    head_n: int,
+) -> float:
+    """Score 0-1 rewarding measurable density shift between head and tail.
+
+    Computes mean tick duration for head vs tail notes and returns
+    the normalised absolute difference.
+    """
+    assert head_n > 0, f"head_n must be positive, got {head_n}"
+    assert head_n < len(dur_indices), (
+        f"head_n={head_n} must be < total notes={len(dur_indices)}"
+    )
+    head_ticks: list[int] = [DURATION_TICKS[d] for d in dur_indices[:head_n]]
+    tail_ticks: list[int] = [DURATION_TICKS[d] for d in dur_indices[head_n:]]
+    head_mean: float = sum(head_ticks) / len(head_ticks)
+    tail_mean: float = sum(tail_ticks) / len(tail_ticks)
+    denom: float = max(head_mean, tail_mean)
+    if denom == 0.0:
+        return 0.0
+    return min(abs(head_mean - tail_mean) / denom, 1.0)
+
+
 def score_subject(
     degrees: tuple[int, ...],
     ivs: tuple[int, ...],
     dur_indices: tuple[int, ...],
+    head_n: int = 0,
 ) -> float:
-    """Weighted aesthetic score for a subject candidate. Returns 0–10.5."""
+    """Weighted aesthetic score for a subject candidate. Returns 0–12.5."""
+    density_traj: float = (
+        _density_trajectory(dur_indices=dur_indices, head_n=head_n)
+        if head_n > 0
+        else 0.0
+    )
     return (
         W_RANGE * _intervallic_range(degrees=degrees)
         + W_DIRECTION_COMMITMENT * _direction_commitment(degrees=degrees)
@@ -170,6 +200,7 @@ def score_subject(
         + W_SCALIC_MONOTONY * _scalic_monotony(ivs=ivs)
         + W_HEAD_CHARACTER * _head_character(ivs=ivs)
         + W_TAIL_MOMENTUM * _tail_momentum(dur_indices=dur_indices)
+        + W_DENSITY_TRAJECTORY * density_traj
     )
 
 
@@ -177,8 +208,9 @@ def subject_features(
     degrees: tuple[int, ...],
     ivs: tuple[int, ...],
     dur_indices: tuple[int, ...],
+    head_n: int = 0,
 ) -> tuple[float, ...]:
-    """10D feature vector for diversity distance computation."""
+    """Feature vector for diversity distance computation."""
     n: int = len(degrees)
     span: int = max(degrees) - min(degrees)
     # range normalised to octave
@@ -206,4 +238,10 @@ def subject_features(
     # tail intervals (normalised) — sequential similarity of closing gesture
     tail_ivs: tuple[int, ...] = ivs[-HEAD_IV_FEATURE_WINDOW:] if len(ivs) >= HEAD_IV_FEATURE_WINDOW else ivs
     f_tail_ivs: tuple[float, ...] = tuple(iv * HEAD_IV_FEATURE_SCALE / DEGREES_PER_OCTAVE for iv in tail_ivs)
-    return (f_range, f_climax_pos, f_direction, f_harmonic_variety, f_fast_density, f_dur_variety, f_scalic) + f_head_ivs + f_tail_ivs
+    # density trajectory (SUB-2)
+    f_density_traj: float = (
+        _density_trajectory(dur_indices=dur_indices, head_n=head_n)
+        if head_n > 0
+        else 0.0
+    )
+    return (f_range, f_climax_pos, f_direction, f_harmonic_variety, f_fast_density, f_dur_variety, f_scalic, f_density_traj) + f_head_ivs + f_tail_ivs

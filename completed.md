@@ -1,5 +1,32 @@
 # Completed
 
+## SUB-2b: Density trajectory tuning (2026-02-27)
+
+Filtered equal note-count splits (MIN_NOTE_COUNT_DIFFERENCE=2) in
+`_valid_note_splits` to eliminate 6+6 splits producing zero trajectory.
+Increased W_DENSITY_TRAJECTORY from 2.0 to 3.0. All 10 generated subjects
+now have nonzero density trajectory; 5/10 above 30%, 5/10 at ~29%.
+Both sparse->dense and dense->sparse directions represented.
+
+## SUB-2: Segment-level rhythmic density (2026-02-27)
+
+Moved density from SubjectVocabulary to SegmentSpec so head and tail
+segments get independent density settings. Plan generator now enumerates
+contrasting (head_density, tail_density) pairs. Added _density_trajectory
+scoring criterion (W=2.0) rewarding measurable density shift between
+segments. Threaded head_n through score_subject and subject_features.
+Reduced W_REPETITION_PENALTY from 1.0 to 0.5 (interim, pending SUB-3).
+Deleted legacy flat-enumeration selector code; selector.py now delegates
+to planned_selector.py.
+
+**Bob's verdict:** 5 of 10 subjects show audible density shift (3
+sparse-to-dense, 2 dense-to-sparse). Both trajectory directions present.
+3 subjects have zero trajectory due to equal head/tail note counts.
+
+**Open:** W_DENSITY_TRAJECTORY needs tuning upward (3.5-4.0) to exclude
+zero-trajectory subjects. All subjects converge to 12 notes (variety
+issue, not SUB-2 regression).
+
 ## SUB-1: Fix tonal answer generation (2026-02-27)
 
 Fixed double-transposition bug in tonal answer generator. Swapped

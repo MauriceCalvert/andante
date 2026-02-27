@@ -1,14 +1,15 @@
 subject:
   degrees:
-  - 0
-  - -1
-  - 0
-  - 1
-  - 2
   - 4
   - 3
+  - 2
   - 1
-  - -1
+  - 2
+  - 0
+  - -2
+  - -4
+  - -2
+  - -4
   - -3
   durations:
   - 0.0625
@@ -18,25 +19,27 @@ subject:
   - 0.25
   - 0.25
   - 0.25
-  - 0.5
+  - 0.25
+  - 0.25
   - 0.25
   - 0.25
   mode: major
   bars: 2
-  head_name: arch
+  head_name: descending
   leap_size: 2
-  leap_direction: up
+  leap_direction: down
 answer:
   degrees:
-  - 4
-  - 2
-  - 4
+  - 7
+  - 7
+  - 6
   - 5
   - 6
-  - 7
-  - 7
-  - 5
-  - 2
+  - 4
+  - 1
+  - 0
+  - 1
+  - 0
   - 0
   durations:
   - 0.0625
@@ -46,33 +49,35 @@ answer:
   - 0.25
   - 0.25
   - 0.25
-  - 0.5
+  - 0.25
+  - 0.25
   - 0.25
   - 0.25
   type: tonal
   mutation_points:
   - 0
-  - 1
-  - 4
   - 5
+  - 6
   - 7
+  - 8
+  - 9
 countersubject:
   degrees:
-  - -2
+  - -5
   - -3
   - -7
-  - -8
-  - -8
+  - -5
+  - -5
+  - -4
+  - -3
+  - -2
+  - -2
+  - -4
   - -6
   - -2
-  - -1
-  - -8
-  - -10
-  - -8
-  - -6
-  - -6
+  - -2
   - -5
-  - -1
+  - -8
   durations:
   - 0.25
   - 0.125
@@ -96,57 +101,65 @@ countersubject:
   - 5
   - 5
   - 2
-  - 5
+  - 1
+  - 2
   - 2
   - 2
   - 4
   - 2
-  - 5
-  - 5
   - 2
   - 2
+  - 5
+  inversion_distance: 7
 metadata:
   metre:
   - 4
   - 4
   tonic: C
   tonic_midi: 72
-  seed: 84
+  seed: 9
 inversion:
   degrees:
-  - 0
-  - 1
-  - 0
-  - -1
-  - -2
-  - -4
-  - -3
-  - -1
-  - 1
-  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 6
+  - 8
+  - 10
+  - 12
+  - 10
+  - 12
+  - 11
 stretto:
+- offset_slots: 4
+  consonant: 7/10
+  dissonance_cost: 9
+  quality: 0.7
 - offset_slots: 8
-  consonant: 8/9
-  dissonance_cost: 4
-  quality: 0.89
-inversion_stretto: []
+  consonant: 7/9
+  dissonance_cost: 5
+  quality: 0.78
+inversion_stretto:
+- offset_beats: 7.25
+  quality: 0.67
 countersubject_2:
   degrees:
-  - -2
+  - -5
   - -3
   - -7
-  - -10
-  - -8
-  - -6
-  - -2
-  - -1
-  - -3
-  - -4
-  - -8
-  - -6
-  - -8
   - -5
-  - -1
+  - -7
+  - -6
+  - -4
+  - -2
+  - -4
+  - -7
+  - -4
+  - -2
+  - -4
+  - -5
+  - -8
   durations:
   - 0.25
   - 0.125
@@ -167,16 +180,16 @@ countersubject_2:
   - 2
   - 5
   - 2
+  - 5
   - 0
-  - 5
-  - 2
-  - 5
-  - 2
   - 4
+  - 2
+  - 2
+  - 0
   - 5
   - 2
-  - 5
+  - 2
   - 0
   - 2
-  - 2
+  - 5
   inversion_distance: 9

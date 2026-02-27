@@ -177,10 +177,11 @@ def select_planned_subjects(
     if verbose:
         print(f"  {len(all_plans):,} plans generated")
     # ── Group plans by rhythm key ────────────────────────────────
-    # Dimensions that affect rhythm/pitch: (cells, density, head_n, tail_n).
+    # Dimensions that affect rhythm/pitch: (cells, head_density,
+    # tail_density, head_n, tail_n).
     # Dimensions that only affect contour filter: motion, sig_interval,
-    # head_contour, tail_contour.  Grouping avoids 48× redundant work.
-    _RhythmKey = tuple[tuple[str, ...], str, int, int]
+    # head_contour, tail_contour.  Grouping avoids redundant work.
+    _RhythmKey = tuple[tuple[str, ...], str, str, int, int]
     rhythm_groups: dict[
         _RhythmKey,
         list[SubjectPlan],
@@ -188,7 +189,8 @@ def select_planned_subjects(
     for plan in all_plans:
         rk: _RhythmKey = (
             plan.vocabulary.cells,
-            plan.vocabulary.density,
+            plan.head.density,
+            plan.tail.density,
             plan.head.n_notes,
             plan.tail.n_notes,
         )
@@ -196,29 +198,30 @@ def select_planned_subjects(
     if verbose:
         print(f"  {len(rhythm_groups):,} rhythm groups")
     # ── Realise groups into candidates ──────────────────────────
-    pool: list[tuple[_ScoredPitch, tuple[int, ...]]] = []
+    pool: list[tuple[_ScoredPitch, tuple[int, ...], int]] = []
     seen_sequences: set[tuple[tuple[int, ...], tuple[int, ...]]] = set()
     groups_with_rhythm: int = 0
     groups_with_pitches: int = 0
     head_tick_budget: int = bar_ticks  # head = bar 1
     tail_tick_budget: int = total_ticks - head_tick_budget  # tail = bar 2
-    for (cell_names, density, head_n, tail_n), plan_group in rhythm_groups.items():
-        scales: tuple[int, ...] = _DENSITY_SCALES[density]
-        # Head rhythms.
+    for (cell_names, head_density, tail_density, head_n, tail_n), plan_group in rhythm_groups.items():
+        head_scales: tuple[int, ...] = _DENSITY_SCALES[head_density]
+        tail_scales: tuple[int, ...] = _DENSITY_SCALES[tail_density]
+        # Head rhythms (per-segment density, SUB-2).
         head_rhythms = _cached_segment_rhythms(
             cell_names=cell_names,
             n_notes=head_n,
             total_ticks=head_tick_budget,
-            allowed_scales=scales,
+            allowed_scales=head_scales,
         )
         if not head_rhythms:
             continue
-        # Tail rhythms.
+        # Tail rhythms (per-segment density, SUB-2).
         tail_rhythms = _cached_segment_rhythms(
             cell_names=cell_names,
             n_notes=tail_n,
             total_ticks=tail_tick_budget,
-            allowed_scales=scales,
+            allowed_scales=tail_scales,
         )
         if not tail_rhythms:
             continue
@@ -233,6 +236,8 @@ def select_planned_subjects(
                 ):
                     continue
                 combined_indices: tuple[int, ...] = h_indices + t_indices
+                if DURATION_TICKS[combined_indices[-1]] < DURATION_TICKS[combined_indices[-2]]:
+                    continue
                 combined_cells: tuple[Cell, ...] = h_cells + t_cells
                 pairings.append((combined_indices, combined_cells))
                 if len(pairings) >= MAX_RHYTHM_PAIRINGS_PER_PLAN:
@@ -276,7 +281,7 @@ def select_planned_subjects(
                         signature_interval=sig_iv,
                     ):
                         seen_sequences.add(dedup_key)
-                        pool.append((sp, combined_indices))
+                        pool.append((sp, combined_indices, head_n))
                         break
     if verbose:
         print(f"  Groups with rhythm: {groups_with_rhythm:,}")
@@ -288,7 +293,7 @@ def select_planned_subjects(
         return []
     # ── Octave dedup ────────────────────────────────────────────
     pitch_best: dict[tuple[int, ...], int] = {}
-    for pi, (sp, _) in enumerate(pool):
+    for pi, (sp, _, _hn) in enumerate(pool):
         mod_key: tuple[int, ...] = tuple(d % DEGREES_PER_OCTAVE for d in sp.degrees)
         if mod_key not in pitch_best:
             pitch_best[mod_key] = pi
@@ -304,7 +309,7 @@ def select_planned_subjects(
     ] = loaded if isinstance(loaded, dict) else {}
     uncached_items: list[tuple[tuple[int, ...], tuple[int, ...]]] = []
     uncached_keys: list[tuple[tuple[int, ...], tuple[int, ...]]] = []
-    for sp, dur_indices in pool:
+    for sp, dur_indices, _hn in pool:
         dur_slots = tuple(DURATION_TICKS[d] for d in dur_indices)
         cache_key = (sp.degrees, dur_indices)
         if cache_key not in stretto_cache:
@@ -336,7 +341,7 @@ def select_planned_subjects(
     ] = loaded_inv if isinstance(loaded_inv, dict) else {}
     inv_uncached_items: list[tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]] = []
     inv_uncached_keys: list[tuple[tuple[int, ...], tuple[int, ...]]] = []
-    for sp, dur_indices in pool:
+    for sp, dur_indices, _hn in pool:
         dur_slots = tuple(DURATION_TICKS[d] for d in dur_indices)
         cache_key = (sp.degrees, dur_indices)
         if cache_key not in inv_stretto_cache:
@@ -359,7 +364,7 @@ def select_planned_subjects(
         _save_cache(inv_cache_name, inv_stretto_cache)
     # ── Score all candidates ────────────────────────────────────
     scored: list[tuple[float, int, _ScoredPitch, tuple[int, ...], tuple[OffsetResult, ...], tuple[OffsetResult, ...], tuple[float, ...]]] = []
-    for sp, dur_indices in pool:
+    for sp, dur_indices, pool_head_n in pool:
         cache_key = (sp.degrees, dur_indices)
         viable_offsets = stretto_cache[cache_key]
         inv_offsets = inv_stretto_cache.get(cache_key, ())
@@ -370,6 +375,7 @@ def select_planned_subjects(
             degrees=sp.degrees,
             ivs=sp.ivs,
             dur_indices=dur_indices,
+            head_n=pool_head_n,
         )
         if aesthetic < MIN_AESTHETIC_SCORE:
             continue
@@ -379,6 +385,7 @@ def select_planned_subjects(
             degrees=sp.degrees,
             ivs=sp.ivs,
             dur_indices=dur_indices,
+            head_n=pool_head_n,
         )
         scored.append((aesthetic, min_offset, sp, dur_indices, viable_offsets, inv_offsets, features))
     scored.sort(key=lambda x: (-x[0], x[1]))

@@ -44,6 +44,7 @@ _ARPEGGIO_CELLS: frozenset[str] = frozenset({"spondee"})
 MIN_HEAD_NOTES: int = 4
 MAX_HEAD_NOTES: int = 7
 MIN_TAIL_NOTES: int = 3
+MIN_NOTE_COUNT_DIFFERENCE: int = 2
 
 # ── Contrasting contour pairs ────────────────────────────────────────
 # For each head contour, which tail contours provide contrast.
@@ -81,12 +82,8 @@ class SubjectVocabulary:
     cells: tuple[str, ...]
     signature_interval: int
     motion: str
-    density: str
 
-    @property
-    def allowed_scales(self) -> tuple[int, ...]:
-        """Which scale factors are available for this density."""
-        return _DENSITY_SCALES[self.density]
+    # density removed — now lives on SegmentSpec (SUB-2)
 
 
 @dataclass(frozen=True)
@@ -96,10 +93,19 @@ class SegmentSpec:
     n_notes: int
     contour: str
     must_have_signature: bool
+    density: str
+
+    @property
+    def allowed_scales(self) -> tuple[int, ...]:
+        """Which scale factors are available for this density."""
+        return _DENSITY_SCALES[self.density]
 
     def __post_init__(self) -> None:
         assert self.contour in CONTOURS, (
             f"contour must be one of {CONTOURS}, got {self.contour!r}"
+        )
+        assert self.density in ALL_DENSITIES, (
+            f"density must be one of {ALL_DENSITIES}, got {self.density!r}"
         )
 
 
@@ -149,7 +155,7 @@ def _valid_note_splits(
     splits: list[tuple[int, int]] = []
     for head_n in range(MIN_HEAD_NOTES, MAX_HEAD_NOTES + 1):
         tail_n: int = total_notes - head_n
-        if tail_n >= MIN_TAIL_NOTES:
+        if tail_n >= MIN_TAIL_NOTES and abs(head_n - tail_n) >= MIN_NOTE_COUNT_DIFFERENCE:
             splits.append((head_n, tail_n))
     return splits
 
@@ -182,32 +188,36 @@ def generate_plans(
             if not _is_valid_vocabulary(cell_names=cell_names, motion=motion):
                 continue
             for sig_interval in SIGNATURE_INTERVALS:
-                for density in ALL_DENSITIES:
-                    vocab = SubjectVocabulary(
-                        cells=cell_names,
-                        signature_interval=sig_interval,
-                        motion=motion,
-                        density=density,
-                    )
-                    for total_n in total_notes_range:
-                        for head_n, tail_n in _valid_note_splits(total_n):
-                            for head_contour in CONTOURS:
-                                for tail_contour in _CONTOUR_CONTRAST[head_contour]:
-                                    head = SegmentSpec(
-                                        n_notes=head_n,
-                                        contour=head_contour,
-                                        must_have_signature=True,
-                                    )
-                                    tail = SegmentSpec(
-                                        n_notes=tail_n,
-                                        contour=tail_contour,
-                                        must_have_signature=False,
-                                    )
-                                    plans.append(SubjectPlan(
-                                        vocabulary=vocab,
-                                        head=head,
-                                        tail=tail,
-                                    ))
+                vocab = SubjectVocabulary(
+                    cells=cell_names,
+                    signature_interval=sig_interval,
+                    motion=motion,
+                )
+                for head_density in ALL_DENSITIES:
+                    for tail_density in ALL_DENSITIES:
+                        if head_density == tail_density:
+                            continue  # SUB-2: force density contrast
+                        for total_n in total_notes_range:
+                            for head_n, tail_n in _valid_note_splits(total_n):
+                                for head_contour in CONTOURS:
+                                    for tail_contour in _CONTOUR_CONTRAST[head_contour]:
+                                        head = SegmentSpec(
+                                            n_notes=head_n,
+                                            contour=head_contour,
+                                            must_have_signature=True,
+                                            density=head_density,
+                                        )
+                                        tail = SegmentSpec(
+                                            n_notes=tail_n,
+                                            contour=tail_contour,
+                                            must_have_signature=False,
+                                            density=tail_density,
+                                        )
+                                        plans.append(SubjectPlan(
+                                            vocabulary=vocab,
+                                            head=head,
+                                            tail=tail,
+                                        ))
 
     logger.info(
         "generate_plans: %d plans from %d vocabularies",

@@ -53,10 +53,11 @@ MIN_DIVERSITY_DISTANCE: float = 1.0   # minimum feature-space distance to accept
 # ── Aesthetic scoring weights (each criterion 0-1, weighted sum) ────
 W_RANGE: float = 1.0                 # reward subjects that use a good melodic range
 W_DIRECTION_COMMITMENT: float = 1.0  # reward clear directional arcs
-W_REPETITION_PENALTY: float = 1.0   # penalise exact pitch-class repetition
+W_REPETITION_PENALTY: float = 0.5   # penalise exact pitch-class repetition (reduced SUB-2, pending SUB-3)
 W_HARMONIC_VARIETY: float = 1.0     # reward subjects that touch multiple chords
 W_FAST_NOTE_DENSITY: float = 1.0    # reward semiquaver presence
 W_DURATION_VARIETY: float = 1.0     # reward using multiple distinct note values
 W_SCALIC_MONOTONY: float = 2.5      # penalise overwhelmingly stepwise subjects
 W_HEAD_CHARACTER: float = 1.5       # reward a characteristic leap in the Kopfmotiv
 W_TAIL_MOMENTUM: float = 2.0        # penalise consecutive long notes at subject end
+W_DENSITY_TRAJECTORY: float = 3.0   # reward measurable density shift between head and tail (SUB-2)
