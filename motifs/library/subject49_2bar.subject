@@ -30,17 +30,17 @@ subject:
   leap_direction: up
 answer:
   degrees:
-  - 3
-  - 4
-  - 8
-  - 6
-  - 3
-  - 2
-  - 3
   - 4
   - 5
-  - 9
+  - 7
+  - 7
+  - 4
+  - 1
+  - 2
+  - 5
+  - 6
   - 8
+  - 7
   durations:
   - 0.25
   - 0.25

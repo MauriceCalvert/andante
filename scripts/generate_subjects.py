@@ -422,6 +422,61 @@ def patch_library_files(verbose: bool = False) -> None:
             print(f"[patch] {path.name}: CS2 added ({len(cs2.scale_indices)} notes)")
 
 
+def patch_library_answers(verbose: bool = False) -> None:
+    """Rebuild the answer section in all library .subject files.
+
+    Loads each file, extracts subject degrees/mode/tonic_midi,
+    calls generate_answer() with the corrected transposition constants,
+    and overwrites just the answer degrees and mutation_points.
+    All other sections are left untouched.
+    """
+    from motifs.answer_generator import generate_answer
+
+    library_dir = Path(__file__).parent.parent / "motifs" / "library"
+    subject_files = sorted(library_dir.glob("*.subject"))
+    assert subject_files, f"No .subject files found in {library_dir}"
+
+    for path in subject_files:
+        with open(path, encoding="utf-8") as f:
+            data: dict = yaml.safe_load(f)
+
+        subj_data: dict = data["subject"]
+        meta: dict = data["metadata"]
+
+        degrees: tuple[int, ...] = tuple(subj_data["degrees"])
+        durations: tuple[float, ...] = tuple(float(d) for d in subj_data["durations"])
+        mode: str = subj_data["mode"]
+        tonic_midi: int = int(meta["tonic_midi"])
+
+        midi_pitches = degrees_to_midi(degrees=degrees, tonic_midi=tonic_midi, mode=mode)
+
+        subject_shim = GeneratedSubject(
+            scale_indices=degrees,
+            durations=durations,
+            midi_pitches=midi_pitches,
+            bars=int(subj_data["bars"]),
+            score=0.0,
+            seed=int(meta["seed"]),
+            mode=mode,
+            head_name=subj_data["head_name"],
+            leap_size=int(subj_data["leap_size"]),
+            leap_direction=subj_data["leap_direction"],
+            tail_direction="",
+        )
+
+        answer = generate_answer(subject=subject_shim, tonic_midi=tonic_midi)
+
+        old_degrees = data["answer"]["degrees"]
+        data["answer"]["degrees"] = list(answer.scale_indices)
+        data["answer"]["mutation_points"] = list(answer.mutation_points)
+
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+        if verbose:
+            print(f"[patch-answers] {path.name}: degrees {old_degrees} -> {list(answer.scale_indices)}")
+
+
 def main() -> None:
     """Generate subjects and write to .midi and .note files."""
     import argparse
@@ -457,8 +512,13 @@ def main() -> None:
                         help="Print details")
     parser.add_argument("--patch-library", action="store_true",
                         help="Patch library .subject files to add countersubject_2 at distance 9")
+    parser.add_argument("--patch-answers", action="store_true",
+                        help="Rebuild answer section in all library .subject files")
     args = parser.parse_args()
 
+    if args.patch_answers:
+        patch_library_answers(verbose=args.verbose)
+        return
     if args.patch_library:
         patch_library_files(verbose=args.verbose)
         return

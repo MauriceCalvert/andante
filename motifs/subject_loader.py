@@ -95,12 +95,15 @@ class SubjectTriple:
         )
 
     def answer_midi(self, tonic_midi: int | None = None) -> tuple[int, ...]:
-        """Get answer as MIDI pitches (in dominant key)."""
+        """Get answer as MIDI pitches.
+
+        Answer degrees already encode the tonal transposition;
+        render at tonic, not dominant.
+        """
         midi = tonic_midi if tonic_midi is not None else self.tonic_midi
-        dominant_midi = midi + 7
         return degrees_to_midi(
             degrees=self.answer.degrees,
-            tonic_midi=dominant_midi,
+            tonic_midi=midi,
             mode=self.subject.mode,
         )
 

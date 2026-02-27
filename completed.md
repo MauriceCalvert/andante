@@ -1,5 +1,18 @@
 # Completed
 
+## SUB-1: Fix tonal answer generation (2026-02-27)
+
+Fixed double-transposition bug in tonal answer generator. Swapped
+TONIC_TRANSPOSITION (3->4) and DOMINANT_TRANSPOSITION (4->3) in
+`motifs/answer_generator.py`. Removed +7 from `answer_midi()` in
+`motifs/subject_loader.py` — answer degrees already encode the tonal
+transposition, so rendering at tonic+7 was double-transposing. Updated
+stale comment in `builder/thematic_renderer.py:66`. Added
+`patch_library_answers()` to `scripts/generate_subjects.py` with
+`--patch-answers` CLI flag. Regenerated all output and library .subject
+files. Tonic-region notes now answered at P5 (7 semitones), dominant-region
+at P4 (5 semitones) — textbook tonal answer.
+
 ## EPI-2b: Fragen fallback retry (2026-02-27)
 
 Added `_FRAGEN_MAX_RETRIES = 3` and retry loop to `builder/phrase_writer.py`.

@@ -4,10 +4,11 @@ Conductor reads at chat start.
 
 ---
 
-## Now: EPI-2b — Fragen fallback retry
+## Now: SUB-1 — Fix tonal answer generation
 
-Retry up to 3 alternative fragments before falling back to per-voice
-episode rendering. Eliminates dead/independent-voice episodes.
+Answer generator double-transposes: constants are swapped and
+`answer_midi()` renders at tonic+7 when degrees already encode
+the transposition. Fix constants, fix rendering, regenerate .subject files.
 
 ---
 
@@ -45,8 +46,8 @@ Order matters: cadences and harmony feed into everything downstream.
 
 5. **EPI-2 — Episode variety**
    - ~~EPI-2a: Cell vocabulary expansion (diminution + cross-source pairing)~~ _(done)_
-   - EPI-2b: Fragen fallback retry
-   - EPI-2c: Episode character arc (provider-level position weighting)
+   - ~~EPI-2b: Fragen fallback retry~~ _(done)_
+   - EPI-2c: Episode character arc (position weighting + density/octave-doubling filters)
 
 6. **ORN — Compositional ornaments**
    Mordents, trills, turns, appoggiaturas placed by structural context

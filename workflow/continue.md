@@ -1,39 +1,38 @@
-# Continue — EPI-2a: Cell vocabulary expansion
+# Continue — SUB-1: Fix tonal answer generation
 
-## Status: task.md issued. Awaiting "go" in Claude Code.
+## Status: task.md issued, Claude Code running.
 
 ## Context
 
-HRL block complete (HRL-3 through HRL-7). EPI-1 done (variable-length
-episodes, 42 bars, 5 episodes). All episodes sound alike because the cell
-vocabulary is too narrow — all drawn from same subject head/tail cells.
+EPI-2b complete. All 5 episodes render via fragen (zero fallbacks). Bars 28–30
+still have sparse parallel-octave texture (7 notes/voice vs 13–14 elsewhere) —
+this is a fragment quality issue for EPI-2c, not a retry issue.
 
-EPI-2 split into three sub-phases:
-- **EPI-2a** (now): Widen vocabulary with diminution + cross-source pairing
-- **EPI-2b** (next): Fix fragen fallback (retry + minimal sequential)
-- **EPI-2c** (stretch): Episode character arc (position-aware selection)
+SUB-1 is a code-fix task, not a musical design task. The answer generator has
+two bugs:
+1. TONIC_TRANSPOSITION and DOMINANT_TRANSPOSITION constants are swapped.
+2. `answer_midi()` renders at tonic+7, double-transposing (degrees already
+   encode the shift).
 
-## What EPI-2a does
+## What SUB-1 does
 
-1. Adds `_diminish(cell)` — halves all durations, discards if any < 1/16
-2. Expands `extract_cells` to include diminished variants of all cells
-3. Adds cross-source pairing in `build_fragments` — head×tail, answer×cs
-4. Caps cross-source pairs at 200 to prevent combinatorial explosion
-
-All changes in `motifs/fragen.py` only. No pipeline integration changes.
+- Swaps constants in `motifs/answer_generator.py` (TONIC=4, DOMINANT=3)
+- Removes +7 from `answer_midi()` in `motifs/subject_loader.py`
+- Updates stale comment in `builder/thematic_renderer.py:66`
+- Regenerates all .subject files (output/ and library/)
 
 ## What to do next
 
 1. Read `workflow/result.md`
-2. Evaluate: catalogue should be at least 2× larger. At least 10 diminished
-   and 10 cross-source fragments should survive consonance checking.
-3. Run pipeline — fault count should be unchanged.
-4. If pass: update completed.md, todo.md, continue.md
-5. Listen to MIDI — episodes may already sound more varied (provider has
-   more diverse material to choose from).
+2. Verify: for any subject, tonic-region notes should be P5 (7 semitones)
+   above subject, dominant-region notes P4 (5 semitones) above.
+3. Run pipeline, listen to MIDI — answer entries should sound like a proper
+   tonal answer (5→1 mapping at mutation point), not a mangled real answer.
+4. `_fit_shift` in imitation.py may now apply smaller octave corrections
+   (or none) since raw pitches are closer to correct register.
 
-## After EPI-2a
+## After SUB-1
 
-EPI-2b: fragen fallback retry. When `realise_to_notes` returns None, try
-up to 3 alternative fragments before falling through to static half-notes.
-If all fail, generate a minimal stepwise sequential fallback.
+EPI-2c: episode character arc — position-aware selection + minimum note
+density filter + octave-doubling rejection in FragenProvider. Addresses
+the bars 28–30 sparsity/parallel-octave issue.

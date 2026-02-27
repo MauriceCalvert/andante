@@ -5,9 +5,9 @@ Real answers are forbidden — all answers are tonal.
 
 Tonal mutation rule (per-note):
 - Subject notes in the tonic region (scale degrees 1,2,3,4 = indices 0,1,2,3)
-  transpose up a 4th (+ 3 scale degrees).
-- Subject notes in the dominant region (scale degrees 5,6,7 = indices 4,5,6)
   transpose up a 5th (+ 4 scale degrees).
+- Subject notes in the dominant region (scale degrees 5,6,7 = indices 4,5,6)
+  transpose up a 4th (+ 3 scale degrees).
 
 This produces the standard tonal answer where 1↔5 and the surrounding
 notes warp accordingly. The answer is notated in the tonic key, not the
@@ -21,8 +21,8 @@ from dataclasses import dataclass
 from motifs.head_generator import degrees_to_midi
 from motifs.subject_gen import GeneratedSubject
 
-TONIC_TRANSPOSITION = 3      # Tonic region notes: up a 4th
-DOMINANT_TRANSPOSITION = 4   # Dominant region notes: up a 5th
+TONIC_TRANSPOSITION = 4      # Tonic region notes: up a 5th
+DOMINANT_TRANSPOSITION = 3   # Dominant region notes: up a 4th
 
 @dataclass(frozen=True)
 class GeneratedAnswer:
