@@ -4,11 +4,10 @@ Conductor reads at chat start.
 
 ---
 
-## Now: EPI-2a — Cell vocabulary expansion
+## Now: EPI-2b — Fragen fallback retry
 
-Add rhythmic diminution and cross-source pairing to fragen cell
-vocabulary. Triples the fragment catalogue so five episodes can
-each sound perceptually distinct.
+Retry up to 3 alternative fragments before falling back to per-voice
+episode rendering. Eliminates dead/independent-voice episodes.
 
 ---
 
@@ -45,8 +44,8 @@ Order matters: cadences and harmony feed into everything downstream.
    - Mechanical figuration (invention bars 11–16, fantasia 1–13)
 
 5. **EPI-2 — Episode variety**
-   - EPI-2a: Cell vocabulary expansion (diminution + cross-source pairing)
-   - EPI-2b: Fragen fallback retry + minimal sequential fallback
+   - ~~EPI-2a: Cell vocabulary expansion (diminution + cross-source pairing)~~ _(done)_
+   - EPI-2b: Fragen fallback retry
    - EPI-2c: Episode character arc (provider-level position weighting)
 
 6. **ORN — Compositional ornaments**
@@ -123,6 +122,11 @@ Updated after each phase completes.
 ### From HRL-6 (secondary dominants)
 - V/V and V/vi code paths not exercised in invention layout — all free fills are 1–2 bars, below the 3-bar threshold for V/V and 5-bar threshold for V/vi → will first be audible in genres with longer free-fill episodes, or after EPI-1 lengthens episodes
 - No secondary dominants beyond V/V and V/vi → future: V/ii, V/IV etc.
+
+### From EPI-2a (cell vocabulary expansion)
+- Dedup by rhythm class is very coarse (4 bins) — cross-source and diminished fragments collapse against existing same-source fragments, limiting perceptual variety → future: finer-grained dedup or position-aware selection (EPI-2c)
+- No position-aware selection — provider deploys material by novelty, not episode position → roadmap: EPI-2c
+- Diminished cells that chain into bars may dedup against original-speed chains with same rhythm profile → future: dedup refinement
 
 ### From EPI-1 (inter-entry episodes)
 - Fragen fallback at bars 28–30: `realise_to_notes` returned None in E minor, producing static half-notes instead of sequential fragments → future: widen fragen start search or add fallback sequential generator

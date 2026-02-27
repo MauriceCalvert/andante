@@ -33,6 +33,8 @@ from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
 
 _log: logging.Logger = logging.getLogger(__name__)
 
+_FRAGEN_MAX_RETRIES: int = 3
+
 # Implied harmonic progression above dominant pedal (2 bars, 4/4).
 # Each entry: (bar_offset 0-based, beat_offset 0-based, chord_root_degree).
 # bar_offset 0 = bar 1; beat_offset 0 = beat 1, 2 = beat 3 (half-bar divisions).
@@ -297,17 +299,17 @@ def _write_thematic(
             first_bar_role: BeatRole = beat_role_v0 if lead_voice_idx == 0 else beat_role_v1
             step: int = 1 if first_bar_role.fragment_iteration > 0 else -1
 
-            # Select fragment via provider
-            selected: Fragment | None = None
-            if fragen_provider is not None:
-                selected = fragen_provider.get_fragment(
+            # Select fragment via provider — retry on realisation failure
+            episode_key: Key = beat_role_v0.material_key
+            episode_notes: list[Note] | None = None
+            for _fragen_attempt in range(_FRAGEN_MAX_RETRIES + 1):
+                selected: Fragment | None = fragen_provider.get_fragment(
                     leader_voice=leader_fragen,
                     step=step,
-                )
-
-            if selected is not None:
-                episode_key: Key = beat_role_v0.material_key
-                episode_notes: list[Note] | None = realise_to_notes(
+                ) if fragen_provider is not None else None
+                if selected is None:
+                    break  # provider exhausted
+                episode_notes = realise_to_notes(
                     fragment=selected,
                     n_bars=entry_bar_count,
                     step=step,
@@ -317,8 +319,12 @@ def _write_thematic(
                     prior_upper_pitch=soprano_notes[-1].pitch if soprano_notes else None,
                     prior_lower_pitch=bass_notes[-1].pitch if bass_notes else None,
                 )
-            else:
-                episode_notes = None
+                if episode_notes is not None:
+                    break  # success
+                _log.info(
+                    "Fragen retry %d/%d at bar %d: fragment did not fit, trying next",
+                    _fragen_attempt + 1, _FRAGEN_MAX_RETRIES, entry_first_bar,
+                )
 
             if episode_notes is not None:
                 # Partition into soprano and bass
