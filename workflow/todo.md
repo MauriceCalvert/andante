@@ -4,9 +4,11 @@ Conductor reads at chat start.
 
 ---
 
-## Now: CLR-2
+## Now: EPI-2a — Cell vocabulary expansion
 
-Internal section cadences (half cadences at section boundaries).
+Add rhythmic diminution and cross-source pairing to fragen cell
+vocabulary. Triples the fragment catalogue so five episodes can
+each sound perceptually distinct.
 
 ---
 
@@ -17,18 +19,18 @@ Internal section cadences (half cadences at section boundaries).
 Everything here strengthens the musical language before adding voices.
 Order matters: cadences and harmony feed into everything downstream.
 
-1. **CLR — Cadence reform**
+1. **CLR — Cadence reform** _(done)_
    - ~~CLR-1: Dynamic cadence type from YAML~~ _(done)_
-   - CLR-2: Internal section cadences (half cadences at section boundaries)
-   - CLR-3: New templates (grand cadence, cadenza doppia) — 4/4 only, 3/4 covered by galant
-   - CLR-4: Cadence breath rests (non-final phrases)
+   - ~~CLR-2: Internal section cadences~~ _(done)_
+   - ~~CLR-3: New templates (grand cadence, cadenza doppia)~~ _(done)_
+   - ~~CLR-4: Cadence breath rests~~ _(already implemented in cadence_writer.py)_
 
-2. **HRL — Harmonic language** (Phases 2–6)
-   - Harmonic interpolation (fill between structural chords)
-   - Cadential acceleration (harmonic rhythm speeds near cadence)
-   - Chord inversions (6/3, 6/4 passing)
-   - Secondary dominants (V/V, V/vi)
-   - Note writer enrichment (figured bass numerals)
+2. **HRL — Harmonic language** _(done)_
+   - ~~HRL-3: Stock harmonic grid for thematic fills~~ _(done)_
+   - ~~HRL-4: Cadential acceleration (ii→V in final bar)~~ _(done)_
+   - ~~Chord inversions (6/3 passing)~~ _(done — HRL-5)_
+   - ~~Secondary dominants (V/V, V/vi)~~ _(done — HRL-6)_
+   - ~~Note writer enrichment (figured bass numerals)~~ _(done — HRL-7)_
 
 3. **SUB — Subject generator reform**
    - Tonal answers (currently real only)
@@ -42,7 +44,12 @@ Order matters: cadences and harmony feed into everything downstream.
    - Mixed-rhythm semiquaver templates
    - Mechanical figuration (invention bars 11–16, fantasia 1–13)
 
-5. **ORN — Compositional ornaments**
+5. **EPI-2 — Episode variety**
+   - EPI-2a: Cell vocabulary expansion (diminution + cross-source pairing)
+   - EPI-2b: Fragen fallback retry + minimal sequential fallback
+   - EPI-2c: Episode character arc (provider-level position weighting)
+
+6. **ORN — Compositional ornaments**
    Mordents, trills, turns, appoggiaturas placed by structural context
    (downbeat emphasis, cadential trill, neighbour-tone decoration).
    Not performance ornaments — ink-on-paper decisions (cf. Bach's
@@ -90,6 +97,50 @@ Full 4-voice fugue with SATB exposition, episodes, stretto.
    - Barré (long pedal with activity above)
    - False entries
    - Tonal answer in 4-voice context
+
+---
+
+## Known Limitations (from briefs)
+
+Accumulated unresolved limitations. Cross-referenced to roadmap where applicable.
+Updated after each phase completes.
+
+### From HRL-3 (stock harmonic grid)
+- Stock progressions are generic (I→IV→V / i→iv→V) regardless of subject contour → future: harmonic analysis of fugal subjects
+- No section sensitivity — same stock progression in exposition, development, peroration → future: section-aware harmony
+- ~~No cadential acceleration~~ _(addressed by HRL-4)_
+- ~~No chord inversions — root position only~~ _(addressed by HRL-5)_
+- Cross-relation penalty in Viterbi too low — iv (B♭) in bass against A♮ in soprano at bars 18–19 → future: raise cross-relation cost weight in viterbi evaluator
+- Stretto bars have no harmonic grid (by design) — unprepared dissonances at bars 15, 23, 26 remain → future: harmonic-aware stretto rendering
+
+### From HRL-5 (passing 6/3 chords)
+- Only one passing chord per bar transition; 4th-apart roots still leave a 3rd gap → future: double passing chords
+- No passing 6/4 chords → future: HRL second-inversion passing chords
+- No chromaticism in passing chords → roadmap: HRL-6 secondary dominants
+- Same passing chords in all sections → future: section-aware harmony
+- Soprano sees full chord tones, not inversion-aware voicing → future: soprano inversion awareness
+
+### From HRL-6 (secondary dominants)
+- V/V and V/vi code paths not exercised in invention layout — all free fills are 1–2 bars, below the 3-bar threshold for V/V and 5-bar threshold for V/vi → will first be audible in genres with longer free-fill episodes, or after EPI-1 lengthens episodes
+- No secondary dominants beyond V/V and V/vi → future: V/ii, V/IV etc.
+
+### From EPI-1 (inter-entry episodes)
+- Fragen fallback at bars 28–30: `realise_to_notes` returned None in E minor, producing static half-notes instead of sequential fragments → future: widen fragen start search or add fallback sequential generator
+- Episode variety limited: all episodes draw from same subject head/tail cells, sounding repetitive despite FragenProvider diversity tracking → future: EPI-2 episode variety (melodic inversion, free sequential material, rhythmic diminution)
+- No 4-bar episodes exercised: no key pair in current invention journey exceeds 5 semitones → will appear in genres with wider key journeys
+- Duplicate peroration strettos (bars 32–37): pre-existing, not introduced by EPI-1 → future: stretto variety in peroration
+
+### From earlier phases (recovered)
+- Surface inference assumes soprano/bass pitch = chord root (wrong on 3rds/5ths) → partially addressed by HRL-3 for free_fill; schematic path already has schema harmony
+- CS writer has no harmonic grid — CS Viterbi operates without chord awareness → future: wire harmonic grid into cs_writer
+- Thematic renderer episodes (fragen) have no harmonic constraint → future: harmonic-aware episode generation
+- Pedal harmony is hardcoded for 2-bar 4/4 only; other bar spans/metres fall back to single-knot behaviour → future: generalise pedal harmony
+- Stretto entries share delay values, limiting rhetorical variety in peroration → future: stretto delay diversification
+- Mechanical figuration in invention bars 11–16, fantasia 1–13 → roadmap: MEL
+- (USI-3) 3 ugly_leap faults remain at stretto entries (bars 23/28 beat 1) and peroratio (bar 29 beat 1) — root causes outside sequence_cell_knots → future: stretto voice-leading or entry pitch selection
+- (BM-2) Subject generator: cell patterns DACTYL×4, TIRATA×4 produce 0 results due to structural constraint interaction → future: relax constraints or add intermediate cells
+- (CLR-3) Cadence templates are 4/4 only; 3/4 thematic cadences use galant path → housekeeping: "Thematic cadence bass (3/4)"
+- (ICP-1) Inversion distances limited to 7, 9, 11 — no free-choice distance → minor; sufficient for standard baroque practice
 
 ---
 

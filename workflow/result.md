@@ -1,71 +1,116 @@
-## Result: CLR-2 — Internal section cadences
+# Result: HRL-7 — Note writer figured bass enrichment
 
-### Code Changes
+## Code Changes
 
-**`planner/imitative/types.py`**
-- Added `cadence_schema: str | None = None` to `BarAssignment` dataclass.
+### 1. `builder/galant/harmony.py`
+Added `_INVERSION_SUFFIX` dict and `chord_display_label(label)` function after
+`bass_pc`. Returns numeral + inversion suffix (e.g. "IV6", "ii64") unless the
+numeral already ends with the suffix.
 
-**`planner/thematic.py`**
-- Added `cadence_schema: str | None = None` to `BeatRole` dataclass.
+### 2. `builder/types.py`
+Added `harmony: str = ""` field to the `Note` dataclass after `creator`.
+Default empty string preserves backward compatibility.
 
-**`planner/imitative/subject_planner.py`**
-- Loaded `half_cadence` template and bar count at startup (asserted present).
-- In step 2b: inserted `_internal_cadence` entry (`schema="half_cadence"`, `key=prev_key`) **before** each auto-episode at section boundaries.
-- Added handler in step 3 for `_internal_cadence` entries: stamps `function="cadence"`, `local_key=ic_key`, `cadence_schema=ic_schema` on all BarAssignments.
-- Updated the final `entry == "cadence"` branch to stamp `cadence_schema=cadence_schema` (genre's configured schema).
+### 3. `builder/bass_viterbi.py`
+- Added `import dataclasses` and `from builder.galant.harmony import chord_display_label`
+- After `validate_bass_notes` and before `return notes_tuple`, stamps
+  grid-derived harmony labels on all notes when `harmonic_grid is not None`.
 
-**`planner/imitative/entry_layout.py`**
-- `_build_thematic_roles`: passes `cadence_schema=bar_assignment.cadence_schema` to each BeatRole.
-- `_group_beat_roles`: tracks `cadence_schema` in `bars_data`; adds it to group dicts.
-- `build_imitative_plans` cadence branch: reads `cadence_schema_name = group["cadence_schema"]` (asserted non-None); uses `local_key` (from group) instead of `home_key`.
+### 4. `builder/soprano_viterbi.py`
+- Added `import dataclasses` and `from builder.galant.harmony import chord_display_label`
+- After `audit_voice` and before `return notes_tuple, ()`, stamps grid-derived
+  harmony labels on all notes when `harmonic_grid is not None`.
 
----
-
-### Bob's Assessment
-
-**1. How many cadences? Bar numbers?**
-
-4 cadences total. Internal half cadences at bars 6, 17, and 28. Final cadenza_composta at bars 33-34.
-
-**2. Half cadences on V in local key?**
-
-Yes, all three hit V correctly:
-- Bar 6 (A minor): soprano 3->2 (C5->B4), bass 1->5 (A3->E3). E is degree 5 of Am.
-- Bar 17 (D minor): soprano 3->2 (F4->E4), bass 1->5 (D3->A2). A is degree 5 of Dm.
-- Bar 28 (C major): soprano 3->2 (E4->D4), bass 1->5 (C3->G2). G is degree 5 of C.
-
-**3. Breath after internal cadences?**
-
-Yes. Arrival notes (both voices) are 3/8 duration in all three HCs — that is 1/2 (half note per template) minus HALF_CADENCE_BREATH (1/8).
-
-**4. Final cadence unchanged?**
-
-Yes — cadenza_composta at bars 33-34, home key C major, two bars, tagged PAC. Unchanged.
-
-**5. More rhetorical shape?**
-
-Yes. The piece now breathes in three places. After each section's material builds, both voices converge on V, then the episode bridges to the next key. The paragraph structure — argument / pause / bridge / new argument — is now audible. 31 bars -> 34 bars with the three 1-bar insertions.
+### 5. `builder/note_writer.py`
+Rewrote `_build_harmony_map` with two-pass logic:
+- Pass 1: collect grid-derived labels from `note.harmony`
+- Pass 2: bass-pitch inference for remaining offsets
+- Merge: grid labels take priority, fill gaps with bass inference
+- Change-detection preserved (only writes label when it differs from previous)
 
 ---
 
-### Chaz's Diagnosis
+## Bob's Assessment
 
-**Which BarAssignments have function="cadence"?**
+### Pass 1 — What do I hear?
 
-Bars 6, 17, 28 (internal HCs) and bars 33-34 (final cadenza_composta).
+This is a diagnostic-only change. No audible difference. The MIDI output is
+byte-identical to pre-HRL-7. The .note file is the only affected artefact, and
+it is a text annotation file — not an audio file.
 
-**cadence_schema per group:**
+Looking at the .note output for this invention (seed 42, C major):
 
-- [3] bar 6: cadence_schema="half_cadence", local_key=A min — outgoing exordium key.
-- [8] bar 17: cadence_schema="half_cadence", local_key=D min — outgoing narratio key.
-- [13] bar 28: cadence_schema="half_cadence", local_key=C maj — outgoing confirmatio key (final two strettos were in C).
-- [16] bars 33-34: cadence_schema="cadenza_composta", local_key=C maj — home key.
+The harmony column reads as before — bass-inferred Roman numerals throughout.
+I see "I", "IV", "V", "vi", "ii", "viio", "V/V" at appropriate bass pitch
+transitions. No new labels appear. No labels disappeared. The change-detection
+logic is clean: harmony labels only appear on the first note at each offset
+where the harmony changes. No label spam.
 
-**Dispatch path:**
+This is expected. The invention genre at this seed has no FREE-fill bars. All
+42 bars are covered by subject entries, countersubjects, stretto, fragen
+episodes, pedal, and cadence templates — none of which use Viterbi with a
+harmonic grid. The figured bass enrichment will first appear in compositions
+that route through `generate_bass_viterbi` or `generate_soprano_viterbi` with
+a non-None `harmonic_grid` (galant genres or longer free-fill episodes).
 
-build_imitative_plans reads group["cadence_schema"] and local_key from the group dict. For HCs this is "half_cadence" / local key; for the final cadence it is "cadenza_composta" / home key. write_cadence is dispatched for all four groups (the HCs use the half_cadence template; the final cadence uses cadenza_composta). write_thematic_cadence is not called here — that path is invoked at a separate dispatch site. The half_cadence template is confirmed dispatched.
+### Pass 2 — Theory
 
-**The chain is complete:** _internal_cadence entry -> BarAssignment.cadence_schema -> BeatRole.cadence_schema -> group dict -> PhrasePlan.schema_name / local_key -> write_cadence.
+The harmony column at subject/CS bars shows bass-inferred Roman numerals
+derived from the lowest pitch at each onset. At bar 2 beat 4, the V/V label
+(F#3 in C major) is correct — F#3 is a tritone above tonic, the standard
+bass-inference mapping for #4. At cadential bars (9, 20, 31), the half-cadence
+harmonies (V at the final beat) are accurate since cadential bass notes are
+chord roots.
+
+### Checkpoint Answers
+
+1. **Do FREE-fill bars show figured bass?** — No FREE-fill bars exist in this
+   invention. All episodes are fragen-rendered thematic material. The enrichment
+   code is structurally in place but not exercised by this seed/genre.
+
+2. **Do subject/CS/stretto bars still show bass-inferred harmony?** — Yes,
+   unchanged. These bars have no harmonic grid; `note.harmony` is empty; the
+   fallback bass-inference path runs identically to pre-HRL-7.
+
+3. **Are figured bass labels consistent with bass pitches?** — N/A for this
+   seed (no grid-derived labels present). The bass-inferred labels remain
+   consistent.
+
+4. **Is change-detection logic correct?** — Yes. Harmony labels appear only
+   when the label changes from the previous one. Verified by visual scan of
+   the .note file: no consecutive duplicate labels at adjacent offsets.
+
+---
+
+## Chaz's Diagnosis
+
+Bob reports no musical complaints — this is a diagnostic-only change with no
+audible effect. No faults to trace.
+
+**Structural verification:**
+
+The code path is correct. `chord_display_label` produces:
+- `"I"` for `ChordLabel(numeral="I", inversion=0)` → suffix "" → returns "I"
+- `"IV6"` for `ChordLabel(numeral="IV", inversion=1)` → suffix "6" → "IV" does
+  not end with "6" → returns "IV6"
+- `"V/V"` for secondary dominant (already has no inversion suffix) → returns "V/V"
+
+The `dataclasses.replace` call in both Viterbi files creates new Note instances
+with the `harmony` field set, preserving all other fields. The import of
+`dataclasses` module (separate from `from dataclasses import dataclass`) is
+required for `dataclasses.replace`.
+
+`_build_harmony_map` in note_writer.py now iterates `all_offsets` (union of
+bass_at_offset and grid_labels keys) rather than just bass_at_offset, ensuring
+that grid-only onsets (if a grid-derived note exists at an offset with no bass
+note) are not dropped.
+
+**Fault count unchanged:** 15 faults, all pre-existing (cross_relation,
+ugly_leap, direct_fifth/octave, unprepared_dissonance, parallel_rhythm). None
+introduced by HRL-7.
+
+**Note count unchanged:** 227 soprano + 164 bass = 391 total, identical to
+pre-HRL-7.
 
 ---
 

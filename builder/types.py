@@ -26,6 +26,7 @@ class Note:
     voice: int
     lyric: str = ""
     creator: str = ""
+    harmony: str = ""
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,10 @@
 """Soprano Viterbi surface generation (shared solver, used by galant and thematic paths)."""
+import dataclasses
 import logging
 from fractions import Fraction
 
 from dataclasses import dataclass
+from builder.galant.harmony import chord_display_label
 from builder.knot_builder import check_structural_tone_consonance, ensure_final_knot, sort_and_dedup_knots
 from builder.figuration.rhythm_calc import compute_rhythmic_distribution
 from builder.figuration.soprano import character_to_density
@@ -400,6 +402,15 @@ def generate_soprano_viterbi(
     # Log violations
     for v in violations:
         logger.warning("viterbi soprano audit: %s at offset %s", v.detail, v.offset)
+
+    # HRL-7: Stamp grid-derived harmony labels on Viterbi notes
+    if harmonic_grid is not None:
+        notes_tuple = tuple(
+            dataclasses.replace(n, harmony=chord_display_label(
+                label=harmonic_grid.chord_at(offset=n.offset),
+            ))
+            for n in notes_tuple
+        )
 
     # Return (notes, empty figure_names)
     return notes_tuple, ()

@@ -95,29 +95,43 @@ def _build_harmony_map(
     metre: str,
     upbeat: Fraction,
 ) -> dict[Fraction, str]:
-    """Derive Roman numeral harmony from bass note at each onset.
+    """Derive harmony labels from grid stamps or bass pitch inference.
 
-    Follows figured-bass convention: each new bass note defines the
-    harmony. Only writes a label when the harmony changes.
+    Priority:
+    1. note.harmony (grid-derived figured bass from Viterbi, accurate)
+    2. Bass-pitch inference (crude but universal fallback)
     """
-    # Find the lowest pitch at each unique offset
+    # Pass 1: collect grid-derived labels from note.harmony
+    grid_labels: dict[Fraction, str] = {}
+    for voice_notes in comp.voices.values():
+        for note in voice_notes:
+            if note.harmony and note.offset not in grid_labels:
+                grid_labels[note.offset] = note.harmony
+    # Pass 2: bass-pitch inference for remaining offsets
     bass_at_offset: dict[Fraction, int] = {}
     for voice_notes in comp.voices.values():
         for note in voice_notes:
             existing: int | None = bass_at_offset.get(note.offset)
             if existing is None or note.pitch < existing:
                 bass_at_offset[note.offset] = note.pitch
+    # Merge: grid labels take priority, fill gaps with bass inference.
+    # Iterate all offsets from both sources so grid-only onsets are not dropped.
+    all_offsets: set[Fraction] = bass_at_offset.keys() | grid_labels.keys()
     harmony_map: dict[Fraction, str] = {}
-    prev_roman: str = ""
-    for offset in sorted(bass_at_offset.keys()):
-        midi: int = bass_at_offset[offset]
-        bar_num, _ = bar_beat(offset=offset, metre=metre, upbeat=upbeat)
-        local_key: Key = key_map.get(bar_num, home_key)
-        degree: str = _degree_label(key=local_key, midi=midi)
-        roman: str = _degree_to_roman(degree=degree, mode=local_key.mode)
-        if roman != prev_roman:
-            harmony_map[offset] = roman
-            prev_roman = roman
+    prev_label: str = ""
+    for offset in sorted(all_offsets):
+        label: str
+        if offset in grid_labels:
+            label = grid_labels[offset]
+        else:
+            midi: int = bass_at_offset[offset]
+            bar_num, _ = bar_beat(offset=offset, metre=metre, upbeat=upbeat)
+            local_key: Key = key_map.get(bar_num, home_key)
+            degree: str = _degree_label(key=local_key, midi=midi)
+            label = _degree_to_roman(degree=degree, mode=local_key.mode)
+        if label != prev_label:
+            harmony_map[offset] = label
+            prev_label = label
     return harmony_map
 
 

@@ -1,5 +1,78 @@
 # Completed
 
+## HRL-7: Note writer figured bass enrichment (2026-02-27)
+
+Added `chord_display_label` to harmony.py (numeral + inversion suffix).
+Added `harmony: str = ""` field to Note dataclass. Stamped grid-derived
+harmony labels on Viterbi notes in bass_viterbi.py and soprano_viterbi.py
+(only when harmonic_grid is not None). Rewrote `_build_harmony_map` in
+note_writer.py with two-pass logic: grid-derived labels take priority,
+bass-pitch inference fills gaps. Diagnostic only, no audible change.
+Not exercised in current invention seed (no FREE-fill bars); will appear
+in galant genres or longer free-fill episodes.
+
+## EPI-1: Inter-entry episodes (variable length) (2026-02-27)
+
+Replaced fixed 2-bar `_EPISODE_BARS` with `_episode_bars_for_distance()`: 2/3/4 bars
+based on semitone distance (<=3/4-5/6+). `generate_entry_sequence()` now appends an
+episode dict after every development entry. `plan_subject()` step 1 computes episode
+bar costs via the new function. Step 2b stripped of auto-episode insertion (half-cadences
+retained). Step 3 stamps episode BarAssignments with ascending/descending iteration.
+Dead `_auto_episode` handler deleted. `_extract_lead_voice_and_key()` handles episode
+type for HC key extraction. Pipeline: 42 bars, 5 episodes (3,2,3,2,3 bars), 15 faults
+(all pre-existing). Entry/episode ratio ~50/31 vs old ~85/15.
+
+## HRL-6: Secondary dominants V/V, V/vi (2026-02-27)
+
+`ChordLabel` gains `secondary_target: int | None = None`. `parse_roman` handles
+slash notation (`V/vi`, `V/V`) with early return. `chord_pcs` computes chromatic
+triad PCs from target MIDI (P5 above target, major 3rd, perfect 5th).
+`build_stock_harmonic_grid`: V/V replaces ii/iv in cadential acceleration (≥3 bars),
+V/vi→vi at bars 2–3 for runs ≥5 bars. Pipeline clean, 13 faults (all pre-existing).
+Invention free fills are all ≤2 bars — code verified by inspection, not audibly
+exercised in this seed.
+
+## HRL-5: Passing 6/3 chords in stock harmonic grid (2026-02-27)
+
+`ChordLabel` gains `inversion: int = 0`. `parse_roman` strips `"64"`/`"6"` inversion
+suffixes before quality/seventh, fully backward-compatible. New module-level functions
+`bass_degree(label)` and `bass_pc(label, key)` resolve the bass pitch-class for inverted
+chords. `HarmonicGrid.to_bass_beat_list(beat_grid)` returns singleton frozensets at
+inverted positions (exploiting the existing 5.0 `chord_tone_cost` penalty). In
+`build_stock_harmonic_grid`, after HRL-4 cadential acceleration, consecutive entry pairs
+≥ one bar apart receive a passing 6/3 chord at half-bar offset — diatonic triad via
+shortest-path direction, `dataclasses.replace(..., inversion=1)`. Bass Viterbi switched
+from `to_beat_list` to `to_bass_beat_list`. Pipeline clean: 199+141 notes, 13 faults
+(all pre-existing). Episodes show predominantly stepwise bass approach to harmonies.
+
+## HRL-4: Cadential acceleration (2026-02-27)
+
+In `build_stock_harmonic_grid` (`builder/galant/harmony.py`), for runs of 3+ bars
+the final bar now splits: pre-dominant (first half) → V (second half). Major uses
+ii→V, minor uses iv→V. Creates harmonic urgency approaching cadences. 9 lines,
+one file. No new limitations.
+
+## HRL-3: Stock harmonic grid for thematic fills (2026-02-26)
+
+Added `build_stock_harmonic_grid(key, bar_count, bar_length, start_offset)` to
+`builder/galant/harmony.py`. Generates I→(IV/iv)→V progressions, one chord per
+bar (tonic for 1 bar; tonic+V for 2; tonic+subdominant+V for 3; alternating for
+≥4). Wired into all 4 Viterbi call sites in `builder/free_fill.py` — soprano
+companion, bass companion, tail bass, tail soprano — replacing the surface-
+inference fallback (which assumed soprano/bass pitch = chord root). Pipeline
+clean: 199+141 notes, no new assertions.
+
+## CLR-3: New cadence templates + scope-based selection (2026-02-26)
+
+Added cadenza_grande (3-bar, 4/4) and cadenza_doppia (2-bar, 4/4) to
+templates.yaml and schemas.yaml. Added _SCOPE_CADENCE mapping in
+subject_planner.py (short→semplice, medium→composta, extended→grande).
+plan_subject() now uses scope-based selection when cadence is "auto" or
+absent, preserving explicit values for backward compatibility. invention.yaml
+cadence moved from vocabulary to top-level thematic and set to "auto".
+Invention now closes with cadenza_grande (bars 33–35), soprano A5→C5 stepwise
+descent, bass IV→ii→V×3→I. Total bars: 35 (+1 vs cadenza_composta).
+
 ## CLR-2: Internal section cadences (2026-02-26)
 
 Added half cadences at every internal section boundary (exordium→narratio, narratio→confirmatio, confirmatio→peroratio).

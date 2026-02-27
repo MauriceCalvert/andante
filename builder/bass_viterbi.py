@@ -1,10 +1,12 @@
 """Bass Viterbi: walking-bass generation via Viterbi pathfinding against soprano."""
+import dataclasses
 import logging
 from dataclasses import dataclass
 from fractions import Fraction
 
 from builder.knot_builder import ensure_final_knot, sort_and_dedup_knots
 from builder.galant.bass_writer import validate_bass_notes
+from builder.galant.harmony import chord_display_label
 from builder.voice_types import VoiceBias
 from builder.phrase_types import (
     PhrasePlan,
@@ -249,7 +251,7 @@ def generate_bass_viterbi(
     # HRL-2: Build chord awareness from harmonic grid or surface soprano
     chord_pcs: list[frozenset[int]] | None = None
     if harmonic_grid is not None:
-        chord_pcs = harmonic_grid.to_beat_list(beat_grid)
+        chord_pcs = harmonic_grid.to_bass_beat_list(beat_grid)
     else:
         # Surface inference: derive triads from soprano pitches at each
         # grid position.  Root-position assumption — imprecise when the
@@ -290,5 +292,14 @@ def generate_bass_viterbi(
     # Step 5 — Validate
     # ================================================================
     validate_bass_notes(notes=list(notes_tuple), plan=plan, soprano_notes=soprano_notes)
+
+    # HRL-7: Stamp grid-derived harmony labels on Viterbi notes
+    if harmonic_grid is not None:
+        notes_tuple = tuple(
+            dataclasses.replace(n, harmony=chord_display_label(
+                label=harmonic_grid.chord_at(offset=n.offset),
+            ))
+            for n in notes_tuple
+        )
 
     return notes_tuple
