@@ -1,5 +1,17 @@
 # Completed
 
+## EPI-2a: Cell vocabulary expansion (2026-02-27)
+
+Added rhythmic diminution and cross-source pairing to `motifs/fragen.py`.
+New `_diminish` halves all durations (discards if any < 1/16). New
+`_source_family` strips _inv/_dim suffixes for family grouping. `extract_cells`
+now produces diminished variants of raw+inverted cells (309 -> 526 cells).
+`build_fragments` now pairs chains from different source families sorted by
+rhythmic contrast ratio (capped at 200 pairs). Result: 24 diminished-cell
+fragments and 22 cross-source fragments survive consonance checking. Pipeline
+fault count unchanged (15). Rhythm profile count increased modestly (10->11)
+due to aggressive dedup; raw catalogue increased 7.2x.
+
 ## HRL-7: Note writer figured bass enrichment (2026-02-27)
 
 Added `chord_display_label` to harmony.py (numeral + inversion suffix).

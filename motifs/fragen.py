@@ -46,8 +46,10 @@ _CANONIC_STAGGERS: tuple[Fraction, ...] = (
 _MIN_EPISODE_SPACING: int = 10  # min semitone separation between entry and prior register
 _HOLD_CONSONANCE: float = 1.0
 _MAX_BOUNDARY_LEAP: int = 3         # max degree steps at cell join
+_MIN_DIMINUTION_DUR: Fraction = Fraction(1, 16)  # shortest duration after halving
 _MAX_NONTERMINAL_FINAL: Fraction = Fraction(3, 16)  # longest final note in a non-terminal cell
 _MAX_CHAIN_CELLS: int = 3           # max cells per bar in a chain
+_MAX_CROSS_PAIRS: int = 200         # cap on cross-source chain pairings
 _MAX_CHAINS: int = 500              # cap on chain enumeration
 _MAX_SCORED_CHAINS: int = 200       # keep top N chains after boundary scoring
 _MIN_CELL_NOTES: int = 2            # sub-sequence minimum length
@@ -132,7 +134,11 @@ def extract_cells(
             source=source,
         ))
     inverted: list[Motivic] = [_invert(c) for c in raw]
-    return _dedup_cells(raw + inverted)
+    # Diminished variants of raw + inverted
+    diminished: list[Motivic] = [
+        d for d in (_diminish(c) for c in raw + inverted) if d is not None
+    ]
+    return _dedup_cells(raw + inverted + diminished)
 
 
 def _dedup_cells(cells: list[Motivic]) -> list[Motivic]:
@@ -156,6 +162,41 @@ def _invert(cell: Motivic) -> Motivic:
         durations=cell.durations,
         total_duration=cell.total_duration,
         source=inv_source,
+    )
+
+
+def _source_family(cell: Motivic) -> str:
+    """Strip _inv and _dim suffixes to get the root source family.
+
+    e.g. "head_inv_dim" -> "head", "tail_inv" -> "tail", "chain" -> "chain".
+    """
+    family: str = cell.source
+    for suffix in ("_dim", "_inv"):
+        if family.endswith(suffix):
+            family = family[:-len(suffix)]
+    return family
+
+
+def _diminish(cell: Motivic) -> Motivic | None:
+    """Halve all durations (rhythmic diminution).
+
+    Returns None if any diminished duration falls below _MIN_DIMINUTION_DUR.
+    Source tag: "{source}_dim".
+    """
+    halved: list[Fraction] = []
+    for d in cell.durations:
+        h: Fraction = d / 2
+        if h < _MIN_DIMINUTION_DUR:
+            return None
+        halved.append(h)
+    dim_source: str = cell.source + "_dim"
+    dim_durs: tuple[Fraction, ...] = tuple(halved)
+    return Motivic(
+        name=cell.name.replace(cell.source, dim_source),
+        degrees=cell.degrees,
+        durations=dim_durs,
+        total_duration=sum(dim_durs),
+        source=dim_source,
     )
 
 
@@ -521,6 +562,51 @@ def build_fragments(
                         lower = leader_cell
                     for sep in _SEPARATION_RANGE:
                         rate: float = _consonance_score(
+                            upper=upper,
+                            lower=lower,
+                            separation=sep,
+                            offset=stagger,
+                            bar_length=bar_length,
+                            tonic_midi=tonic_midi,
+                            mode=mode,
+                            leader_voice=voice,
+                        )
+                        if rate < _MIN_CONSONANCE:
+                            continue
+                        fragments.append(Fragment(
+                            upper=upper,
+                            lower=lower,
+                            leader_voice=voice,
+                            separation=sep,
+                            offset=stagger,
+                        ))
+                        break  # first valid separation
+    # Cross-source pairing: pair chains from different source families
+    families: dict[str, list[Motivic]] = {}
+    for cell in cells:
+        fam: str = _source_family(cell)
+        families.setdefault(fam, []).append(cell)
+    family_keys: list[str] = sorted(families.keys())
+    cross_candidates: list[tuple[float, Motivic, Motivic]] = []
+    for i_fam in range(len(family_keys)):
+        for j_fam in range(i_fam + 1, len(family_keys)):
+            for chain_a in families[family_keys[i_fam]]:
+                avg_a: Fraction = chain_a.total_duration / len(chain_a.degrees)
+                for chain_b in families[family_keys[j_fam]]:
+                    avg_b: Fraction = chain_b.total_duration / len(chain_b.degrees)
+                    min_avg: Fraction = min(avg_a, avg_b)
+                    if min_avg <= Fraction(0):
+                        continue
+                    contrast: float = float(max(avg_a, avg_b) / min_avg)
+                    cross_candidates.append((contrast, chain_a, chain_b))
+    cross_candidates.sort(key=lambda x: x[0], reverse=True)
+    cross_candidates = cross_candidates[:_MAX_CROSS_PAIRS]
+    for _, chain_a, chain_b in cross_candidates:
+        for upper, lower in ((chain_a, chain_b), (chain_b, chain_a)):
+            for stagger in _CANONIC_STAGGERS:
+                for voice in (VOICE_SOPRANO, VOICE_BASS):
+                    for sep in _SEPARATION_RANGE:
+                        rate = _consonance_score(
                             upper=upper,
                             lower=lower,
                             separation=sep,

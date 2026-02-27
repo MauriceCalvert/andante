@@ -155,10 +155,11 @@ After completing all code changes:
    Chaz's diagnosis, and the line: "Please listen to the MIDI and let me
    know what you hear."
 
-4. **Git commit.** If the pipeline ran clean and the task is fully
-   successful, commit all changed files with a message of the form:
+4. **Git commit and push.** If the pipeline ran clean and the task is
+   fully successful, commit all changed files with a message of the form:
    `[PHASE-ID] one-line summary`. Example: `[ICP-2a] CS2 data layer`.
-   Do not commit if the pipeline failed or Bob flagged blocking faults.
+   Then `git push`. Do not commit if the pipeline failed or Bob flagged
+   blocking faults.
 
 5. **Delete `task.md`** and stop.
 
