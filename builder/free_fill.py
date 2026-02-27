@@ -6,6 +6,7 @@ from fractions import Fraction
 
 from builder.bass_viterbi import BassOptions, generate_bass_viterbi
 from builder.knot_builder import enrich_companion_knots
+from builder.galant.harmony import build_stock_harmonic_grid, HarmonicGrid
 from builder.galant.soprano_writer import build_structural_soprano
 from builder.phrase_types import (
     PhrasePlan,
@@ -210,6 +211,14 @@ def fill_free_bars(
         # Determine companion density (one level below character)
         companion_density_level: str = _companion_density(material_character=plan.character)
 
+        # Build stock harmonic grid for this FREE run (HRL-3)
+        run_stock_grid: HarmonicGrid = build_stock_harmonic_grid(
+            key=plan.local_key,
+            bar_count=run_plan.bar_span,
+            bar_length=bar_length,
+            start_offset=run_start_offset,
+        )
+
         if free_voice_idx == 0:
             # Soprano is FREE, bass has material
 
@@ -308,6 +317,7 @@ def fill_free_bars(
                 prior_upper=soprano_notes,
                 next_phrase_entry_degree=None,
                 next_phrase_entry_key=None,
+                harmonic_grid=run_stock_grid,
                 options=SopranoOptions(
                     density_override=companion_density_level,
                     avoid_onsets_by_bar=avoid_onsets,
@@ -388,7 +398,7 @@ def fill_free_bars(
                 plan=run_plan,
                 soprano_notes=soprano_notes,
                 prior_lower=bass_notes,
-                options=BassOptions(density_override=companion_density_level, bias=bass_bias),
+                options=BassOptions(harmonic_grid=run_stock_grid, density_override=companion_density_level, bias=bass_bias),
             )
             bass_notes = bass_notes + free_bass
 
@@ -502,6 +512,14 @@ def fill_free_bars(
                 if fallback_tail_sop_knots:
                     tail_sop_knots = fallback_tail_sop_knots
 
+            # Build stock harmonic grid for the tail (HRL-3)
+            tail_stock_grid: HarmonicGrid = build_stock_harmonic_grid(
+                key=plan.local_key,
+                bar_count=tail_plan.bar_span,
+                bar_length=bar_length,
+                start_offset=tail_start_offset,
+            )
+
             structural_tail: tuple[Note, ...] = build_structural_soprano(
                 plan=tail_plan,
                 prev_exit_midi=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper,
@@ -517,7 +535,7 @@ def fill_free_bars(
                 plan=tail_plan,
                 soprano_notes=prior_upper + soprano_notes + structural_tail,
                 prior_lower=bass_notes,
-                options=BassOptions(bias=tail_bass_bias),
+                options=BassOptions(harmonic_grid=tail_stock_grid, bias=tail_bass_bias),
             )
             bass_notes = bass_notes + tail_bass
 
@@ -534,6 +552,7 @@ def fill_free_bars(
                 prior_upper=soprano_notes,
                 next_phrase_entry_degree=next_phrase_entry_degree,
                 next_phrase_entry_key=next_phrase_entry_key,
+                harmonic_grid=tail_stock_grid,
                 options=SopranoOptions(bias=tail_sop_bias),
             )
             soprano_notes = soprano_notes + tail_soprano

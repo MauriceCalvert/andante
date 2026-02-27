@@ -33,6 +33,7 @@ thematic:
   voice_count: 2
   invertible_counterpoint: true
   answer_offset_beats: 4
+  cadence: auto
 
   vocabulary:
     exposition:
@@ -57,8 +58,6 @@ thematic:
 
     key_pool_major: [vi, IV, V, ii, iii]
     key_pool_minor: [III, iv, v, VI, ii]
-
-    cadence: cadenza_composta
 
   # Default brief (used when no external brief is provided)
   brief:

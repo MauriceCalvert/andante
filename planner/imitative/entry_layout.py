@@ -36,6 +36,8 @@ _HOLD_EXCHANGE_ROLES: frozenset[ThematicRole] = frozenset({ThematicRole.HOLD, Th
 _CADENCE_TYPE_MAP: dict[str, str] = {
     "cadenza_semplice": "authentic",
     "cadenza_composta": "authentic",
+    "cadenza_grande": "authentic",
+    "cadenza_doppia": "authentic",
     "half_cadence": "half",
     "comma": "authentic",
 }

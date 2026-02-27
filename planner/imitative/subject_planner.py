@@ -5,9 +5,9 @@ section, walks entries top-to-bottom, and produces a BarAssignment for
 every bar in the piece. No notes, no counterpoint — just the structural
 scaffold that tells downstream modules what material goes where.
 
-IMP-4. Auto-inserts episode bars at section boundaries. Episodes are not
-declared in the YAML — the planner detects where sections change and
-bridges them with sequential fragments of the subject head.
+EPI-1. Inserts variable-length episodes after each development entry.
+Episode length scales with semitone distance between keys (2/3/4 bars).
+Half-cadences are still auto-inserted at section boundaries.
 
 GEL-1. When thematic_config has 'vocabulary' instead of 'entry_sequence',
 generate_entry_sequence() produces the sequence at runtime from vocabulary
@@ -31,8 +31,14 @@ _UNSUPPORTED_ROLES: frozenset[str] = frozenset({
     "link",
 })
 
-# Episode length: fixed at 2 bars for IMP-4
-_EPISODE_BARS: int = 2
+# Episode length thresholds (semitone distance between key tonics)
+_EPISODE_CLOSE: int = 3     # up to 3 semitones -> 2 bars
+_EPISODE_MEDIUM: int = 5    # 4-5 semitones -> 3 bars
+                             # 6+ semitones -> 4 bars
+
+_EPISODE_BARS_CLOSE: int = 2
+_EPISODE_BARS_MEDIUM: int = 3
+_EPISODE_BARS_FAR: int = 4
 
 # Slot-to-beat conversion (from stretto_constraints)
 _SLOTS_PER_CROTCHET: int = 4
@@ -40,6 +46,23 @@ _SLOTS_PER_QUAVER: int = 2
 
 # Scope -> default development entry count (GEL-1)
 _SCOPE_DEV_COUNT: dict[str, int] = {"short": 2, "medium": 3, "extended": 5}
+
+# Scope -> final cadence schema (CLR-3)
+_SCOPE_CADENCE: dict[str, str] = {
+    "short": "cadenza_semplice",
+    "medium": "cadenza_composta",
+    "extended": "cadenza_grande",
+}
+
+
+def _episode_bars_for_distance(from_key: Key, to_key: Key) -> int:
+    """Episode length in bars, scaled by semitone distance between keys."""
+    dist: int = abs(_semitone_distance(key1=from_key, key2=to_key))
+    if dist <= _EPISODE_CLOSE:
+        return _EPISODE_BARS_CLOSE
+    if dist <= _EPISODE_MEDIUM:
+        return _EPISODE_BARS_MEDIUM
+    return _EPISODE_BARS_FAR
 
 
 def _voice_0_leads(entry_idx: int, voice_lead: str) -> bool:
@@ -120,11 +143,13 @@ def generate_entry_sequence(
     template_idx: int = 0
     subject_cs_count: int = 0  # tracks voice_lead alternation for subject_cs only
 
-    for key_label in journey:
+    for dev_idx, key_label in enumerate(journey):
         emitted: bool = False
+        upper0: bool = True  # default for non-subject_cs templates
+        tmpl_name: str = ""
         for _ in range(len(dev_templates) * 2):
             tmpl: dict = dev_templates[template_idx % len(dev_templates)]
-            tmpl_name: str = tmpl["template"]
+            tmpl_name = tmpl["template"]
             template_idx += 1
 
             if tmpl_name == "stretto" and stretto_setting == "none":
@@ -133,7 +158,7 @@ def generate_entry_sequence(
                 continue
 
             if tmpl_name == "subject_cs":
-                upper0: bool = _voice_0_leads(
+                upper0 = _voice_0_leads(
                     entry_idx=subject_cs_count,
                     voice_lead=voice_lead,
                 )
@@ -176,6 +201,26 @@ def generate_entry_sequence(
             f"Check vocabulary.development_entries has a viable template "
             f"for brief.stretto='{stretto_setting}'"
         )
+
+        # Insert episode after this development entry
+        if dev_idx < len(journey) - 1:
+            next_key_label: str = journey[dev_idx + 1]
+        else:
+            next_key_label = "I"  # retransition to tonic for peroration
+
+        # Lead voice: opposite of subject voice in this entry
+        # (stretto leader is always voice 0)
+        if tmpl_name == "subject_cs":
+            episode_lead: int = 1 if upper0 else 0
+        else:
+            episode_lead = 1
+
+        sequence.append({
+            "type": "episode",
+            "from_key": key_label,
+            "to_key": next_key_label,
+            "lead_voice": episode_lead,
+        })
 
     # ── c. Peroration ─────────────────────────────────────────────────
     peroration_entries: list[dict] = vocabulary.get("peroration_entries", [])
@@ -226,6 +271,8 @@ def _extract_lead_voice_and_key(entry: dict | str, home_key: Key) -> tuple[int |
     entry_type: str | None = entry.get("type")
     if entry_type == "hold_exchange":
         return (0, home_key.modulate_to(entry["key"]))
+    if entry_type == "episode":
+        return (entry.get("lead_voice", 0), home_key.modulate_to(entry["from_key"]))
     if entry_type == "stretto":
         return (0, home_key.modulate_to(entry["key"]))
     if entry_type == "pedal":
@@ -294,7 +341,13 @@ def plan_subject(
     Returns:
         SubjectPlan with one BarAssignment per bar, fully validated.
     """
-    cadence_schema: str = thematic_config.get("cadence", "cadenza_composta")
+    cadence_explicit: str | None = thematic_config.get("cadence")
+    if cadence_explicit is not None and cadence_explicit != "auto":
+        cadence_schema: str = cadence_explicit
+    else:
+        brief: dict = thematic_config.get("brief", {})
+        scope: str = brief.get("scope", "medium")
+        cadence_schema = _SCOPE_CADENCE.get(scope, "cadenza_composta")
     templates = load_cadence_templates()
     cadence_key: tuple[str, str] = (cadence_schema, metre)
     assert cadence_key in templates, (
@@ -361,7 +414,7 @@ def plan_subject(
     # Read answer_offset_beats (optional, defaults to 0 for bar-aligned entry)
     answer_offset_beats: int = thematic_config.get("answer_offset_beats", 0)
 
-    # ── 1. Compute per-entry bar costs (no episodes yet) ────────────
+    # ── 1. Compute per-entry bar costs ─────────────────────────────
     entry_costs: list[int] = []
     for entry in entry_sequence:
         if entry == "cadence":
@@ -376,6 +429,14 @@ def plan_subject(
             continue
         if entry.get("type") == "hold_exchange":
             entry_costs.append(entry["bars"])
+            continue
+        if entry.get("type") == "episode":
+            from_key = home_key.modulate_to(entry["from_key"])
+            to_key = home_key.modulate_to(entry["to_key"])
+            entry_costs.append(_episode_bars_for_distance(
+                from_key=from_key,
+                to_key=to_key,
+            ))
             continue
         if entry.get("type") == "stretto":
             _delay: int = entry["delay"]
@@ -437,8 +498,8 @@ def plan_subject(
         section_idx: int = i * n_sections // n_entries
         entry_section_names.append(sections[section_idx]["name"])
 
-    # ── 2b. Auto-insert episodes at section boundaries ──────────────
-    # Build augmented entry list: original entries + auto-inserted episodes
+    # ── 2b. Auto-insert half-cadences at section boundaries ─────────
+    # Build augmented entry list: original entries + auto-inserted HCs
     augmented_entries: list[dict | str] = []
     augmented_sections: list[str] = []
     augmented_costs: list[int] = []
@@ -456,18 +517,13 @@ def plan_subject(
         )
 
         if is_boundary:
-            # Insert half cadence in outgoing section's key, then episode
+            # Insert half cadence in outgoing section's key
             prev_voice_idx, prev_key = _extract_lead_voice_and_key(entry_sequence[i - 1], home_key)
-            next_voice_idx, next_key = _extract_lead_voice_and_key(entry_sequence[i], home_key)
 
             assert prev_key is not None, (
-                f"Cannot auto-insert episode: entry {i-1} has no thematic material"
-            )
-            assert next_key is not None, (
-                f"Cannot auto-insert episode: entry {i} has no thematic material"
+                f"Cannot auto-insert half cadence: entry {i-1} has no thematic material"
             )
 
-            # 1. Half cadence in outgoing section's key (before episode)
             augmented_entries.append({
                 "_internal_cadence": True,
                 "schema": "half_cadence",
@@ -475,30 +531,6 @@ def plan_subject(
             })
             augmented_sections.append(entry_section_names[i - 1])
             augmented_costs.append(hc_bars)
-
-            # Compute direction from key distance (for the episode below)
-            dist = _semitone_distance(prev_key, next_key)
-            # Positive dist = target is higher → ascending episode (negative iterations)
-            # Negative dist = target is lower → descending episode (positive iterations)
-            ascending = dist > 0
-
-            # Lead voice is opposite of preceding entry's lead voice
-            assert prev_voice_idx is not None, f"Entry {i-1} has no lead voice"
-            episode_lead_voice = 1 - prev_voice_idx
-            episode_lead_voice_str = "upper" if episode_lead_voice == 0 else "lower"
-
-            # Build episode entry
-            episode_entry = {
-                "_auto_episode": True,
-                "source_key": prev_key,
-                "lead_voice_str": episode_lead_voice_str,
-                "ascending": ascending,
-            }
-
-            # Episode belongs to the outgoing section (entry i-1's section)
-            augmented_entries.append(episode_entry)
-            augmented_sections.append(entry_section_names[i - 1])
-            augmented_costs.append(_EPISODE_BARS)
 
         # Add the original entry
         augmented_entries.append(entry_sequence[i])
@@ -570,56 +602,54 @@ def plan_subject(
             bar_pointer += cost
             continue
 
-        # Auto-inserted episode
-        if isinstance(entry, dict) and entry.get("_auto_episode"):
-            source_key: Key = entry["source_key"]
-            lead_voice_str: str = entry["lead_voice_str"]
-            ascending: bool = entry["ascending"]
+        # Episode between development entries
+        if isinstance(entry, dict) and entry.get("type") == "episode":
+            ep_from_key: Key = home_key.modulate_to(entry["from_key"])
+            ep_to_key: Key = home_key.modulate_to(entry["to_key"])
+            ep_lead_voice: int = entry["lead_voice"]
+            ep_companion: int = 1 - ep_lead_voice
 
-            # Map lead_voice string to voice index
-            lead_voice_idx: int = 0 if lead_voice_str == "upper" else 1
-            companion_voice_idx: int = 1 - lead_voice_idx
+            dist: int = _semitone_distance(key1=ep_from_key, key2=ep_to_key)
+            ascending: bool = dist > 0
 
-            # Stamp bars for this episode
-            for bar_offset in range(_EPISODE_BARS):
+            for bar_offset in range(cost):
                 bar_num: int = bar_pointer + bar_offset
                 voices: dict[int, VoiceAssignment] = {}
 
-                # Fragment iteration: descending = positive (0,1,2), ascending = negative (0,-1,-2)
                 if ascending:
-                    iteration = -(bar_offset + 1)
+                    iteration: int = -(bar_offset + 1)
                 else:
                     iteration = bar_offset + 1
 
-                # Contrary motion: upper voice descends, lower voice ascends
-                upper_iteration: int = iteration      # positive = descending
-                lower_iteration: int = -iteration     # negated = ascending
+                upper_iteration: int = iteration
+                lower_iteration: int = -iteration
 
-                # Lead voice: episode fragment
-                voices[lead_voice_idx] = VoiceAssignment(
+                voices[ep_lead_voice] = VoiceAssignment(
                     role="episode",
-                    material_key=source_key,
+                    material_key=ep_from_key,
                     texture="plain",
                     pairing="independent",
                     fragment="head",
-                    fragment_iteration=upper_iteration if lead_voice_idx == 0 else lower_iteration,
+                    fragment_iteration=(
+                        upper_iteration if ep_lead_voice == 0 else lower_iteration
+                    ),
                 )
-
-                # Companion voice: episode tail fragment
-                voices[companion_voice_idx] = VoiceAssignment(
+                voices[ep_companion] = VoiceAssignment(
                     role="episode",
-                    material_key=source_key,
+                    material_key=ep_from_key,
                     texture="plain",
                     pairing="independent",
                     fragment="tail",
-                    fragment_iteration=upper_iteration if companion_voice_idx == 0 else lower_iteration,
+                    fragment_iteration=(
+                        upper_iteration if ep_companion == 0 else lower_iteration
+                    ),
                 )
 
                 bar_assignments.append(BarAssignment(
                     bar=bar_num,
                     section=section_name,
                     function="episode",
-                    local_key=source_key,
+                    local_key=ep_from_key,
                     voices=voices,
                     entry_index=entry_idx,
                 ))

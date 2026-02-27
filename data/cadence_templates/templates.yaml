@@ -74,3 +74,23 @@ comma:
     bass:
       degrees: [5, 1]
       durations: ["1/2", "1/2"]
+
+cadenza_grande:
+  "4/4":
+    bars: 3
+    soprano:
+      degrees: [6, 5, 4, 3, 2, 1]
+      durations: ["1/2", "1/2", "1/2", "1/2", "1/2", "1/2"]
+    bass:
+      degrees: [4, 2, 5, 5, 5, 1]
+      durations: ["1/2", "1/2", "1/2", "1/2", "1/2", "1/2"]
+
+cadenza_doppia:
+  "4/4":
+    bars: 2
+    soprano:
+      degrees: [4, 3, 2, 3, 2, 1]
+      durations: ["1/4", "1/4", "1/4", "1/4", "1/2", "1/2"]
+    bass:
+      degrees: [4, 5, 5, 1]
+      durations: ["1/2", "1/2", "1/2", "1/2"]

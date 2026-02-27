@@ -217,6 +217,30 @@ cadenza_composta:
   accompany_texture: pillar
   source: "Gjerdingen Ch.11"
 
+cadenza_grande:
+  description: Extended grand cadence with prolonged dominant pedal (3 bars, 4/4 only)
+  soprano_degrees: ["6", "-5", "-4", "-3", "-2", "-1"]
+  bass_degrees: ["4", "-2", "+5", "5", "5", "-1"]
+  harmony: ["IV", "ii", "V", "V", "V", "I"]
+  bars: [3, 3]
+  cadence_type: authentic_final
+  position: cadential
+  figuration_profile: stepwise_descent
+  cadence_approach: true
+  accompany_texture: pillar
+
+cadenza_doppia:
+  description: Ornamental double cadence with feinted resolution (2 bars, 4/4 only)
+  soprano_degrees: ["4", "-3", "-2", "-1"]
+  bass_degrees: ["4", "+5", "5", "-1"]
+  harmony: ["IV", "V", "V", "I"]
+  bars: [2, 2]
+  cadence_type: authentic_final
+  position: cadential
+  figuration_profile: stepwise_descent
+  cadence_approach: true
+  accompany_texture: pillar
+
 comma:
   description: Brief cadential gesture
   soprano_degrees: ["4", "-3"]
