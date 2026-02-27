@@ -11,7 +11,7 @@ from builder.cadence_writer import cadence_entry_degree
 from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_bar_start, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
-from motifs.fragen import FragenProvider
+from motifs.episode_kernel import EpisodeKernelSource
 from motifs.subject_loader import SubjectTriple
 from shared.key import Key
 from shared.music_math import parse_metre
@@ -236,11 +236,10 @@ def compose_phrases(
     lower_structural: set[Fraction] = set()
     head_motif: HeadMotif | None = None
 
-    # Create FragenProvider if fugue is present
-    fragen_provider: FragenProvider | None = None
+    # Create episode kernel source if fugue is present
+    episode_source: EpisodeKernelSource | None = None
     if fugue is not None:
-        bar_length, _ = parse_metre(metre=metre)
-        fragen_provider = FragenProvider(fugue=fugue, bar_length=bar_length)
+        episode_source = EpisodeKernelSource(triple=fugue)
 
     for plan_idx, plan in enumerate(phrase_plans):
         # Compute next phrase's first soprano degree/key for cross-phrase guard
@@ -279,7 +278,7 @@ def compose_phrases(
             recall_figure_name=recall_figure,
             fugue=fugue,
             is_final=is_last_phrase,
-            fragen_provider=fragen_provider,
+            episode_source=episode_source,
         )
         # I8: Ensure beat-1 coverage
         result = _ensure_beat1_coverage(

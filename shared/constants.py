@@ -59,9 +59,6 @@ VALID_KEY_AREAS: frozenset[str] = frozenset({
 # Cadential states that indicate a phrase is cadential
 CADENTIAL_POSITION: str = "cadential"
 
-# Clausula cantizans pattern (scale degrees)
-CLAUSULA_APPROACH_BASS: int = 7
-CLAUSULA_APPROACH_SOPRANO: int = 4
 CLAUSULA_ARRIVAL_BASS: int = 1
 CLAUSULA_ARRIVAL_SOPRANO: int = 3
 
@@ -77,13 +74,6 @@ CONSONANT_INTERVALS: frozenset[int] = frozenset({0, 3, 4, 5, 7, 8, 9})
 # Two-voice consonances: P4 excluded (dissonant when above bass voice)
 CONSONANT_INTERVALS_ABOVE_BASS: frozenset[int] = frozenset({0, 3, 4, 7, 8, 9})
 
-# Imperfect consonances (semitones): 3rds and 6ths
-IMPERFECT_CONSONANCES: frozenset[int] = frozenset({3, 4, 8, 9})
-
-# Invertible consonances: 3rds and 6ths only (Bach's practice)
-# 5ths become 4ths when inverted (dissonant against bass), unisons reduce independence
-INVERTIBLE_CONSONANCES: frozenset[int] = IMPERFECT_CONSONANCES
-
 # Perfect intervals (semitones): unison (0), P5 (7) - forbidden in parallel motion
 PERFECT_INTERVALS: frozenset[int] = frozenset({0, 7})
 
@@ -95,21 +85,6 @@ STRONG_BEAT_DISSONANT: frozenset[int] = frozenset({1, 2, 6, 10, 11})
 # m2 (1), tritone (6), m7 (10), M7 (11)
 UGLY_INTERVALS: frozenset[int] = frozenset({1, 6, 10, 11})
 
-
-# =============================================================================
-# Consonance & Dissonance (mod-7 degree space, for stretto evaluation)
-# =============================================================================
-
-# Consonant intervals in mod-7 degree space: unison (0), 3rd (2), 5th (4), 6th (5)
-# Fourth (3) excluded: dissonant in two-voice counterpoint.
-CONSONANT_MOD7: frozenset[int] = frozenset({0, 2, 4, 5})
-
-# Fourth in mod-7 degree space — includes both perfect and augmented (tritone).
-# Mod-7 cannot distinguish them.  Treated as: fatal on strong beats (via
-# exclusion from CONSONANT_MOD7), passing cost on weak beats.
-FOURTH_MOD7: int = 3
-SECOND_MOD7: int = 1
-SEVENTH_MOD7: int = 6
 
 # Normalisation ceiling for stretto offset count scoring
 STRETTO_MIN_QUALITY: float = 0.6
@@ -234,21 +209,6 @@ INTERVAL_DIATONIC_SIZE: dict[str, int] = {
     "third_down": 2, "third_up": 2,
     "unison": 0,
 }
-
-
-# =============================================================================
-# Fragment Analyser
-# =============================================================================
-
-# Maximum diatonic degree interval for clean sequential treatment
-MAX_SEQUENTIAL_INTERVAL: int = 4
-
-# Multiplier over median duration to classify a note as "long"
-LONG_NOTE_MULTIPLIER: int = 2
-
-# Ideal episode cell length range (quarter-note beats)
-IDEAL_CELL_MAX_BEATS: int = 4
-IDEAL_CELL_MIN_BEATS: int = 2
 
 
 # =============================================================================

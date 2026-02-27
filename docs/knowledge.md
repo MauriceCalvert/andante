@@ -44,6 +44,11 @@ Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate
 - compose.py: phrase-by-phrase composition entry
 - cadence_writer.py: clausula templates
 - thematic_renderer.py: render subject/answer/CS/episode/stretto
+- entry_renderer.py: imitative entry rendering
+- cs_writer.py: countersubject writing
+- knot_builder.py: knot construction
+- hold_writer.py: held-note writing
+- free_fill.py: free-texture fill
 - imitation.py: subject_to_voice_notes
 - rhythm_cells.py: genre rhythm cells
 - faults.py: post-composition fault scan
@@ -61,7 +66,7 @@ Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate
 - planner.py: orchestrator, generate() entry
 - rhetorical.py, tonal.py, schematic.py: L1-L3
 - schema_loader.py: parse schemas.yaml
-- metric/: L4 (layer.py, pitch.py, schema_anchors.py, distribution.py, constants.py)
+- metric/: L4 (layer.py, pitch.py, schema_anchors.py, constants.py)
 - thematic.py: BeatRole, ThematicRole enum
 - imitative/: entry_layout.py, subject_planner.py, types.py
 - arc.py, dramaturgy.py, variety.py, plannertypes.py
@@ -71,7 +76,7 @@ Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate
 - voice_types.py: Voice, Actuator, Range, Role enum
 - music_math.py: duration arithmetic, parse_metre
 - counterpoint.py: prevent_cross_relation
-- pitch_selection.py, phrase_position.py
+- pitch_selection.py
 - midi_writer.py, yaml_parsing.py, tracer.py
 
 ### viterbi/ — Viterbi pathfinder engine
@@ -80,7 +85,10 @@ Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate
 
 ### motifs/
 - subject_loader.py (SubjectTriple), subject_generator.py, answer_generator.py
-- countersubject_generator.py, head/tail generators, enumerator, melodic_features
+- countersubject_generator.py, head_generator.py
+- fragment_catalogue.py, catalogue.py
+- stretto_analyser.py, stretto_constraints.py, thematic_transform.py
+- fragen.py (episode fragment generation), episode_kernel.py
 
 ## Pitch Types
 
@@ -135,12 +143,71 @@ data/schemas/      schemas, transitions
 data/treatments/   treatments.yaml
 ```
 
-## Key Laws
+## Laws (complete)
 
-Architecture: no if-chains(A001), rules=YAML(A003), RNG planner only(A005)
-Defence: validate don't fix(D001), no downstream fixes(D008), guards detect generators prevent(D010)
-Code: no try(L001), no magic numbers(L002), soft range hints only(L003), music_math for durations(L005), valid durations only(L006), natural minor melody(L007), no while without guard(L011), no quantisation(L012), clone before modify(L014), dataclass not tuple(L015), logging not print(L016), single source of truth(L017), empty __init__(L018), ASCII only(L019), keyword args only(L020)
-Anti-patterns: no post-realisation pitch adjust(X001), no iterative fix loops(X002), no global sig tracking(X003)
+Architecture:
+- A001 No if-chains, use declarative rules
+- A002 Same engine for all transforms
+- A003 Rules are data (YAML)
+- A004 Repeats are performance, not composition
+- A005 RNG in planner, determinism in builder
+- A006 Domain logic independent of infrastructure (ports/adapters)
+
+Defence:
+- D001 Validate, don't fix
+- D002 Constraints propagate upward
+- D003 Trace must debug without source
+- D004 Separate melodic approach from harmonic formula
+- D005 Compute patterns from budget, don't predefine variants
+- D006 Motifs must be asymmetric
+- D008 No downstream fixes
+- D009 Generators must use phrase_index
+- D010 Guards detect, generators prevent
+- D011 Voice-agnostic generation: no soprano/bass branching in generators
+
+Code:
+- L001 Try blocks forbidden
+- L002 Magic numbers forbidden, use constants
+- L003 Hard range constraints forbidden, soft hints only
+- L004 Voice crossing allowed only if intentional (invertible counterpoint)
+- L005 Duration arithmetic forbidden, use music_math
+- L006 Durations must be in VALID_DURATIONS
+- L007 Natural minor for melody, raised 6/7 cadential only
+- L008 Tonal targets = harmonic functions, not scale selection
+- L009 Tonal targets = functions not modulations, use home_key
+- L010 Leading tone in cadential context only
+- L011 While loops need guards and max_iterations
+- L012 Quantization forbidden, fix upstream
+- L013 MIDI gate time 95%
+- L014 Clone before modify, never mutate parameters
+- L015 NamedTuple/dataclass, not tuples
+- L016 Logging only, no print
+- L017 Single source of truth, inherit not repeat
+- L018 __init__.py must be empty, no re-exports
+- L019 ASCII only, no UTF8 symbols
+- L020 All arguments passed by keyword, no positional calls
+- L021 Brief fallback warning: YAML/brief impossibilities get sarcastic-but-kind warning
+
+Scope:
+- S001 Performance practice out of scope; score notation only
+
+Variety:
+- V001 Generators vary via phrase_index, bar_idx, segment offsets
+- V002 Tremolo max 6 notes
+
+Anti-patterns:
+- X001 No post-realisation pitch adjustment
+- X002 No iterative fix loops
+- X003 No global signature tracking at MIDI level
+- X004 No separate bar-fix and sequence-fix passes
+- X005 No rep counter starting at 0 each phrase
+
+Modularity:
+- M001 Bundle 3+ optional params that travel through 2+ call layers into frozen dataclass
+- M002 Function signatures max 10 params; bundle related groups into context dataclass
+- M003 Pass the source object, not its extracted fields, when callee has access to both
+- M004 Frozen dataclasses with >15 fields must decompose into named sub-objects
+- M005 When same extraction pattern appears at 3+ call sites, promote to method on source object
 
 ## Conventions
 
@@ -153,7 +220,8 @@ Anti-patterns: no post-realisation pitch adjust(X001), no iterative fix loops(X0
 ## CLI
 
 ```
-python -m scripts.run_pipeline <genre> <affect> [key] [-o DIR] [-trace]
+python -m scripts.run_pipeline <brief_file> [-o DIR] [-v] [-trace] [-seed N]
+python -m scripts.run_pipeline <genre> <affect> [key] [-o DIR] [-v] [-trace] [-seed N]
 ```
 
 ## Gotchas

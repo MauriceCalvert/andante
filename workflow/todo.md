@@ -4,11 +4,43 @@ Conductor reads at chat start.
 
 ---
 
-## Now: SUB-1 — Fix tonal answer generation
+## Now: EPI-5 — Episode redesign from scratch
 
-Answer generator double-transposes: constants are swapped and
-`answer_midi()` renders at tonic+7 when degrees already encode
-the transposition. Fix constants, fix rendering, regenerate .subject files.
+The episode kernel system is architecturally bankrupt and has been rejected.
+See `workflow/continue.md` for full analysis, available material, and
+architectural proposal.
+
+### The problem
+One voice sequences 2-4 note atoms mechanically; the other is Viterbi
+fill that knows nothing about the fragment. No dialogue, no fragmentation,
+no progressive compression, no voice exchange. 5/5 episodes produce
+kernel solver fallbacks. Episodes sound like wallpaper.
+
+### The replacement: imitative dialogue episodes
+1. Extract recognisable fragment from subject head/tail or CS (2-4 beats)
+2. Both voices state the same fragment in imitation (offset 1-2 beats,
+   at octave/3rd/6th)
+3. Dialogue pair sequences stepwise through key journey (2-4 iterations)
+4. Progressive fragmentation: last 1-2 iterations halve the fragment
+5. Voice exchange at midpoint of longer episodes (6+ bars)
+6. Strong-beat vertical intervals checked inline (3rds, 6ths, octaves)
+
+### Files to delete
+- `motifs/episode_kernel.py`
+- `scripts/episode_kernel_demo2.py`
+
+### Files to create
+- `motifs/episode_dialogue.py` — new episode generator
+
+### Files to modify
+- `builder/phrase_writer.py` — replace EPISODE branch
+- `builder/compose.py` — replace EpisodeKernelSource with EpisodeDialogue
+- `motifs/fragen.py` — remove kernel-specific functions
+
+### Files to keep unchanged
+- `planner/imitative/subject_planner.py` — form planning is sound
+- `builder/imitation.py` — `_fit_shift()` reusable for fragment placement
+- `builder/entry_renderer.py` — time-windowing pattern reusable
 
 ---
 
@@ -44,10 +76,13 @@ Order matters: cadences and harmony feed into everything downstream.
    - Mixed-rhythm semiquaver templates
    - Mechanical figuration (invention bars 11–16, fantasia 1–13)
 
-5. **EPI-2 — Episode variety**
-   - ~~EPI-2a: Cell vocabulary expansion (diminution + cross-source pairing)~~ _(done)_
-   - ~~EPI-2b: Fragen fallback retry~~ _(done)_
-   - EPI-2c: Episode character arc (position weighting + density/octave-doubling filters)
+5. **EPI-5 — Episode redesign** _(supersedes EPI-2, EPI-4)_
+   - ~~EPI-2a: Cell vocabulary expansion~~ _(done, superseded)_
+   - ~~EPI-2b: Fragen fallback retry~~ _(done, superseded)_
+   - ~~EPI-4a: Kernel episode demo~~ _(done, architecture rejected)_
+   - EPI-5: Replace kernel system with imitative dialogue episodes.
+     Fragment extraction → imitative pair → stepwise sequence →
+     progressive fragmentation → voice exchange.
 
 6. **ORN — Compositional ornaments**
    Mordents, trills, turns, appoggiaturas placed by structural context

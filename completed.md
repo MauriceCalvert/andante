@@ -1,5 +1,30 @@
 # Completed
 
+## Dead code removal (2026-02-27)
+
+Deleted 7 dead modules never imported by production code:
+- `motifs/figurae.py`, `motifs/simple_subject.py`, `motifs/tail_generator.py`
+- `builder/strategies/` (entire directory: diminution.py + __init__.py)
+- `planner/metric/distribution.py`, `shared/phrase_position.py`
+- `tests/shared/test_phrase_position.py` (orphaned test)
+
+Removed dead constants from `shared/constants.py`:
+- CLAUSULA_APPROACH_BASS, CLAUSULA_APPROACH_SOPRANO
+- CONSONANT_MOD7, FOURTH_MOD7, SECOND_MOD7, SEVENTH_MOD7
+- IMPERFECT_CONSONANCES, INVERTIBLE_CONSONANCES
+- Fragment Analyser section (MAX_SEQUENTIAL_INTERVAL, LONG_NOTE_MULTIPLIER, IDEAL_CELL_MAX_BEATS, IDEAL_CELL_MIN_BEATS)
+
+Removed dead code from `shared/music_math.py`:
+- MusicMathError, is_valid_duration, fill_slot + all _fill_* helpers
+
+Cleaned dead imports:
+- `planner/metric/constants.py`: removed CLAUSULA_APPROACH_*, KEY_AREA_SEMITONES re-exports
+- `builder/phrase_writer.py`: removed unused BeatPosition, make_tail_plan
+- `motifs/episode_kernel.py`: removed unused __future__, dc_replace, TRACK_BASS, TRACK_SOPRANO
+
+Updated `tests/shared/test_music_math.py` to remove tests for deleted functions.
+Updated `docs/knowledge.md`: complete laws listing + module layout corrections.
+
 ## EPI-4a: Kernel episode demo - soprano only (2026-02-27)
 
 Added `Kernel` dataclass and `extract_kernels()` to `motifs/fragen.py`: extracts

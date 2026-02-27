@@ -99,7 +99,7 @@ def convert_note_to_midi(note_path: Path) -> None:
     print(f"Wrote {len(notes)} notes to {output_path}")
 
 
-def main() -> None:
+def note_to_midi() -> None:
     """Convert .note to MIDI format."""
     if len(sys.argv) < 2:
         print("Usage: python note_to_midi.py <note_file_or_folder>")
@@ -122,4 +122,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    note_to_midi()

@@ -1,1 +1,0 @@
-"""Voice writer strategies package."""

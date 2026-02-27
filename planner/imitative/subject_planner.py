@@ -32,20 +32,25 @@ _UNSUPPORTED_ROLES: frozenset[str] = frozenset({
 })
 
 # Episode length thresholds (semitone distance between key tonics)
-_EPISODE_CLOSE: int = 3     # up to 3 semitones -> 2 bars
-_EPISODE_MEDIUM: int = 5    # 4-5 semitones -> 3 bars
-                             # 6+ semitones -> 4 bars
+_EPISODE_CLOSE: int = 3     # up to 3 semitones -> 3 bars
+_EPISODE_MEDIUM: int = 5    # 4-5 semitones -> 4 bars
+                             # 6+ semitones -> 5 bars
 
-_EPISODE_BARS_CLOSE: int = 2
-_EPISODE_BARS_MEDIUM: int = 3
-_EPISODE_BARS_FAR: int = 4
+_EPISODE_BARS_MIN: int = 5    # no episode shorter than this
+_EPISODE_BARS_CLOSE: int = 6
+_EPISODE_BARS_MEDIUM: int = 7
+_EPISODE_BARS_FAR: int = 8
 
 # Slot-to-beat conversion (from stretto_constraints)
 _SLOTS_PER_CROTCHET: int = 4
 _SLOTS_PER_QUAVER: int = 2
 
 # Scope -> default development entry count (GEL-1)
-_SCOPE_DEV_COUNT: dict[str, int] = {"short": 2, "medium": 3, "extended": 5}
+# 3-section invention: exposition (subject + answer) + episodes + peroration (stretto)
+# Subject appears at most 3 times: subject, answer, stretto.
+# Development is purely episodic; scope controls how many keys episodes visit.
+_SCOPE_DEV_COUNT: dict[str, int] = {"short": 0, "medium": 0, "extended": 0}
+_SCOPE_EPISODE_KEYS: dict[str, int] = {"short": 2, "medium": 3, "extended": 5}
 
 # Scope -> final cadence schema (CLR-3)
 _SCOPE_CADENCE: dict[str, str] = {
@@ -59,10 +64,12 @@ def _episode_bars_for_distance(from_key: Key, to_key: Key) -> int:
     """Episode length in bars, scaled by semitone distance between keys."""
     dist: int = abs(_semitone_distance(key1=from_key, key2=to_key))
     if dist <= _EPISODE_CLOSE:
-        return _EPISODE_BARS_CLOSE
-    if dist <= _EPISODE_MEDIUM:
-        return _EPISODE_BARS_MEDIUM
-    return _EPISODE_BARS_FAR
+        bars: int = _EPISODE_BARS_CLOSE
+    elif dist <= _EPISODE_MEDIUM:
+        bars = _EPISODE_BARS_MEDIUM
+    else:
+        bars = _EPISODE_BARS_FAR
+    return max(bars, _EPISODE_BARS_MIN)
 
 
 def _voice_0_leads(entry_idx: int, voice_lead: str) -> bool:
@@ -222,13 +229,39 @@ def generate_entry_sequence(
             "lead_voice": episode_lead,
         })
 
+    # ── b2. Episodic development ────────────────────────────────────
+    # Subject fragments sequenced through related keys.  One answer+CS
+    # entry at the midpoint gives the comes a second hearing without
+    # restating the full subject.  Scope controls how many keys are visited.
+    if dev_count == 0 and len(base_journey) > 0:
+        n_keys: int = _SCOPE_EPISODE_KEYS.get(scope, 3)
+        ep_journey: list[str] = base_journey[:n_keys]
+        ep_journey.append("I")  # retransition to tonic
+        midpoint: int = len(ep_journey) // 2
+        for ep_idx in range(len(ep_journey) - 1):
+            from_label: str = ep_journey[ep_idx]
+            to_label: str = ep_journey[ep_idx + 1]
+            ep_lead: int = ep_idx % 2  # alternate lead voice
+            # Insert answer+CS entry at midpoint of key journey
+            if ep_idx == midpoint:
+                mid_key: str = ep_journey[ep_idx]
+                sequence.append({
+                    "upper": ["cs", mid_key],
+                    "lower": ["answer", mid_key],
+                    "cs_variant": 1,
+                })
+            sequence.append({
+                "type": "episode",
+                "from_key": from_label,
+                "to_key": to_label,
+                "lead_voice": ep_lead,
+            })
+
     # ── c. Peroration ─────────────────────────────────────────────────
     peroration_entries: list[dict] = vocabulary.get("peroration_entries", [])
 
     if stretto_setting in ("single", "multiple"):
         sequence.append({"type": "stretto_section", "key": "I"})
-        if stretto_setting == "multiple" and len(stretto_offsets) >= 2:
-            sequence.append({"type": "stretto_section", "key": "I"})
 
     if brief.get("pedal", False):
         pedal_tmpl: dict | None = next(
@@ -498,32 +531,29 @@ def plan_subject(
         section_idx: int = i * n_sections // n_entries
         entry_section_names.append(sections[section_idx]["name"])
 
-    # ── 2b. Auto-insert half-cadences at section boundaries ─────────
-    # Build augmented entry list: original entries + auto-inserted HCs
+    # ── 2b. Auto-insert half-cadence before the final section only ────
+    # One HC punctuates the transition into the peroration.  Interior
+    # section boundaries are left unpunctuated so episodes flow freely.
     augmented_entries: list[dict | str] = []
     augmented_sections: list[str] = []
     augmented_costs: list[int] = []
+    final_section: str = sections[-1]["name"]
 
     for i in range(n_entries):
-        # Check if this is a section boundary (and neither side is cadence or pedal)
         prev_is_special = (entry_sequence[i - 1] == "cadence") if i > 0 else False
         curr_is_special = (entry_sequence[i] == "cadence")
-
-        is_boundary = (
+        is_final_boundary = (
             i > 0
-            and entry_section_names[i] != entry_section_names[i - 1]
+            and entry_section_names[i] == final_section
+            and entry_section_names[i - 1] != final_section
             and not prev_is_special
             and not curr_is_special
         )
-
-        if is_boundary:
-            # Insert half cadence in outgoing section's key
+        if is_final_boundary:
             prev_voice_idx, prev_key = _extract_lead_voice_and_key(entry_sequence[i - 1], home_key)
-
             assert prev_key is not None, (
                 f"Cannot auto-insert half cadence: entry {i-1} has no thematic material"
             )
-
             augmented_entries.append({
                 "_internal_cadence": True,
                 "schema": "half_cadence",
@@ -531,7 +561,6 @@ def plan_subject(
             })
             augmented_sections.append(entry_section_names[i - 1])
             augmented_costs.append(hc_bars)
-
         # Add the original entry
         augmented_entries.append(entry_sequence[i])
         augmented_sections.append(entry_section_names[i])
@@ -657,19 +686,18 @@ def plan_subject(
             bar_pointer += cost
             continue
 
-        # Stretto entry
+        # Stretto entry — both voices state the subject with a time offset.
+        # Voice A (leader) starts at beat 0; voice B (follower) enters after
+        # delay beats.  Total span = subject_bars + delay_bars.  The renderer
+        # time-windows each voice; bars where one voice has finished get free
+        # counterpoint via the normal free-fill path.
         if isinstance(entry, dict) and entry.get("type") == "stretto":
             stretto_key_label: str = entry["key"]
             stretto_delay: int = entry["delay"]
             stretto_key: Key = home_key.modulate_to(stretto_key_label)
-
-            # STR-1: Only subject_bars get SUBJECT+STRETTO stamping.
-            # Overflow bars (offset >= subject_bars) become episodes with
-            # sequential fragment material in contrary motion.
-            for offset in range(min(subject_bars, cost)):
+            for offset in range(cost):
                 bar_num: int = bar_pointer + offset
                 voices: dict[int, VoiceAssignment] = {}
-
                 voices[0] = VoiceAssignment(
                     role="subject",
                     material_key=stretto_key,
@@ -678,7 +706,6 @@ def plan_subject(
                     fragment=None,
                     fragment_iteration=0,
                 )
-
                 voices[1] = VoiceAssignment(
                     role="stretto",
                     material_key=stretto_key,
@@ -687,7 +714,6 @@ def plan_subject(
                     fragment=str(stretto_delay),
                     fragment_iteration=0,
                 )
-
                 bar_assignments.append(BarAssignment(
                     bar=bar_num,
                     section=section_name,
@@ -696,63 +722,6 @@ def plan_subject(
                     voices=voices,
                     entry_index=entry_idx,
                 ))
-
-            # STR-1: Overflow bars become episode bridging material.
-            # Direction derived from the next episode's key journey.
-            overflow_count: int = cost - subject_bars
-            if overflow_count > 0:
-                # Look ahead for the next episode to determine direction
-                overflow_ascending: bool = False  # default: descending (cadential)
-                for ahead_entry in augmented_entries[entry_idx + 1:]:
-                    if (isinstance(ahead_entry, dict)
-                            and ahead_entry.get("type") == "episode"):
-                        ep_to_key: Key = home_key.modulate_to(ahead_entry["to_key"])
-                        overflow_ascending = _semitone_distance(
-                            key1=stretto_key, key2=ep_to_key,
-                        ) > 0
-                        break
-
-                for overflow_offset in range(overflow_count):
-                    bar_num = bar_pointer + subject_bars + overflow_offset
-                    voices = {}
-
-                    if overflow_ascending:
-                        ov_iteration: int = -(overflow_offset + 1)
-                    else:
-                        ov_iteration = overflow_offset + 1
-
-                    ov_upper_iteration: int = ov_iteration
-                    ov_lower_iteration: int = -ov_iteration
-
-                    # Voice 0 (soprano): tail fragment
-                    voices[0] = VoiceAssignment(
-                        role="episode",
-                        material_key=stretto_key,
-                        texture="plain",
-                        pairing="independent",
-                        fragment="tail",
-                        fragment_iteration=ov_upper_iteration,
-                    )
-
-                    # Voice 1 (bass): head fragment (leads)
-                    voices[1] = VoiceAssignment(
-                        role="episode",
-                        material_key=stretto_key,
-                        texture="plain",
-                        pairing="independent",
-                        fragment="head",
-                        fragment_iteration=ov_lower_iteration,
-                    )
-
-                    bar_assignments.append(BarAssignment(
-                        bar=bar_num,
-                        section=section_name,
-                        function="episode",
-                        local_key=stretto_key,
-                        voices=voices,
-                        entry_index=entry_idx,
-                    ))
-
             bar_pointer += cost
             continue
 

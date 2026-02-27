@@ -47,7 +47,6 @@ thematic:
       # Pool: planner picks from these, assigns keys at runtime
       - template: subject_cs    # subject in one voice, cs in the other
         bars: 2
-      - template: stretto
 
     peroration_entries:
       - template: stretto
@@ -64,7 +63,7 @@ thematic:
     scope: extended          # short / medium / extended
     # development_entries omitted: scope controls count (short=2, medium=3, extended=5)
     stretto: multiple        # none / single / multiple
-    pedal: true
+    pedal: false
     key_journey_major: [vi, IV, V, ii, iii]
     key_journey_minor: [III, iv, v, VI, ii]
     voice_lead: alternate    # alternate / soprano_heavy / bass_heavy

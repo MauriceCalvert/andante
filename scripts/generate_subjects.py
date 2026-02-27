@@ -496,8 +496,8 @@ def main() -> None:
                         help="Tonic note (default: C)")
     parser.add_argument("--tempo", "-t", type=int, default=100,
                         help="Tempo in BPM (default: 100)")
-    parser.add_argument("--bars", type=int, default=2, choices=[2, 3, 4],
-                        help="Subject length in bars (default: random 2-4)")
+    parser.add_argument("--bars", type=int, default=2, choices=[1, 2, 3, 4],
+                        help="Subject length in bars (default: random 1-4)")
     parser.add_argument("--notes", type=str, default=12,
                         help="Note counts, e.g. '9,10,11' (default: all)")
     parser.add_argument("--batch", "-b", type=int, default=10,

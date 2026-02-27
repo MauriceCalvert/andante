@@ -191,32 +191,55 @@ def sequence_kernel(
     iterations: int,
     voice: int = 0,
 ) -> list[Note]:
-    """Sequence a kernel at stepping pitch levels.
+    """Sequence a single kernel at stepping pitch levels."""
+    return sequence_kernels(
+        segments=((kernel, iterations),),
+        start_degree=start_degree,
+        step=step,
+        voice=voice,
+    )
+
+
+def sequence_kernels(
+    segments: tuple[tuple[Kernel, int], ...],
+    start_degree: int,
+    step: int,
+    voice: int = 0,
+) -> list[Note]:
+    """Sequence multiple kernels end-to-end at stepping pitch levels.
+
+    Each segment is (kernel, repetitions). The pitch keeps stepping
+    across segment boundaries -- kernel B starts at the degree where
+    kernel A finished. Same sequential motion, different melodic content.
 
     Args:
-        kernel: The motivic kernel to sequence.
+        segments: Tuple of (Kernel, repetition_count) pairs.
         start_degree: Starting scale degree for the first iteration.
         step: Diatonic step per iteration (-1 for descending, +1 for ascending).
-        iterations: Number of sequential repetitions.
         voice: Voice index for the output notes.
 
     Returns:
         List of Note namedtuples with correctly offset and transposed pitches.
     """
-    assert iterations > 0, f"iterations must be positive, got {iterations}"
+    assert len(segments) > 0, "segments must not be empty"
     notes: list[Note] = []
-    for k in range(iterations):
-        time_offset: Fraction = k * kernel.total_duration
-        pitch_offset: int = k * step
-        onset: Fraction = Fraction(0)
-        for deg, dur in zip(kernel.degrees, kernel.durations):
-            notes.append(Note(
-                offset=time_offset + onset,
-                degree=start_degree + pitch_offset + deg,
-                duration=dur,
-                voice=voice,
-            ))
-            onset += dur
+    time_cursor: Fraction = Fraction(0)
+    iteration_cursor: int = 0
+    for kernel, repetitions in segments:
+        assert repetitions > 0, f"repetitions must be positive, got {repetitions}"
+        for k in range(repetitions):
+            pitch_offset: int = (iteration_cursor + k) * step
+            onset: Fraction = Fraction(0)
+            for deg, dur in zip(kernel.degrees, kernel.durations):
+                notes.append(Note(
+                    offset=time_cursor + onset,
+                    degree=start_degree + pitch_offset + deg,
+                    duration=dur,
+                    voice=voice,
+                ))
+                onset += dur
+            time_cursor += kernel.total_duration
+        iteration_cursor += repetitions
     return notes
 
 
