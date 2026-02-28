@@ -345,56 +345,58 @@ def _write_thematic(
                 "ensure at least one entry precedes this episode in the piece."
             )
 
-            # Compute target pitches for endpoint-driven trajectory (EPI-8).
-            _target_upper_raw: int | None
-            _target_lower_raw: int | None
-            if entry_idx + 1 < len(material_entries):
-                next_e: dict = material_entries[entry_idx + 1]
-                _next_key_v0: Key = (
-                    next_e["beat_role_v0"].material_key
-                    if next_e["beat_role_v0"] is not None
-                    else episode_key
+            assert plan.register_target is not None, (
+                f"Episode bars {entry_first_bar}-{entry_first_bar + entry_bar_count - 1} "
+                f"has no register target — register planner must populate "
+                f"PhrasePlan.register_target before write_phrase is called."
+            )
+            # Soprano target: apply the planned delta to the actual prior pitch.
+            # The register planner anchors episode starts from the *entry* pitch of
+            # the preceding thematic phrase; the builder uses the *exit* pitch, which
+            # may have settled far from the anchor.  Preserving direction+magnitude
+            # (the delta) keeps the registral arc intent intact.
+            _delta_u: int = (
+                plan.register_target.end_upper_midi - plan.register_target.start_upper_midi
+            )
+            _target_upper: int = max(
+                plan.upper_range.low,
+                min(plan.upper_range.high, _prior_upper_raw + _delta_u),
+            )
+            # Bass target: use the absolute planned endpoint.  The bass prior rarely
+            # diverges enough to produce zero motion, and delta-shifting the bass can
+            # push the target below the range floor.
+            _target_lower: int = plan.register_target.end_lower_midi
+            # Enforce minimum voice separation: soprano target must stay at least
+            # 16 semitones (minor 10th) above the bass target.  When the delta
+            # would push soprano below that floor, clamp back up — preserving the
+            # bass-relative separation that register_plan.py already validated.
+            _sep_floor: int = _target_lower + 16
+            if _target_upper < _sep_floor:
+                _target_upper = min(_sep_floor, plan.upper_range.high)
+            if _prior_upper_raw == _target_upper:
+                _log.warning(
+                    "Episode bars %d-%d: soprano entry==exit (%s) delta %+d — "
+                    "budget pushed against range boundary",
+                    entry_first_bar, entry_first_bar + entry_bar_count - 1,
+                    _prior_upper_raw, _delta_u,
                 )
-                _next_key_v1: Key = (
-                    next_e["beat_role_v1"].material_key
-                    if next_e["beat_role_v1"] is not None
-                    else episode_key
+            if _prior_lower_raw == _target_lower:
+                _delta_l: int = (
+                    plan.register_target.end_lower_midi - plan.register_target.start_lower_midi
                 )
-                _target_upper_raw = _compute_next_entry_pitch(
-                    role=next_e["voice0_role"],
-                    beat_role=next_e["beat_role_v0"],
-                    key=_next_key_v0,
-                    voice_range=plan.upper_range,
-                    fugue=fugue,
+                _adj_l: int = max(
+                    plan.lower_range.low,
+                    min(plan.lower_range.high, _prior_lower_raw + _delta_l),
                 )
-                _target_lower_raw = _compute_next_entry_pitch(
-                    role=next_e["voice1_role"],
-                    beat_role=next_e["beat_role_v1"],
-                    key=_next_key_v1,
-                    voice_range=plan.lower_range,
-                    fugue=fugue,
-                )
-            elif next_phrase_entry_degree is not None and next_phrase_entry_key is not None:
-                # Cross-phrase: resolve degree + key to MIDI, anchoring to prior pitch.
-                _target_upper_raw = degree_to_nearest_midi(
-                    degree=next_phrase_entry_degree,
-                    key=next_phrase_entry_key,
-                    target_midi=_prior_upper_raw,
-                    midi_range=(plan.upper_range.low, plan.upper_range.high),
-                )
-                _target_lower_raw = degree_to_nearest_midi(
-                    degree=next_phrase_entry_degree,
-                    key=next_phrase_entry_key,
-                    target_midi=_prior_lower_raw,
-                    midi_range=(plan.lower_range.low, plan.lower_range.high),
-                )
-            else:
-                _target_upper_raw = None
-                _target_lower_raw = None
-
-            # Fallback to static (no arrival) if target is not computable.
-            _target_upper: int = _target_upper_raw if _target_upper_raw is not None else _prior_upper_raw
-            _target_lower: int = _target_lower_raw if _target_lower_raw is not None else _prior_lower_raw
+                if _adj_l != _prior_lower_raw:
+                    _target_lower = _adj_l
+                else:
+                    _log.warning(
+                        "Episode bars %d-%d: bass entry==exit (%s) delta %+d — "
+                        "budget pushed against range boundary",
+                        entry_first_bar, entry_first_bar + entry_bar_count - 1,
+                        _prior_lower_raw, _delta_l,
+                    )
 
             assert episode_source is not None, "EpisodeDialogue required for EPISODE bars"
             ep_soprano: tuple[Note, ...]
@@ -411,10 +413,11 @@ def _write_thematic(
                 target_upper_midi=_target_upper,
                 target_lower_midi=_target_lower,
             )
+            ep_label: str = f"episode {episode_source._episode_count}"
             if ep_soprano:
-                ep_soprano = (replace(ep_soprano[0], lyric="episode"),) + ep_soprano[1:]
+                ep_soprano = (replace(ep_soprano[0], lyric=ep_label),) + ep_soprano[1:]
             if ep_bass:
-                ep_bass = (replace(ep_bass[0], lyric="episode"),) + ep_bass[1:]
+                ep_bass = (replace(ep_bass[0], lyric=ep_label),) + ep_bass[1:]
             soprano_notes = soprano_notes + ep_soprano
             bass_notes = bass_notes + ep_bass
             _assert_within_entry(ep_soprano, "soprano", entry_start_offset, next_entry_start_offset, entry_first_bar)

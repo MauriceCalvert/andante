@@ -12,6 +12,7 @@ from shared.voice_types import Range
 
 if TYPE_CHECKING:
     from builder.types import Note
+    from planner.register_plan import RegisterTarget
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,7 @@ class PhrasePlan:
     thematic_roles: tuple | None = None  # BeatRole slice for this phrase (TP-A)
     voice_densities: tuple[BarVoiceDensity, ...] | None = None  # Per-voice, per-bar density overrides (B1)
     cadential_approach: bool = False
+    register_target: "RegisterTarget | None" = None
 
 
 @dataclass(frozen=True)

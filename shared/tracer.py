@@ -58,6 +58,7 @@ class PipelineTracer:
         self._buf: StringIO = StringIO()
         self._name: str = ""
         self._output_dir: Path | None = None
+        self._episode_count: int = 0
 
     def start(
         self,
@@ -71,6 +72,7 @@ class PipelineTracer:
         self._buf = StringIO()
         self._name = trace_name if trace_name else f"{genre}_{key}"
         self._output_dir = output_dir
+        self._episode_count = 0
         self._line(f"=== {genre} / {affect} / {key} ===")
 
     def _line(self, text: str) -> None:
@@ -169,6 +171,33 @@ class PipelineTracer:
                 f"  [{i}] {p.schema_name:22s} bars {p.start_bar}-{p.start_bar + p.bar_span - 1:>2d} "
                 f"{_key_str(key=p.local_key):7s} S({deg_up}) B({deg_lo}){cad_tag}{seq_tag}"
             )
+
+    # ── Layer 5r: Register plan ──────────────────────────────────────
+
+    def trace_L5r_register(
+        self,
+        phrase_index: int,
+        start_bar: int,
+        end_bar: int,
+        key_str: str,
+        start_upper: int,
+        end_upper: int,
+        start_lower: int,
+        end_lower: int,
+    ) -> None:
+        """L5r: Register target for one episode phrase."""
+        if not TRACE_ENABLED:
+            return
+        delta_upper: int = end_upper - start_upper
+        delta_lower: int = end_lower - start_lower
+        sign_u: str = "+" if delta_upper >= 0 else ""
+        sign_l: str = "+" if delta_lower >= 0 else ""
+        self._line(
+            f"L5r Register: [{phrase_index}] ep bars {start_bar}-{end_bar}"
+            f" {key_str}"
+            f" U: {_pitch(start_upper)}->{_pitch(end_upper)} ({sign_u}{delta_upper}st)"
+            f" L: {_pitch(start_lower)}->{_pitch(end_lower)} ({sign_l}{delta_lower}st)"
+        )
 
     # ── Layer 6: Phrase results ──────────────────────────────────────
 
@@ -410,6 +439,85 @@ class PipelineTracer:
         self._line(
             f"L6t Coverage: {thematic_beats}/{total_beats} beats thematic ({thematic_pct:.1f}%) "
             f"| FREE {free_beats}{gap_str}"
+        )
+
+    # ── Episode diagnostics ───────────────────────────────────────────
+
+    def trace_episode_header(
+        self,
+        start_bar: int,
+        bar_count: int,
+        episode_key_str: str,
+        target_key_str: str,
+        prior_upper: int,
+        prior_lower: int,
+        target_upper: int,
+        target_lower: int,
+        start_upper_deg: int,
+        end_upper_deg: int,
+        start_lower_deg: int,
+        end_lower_deg: int,
+        upper_schedule: list[int],
+        lower_schedule: list[int],
+        min_motion_applied_upper: bool,
+        min_motion_applied_lower: bool,
+        path: str,
+        chain_desc: str,
+    ) -> None:
+        """Episode-level diagnostic: one block per episode call."""
+        if not TRACE_ENABLED:
+            return
+        mm_upper: str = " MIN-MOTION" if min_motion_applied_upper else ""
+        mm_lower: str = " MIN-MOTION" if min_motion_applied_lower else ""
+        self._episode_count += 1
+        self._line(f"L6t Episode {self._episode_count}: bars {start_bar}-{start_bar + bar_count - 1} "
+                   f"{episode_key_str} ({path})")
+        self._line(f"  Upper: prior={_pitch(prior_upper)} target={_pitch(target_upper)} "
+                   f"deg {start_upper_deg}->{end_upper_deg} sched={upper_schedule}{mm_upper}")
+        self._line(f"  Lower: prior={_pitch(prior_lower)} target={_pitch(target_lower)} "
+                   f"deg {start_lower_deg}->{end_lower_deg} sched={lower_schedule}{mm_lower}")
+        self._line(f"  Chain: {chain_desc}")
+
+    def trace_episode_iteration(
+        self,
+        iteration: int,
+        bar_idx: int,
+        kernel_source: str,
+        exchanged: bool,
+        sop_lo: int,
+        sop_hi: int,
+        bass_lo: int,
+        bass_hi: int,
+    ) -> None:
+        """Per-kernel-iteration diagnostic inside an episode."""
+        if not TRACE_ENABLED:
+            return
+        exch: str = " X" if exchanged else ""
+        self._line(
+            f"  [{iteration:2d}] bar_idx={bar_idx} {kernel_source:20s}"
+            f" S:{_pitch(sop_lo)}..{_pitch(sop_hi)}"
+            f" B:{_pitch(bass_lo)}..{_pitch(bass_hi)}{exch}"
+        )
+
+    def trace_episode_summary(
+        self,
+        sop_count: int,
+        sop_lo: int,
+        sop_hi: int,
+        bass_count: int,
+        bass_lo: int,
+        bass_hi: int,
+        sop_range: tuple[int, int],
+        bass_range: tuple[int, int],
+    ) -> None:
+        """Episode output summary with range check."""
+        if not TRACE_ENABLED:
+            return
+        sop_ok: str = "OK" if sop_range[0] <= sop_lo and sop_hi <= sop_range[1] else "OUT-OF-RANGE"
+        bass_ok: str = "OK" if bass_range[0] <= bass_lo and bass_hi <= bass_range[1] else "OUT-OF-RANGE"
+        self._line(
+            f"  Output: S={sop_count} notes {_pitch(sop_lo)}..{_pitch(sop_hi)} [{sop_ok}] "
+            f"B={bass_count} notes {_pitch(bass_lo)}..{_pitch(bass_hi)} [{bass_ok}]"
         )
 
     # ── Faults ───────────────────────────────────────────────────────

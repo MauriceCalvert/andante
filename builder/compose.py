@@ -15,7 +15,7 @@ from motifs.episode_dialogue import EpisodeDialogue
 from motifs.subject_loader import SubjectTriple
 from shared.key import Key
 from shared.music_math import parse_metre
-from shared.tracer import get_tracer
+from shared.tracer import get_tracer, _key_str
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +240,32 @@ def compose_phrases(
     episode_source: EpisodeDialogue | None = None
     if fugue is not None:
         episode_source = EpisodeDialogue(triple=fugue)
+
+    # Compute and inject register targets for episode phrases (REG-1).
+    if fugue is not None:
+        from planner.register_plan import compute_register_targets
+        _reg_targets = compute_register_targets(
+            phrases=list(phrase_plans),
+            upper_range=phrase_plans[0].upper_range,
+            lower_range=phrase_plans[0].lower_range,
+            fugue=fugue,
+        )
+        _plans_list: list[PhrasePlan] = list(phrase_plans)
+        _tracer = get_tracer()
+        for _idx, _target in _reg_targets.items():
+            _plans_list[_idx] = replace(_plans_list[_idx], register_target=_target)
+            _plan = _plans_list[_idx]
+            _tracer.trace_L5r_register(
+                phrase_index=_idx,
+                start_bar=_plan.start_bar,
+                end_bar=_plan.start_bar + _plan.bar_span - 1,
+                key_str=_key_str(key=_plan.local_key),
+                start_upper=_target.start_upper_midi,
+                end_upper=_target.end_upper_midi,
+                start_lower=_target.start_lower_midi,
+                end_lower=_target.end_lower_midi,
+            )
+        phrase_plans = tuple(_plans_list)
 
     for plan_idx, plan in enumerate(phrase_plans):
         # Compute next phrase's first soprano degree/key for cross-phrase guard

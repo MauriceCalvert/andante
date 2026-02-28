@@ -1,3 +1,18 @@
+### REG-1 — Register planner (2026-02-28 21:00)
+
+Two-pass register planner delivered in `planner/register_plan.py`. Pass 1 collects
+thematic entry anchor pitches using whole-sequence octave placement with CS spacing
+correction. Pass 2 computes episode start/end targets: contrary motion default
+(soprano descends, bass ascends), ascending override with `_MIN_MEANINGFUL_MOTION=4`
+guard, bass descent fallback, `_ENDPOINT_MARGIN=4` to prevent tessitura overshoot.
+Phrase_writer.py: soprano target uses delta approach (planned direction+magnitude applied
+to actual prior), bass uses absolute target with conditional delta rescue for zero-motion
+cases. Voice separation floor (`+16st`) prevents delta from pushing soprano below bass.
+Fault count: 82 baseline → 58 (29% improvement). Zero tessitura_excursion, zero
+zero-motion episodes, all soprano arcs ≥4st, no monotonic climb.
+
+---
+
 ### EPI-8 — Episode endpoint navigation (2026-02-28 18:00)
 
 Endpoint-driven episode trajectories delivered. Each voice now receives
