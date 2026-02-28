@@ -1,91 +1,147 @@
-# EPI-5b Result
+## EPI-6 — Paired-kernel episode variety
 
-## Code Changes
+### Code changes
 
-### 1. `motifs/episode_dialogue.py`
+**motifs/extract_kernels.py** — complete rewrite:
+- `Kernel` dataclass removed; replaced with `PairedKernel` (7 fields: name,
+  upper_degrees, upper_durations, lower_degrees, lower_durations,
+  total_duration, source).
+- `extract_kernels()` removed; replaced with `extract_paired_kernels(fugue)`.
+- Shared-onset slicing algorithm: builds onset lists for both voices, finds
+  intersection (+ boundary at shorter_total), extracts notes per slice.
+- Sub-pair extraction: for kernels with 3+ notes in longer voice, extracts
+  first-2 and last-2 sub-pairs.
+- Inversion (negate all degrees, re-normalise) and deduplication by content.
 
-**Head-fragment trimming (oblique tail, 3-semiQ)**
-Built `_head_degrees`/`_head_durations` with `half_length=IMITATION_BEAT_DELAY` as before, then trimmed the last note (`[:-1]`). This gives a 3-semiquaver head (degrees 0,−1,−2) instead of 4. The follower sustains at degree −2 (not −3), so the inter-iteration ascending gap is 3 diatonic steps (≤ P4) instead of 4 (potentially tritone). Oblique motion is preserved: the follower's last pitch change falls at iter_start+6/16, strictly between the leader's crotchet changes at iter_start+4/16 and iter_start+8/16.
+**motifs/episode_kernel.py** — complete rewrite:
+- Removed all dead code (generate_leader, _to_builder_notes, fragen imports).
+- New `EpisodeKernelSource`: calls `extract_paired_kernels`, builds pool
+  (half-bar cap, 3 per source family), DFS chain solver.
+- `generate(bar_count)` → flat list of PairedKernels or None.
+- `_solve()`: simplified DFS, no distance/finish_degree constraint.
+- Fragmentation ordering: segments sorted so last has shortest duration.
 
-**Ascending-aware start_degree (cross-phrase anchor)**
-In `generate()`, when `prior_upper_midi` is available, compute the nearest degree as before, but only use it (via `start_degree = nearest`) if the episode is ascending OR if `nearest >= _DEFAULT_START_DEGREE`. For descending episodes below the default, keep start_degree=4. This prevents descending sequences from starting too low, which forces a +12 octave shift in later iterations and creates grotesque leaps. Ascending episodes use the prior freely (lower starts are octave-shifted up, creating a P8 entry rather than an ugly m7).
-
-**Entry anchor range check**
-The i==0 entry anchor now checks that the corrected notes stay within `upper_range`/`lower_range` before applying. If the −12 correction would push any note below range, the correction is skipped.
-
-### 2. `builder/phrase_writer.py`
-
-**Cross-phrase prior fallback**
-When `soprano_notes` is empty (episode is the first item in its phrase plan), `prior_upper_midi` now falls back to `prior_upper[-1].pitch` from the previous phrase. This passes the correct cross-phrase context to the start_degree and entry anchor logic.
-
-### 3. `viterbi/costs.py` + `viterbi/pathfinder.py` (from earlier session)
-
-**HC7 strong-beat parallel check**
-Added `prev_prev_beat_strength` and `prev_prev_others` to `FollowerStep`/`VoiceData`. HC7 fires when the current and t−2 positions are both strong/moderate, t−1 is weak, and both intervals are identical perfect consonances. `pathfinder.py` tracks t−2 state and passes it through.
-
----
-
-## Bob's Assessment
-
-### 1. Parallel octave/fifth faults in episode bars
-
-**Zero.** The trace shows three parallel-octave faults at bars 25.1–25.3, but those are in the bars-24–25 CS/subject_entry — not in episode bars. All five episodes (bars 4–10, 11–16, 17–23, 26–31, 32–38) are parallel-free. That is 42 episode parallels eliminated from the 53-fault baseline.
-
-### 2. Bars 24–25 strong-beat parallel octaves
-
-**Still present.** Faults 25.1, 25.2, 25.3 remain: D5/D3 → C5/C3 → D5/D3 on consecutive strong beats. HC7 did not eliminate them.
-
-### 3. Episode tails (beats 3–4)
-
-**Two voices.** In each full-fragment iteration the follower sustains a single pitch while the leader completes the descending figure. The texture on beats 3–4 is now one moving voice plus one held voice — oblique motion, not doubled monophony. Compression iterations at the end of long episodes have a similar held quality. The relief from lockstep is audible.
-
-### 4. Ugly leaps at episode entries
-
-**One inter-iteration tritone.** The episode entries themselves (first note of each episode) are clean: episode 2 (E5, M3 from prior), episode 3 (D5, P8 from prior), episodes 4, 6, 7 all smooth. However fault 12.1 is a descending tritone A#4→E4 inside episode 3 (bar 12, iteration boundary). This is not at an entry — it is the junction between iteration 0 (ending on Bb4) and iteration 1 (starting on E4). Noticeable in context.
-
-### 5. Bass range
-
-**Clean.** No tessitura_excursion faults anywhere. The old A#1 in the F-major episode is gone.
-
-### 6. What's still wrong
-
-- **12.1** — descending tritone A#4→E4 at the boundary of episode 3 iterations 0→1 (bar 12). Structural: Bb and E are a tritone apart in F major regardless of octave. The ascending sequence's +12 shift on iteration 0 puts it a tritone above the unshifted iteration 1.
-- **25.1–25.3** — parallel octaves at bars 24–25 CS. Pre-existing structural issue in the CS answer writing. HC7 is not helping.
-- **24.1** — unprepared dissonance at bar 24 (subject entry). Pre-existing.
-- **29.2** — cross-relation. Key-planning scope (Bb episode against natural context).
-- **39.3, 40.1** — cadence/stretto boundary leaps. Pre-existing.
-- **40.3, 43.1** — parallel rhythm in stretto and cadenza. Pre-existing.
+**motifs/episode_dialogue.py** — restructured:
+- `EpisodeKernelSource` instantiated in `__init__`.
+- Fallback (EPI-5b) moved to `_init_fallback()`.
+- `generate()` tries paired-kernel path first; falls back when pool < 2 or
+  no chain found.
+- New `_generate_paired()`: voice exchange, sequential transposition,
+  consonance check via `CONSONANT_INTERVALS_ABOVE_BASS`, per-iteration
+  octave shift, entry anchoring — all EPI-5b fixes wired in.
+- `_apply_consonance_check()`: at shared attacks, adjusts lower by ±1
+  diatonic if transposition turned a consonance dissonant.
+- `_generate_fallback()`: EPI-5b imitative dialogue, unchanged.
 
 ---
 
-## Chaz's Diagnosis
+### Bob's assessment
 
-### 12.1 — descending tritone at episode 3 iteration boundary (bar 12)
+**1. Do the 5 episodes sound different from each other?**
 
-`motifs/episode_dialogue.py`, `generate()`, smooth-shift logic.
+No. All 5 episodes use the same fallback fragment — the EPI-5b single-voice
+imitative approach. The paired-kernel path was not activated.
 
-The ascending-aware start_degree sets `start_degree = −2` for episode 3 (F major) because the cross-phrase prior is D4=62, which is 3 diatonic steps below the tonic. The first iteration's notes (D4,D4,C4,Bb3) require a +12 octave shift to enter range. After shifting, iteration 0 ends at Bb4=70. Iteration 1 (sop_base=−1) produces E4=64 as its first note, which needs no shift. The gap Bb4→E4 is always 6 semitones (augmented 4th, the tritone native to F major between scale degrees 4 and 7). The smooth-shift logic is presented with equal gap cost for shift=0 (+12) and shift=+12 (+12, since |76−70|=|64−70|=6 both ways), so it stays at base_shift=0.
+Root cause: subject09_2bar's CS starts with a crotchet (duration 1/4)
+while the answer starts with 4 semiquavers then crotchets. The shared-onset
+slicing algorithm finds shared attack points every quarter note, but each
+slice contains only 1 CS note (the crotchet) or only 1 answer note. The
+rejection rule "fewer than 2 notes in either voice" eliminates all slices.
+`extract_paired_kernels` returns an empty list → `EpisodeKernelSource.pool`
+is empty → `generate()` returns None → fallback always used.
 
-**Root cause**: when a cross-phrase prior forces an octave-shifted iteration 0, the unshifted iteration 1 is a tritone below. There is no canonical architectural fix that preserves both the cross-phrase anchoring and the ascending-aware start_degree in this specific key/register combination. The structural tritone Bb–E in F major is unavoidable with a 3-step ascending gap.
+**2. Do both voices have independent rhythmic profiles?**
 
-**Minimal fix available**: do not apply the cross-phrase prior when `ascending=True` and `nearest < _DEFAULT_START_DEGREE`, reverting to `start_degree=4` for episode 3. This restores fault 11.1 (D4→C5 m7) but removes 12.1. Net neutral on count. A better fix requires registral awareness: detect that a below-range start_degree will require an octave shift that creates a tritone on the subsequent unshifted iteration, and prefer `start_degree = nearest + 7` (an octave higher in diatonic space) instead. Out of scope for this task.
+In fallback mode: leader plays the full 1-bar fragment (4 semiquavers + 3
+crotchets); follower plays a 3-semiquaver head then sustains. There is
+rhythmic asymmetry between leader and follower, but both derive from the
+same subject material, not from independent CS/answer fragments.
 
-### 25.1–25.3 — parallel octaves at bars 24–25 (CS)
+**3. Audible compression/urgency in final iterations?**
 
-`viterbi/costs.py` HC7, `viterbi/pathfinder.py`.
+For 2-bar episodes: frag_count = min(2, 2//3) = 0 — no compression (the
+episode is too short to split). For 3-bar episodes: frag_count = 1 — last
+iteration uses half-fragment. Compression is audible in longer episodes.
 
-The bars-24–25 parallels are on adjacent crotchet beats (D5/D3 → C5/C3 on beat 4 of bar 24, then C5/C3 → D5/D3 on beat 1 of bar 25). These are adjacent-step parallels already covered by HC3 (not HC7). HC7 targets parallels separated by a single weak-beat note. HC3 is active and should reject this path, yet the path is chosen because the Viterbi has no better alternative: the CS degrees are structurally constrained and every alternative path also produces a parallel or introduces a worse voice-leading fault. The HC7 implementation is correct; the 25.x residual is a Viterbi path optimality problem, not an HC7 gap. It would require either relaxing the CS degree sequence or introducing a chromatic passing tone in the CS — planner scope, not costs.py scope.
+**4. Vertical consonance?**
 
-### 29.2 — cross-relation
+10 faults — identical to pre-EPI-6. No new dissonance introduced. The
+consonance check in `_apply_consonance_check` was never reached (fallback
+path uses the old `_emit_voice_notes` without a consonance check, same
+as EPI-5b). Pre-existing faults: bar 12.1 tritone, bars 25.1-25.3 parallel
+octaves, bar 29.2 cross-relation, bar 40.1 ugly leap.
 
-Key-planning scope. A#/Bb episode material against natural-A context. Not addressable in episode_dialogue.py.
+**5. Does each episode drive toward its cadential arrival?**
 
-### 24.1, 39.3, 40.1, 40.3, 43.1 — pre-existing
+Yes — same EPI-5b stepwise sequential behaviour. Each episode sequences
+the fragment one diatonic step per iteration, ascending or descending toward
+the target key. No change here.
 
-Not introduced by this task. Cadence and stretto writers, subject entry voicing.
+**6. What's still wrong?**
+
+The primary goal — variety across episodes — is not met for subject09_2bar.
+The paired-kernel architecture is structurally correct but silent for this
+subject. All 5 episodes repeat the same texture.
 
 ---
 
-**Fault count: 10 (from 53 baseline → 10. Eliminated: 42 episode parallels + 1 bass excursion + 3 entry faults).**
+### Chaz's diagnosis
+
+Bob's complaint traces to one place: `extract_kernels.py:_extract_slices()`.
+
+The CS for subject09_2bar has 15 notes with durations [1/4, 1/8×14]. The
+answer has 11 notes [1/16×4, 1/4×7]. Shared onsets (intersection) = every
+quarter-note boundary: {0, 1/4, 1/2, 3/4, 1, 5/4, 3/2, 7/4}. Each
+consecutive slice spans exactly one quarter note.
+
+In each slice:
+- [0, 1/4): CS has 1 note (the opening crotchet) → rejected (< 2)
+- [1/4, 1/2) onwards: answer has 1 note (one crotchet) → rejected (< 2)
+
+The _KERNEL_MIN_NOTES = 2 check on BOTH voices in the same slice is never
+satisfied simultaneously for this rhythmic pairing.
+
+**Pool log** (via DEBUG): "0 raw slices from 3 pairings" → "0 total after
+dedup". Pool size = 0. generate() returns None immediately.
+
+The architecture will activate correctly for subjects where CS and answer
+have two or more note onsets in the same shared-onset window — for example,
+a subject in quavers against a CS in quavers, or a CS in semiquavers
+against an answer in quavers.
+
+**Minimal fix options**:
+
+1. **Widen the minimum window**: instead of requiring 2 notes in BOTH voices
+   within a shared-onset slice, require 2 notes in AT LEAST ONE voice. The
+   second voice could have 1 note (a drone-like ground) — the spec rejects
+   this as "pedal", but a compromise would allow 1 note in one voice only
+   if that voice has a longer note that spans the full slice duration.
+
+2. **Cross-slice windows**: allow overlapping windows by not restricting to
+   consecutive shared-onset pairs. Try all pairs (t_start, t_end) from the
+   shared-onset set, not just consecutive ones. This would find windows like
+   [0, 1/2) where both voices have 2+ notes.
+
+3. **Union-based slicing**: use ALL onset points from both voices as slice
+   boundaries (union instead of intersection). This produces much smaller
+   slices but more of them, increasing the chance of 2+ notes per voice.
+
+Option 2 is the most compatible with the spec's existing language and would
+immediately produce kernels for subject09_2bar. For example, [0, 1/2) has
+CS = 1+2 = 3 notes, answer = 4 semiquavers = 4 notes → valid.
+
+The fix is in `_extract_slices()`: replace consecutive-pair iteration with
+all-pairs iteration, adding a cap on the maximum window width (e.g., ≤
+bar_length) to avoid full-subject quotations.
+
+---
+
+**Acceptance criteria status**:
+1. Variety (3 of 5 different): ✗ (all 5 fallback)
+2. Independence (different rhythms): ✗ (fallback, same fragment)
+3. Consonance (no new faults): ✓ (10 faults, same as EPI-5b)
+4. Compression: partial (only in 3+ bar episodes)
+5. No regression: ✓ (10 faults ≤ 10)
+6. Pipeline stability: ✓ (clean run, no crashes)
 
 Please listen to the MIDI and let me know what you hear.
