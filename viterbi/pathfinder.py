@@ -235,6 +235,7 @@ def find_path(
         prev_dp = dp[t - 1]
         t_prev_others = voice_pitches[t - 1]
         t_curr_others = voice_pitches[t]
+        t_prev_prev_others = voice_pitches[t - 2]
         t_nearby_pcs = nearby_pcs[t]
         hc_blocks_t: Counter = Counter()
         for curr_p in legal[t]:
@@ -250,12 +251,14 @@ def find_path(
                         curr_beat_strength=corridors[t].beat_strength,
                         prev_prev_pitch=pp,
                         key=key,
+                        prev_prev_beat_strength=corridors[t - 2].beat_strength,
                     ),
                     voice_data=VoiceData(
                         prev_others=tuple(t_prev_others),
                         curr_others=tuple(t_curr_others),
                         nearby_pcs_per_voice=tuple(t_nearby_pcs),
                         is_above_per_voice=tuple(is_above_list),
+                        prev_prev_others=tuple(t_prev_prev_others),
                     ),
                     run_count=new_rc,
                     phrase_position=phrase_pos,

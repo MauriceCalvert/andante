@@ -123,6 +123,7 @@ class FollowerStep:
     curr_beat_strength: str
     prev_prev_pitch: int | None
     key: KeyInfo
+    prev_prev_beat_strength: str | None = None   # beat strength at t-2, for HC7
 
 
 @dataclass(frozen=True)
@@ -132,6 +133,7 @@ class VoiceData:
     curr_others: tuple[int, ...]
     nearby_pcs_per_voice: tuple[frozenset[int], ...]
     is_above_per_voice: tuple[bool, ...]
+    prev_prev_others: tuple[int, ...] | None = None  # existing-voice pitches at t-2, for HC7
 
 
 def _pitch_to_degree_index(
@@ -526,12 +528,14 @@ def hard_constraint_cost(
 ) -> tuple[float, str]:
     """Hard constraints: return (HARD, rule_name) if violated, else (0.0, "").
 
-    Five rules enforcing fundamental counterpoint correctness:
+    Six rules enforcing fundamental counterpoint correctness:
     - HC1: Anti-stasis (three consecutive identical pitches)
     - HC2: Spacing ceiling (>36 semitones)
-    - HC3: Parallel perfects (5ths/octaves)
+    - HC3: Parallel perfects (5ths/octaves) between adjacent grid steps
     - HC4: Tritone on strong beat
     - HC6: Similar-motion leaps (both voices leap >=3rd in same direction)
+    - HC7: Parallel perfects on consecutive strong/moderate beats separated by one
+            weak-beat note (the passing-tone gap that HC3 misses)
     """
     prev_pitch = step.prev_pitch
     curr_pitch = step.curr_pitch
@@ -574,6 +578,25 @@ def hard_constraint_cost(
             arrival_interval = abs(curr_pitch - curr_others[i])
             if is_perfect(arrival_interval):
                 return HARD, f"HC6_similar_leap(f={f_interval}d,l={l_interval}d)"
+    # HC7 — Parallel perfects on consecutive strong/moderate beats, hidden by
+    # one intervening weak-beat note.  HC3 checks t-1→t (adjacent steps);
+    # HC7 checks t-2→t when t-1 is weak so both strong beats are t-2 and t.
+    # Skip when t-2 does not exist (prev_prev_pitch is None) or the conditions
+    # are not met (different beat-strength pattern).
+    if (prev_prev_pitch is not None
+            and step.prev_prev_beat_strength in ("strong", "moderate")
+            and step.prev_beat_strength == "weak"
+            and curr_beat_strength in ("strong", "moderate")
+            and voice_data.prev_prev_others is not None):
+        for i in range(min(len(curr_others), len(voice_data.prev_prev_others))):
+            pp_other: int = voice_data.prev_prev_others[i]
+            # Both voices must move (oblique from t-2→t is not a parallel)
+            if prev_prev_pitch != curr_pitch and pp_other != curr_others[i]:
+                pp_interval: int = abs(prev_prev_pitch - pp_other)
+                curr_interval_hc7: int = abs(curr_pitch - curr_others[i])
+                if is_perfect(pp_interval) and is_perfect(curr_interval_hc7):
+                    if (curr_interval_hc7 % 12) == (pp_interval % 12):
+                        return HARD, f"HC7_strong_parallel({curr_interval_hc7 % 12})"
     return 0.0, ""
 
 

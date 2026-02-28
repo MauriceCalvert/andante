@@ -13,7 +13,7 @@ from builder.phrase_types import PhrasePlan, PhraseResult, make_free_companion_p
 from builder.voice_types import VoiceBias
 from builder.soprano_viterbi import SopranoOptions, generate_soprano_viterbi
 from builder.types import Note
-from motifs.episode_kernel import EpisodeKernelSource
+from motifs.episode_dialogue import EpisodeDialogue
 from motifs.subject_loader import SubjectTriple, ThematicBias
 from planner.schema_loader import get_schema
 from planner.thematic import BeatRole
@@ -190,7 +190,7 @@ def _write_thematic(
     prior_lower: tuple[Note, ...],
     next_phrase_entry_degree: int | None,
     next_phrase_entry_key: Key | None,
-    episode_source: EpisodeKernelSource | None,
+    episode_source: EpisodeDialogue | None,
 ) -> PhraseResult:
     """Write phrase using thematic renderer (TD-3 + R1 refactor).
 
@@ -279,101 +279,66 @@ def _write_thematic(
             _assert_within_entry(bass_notes[_hold_prev_bas:], "bass", entry_start_offset, next_entry_start_offset, entry_first_bar)
             continue
 
-        # EPISODE: leader via episode kernel, companion via Viterbi
+        # EPISODE: imitative dialogue via EpisodeDialogue
         if voice0_role == ThematicRole.EPISODE and voice1_role == ThematicRole.EPISODE:
-            assert beat_role_v0 is not None, f"No BeatRole for voice 0 EPISODE at bar {entry_first_bar}"
-            assert beat_role_v1 is not None, f"No BeatRole for voice 1 EPISODE at bar {entry_first_bar}"
-            lead_voice_idx: int = 0 if beat_role_v0.material == "head" else 1
+            assert beat_role_v0 is not None
+            assert beat_role_v1 is not None
             episode_key: Key = beat_role_v0.material_key
-            leader_track: int = TRACK_SOPRANO if lead_voice_idx == 0 else TRACK_BASS
-            leader_range: Range = plan.upper_range if lead_voice_idx == 0 else plan.lower_range
-            prior_leader_midi: int | None = (
-                soprano_notes[-1].pitch if lead_voice_idx == 0 and soprano_notes
-                else bass_notes[-1].pitch if lead_voice_idx == 1 and bass_notes
-                else None
+            lead_voice_idx: int = 0 if beat_role_v0.material == "head" else 1
+            # Ascending if fragment_iteration is negative (convention from subject_planner)
+            ascending: bool = beat_role_v0.fragment_iteration < 0
+            assert episode_source is not None, "EpisodeDialogue required for EPISODE bars"
+            ep_soprano: tuple[Note, ...]
+            ep_bass: tuple[Note, ...]
+            ep_soprano, ep_bass = episode_source.generate(
+                bar_count=entry_bar_count,
+                episode_key=episode_key,
+                start_offset=entry_start_offset,
+                lead_voice=lead_voice_idx,
+                upper_range=plan.upper_range,
+                lower_range=plan.lower_range,
+                prior_upper_midi=(
+                    soprano_notes[-1].pitch if soprano_notes
+                    else (prior_upper[-1].pitch if prior_upper else None)
+                ),
+                prior_lower_midi=(
+                    bass_notes[-1].pitch if bass_notes
+                    else (prior_lower[-1].pitch if prior_lower else None)
+                ),
+                ascending=ascending,
             )
-            leader_notes: tuple[Note, ...] | None = None
-            if episode_source is not None:
-                leader_notes = episode_source.generate_leader(
-                    bar_count=entry_bar_count,
-                    episode_key=episode_key,
-                    leader_track=leader_track,
-                    leader_range=leader_range,
-                    start_offset=entry_start_offset,
-                    prior_midi=prior_leader_midi,
+            if ep_soprano:
+                ep_soprano = (replace(ep_soprano[0], lyric="episode"),) + ep_soprano[1:]
+            if ep_bass:
+                ep_bass = (replace(ep_bass[0], lyric="episode"),) + ep_bass[1:]
+            soprano_notes = soprano_notes + ep_soprano
+            bass_notes = bass_notes + ep_bass
+            _assert_within_entry(ep_soprano, "soprano", entry_start_offset, next_entry_start_offset, entry_first_bar)
+            _assert_within_entry(ep_bass, "bass", entry_start_offset, next_entry_start_offset, entry_first_bar)
+            tracer = get_tracer()
+            if ep_soprano:
+                sp: list[int] = [n.pitch for n in ep_soprano]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="U",
+                    role_name="EPISODE",
+                    key_str=_key_str(key=episode_key),
+                    note_count=len(ep_soprano),
+                    low_pitch=min(sp),
+                    high_pitch=max(sp),
                 )
-            if leader_notes is not None:
-                # Build companion via Viterbi
-                companion_plan: PhrasePlan = make_free_companion_plan(
-                    plan=plan,
-                    start_bar_relative=entry_first_bar - phrase_first_bar + 1,
-                    bar_count=entry_bar_count,
-                    start_offset=entry_start_offset,
-                    prev_exit_upper=soprano_notes[-1].pitch if soprano_notes else plan.prev_exit_upper,
-                    prev_exit_lower=bass_notes[-1].pitch if bass_notes else plan.prev_exit_lower,
+            if ep_bass:
+                bp: list[int] = [n.pitch for n in ep_bass]
+                tracer.trace_thematic_render(
+                    bar=entry_first_bar,
+                    voice_name="L",
+                    role_name="EPISODE",
+                    key_str=_key_str(key=episode_key),
+                    note_count=len(ep_bass),
+                    low_pitch=min(bp),
+                    high_pitch=max(bp),
                 )
-                companion_plan = replace(companion_plan, local_key=episode_key, degree_keys=(episode_key,))
-                ep_soprano: tuple[Note, ...]
-                ep_bass: tuple[Note, ...]
-                if lead_voice_idx == 0:
-                    ep_bass = generate_bass_viterbi(
-                        plan=companion_plan,
-                        soprano_notes=leader_notes,
-                        prior_lower=bass_notes,
-                        options=BassOptions(density_override="medium"),
-                    )
-                    ep_soprano = leader_notes
-                else:
-                    companion_sop: tuple[Note, ...]
-                    companion_sop, _ = generate_soprano_viterbi(
-                        plan=companion_plan,
-                        bass_notes=leader_notes,
-                        prior_upper=soprano_notes,
-                        options=SopranoOptions(density_override="medium"),
-                    )
-                    ep_soprano = companion_sop
-                    ep_bass = leader_notes
-                # Label first notes
-                if ep_soprano:
-                    ep_soprano = (replace(ep_soprano[0], lyric="episode"),) + ep_soprano[1:]
-                if ep_bass:
-                    ep_bass = (replace(ep_bass[0], lyric="episode"),) + ep_bass[1:]
-                soprano_notes = soprano_notes + ep_soprano
-                bass_notes = bass_notes + ep_bass
-                _assert_within_entry(ep_soprano, "soprano", entry_start_offset, next_entry_start_offset, entry_first_bar)
-                _assert_within_entry(ep_bass, "bass", entry_start_offset, next_entry_start_offset, entry_first_bar)
-                # Trace both voices
-                tracer = get_tracer()
-                if ep_soprano:
-                    sp: list[int] = [n.pitch for n in ep_soprano]
-                    tracer.trace_thematic_render(
-                        bar=entry_first_bar,
-                        voice_name="U",
-                        role_name="EPISODE",
-                        key_str=_key_str(key=episode_key),
-                        note_count=len(ep_soprano),
-                        low_pitch=min(sp),
-                        high_pitch=max(sp),
-                    )
-                if ep_bass:
-                    bp: list[int] = [n.pitch for n in ep_bass]
-                    tracer.trace_thematic_render(
-                        bar=entry_first_bar,
-                        voice_name="L",
-                        role_name="EPISODE",
-                        key_str=_key_str(key=episode_key),
-                        note_count=len(ep_bass),
-                        low_pitch=min(bp),
-                        high_pitch=max(bp),
-                    )
-                continue
-            # Fallback: episode kernel returned None
-            _log.warning(
-                "Episode kernel fallback at bar %d: no solution, "
-                "falling through to per-voice rendering",
-                entry_first_bar,
-            )
-            # Fall through to per-voice rendering below
+            continue
 
         # PEDAL: voice-1 specific, no duplication — keep inline
         if voice1_role == ThematicRole.PEDAL:
@@ -1016,7 +981,7 @@ def write_phrase(
     recall_figure_name: str | None = None,
     fugue: SubjectTriple | None = None,
     is_final: bool = False,
-    episode_source: EpisodeKernelSource | None = None,
+    episode_source: EpisodeDialogue | None = None,
 ) -> PhraseResult:
     """Write complete phrase (soprano + bass) and return result.
 
