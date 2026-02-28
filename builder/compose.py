@@ -11,7 +11,7 @@ from builder.cadence_writer import cadence_entry_degree
 from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_bar_start, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
-from motifs.episode_kernel import EpisodeKernelSource
+from motifs.episode_dialogue import EpisodeDialogue
 from motifs.subject_loader import SubjectTriple
 from shared.key import Key
 from shared.music_math import parse_metre
@@ -237,9 +237,9 @@ def compose_phrases(
     head_motif: HeadMotif | None = None
 
     # Create episode kernel source if fugue is present
-    episode_source: EpisodeKernelSource | None = None
+    episode_source: EpisodeDialogue | None = None
     if fugue is not None:
-        episode_source = EpisodeKernelSource(triple=fugue)
+        episode_source = EpisodeDialogue(triple=fugue)
 
     for plan_idx, plan in enumerate(phrase_plans):
         # Compute next phrase's first soprano degree/key for cross-phrase guard

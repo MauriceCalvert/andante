@@ -4,43 +4,10 @@ Conductor reads at chat start.
 
 ---
 
-## Now: EPI-5 — Episode redesign from scratch
+## Now: (listening gate — awaiting Maurice's MIDI review)
 
-The episode kernel system is architecturally bankrupt and has been rejected.
-See `workflow/continue.md` for full analysis, available material, and
-architectural proposal.
-
-### The problem
-One voice sequences 2-4 note atoms mechanically; the other is Viterbi
-fill that knows nothing about the fragment. No dialogue, no fragmentation,
-no progressive compression, no voice exchange. 5/5 episodes produce
-kernel solver fallbacks. Episodes sound like wallpaper.
-
-### The replacement: imitative dialogue episodes
-1. Extract recognisable fragment from subject head/tail or CS (2-4 beats)
-2. Both voices state the same fragment in imitation (offset 1-2 beats,
-   at octave/3rd/6th)
-3. Dialogue pair sequences stepwise through key journey (2-4 iterations)
-4. Progressive fragmentation: last 1-2 iterations halve the fragment
-5. Voice exchange at midpoint of longer episodes (6+ bars)
-6. Strong-beat vertical intervals checked inline (3rds, 6ths, octaves)
-
-### Files to delete
-- `motifs/episode_kernel.py`
-- `scripts/episode_kernel_demo2.py`
-
-### Files to create
-- `motifs/episode_dialogue.py` — new episode generator
-
-### Files to modify
-- `builder/phrase_writer.py` — replace EPISODE branch
-- `builder/compose.py` — replace EpisodeKernelSource with EpisodeDialogue
-- `motifs/fragen.py` — remove kernel-specific functions
-
-### Files to keep unchanged
-- `planner/imitative/subject_planner.py` — form planning is sound
-- `builder/imitation.py` — `_fit_shift()` reusable for fragment placement
-- `builder/entry_renderer.py` — time-windowing pattern reusable
+EPI-5b passed conductor evaluation. 53 → 10 faults. Next phase TBD
+after listening confirmation.
 
 ---
 
@@ -65,7 +32,7 @@ Order matters: cadences and harmony feed into everything downstream.
    - ~~Note writer enrichment (figured bass numerals)~~ _(done — HRL-7)_
 
 3. **SUB — Subject generator reform**
-   - Tonal answers (currently real only)
+   - ~~Tonal answers (currently real only)~~ _(done)_
    - Rhythmic drama (more varied cell sequences)
    - Algorithmic answer_offset_beats
 
@@ -80,9 +47,9 @@ Order matters: cadences and harmony feed into everything downstream.
    - ~~EPI-2a: Cell vocabulary expansion~~ _(done, superseded)_
    - ~~EPI-2b: Fragen fallback retry~~ _(done, superseded)_
    - ~~EPI-4a: Kernel episode demo~~ _(done, architecture rejected)_
-   - EPI-5: Replace kernel system with imitative dialogue episodes.
-     Fragment extraction → imitative pair → stepwise sequence →
-     progressive fragmentation → voice exchange.
+   - ~~EPI-5: Imitative dialogue episodes~~ _(done)_
+   - ~~EPI-5b: Parallel fix (oblique tail, per-iteration shift, entry
+     anchor) + Viterbi HC7 strong-beat parallel check~~ _(done)_
 
 6. **ORN — Compositional ornaments**
    Mordents, trills, turns, appoggiaturas placed by structural context
@@ -164,6 +131,17 @@ Updated after each phase completes.
 - No position-aware selection — provider deploys material by novelty, not episode position → roadmap: EPI-2c
 - Diminished cells that chain into bars may dedup against original-speed chains with same rhythm profile → future: dedup refinement
 
+### From EPI-5 (imitative dialogue episodes)
+- Cross-relations in flat-key episodes (bars 11, 14, 28, 29) — Bb adjacent to B-natural from surrounding material → key-planning interaction, not episode_dialogue bug; requires key-transition awareness in planner
+- No harmonic grid in episodes — vertical intervals controlled by imitation offset (10th) and oblique motion, not harmonic function → future: harmonic-aware episode generation
+- Fixed imitation offset (diatonic 10th) — a musician might vary offset for timbral variety → future: variable imitation intervals
+- Half-fragment iterations produce simultaneous sustain in both voices (beats 3–4) — static but not parallel; intended compression effect → acceptable
+
+### From EPI-5b (episode parallel fix + HC7)
+- Bar 12.1 descending tritone (A#4→E4) at iteration boundary in F-major episodes — structural: Bb–E tritone native to F major under octave shift. Net-neutral to fix (trades for m7 entry leap). Requires registral-aware start_degree selection → future: detect octave-shift tritone and prefer diatonic octave offset
+- Bars 25.1–25.3 parallel octaves in CS answer (bars 24–25) — HC3 active but no better Viterbi path exists; CS degrees structurally constrained → requires CS degree relaxation or chromatic passing tone → planner scope
+- HC7 correct but did not eliminate any faults in this piece — the residual parallels are adjacent-step (HC3 scope), not strong-beat-separated. HC7 may help in other key/register combinations
+
 ### From EPI-1 (inter-entry episodes)
 - Fragen fallback at bars 28–30: `realise_to_notes` returned None in E minor, producing static half-notes instead of sequential fragments → future: widen fragen start search or add fallback sequential generator
 - Episode variety limited: all episodes draw from same subject head/tail cells, sounding repetitive despite FragenProvider diversity tracking → future: EPI-2 episode variety (melodic inversion, free sequential material, rhythmic diminution)
@@ -196,6 +174,20 @@ Updated after each phase completes.
 ---
 
 ## Completed
+
+### EPI-5b — Episode parallel fix + HC7 (2026-02-28)
+
+53 → 10 faults. Oblique tail (3-semiQ head, follower sustains), ascending-aware
+start_degree, entry anchor range check, cross-phrase prior fallback, HC7
+strong-beat parallel constraint. Remaining 10 are pre-existing or structural.
+
+### EPI-5 — Imitative dialogue episodes (2026-02-28)
+
+Replaced episode kernel system with imitative dialogue. Both voices trade
+a subject-derived fragment in close imitation (1-beat offset, lower 10th),
+sequencing stepwise, with progressive fragmentation and voice exchange.
+Deleted episode_kernel.py + demo. 49 faults remain (parallels, register,
+entry leaps) → EPI-5b.
 
 ### M001–M005 violations + CLR-1 (2026-02-26)
 

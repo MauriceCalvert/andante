@@ -61,7 +61,11 @@ After completing all code changes, you MUST:
    diagnosis, and end with: "Please listen to the MIDI and let me know
    what you hear."
 
-4. **Delete `task.md`** and stop.
+4. **Delete `task.md`**.
+
+5. **Document what you did at the top of completed.md with date and timestamp**.
+
+6. **If the task completed successfully, commit and push**.
 
 ---
 
@@ -93,10 +97,3 @@ files to learn function signatures, return types, and module structure
 before writing any code that calls them. Guessing at parameter names or
 attribute names wastes time and context window.
 
-## Logging
-
-When code has been added and tested or when a problem has been solved,
-append a description of what you did to completed.md.
-
-IMPORTANT: frequent chat crashes. when i ask you to implement something, write a todo and tick off items one by one
-so that you can resume in a new chat seamlessly.

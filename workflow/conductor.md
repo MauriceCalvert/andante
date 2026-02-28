@@ -131,7 +131,7 @@ fault log.
 At the start of every chat, also read:
 1. `docs/Tier1_Normative/laws.md`
 2. `docs/knowledge.md`
-3. `completed.md`
+3. `completed.md`. if it's empty, most recent completed* file in \archive
 4. `workflow/todo.md`
 
 ## Role

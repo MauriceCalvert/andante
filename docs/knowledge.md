@@ -1,6 +1,7 @@
 # Andante — Machine Knowledge
 
 Dense reference for Claude. No rationale. For "why", see conductor.md.
+For laws, see `docs/Tier1_Normative/laws.md`.
 
 ## What Andante Is
 
@@ -29,12 +30,14 @@ Three paths:
 
 Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate_soprano_viterbi()
 
+Episode content: `motifs/episode_dialogue.py` (imitative dialogue replacing the rejected kernel system). Both voices state the same thematic fragment in imitation with stepwise sequential transposition, progressive fragmentation, and voice exchange. See `workflow/continue.md` for design.
+
 ## Module Layout
 
 ### builder/galant/ — galant-only modules
 - bass_writer.py: greedy bass between structural tones
 - soprano_writer.py: build_structural_soprano (schema degree skeleton)
-- harmony.py: HarmonicGrid from schema Roman numerals
+- harmony.py: HarmonicGrid from schema Roman numerals, stock harmonic grid for thematic fills, cadential acceleration, passing 6/3 chords, secondary dominants (V/V, V/vi)
 
 ### builder/ — shared + orchestration
 - soprano_viterbi.py: place_structural_tones, generate_soprano_viterbi (both paths)
@@ -42,14 +45,14 @@ Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate
 - phrase_writer.py: three-way dispatcher
 - phrase_planner.py: L4 output -> PhrasePlans
 - compose.py: phrase-by-phrase composition entry
-- cadence_writer.py: clausula templates
+- cadence_writer.py: clausula templates (cadenza semplice, composta, doppia, grande, half cadence)
 - thematic_renderer.py: render subject/answer/CS/episode/stretto
 - entry_renderer.py: imitative entry rendering
 - cs_writer.py: countersubject writing
 - knot_builder.py: knot construction
 - hold_writer.py: held-note writing
 - free_fill.py: free-texture fill
-- imitation.py: subject_to_voice_notes
+- imitation.py: subject_to_voice_notes, _fit_shift
 - rhythm_cells.py: genre rhythm cells
 - faults.py: post-composition fault scan
 - voice_writer.py: validate_voice, audit_voice
@@ -58,15 +61,23 @@ Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate
 - types.py: Note, Composition, SchemaConfig, GenreConfig, FormConfig
 - config_loader.py: load all YAML configs
 - io.py: MIDI/MusicXML output, note helpers
-- note_writer.py: enriched .note CSV
+- note_writer.py: enriched .note CSV (with figured bass harmony labels)
 - musicxml_writer.py: MusicXML output
-- figuration/: diminution tables, bass patterns, rhythm calc
+
+### builder/figuration/ — diminution and bass patterns
+- types.py: Figure, FigurationProfile (frozen dataclasses)
+- loader.py: load diminution tables from YAML
+- generator.py: figuration generation engine
+- selection.py: figure selection logic
+- bass.py: bass figuration patterns
+- soprano.py: soprano figuration patterns
+- rhythm_calc.py: rhythmic subdivision calculation
 
 ### planner/
 - planner.py: orchestrator, generate() entry
 - rhetorical.py, tonal.py, schematic.py: L1-L3
 - schema_loader.py: parse schemas.yaml
-- metric/: L4 (layer.py, pitch.py, schema_anchors.py, constants.py)
+- metric/: L4 (layer.py, schema_anchors.py, constants.py)
 - thematic.py: BeatRole, ThematicRole enum
 - imitative/: entry_layout.py, subject_planner.py, types.py
 - arc.py, dramaturgy.py, variety.py, plannertypes.py
@@ -88,7 +99,28 @@ Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate
 - countersubject_generator.py, head_generator.py
 - fragment_catalogue.py, catalogue.py
 - stretto_analyser.py, stretto_constraints.py, thematic_transform.py
-- fragen.py (episode fragment generation), episode_kernel.py
+- fragen.py (fragment extraction, cell chaining)
+- episode_dialogue.py (imitative dialogue episodes — replacing episode_kernel.py)
+- episode_kernel.py (deprecated, pending deletion)
+
+### motifs/subject_gen/ — subject generation subsystem
+- models.py: SubjectVocabulary, SegmentSpec, SubjectPlan (frozen dataclasses)
+- subject_planner.py: plan enumeration with density/contour specs
+- planned_selector.py: plan-driven subject selection and scoring
+- selector.py: top-level selector entry point
+- scoring.py: subject quality scoring (density trajectory, repetition penalty)
+- melody_generator.py: full subject assembly from segments
+- pitch_generator.py: pitch sequence generation
+- duration_generator.py: rhythmic cell enumeration
+- segment_rhythm.py: per-segment rhythm with independent density
+- rhythm_cells.py: cell definitions (dactyl, tirata, etc.)
+- contour.py: melodic contour shapes
+- contour_filter.py: contour constraint filtering
+- harmonic_grid.py: subject-level harmonic constraints
+- validator.py: subject validation rules
+- cache.py: generation cache
+- constants.py: subject generation constants
+- stretto_gpu.py: GPU-accelerated stretto analysis
 
 ## Pitch Types
 
@@ -132,82 +164,23 @@ Fields: name, voices, instruments, scoring, tracks, form, metre, rhythmic_unit, 
 ## YAML Data
 
 ```
-data/figuration/   diminutions, patterns, profiles, rhythms
-data/forms/        binary, strophic, through_composed
-data/genres/       per-genre configs + _default
-data/humanisation/ timing/velocity variation
-data/instruments/  instrument definitions
-data/rhetoric/     affects, archetypes, figurae, tension
-data/rules/        constraints, counterpoint_rules
-data/schemas/      schemas, transitions
-data/treatments/   treatments.yaml
+data/archetypes/       subject archetype definitions
+data/cadences/         cadence type definitions
+data/cadence_templates/ clausula patterns per cadence type
+data/figuration/       diminutions, patterns, profiles, rhythms
+data/forms/            binary, strophic, through_composed
+data/genres/           per-genre configs + _default
+data/humanisation/     timing/velocity variation
+data/instruments/      instrument definitions
+data/rhetoric/         affects, archetypes, figurae, tension
+data/rhythm/           rhythm profiles
+data/rhythm_cells/     genre-specific rhythm cell definitions
+data/rules/            constraints, counterpoint_rules
+data/schemas/          schemas, transitions
+data/subject_gestures/ subject melodic gesture definitions
+data/treatments/       treatments.yaml
+data/voicing/          voice spacing/doubling rules
 ```
-
-## Laws (complete)
-
-Architecture:
-- A001 No if-chains, use declarative rules
-- A002 Same engine for all transforms
-- A003 Rules are data (YAML)
-- A004 Repeats are performance, not composition
-- A005 RNG in planner, determinism in builder
-- A006 Domain logic independent of infrastructure (ports/adapters)
-
-Defence:
-- D001 Validate, don't fix
-- D002 Constraints propagate upward
-- D003 Trace must debug without source
-- D004 Separate melodic approach from harmonic formula
-- D005 Compute patterns from budget, don't predefine variants
-- D006 Motifs must be asymmetric
-- D008 No downstream fixes
-- D009 Generators must use phrase_index
-- D010 Guards detect, generators prevent
-- D011 Voice-agnostic generation: no soprano/bass branching in generators
-
-Code:
-- L001 Try blocks forbidden
-- L002 Magic numbers forbidden, use constants
-- L003 Hard range constraints forbidden, soft hints only
-- L004 Voice crossing allowed only if intentional (invertible counterpoint)
-- L005 Duration arithmetic forbidden, use music_math
-- L006 Durations must be in VALID_DURATIONS
-- L007 Natural minor for melody, raised 6/7 cadential only
-- L008 Tonal targets = harmonic functions, not scale selection
-- L009 Tonal targets = functions not modulations, use home_key
-- L010 Leading tone in cadential context only
-- L011 While loops need guards and max_iterations
-- L012 Quantization forbidden, fix upstream
-- L013 MIDI gate time 95%
-- L014 Clone before modify, never mutate parameters
-- L015 NamedTuple/dataclass, not tuples
-- L016 Logging only, no print
-- L017 Single source of truth, inherit not repeat
-- L018 __init__.py must be empty, no re-exports
-- L019 ASCII only, no UTF8 symbols
-- L020 All arguments passed by keyword, no positional calls
-- L021 Brief fallback warning: YAML/brief impossibilities get sarcastic-but-kind warning
-
-Scope:
-- S001 Performance practice out of scope; score notation only
-
-Variety:
-- V001 Generators vary via phrase_index, bar_idx, segment offsets
-- V002 Tremolo max 6 notes
-
-Anti-patterns:
-- X001 No post-realisation pitch adjustment
-- X002 No iterative fix loops
-- X003 No global signature tracking at MIDI level
-- X004 No separate bar-fix and sequence-fix passes
-- X005 No rep counter starting at 0 each phrase
-
-Modularity:
-- M001 Bundle 3+ optional params that travel through 2+ call layers into frozen dataclass
-- M002 Function signatures max 10 params; bundle related groups into context dataclass
-- M003 Pass the source object, not its extracted fields, when callee has access to both
-- M004 Frozen dataclasses with >15 fields must decompose into named sub-objects
-- M005 When same extraction pattern appears at 3+ call sites, promote to method on source object
 
 ## Conventions
 
