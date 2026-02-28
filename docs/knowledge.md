@@ -30,7 +30,7 @@ Three paths:
 
 Galant order: build_structural_soprano() -> bass (Viterbi or greedy) -> generate_soprano_viterbi()
 
-Episode content: `motifs/episode_dialogue.py` (imitative dialogue replacing the rejected kernel system). Both voices state the same thematic fragment in imitation with stepwise sequential transposition, progressive fragmentation, and voice exchange. See `workflow/continue.md` for design.
+Episode content: `motifs/episode_dialogue.py` built from **paired kernels** — frozen two-voice units (soprano degrees+durations, bass degrees+durations) extracted from the subject/countersubject overlap in the exposition. Vertical consonance is inherited from the original invertible counterpoint, not solved per-episode. Kernels are chained to fill episode bar counts, with sequential transposition applied to both voices together (preserving intervals). Different kernel combinations per episode provide variety. Each iteration carries a HarmonicGrid derived from the sequence pattern (e.g. descending step: I→vii°→vi→V), projected via `harmony_projection.py`. See "Episode Construction — Paired Kernels" in `docs/imitative_design.md` for full design.
 
 ## Module Layout
 
@@ -100,8 +100,9 @@ Episode content: `motifs/episode_dialogue.py` (imitative dialogue replacing the 
 - fragment_catalogue.py, catalogue.py
 - stretto_analyser.py, stretto_constraints.py, thematic_transform.py
 - fragen.py (fragment extraction, cell chaining)
-- episode_dialogue.py (imitative dialogue episodes — replacing episode_kernel.py)
-- episode_kernel.py (deprecated, pending deletion)
+- episode_dialogue.py (paired-kernel episode generation)
+- episode_kernel.py (DFS solver and used-set tracking, adapted for PairedKernels)
+- extract_kernels.py (PairedKernel extraction from subject/CS overlap)
 
 ### motifs/subject_gen/ — subject generation subsystem
 - models.py: SubjectVocabulary, SegmentSpec, SubjectPlan (frozen dataclasses)
@@ -166,7 +167,7 @@ Fields: name, voices, instruments, scoring, tracks, form, metre, rhythmic_unit, 
 ```
 data/archetypes/       subject archetype definitions
 data/cadences/         cadence type definitions
-data/cadence_templates/ clausula patterns per cadence type
+data/cadences/templates.yaml clausula patterns per cadence type
 data/figuration/       diminutions, patterns, profiles, rhythms
 data/forms/            binary, strophic, through_composed
 data/genres/           per-genre configs + _default

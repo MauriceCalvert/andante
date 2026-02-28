@@ -494,23 +494,28 @@ the galant pipeline underneath was fighting it.
 
 ### Episode Rendering
 
-Episodes are currently rendered by `_render_episode_fragment` which
-transposes the subject head down by step. This is correct in
-principle but crude in execution. The imitative path improves this:
+Episodes are rendered from **paired kernels** — frozen two-voice
+units extracted from the subject/countersubject overlap in the
+exposition. Both voices carry thematic material; no Viterbi fill
+is needed.
 
 - Episodes are auto-inserted by the subject planner at section
   boundaries (not declared in YAML)
 - Fragment, direction, and bar count are determined by the key
   distance between the last entry of one section and the first
   entry of the next
-- The lead voice plays the fragment in sequence (descending or
-  ascending through keys)
-- The companion voice gets Viterbi counterpoint against the fragments
-- Episode key sequence: each bar's fragment_iteration determines the
-  transposition level (e.g. descending by step: C→B→A→G)
-
-This uses the existing render infrastructure with parameters derived
-from tonal context rather than heuristic placement.
+- Each iteration chains one or more PairedKernels, providing
+  both soprano and bass degrees simultaneously
+- Sequential transposition shifts both voices together by one
+  diatonic step per iteration, preserving vertical intervals
+- Different kernel combinations per episode provide variety;
+  a used-set tracks combinations across episodes
+- Fragmentation in final iterations (shorter 2-note pairs)
+  builds urgency toward the cadence
+- Voice exchange at midpoint for long episodes swaps upper/lower
+- Each iteration carries a HarmonicGrid derived from the sequence
+  pattern (e.g. descending step: I→vii°→vi→V), projected via
+  `harmony_projection.py` — same infrastructure as entry phrases
 
 ### Stretto Rendering
 
@@ -584,11 +589,71 @@ ascends.
 lead voice (the voice that played subject or answer), so the
 fragment hands off naturally to the next entry.
 
-### Episode Construction
+### Episode Construction — Paired Kernels
 
-An episode takes one fragment of the subject (head or tail) and
-sequences it through a pattern of keys or scale degrees. Common
-baroque patterns:
+Episodes are built from **paired kernels** — frozen two-voice units
+where soprano degrees+durations and bass degrees+durations were
+extracted from the subject/countersubject overlap in the exposition.
+Vertical consonance is inherited from the original invertible
+counterpoint, not solved per-episode. This is what Bach does: the
+subject and countersubject are composed as an invertible pair;
+episodes take fragments of that pre-tested pair and sequence them.
+
+**Paired kernel extraction:**
+
+Source material is the subject/CS overlap in the exposition where
+both voices sound simultaneously. Paired fragments are sliced at
+shared onsets (time points where both voices have a note attack).
+
+Rules:
+1. Start and end of pair must be shared onsets
+2. Minimum 2 notes per voice (a single sustained note is a drone)
+3. Maximum 4 notes in the longer voice (longer = subject quotation)
+4. Normalise: shift soprano degrees so first = 0; shift bass by the
+   same amount (preserving the vertical interval)
+5. Inversions: negate all degrees in both voices
+6. Dedup by (soprano_degrees, soprano_durations, bass_degrees,
+   bass_durations)
+
+Additional source pairs beyond subject/CS:
+- Answer (soprano) against CS (bass)
+- CS (soprano) against subject (bass) — invertible counterpoint
+
+Data type:
+
+```
+PairedKernel:
+    name: str                       # e.g. "subj_cs[0:4]"
+    upper_degrees: tuple[int, ...]  # soprano, relative (first = 0)
+    upper_durations: tuple[Fraction, ...]
+    lower_degrees: tuple[int, ...]  # bass, relative to same base
+    lower_durations: tuple[Fraction, ...]
+    total_duration: Fraction         # shared onset to shared onset
+    source: str                     # "subj_cs", "ans_cs", "cs_subj"
+```
+
+**Chaining:** paired kernels are chained to fill the episode's bar
+count via a DFS solver (adapted from the old `_solve` in
+episode_kernel.py). Different combinations per episode; tracked via
+a used-set for cross-episode variety.
+
+**Sequential transposition:** each iteration transposes both voices
+by one diatonic step together. Vertical intervals are preserved
+because both voices shift by the same amount.
+
+**Fragmentation:** final iterations use shorter 2-note pairs to
+build urgency toward the cadence.
+
+**Voice exchange:** at midpoint for long episodes, swap which voice
+gets upper_degrees vs lower_degrees. Free because the pairs come
+from invertible counterpoint.
+
+Both voices are thematically derived but genuinely independent —
+different rhythms, different melodic contours. The soprano kernel
+might be semiquavers while the bass kernel is quavers. This is real
+two-voice texture, not one line at a 10th.
+
+Common sequential patterns:
 
 | Pattern | Description | Example (C major) |
 |---------|-------------|--------------------|
@@ -597,21 +662,34 @@ baroque patterns:
 | Circle of fifths | fragment follows V→I progressions | C→F→Bb→Eb |
 | Ascending step | fragment ascends (rarer, for climax) | G→A→B→C |
 
-The companion voice provides counterpoint — either a second fragment
-in contrary motion (double episode) or free counterpoint (Viterbi).
+**Episode harmony:** each sequential iteration implies a local chord
+derived from the sequence pattern (e.g. descending step: I→vii°→vi→V).
+This feeds into the same HarmonicGrid infrastructure as entry phrases
+via `harmony_projection.py`. See the "Episode Harmony" section above.
+
+**Post-transposition vertical correction:** paired kernels inherit
+verticals from the exposition in the home key. After diatonic
+transposition, some intervals change quality (e.g. perfect 5th
+becomes diminished 5th when the sequence lands on scale degree 7).
+This is a fault, not an acceptable approximation — Bach adjusts
+these cases rather than blindly transposing. After shifting both
+voices by a diatonic step, each vertical interval must be checked.
+If a consonance has become dissonant, the offending note is adjusted
+by the minimum diatonic step to restore consonance.
+
+
 
 ### Episode in SubjectPlan
 
 Although episodes are not in the YAML, they appear in the SubjectPlan
 after the subject planner inserts them. Each episode bar gets a
-VoiceAssignment:
+VoiceAssignment with both voices populated from paired kernels:
 
-- Lead voice: `role=EPISODE, fragment="head", fragment_iteration=0,1,2,3`
-- Companion voice: `role=FREE` (Viterbi fills against episode fragments)
+- Voice 0: `role=EPISODE`, degrees from kernel upper_degrees
+- Voice 1: `role=EPISODE`, degrees from kernel lower_degrees
 
-For double episodes (both voices have fragments):
-- Voice 0: `role=EPISODE, fragment="head", fragment_iteration=N`
-- Voice 1: `role=EPISODE, fragment="tail", fragment_iteration=N`
+No voice is FREE in a paired-kernel episode — both carry thematic
+material. This eliminates Viterbi fill in episodes entirely.
 ---
 
 ## Cadence Placement
@@ -688,15 +766,15 @@ Bar  Section      Function    Upper           Lower           Key
   3  exposition   entry       CS              ANSWER          G maj
   4  exposition   entry       CS              ANSWER          G maj
      ---- auto-inserted episode: V → vi (G maj → A min, step up, 2 bars) ----
-  5  episode      episode     FREE            EPISODE head.0  G maj
-  6  episode      episode     FREE            EPISODE head.1  G maj
+  5  episode      episode     EPISODE(pk.0)   EPISODE(pk.0)   G maj
+  6  episode      episode     EPISODE(pk.1)   EPISODE(pk.1)   G maj
   7  development  entry       SUBJECT         CS              A min
   8  development  entry       SUBJECT         CS              A min
   9  development  entry       CS              SUBJECT         F maj
  10  development  entry       CS              SUBJECT         F maj
      ---- auto-inserted episode: IV → V (F maj → G maj, step up, 2 bars) ----
- 11  episode      episode     EPISODE head.0  FREE            F maj
- 12  episode      episode     EPISODE head.1  FREE            F maj
+ 11  episode      episode     EPISODE(pk.0)   EPISODE(pk.0)   F maj
+ 12  episode      episode     EPISODE(pk.1)   EPISODE(pk.1)   F maj
  13  recap        entry       SUBJECT         CS              G maj
  14  recap        entry       SUBJECT         CS              G maj
  15  recap        entry       CS              SUBJECT         C maj
@@ -708,9 +786,10 @@ Bar  Section      Function    Upper           Lower           Key
 
 19 bars. The YAML declares 12 bars of entries + 2 pedal + 1 cadence =
 15 bars. The planner adds 4 episode bars at section boundaries.
-Every bar accounted for. No Viterbi wallpaper except the companion
-voice in episodes — and there the Viterbi is writing counterpoint
-against audible thematic material, which is what it's good at.
+Every bar accounted for. No Viterbi wallpaper — episodes use paired
+kernels so both voices carry thematic material. Viterbi is used only
+for companion-voice counterpoint in entry phrases where one voice is
+FREE, which is its proper role.
 
 ```
 andante/
@@ -768,17 +847,21 @@ for symmetry, but that's cosmetic and not blocking.
 - HarmonicGrid passed to Viterbi for companion voices
 - Requires: `subject_harmony` annotation in fugue/subject definition
 
-### Phase 4: Episode Auto-Insertion
+### Phase 4: Episode Auto-Insertion (Paired Kernels)
 - Subject planner detects section boundaries in entry_sequence
 - At each boundary, measures key distance (tonic-to-tonic)
 - Inserts episode BarAssignments: length from distance, direction
-  from key relationship, lead voice opposite preceding entry's lead
+  from key relationship
 - Exposition exemption: subject→answer transition within exposition
   is not an episode trigger (the tonal answer handles it)
-- Fragment extraction from fugue (head, tail — already exists in
-  `motifs/fragment_catalogue.py`)
-- Sequential transposition through intermediate scale degrees
-- Companion voice: FREE for Viterbi or second fragment
+- **EPI-6a**: Extract PairedKernels from subject/CS overlap in
+  exposition (shared onsets, min 2 notes per voice, max 4)
+- **EPI-6b**: Chain solver — DFS to fill target duration with
+  PairedKernel combinations; used-set for cross-episode variety
+- **EPI-6c**: Wire into EpisodeDialogue.generate() — replace
+  single-fragment iteration with paired-kernel chains
+- Both voices carry thematic material; no FREE/Viterbi fill
+
 
 ### Phase 5: Extended Entry Types
 - Stretto with delay
@@ -822,11 +905,15 @@ What survives:
 - `builder/thematic_renderer.py` — renders subject/answer/CS/episode
   notes. This is the right tool; it was just being fed bad plans.
 - `builder/cadence_writer.py` — shared.
-- `motifs/fragment_catalogue.py` — episode fragments.
+- `motifs/extract_kernels.py` — rewritten for PairedKernel extraction.
+- `motifs/episode_dialogue.py` — rewritten for paired-kernel chaining.
+- `motifs/episode_kernel.py` — `_solve` DFS and `_used` tracking
+  adapted for PairedKernels.
 - `motifs/subject_loader.py` — subject/answer data.
-- The Viterbi solver — fills companion voices in episodes and free
-  passages. This is its proper role: counterpoint against given
-  material, not wallpaper over empty bars.
+- The Viterbi solver — fills companion voices in entry phrases
+  where one voice is FREE. Episodes no longer need Viterbi (paired
+  kernels provide both voices). This is its proper role:
+  counterpoint against given material, not wallpaper.
 
 ---
 

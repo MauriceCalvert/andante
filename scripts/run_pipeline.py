@@ -22,9 +22,12 @@ Options:
     -seed N                 RNG seed for reproducibility (default: varies per run)
 """
 import argparse
+import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
 
 import yaml
 

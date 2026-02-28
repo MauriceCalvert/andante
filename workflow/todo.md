@@ -4,10 +4,13 @@ Conductor reads at chat start.
 
 ---
 
-## Now: (listening gate — awaiting Maurice's MIDI review)
+## Now: EPI-6 — Paired-kernel episode variety
 
-EPI-5b passed conductor evaluation. 53 → 10 faults. Next phase TBD
-after listening confirmation.
+EPI-5b done. Listening review: all 5 episodes use the same fragment = boring.
+Design in `workflow/epi6-design.md`. Three phases:
+- EPI-6a: Paired kernel extraction (rewrite extract_kernels.py)
+- EPI-6b: Chain solver (adapt _solve DFS from episode_kernel.py)
+- EPI-6c: Wire into EpisodeDialogue.generate()
 
 ---
 

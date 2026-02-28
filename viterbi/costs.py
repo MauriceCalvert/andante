@@ -528,14 +528,14 @@ def hard_constraint_cost(
 ) -> tuple[float, str]:
     """Hard constraints: return (HARD, rule_name) if violated, else (0.0, "").
 
-    Six rules enforcing fundamental counterpoint correctness:
+    Five rules enforcing fundamental counterpoint correctness:
     - HC1: Anti-stasis (three consecutive identical pitches)
     - HC2: Spacing ceiling (>36 semitones)
     - HC3: Parallel perfects (5ths/octaves) between adjacent grid steps
-    - HC4: Tritone on strong beat
     - HC6: Similar-motion leaps (both voices leap >=3rd in same direction)
     - HC7: Parallel perfects on consecutive strong/moderate beats separated by one
             weak-beat note (the passing-tone gap that HC3 misses)
+    (HC4 tritone removed — soft COST_TRITONE handles this adequately)
     """
     prev_pitch = step.prev_pitch
     curr_pitch = step.curr_pitch
@@ -562,11 +562,9 @@ def hard_constraint_cost(
             if is_perfect(curr_interval) and is_perfect(prev_interval):
                 if (curr_interval % 12) == (prev_interval % 12):
                     return HARD, f"HC3_parallel({curr_interval % 12})"
-    # HC4 — Tritone on strong beat: ic=6 between only two voices
-    if curr_beat_strength == "strong":
-        for i in range(len(curr_others)):
-            if abs(curr_pitch - curr_others[i]) % 12 == 6:
-                return HARD, "HC4_tritone"
+    # HC4 removed: tritone on strong beat is handled by soft COST_TRITONE=80.0.
+    # Dominant-function intervals (degrees 4+7) are musically correct and were
+    # being hard-blocked, causing fallback to soft-only for entire phrases.
     # HC6 — Similar-motion leaps into perfect consonance
     # Both voices leap >=3rd in same direction AND arrive at P1/P5/P8
     for i in range(len(curr_others)):

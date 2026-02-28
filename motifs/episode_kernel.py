@@ -7,6 +7,7 @@ EpisodeDialogue to drive the per-iteration texture.
 import logging
 import random
 from fractions import Fraction
+from pathlib import Path
 
 from motifs.extract_kernels import PairedKernel, extract_paired_kernels
 from motifs.subject_loader import SubjectTriple
@@ -18,11 +19,9 @@ _log: logging.Logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-_KERNELS_PER_FAMILY: int = 3
 _MAX_CANDIDATES: int = 200
-_MAX_KERNEL_DURATION_RATIO: Fraction = Fraction(1, 2)  # half-bar cap
 _MAX_NODES: int = 50000
-_MAX_SEGMENTS: int = 5
+_MAX_SEGMENTS: int = 8
 _SEED: int = 42
 
 
@@ -31,47 +30,42 @@ _SEED: int = 42
 # ---------------------------------------------------------------------------
 
 
-def _build_pool(kernels: list[PairedKernel], bar_length: Fraction) -> list[PairedKernel]:
-    """Build working pool: drop over-long kernels, keep up to 3 per source family.
+_QUAVER: Fraction = Fraction(1, 8)
 
-    Prefers variety in note-count across the family.
-    """
-    cap: Fraction = bar_length * _MAX_KERNEL_DURATION_RATIO
-    families: dict[str, list[PairedKernel]] = {}
+
+def _build_pool(kernels: list[PairedKernel], bar_length: Fraction) -> list[PairedKernel]:
+    """Build working pool: all kernels up to full-bar duration, both voices active."""
+    cap: Fraction = bar_length
+    pool: list[PairedKernel] = []
+    rejected: dict[str, int] = {"cap": 0, "upper<2": 0, "lower<2": 0, "upper_unique<2": 0, "lower_unique<2": 0, "quaver_grid": 0}
     for pk in kernels:
         if pk.total_duration > cap:
+            rejected["cap"] += 1
             continue
-        # Strip _inv and sub-pair suffixes to identify family.
-        fam: str = pk.source
-        for suffix in ("_inv", "_f2", "_l2", "_f2_inv", "_l2_inv"):
-            fam = fam.removesuffix(suffix)
-        families.setdefault(fam, []).append(pk)
-
-    pool: list[PairedKernel] = []
-    for fam in sorted(families.keys()):
-        candidates: list[PairedKernel] = families[fam]
-        # Sort by note count (prefer variety) then duration.
-        candidates.sort(key=lambda pk: (
-            max(len(pk.upper_degrees), len(pk.lower_degrees)),
-            pk.total_duration,
-        ))
-        seen_note_counts: set[int] = set()
-        selected: list[PairedKernel] = []
-        for c in candidates:
-            nc: int = max(len(c.upper_degrees), len(c.lower_degrees))
-            if nc not in seen_note_counts:
-                selected.append(c)
-                seen_note_counts.add(nc)
-            if len(selected) >= _KERNELS_PER_FAMILY:
-                break
-        # Fill up to cap if fewer than _KERNELS_PER_FAMILY distinct note counts.
-        for c in candidates:
-            if c not in selected:
-                selected.append(c)
-            if len(selected) >= _KERNELS_PER_FAMILY:
-                break
-        pool.extend(selected)
-
+        if len(pk.upper_degrees) < 2:
+            rejected["upper<2"] += 1
+            continue
+        if len(pk.lower_degrees) < 2:
+            rejected["lower<2"] += 1
+            continue
+        if len(set(pk.upper_degrees)) < 2:
+            rejected["upper_unique<2"] += 1
+            continue
+        if len(set(pk.lower_degrees)) < 2:
+            rejected["lower_unique<2"] += 1
+            continue
+        # Total duration must be a quaver multiple to stay on the beat grid.
+        if pk.total_duration % _QUAVER != 0:
+            rejected["quaver_grid"] += 1
+            continue
+        pool.append(pk)
+    print(f"[EPI-6] _build_pool: {len(kernels)} in, {len(pool)} out, rejected={rejected}")
+    if pool:
+        dur_counts: dict[str, int] = {}
+        for pk in pool:
+            d = str(pk.total_duration)
+            dur_counts[d] = dur_counts.get(d, 0) + 1
+        print(f"[EPI-6] pool durations: {dur_counts}")
     return pool
 
 
@@ -95,17 +89,28 @@ class EpisodeKernelSource:
         self._pool: list[PairedKernel] = _build_pool(
             kernels=all_kernels, bar_length=self._bar_length,
         )
-        _log.debug(
-            "EpisodeKernelSource: %d kernels in pool (from %d raw)",
-            len(self._pool), len(all_kernels),
+        print(f"[EPI-6] pool={len(self._pool)} kernels (from {len(all_kernels)} raw)")
+        self.dump_kernels_midi(
+            path=Path("output/kernels.midi"),
+            tonic_midi=triple.tonic_midi,
+            mode=triple.subject.mode,
         )
+        if len(self._pool) < 2:
+            print(
+                f"[EPI-6] WARNING: pool has {len(self._pool)} kernels (need >= 2); "
+                f"all episodes will use fallback. Check subject/CS rhythm overlap."
+            )
 
         # Atoms: (pool_index, reps, total_duration * reps), sorted duration desc.
+        # Each atom covers at most 1 bar to prevent monotonous repetition.
         self._atoms: list[tuple[int, int, Fraction]] = sorted(
             [
                 (idx, reps, pk.total_duration * reps)
                 for idx, pk in enumerate(self._pool)
-                for reps in (1, 2)
+                for reps in range(
+                    1,
+                    int(self._bar_length / pk.total_duration) + 1,
+                )
             ],
             key=lambda a: a[2],
             reverse=True,
@@ -118,6 +123,84 @@ class EpisodeKernelSource:
         """Kernel pool available for episode construction."""
         return list(self._pool)
 
+    def dump_kernels_midi(
+        self,
+        path: Path,
+        tonic_midi: int = 60,
+        mode: str = "major",
+    ) -> None:
+        """Write all pool kernels to a MIDI file for listening review."""
+        from motifs.head_generator import degrees_to_midi
+        from shared.midi_writer import SimpleNote, write_midi_notes
+        notes: list[SimpleNote] = []
+        offset: float = 0.0
+        gap: float = 0.5  # half-bar silence between kernels
+        for i, pk in enumerate(self._pool):
+            # Upper voice (track 0)
+            t: float = offset
+            for deg, dur in zip(pk.upper_degrees, pk.upper_durations):
+                midi: int = degrees_to_midi((deg + 7,), tonic_midi, mode)[0]
+                notes.append(SimpleNote(
+                    pitch=midi, offset=t, duration=float(dur),
+                    velocity=80, track=0,
+                ))
+                t += float(dur)
+            # Lower voice (track 1)
+            t = offset
+            for deg, dur in zip(pk.lower_degrees, pk.lower_durations):
+                midi = degrees_to_midi((deg,), tonic_midi, mode)[0]
+                notes.append(SimpleNote(
+                    pitch=midi, offset=t, duration=float(dur),
+                    velocity=70, track=1,
+                ))
+                t += float(dur)
+            offset += float(pk.total_duration) + gap
+        write_midi_notes(
+            path=str(path), notes=notes, tempo=80,
+            time_signature=(4, 4), tonic="C", mode=mode,
+        )
+        print(f"[EPI-6] dumped {len(self._pool)} kernels to {path}")
+        # Write companion .note file for score reading.
+        note_path: Path = path.with_suffix(".note")
+        with open(note_path, "w", encoding="utf-8") as f:
+            f.write("# Paired kernel pool dump\n")
+            f.write(f"# tonic_midi={tonic_midi} mode={mode}\n")
+            f.write(f"# {len(self._pool)} kernels\n\n")
+            for i, pk in enumerate(self._pool):
+                f.write(f"--- kernel {i}: {pk.name} (source={pk.source}, dur={pk.total_duration})\n")
+                f.write(f"  upper_degrees:   {pk.upper_degrees}\n")
+                f.write(f"  upper_durations: {pk.upper_durations}\n")
+                u_midi: tuple[int, ...] = degrees_to_midi(
+                    tuple(d + 7 for d in pk.upper_degrees), tonic_midi, mode,
+                )
+                f.write(f"  upper_midi:      {u_midi}\n")
+                f.write(f"  lower_degrees:   {pk.lower_degrees}\n")
+                f.write(f"  lower_durations: {pk.lower_durations}\n")
+                l_midi: tuple[int, ...] = degrees_to_midi(
+                    tuple(pk.lower_degrees), tonic_midi, mode,
+                )
+                f.write(f"  lower_midi:      {l_midi}\n")
+                # Vertical intervals at shared attacks.
+                u_onsets: list[float] = []
+                cum: float = 0.0
+                for d in pk.upper_durations:
+                    u_onsets.append(cum)
+                    cum += float(d)
+                l_onsets: list[float] = []
+                cum = 0.0
+                for d in pk.lower_durations:
+                    l_onsets.append(cum)
+                    cum += float(d)
+                shared: list[float] = sorted(set(u_onsets) & set(l_onsets))
+                intervals: list[str] = []
+                for t in shared:
+                    ui: int = u_onsets.index(t)
+                    li: int = l_onsets.index(t)
+                    semis: int = u_midi[ui] - l_midi[li]
+                    intervals.append(f"t={t}:{semis}st")
+                f.write(f"  verticals:       {', '.join(intervals)}\n")
+                f.write("\n")
+
     def generate(self, bar_count: int) -> list[PairedKernel] | None:
         """Return a flat list of bar_count PairedKernels, or None if unsolvable.
 
@@ -126,15 +209,24 @@ class EpisodeKernelSource:
         """
         assert bar_count >= 1, f"bar_count must be >= 1, got {bar_count}"
         if len(self._pool) < 2:
-            _log.debug("EpisodeKernelSource.generate: pool too small (%d)", len(self._pool))
+            print(f"[EPI-6] generate: pool too small ({len(self._pool)})")
             return None
 
         target_dur: Fraction = self._bar_length * bar_count
+        print(f"[EPI-6] generate: bar_count={bar_count}, target={target_dur}, atoms={len(self._atoms)}, pool={len(self._pool)}")
         segments: list[tuple[PairedKernel, int]] | None = self._solve(
             target_dur=target_dur,
         )
         if segments is None:
-            _log.debug("EpisodeKernelSource.generate: no solution for bar_count=%d", bar_count)
+            atom_durs: list[str] = [
+                f"{self._pool[idx].name}x{reps}={dur}"
+                for idx, reps, dur in self._atoms[:6]
+            ]
+            print(
+                f"[EPI-6] no chain for bar_count={bar_count} "
+                f"(target={target_dur}, max_segments={_MAX_SEGMENTS}, "
+                f"atoms[:6]=[{', '.join(atom_durs)}])"
+            )
             return None
 
         # Log selected chain.
@@ -148,10 +240,11 @@ class EpisodeKernelSource:
         for pk, reps in segments:
             for _ in range(reps):
                 result.append(pk)
-
-        assert len(result) == bar_count, (
-            f"Chain expanded to {len(result)} iterations but bar_count={bar_count}. "
-            "Solver produced incorrect total duration."
+        total_dur: Fraction = sum(pk.total_duration for pk in result)
+        expected_dur: Fraction = self._bar_length * bar_count
+        assert total_dur == expected_dur, (
+            f"Chain total duration {total_dur} != expected {expected_dur}. "
+            f"Got {len(result)} kernels for bar_count={bar_count}."
         )
         return result
 
@@ -176,6 +269,19 @@ class EpisodeKernelSource:
             results=candidates,
             budget=budget,
         )
+        if not candidates:
+            if budget[0] <= 0:
+                print(
+                    f"[EPI-6] _solve: budget exhausted ({_MAX_NODES} nodes) "
+                    f"with 0 candidates for target={target_dur}"
+                )
+            else:
+                print(
+                    f"[EPI-6] _solve: no candidates for target={target_dur} "
+                    f"(budget remaining={budget[0]}, pool={len(self._pool)}, "
+                    f"max_segments={_MAX_SEGMENTS})"
+                )
+            return None
 
         # Shuffle for variety across calls.
         self._rng.shuffle(candidates)

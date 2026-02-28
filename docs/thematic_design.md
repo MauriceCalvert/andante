@@ -99,9 +99,17 @@ not whether an episode exists. All section boundaries get an episode.
 Short distances get short episodes (2 bars); larger distances get
 longer ones (3–4 bars).
 
-**Content:** head fragment from the subject, sequenced diatonically
-downward (or upward) through intermediate scale degrees. This is
-derived material, not Viterbi fill.
+**Content:** episodes are built from **paired kernels** — frozen
+two-voice units (soprano + bass degrees and durations) extracted from
+the subject/countersubject overlap in the exposition. Vertical
+consonance is inherited from the original invertible counterpoint.
+Kernels are chained to fill the episode's bar count with different
+combinations per episode for variety. Sequential transposition shifts
+both voices together. Both voices carry thematic material; no Viterbi
+fill. Each iteration carries a HarmonicGrid derived from the sequence
+pattern (e.g. descending step: I→vii°→vi→V), projected via
+`harmony_projection.py`. See "Episode Construction — Paired Kernels"
+in `docs/imitative_design.md` for the full design.
 
 **Direction:** determined by the key relationship. If the next section
 is lower, the sequence descends. If higher, it ascends.

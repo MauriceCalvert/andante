@@ -33,7 +33,7 @@ thematic:
   voice_count: 2
   invertible_counterpoint: true
   answer_offset_beats: 4
-  cadence: auto
+  cadence: cadenza_trillata
 
   vocabulary:
     exposition:

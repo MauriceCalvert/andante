@@ -1,5 +1,37 @@
 # Completed Work Log
 
+## EPI-7 — Episode octave placement rewrite + breath rest removal (2026-02-28)
+
+**Problem**: Jarring octave leaps (e.g. F4→F5) between consecutive episodes.
+
+**Root cause**: Episodes were generated at a fixed abstract octave then
+shifted into range via `_apply_octave_shift()`. When a fragment spanned
+most of the voice range, only one octave-multiple shift fit strictly
+within range, forcing 12-semitone leaps even when exit and entry pitches
+were adjacent. `_anchor_entry()` was a band-aid that could only correct
+by ±12 and was blocked by the same range constraint. The architecture
+was backwards — generate then shoehorn, rather than place relative to
+where you are.
+
+**Fix**: Replaced `_apply_octave_shift` + `_anchor_entry` (~100 lines)
+with `_place_near` (~10 lines). Each iteration is placed at the octave
+multiple whose first note is nearest to the previous exit pitch:
+`shift = round(delta / 12) * 12`. No range consultation — stepwise
+transposition within the episode keeps register natural, and range is
+a soft hint (L003). Assertions enforce that prior pitches are always
+provided (episodes never start a piece).
+
+**Also fixed**:
+- Removed `EPISODE_BREATH_REST` — a forced crotchet of silence at episode
+  end that created unidiomatic gaps. Episodes now fill allocated duration;
+  assembly layer handles section joins via contiguous bar boundaries.
+- Wired `-v` flag to set DEBUG on `motifs.episode_dialogue` and
+  `builder.phrase_writer` (previously all debug logging was silenced).
+- Fallback path now logs at WARNING level (visible without `-v`).
+
+**Files**: `motifs/episode_dialogue.py`, `builder/phrase_writer.py`,
+`scripts/run_pipeline.py`.
+
 ## EPI-5b — Episode parallel fix + Viterbi strong-beat parallel check (2026-02-28 late)
 
 53 faults → 10 faults (−43).

@@ -100,10 +100,7 @@ def extract_paired_kernels(fugue: SubjectTriple) -> list[PairedKernel]:
         )
         raw.extend(slices)
 
-    _log.debug(
-        "extract_paired_kernels: %d raw slices from %d pairings",
-        len(raw), len(pairings),
-    )
+    print(f"[EPI-6] extract: {len(raw)} raw slices from {len(pairings)} pairings")
 
     sub_pairs: list[PairedKernel] = []
     for pk in raw:
@@ -114,7 +111,7 @@ def extract_paired_kernels(fugue: SubjectTriple) -> list[PairedKernel]:
     ]
 
     result = _dedup_paired_kernels(kernels=raw + sub_pairs + inverted)
-    _log.debug("extract_paired_kernels: %d total after dedup", len(result))
+    print(f"[EPI-6] extract: {len(result)} total after dedup")
     return result
 
 
@@ -140,69 +137,73 @@ def _extract_slices(
     lower_durations: tuple[Fraction, ...],
     source: str,
 ) -> list[PairedKernel]:
-    """Slice both voices at shared onsets and return valid PairedKernels."""
+    """Slice both voices at union of all onsets and return valid PairedKernels."""
     upper_onsets: list[Fraction] = _build_onsets(upper_durations)
     lower_onsets: list[Fraction] = _build_onsets(lower_durations)
-
     upper_total: Fraction = sum(upper_durations, Fraction(0))
     lower_total: Fraction = sum(lower_durations, Fraction(0))
     shorter_total: Fraction = min(upper_total, lower_total)
-
-    # Shared onsets: time points that appear in BOTH onset lists, plus boundaries.
-    shared: set[Fraction] = set(upper_onsets) & set(lower_onsets)
-    shared.add(Fraction(0))
-    shared.add(shorter_total)
-    shared_sorted: list[Fraction] = sorted(
-        t for t in shared if Fraction(0) <= t <= shorter_total
+    # Union of all onsets from both voices, plus boundaries.
+    all_onsets: set[Fraction] = set(upper_onsets) | set(lower_onsets)
+    all_onsets.add(Fraction(0))
+    all_onsets.add(shorter_total)
+    boundary_sorted: list[Fraction] = sorted(
+        t for t in all_onsets if Fraction(0) <= t <= shorter_total
     )
-
     kernels: list[PairedKernel] = []
-    for idx in range(len(shared_sorted) - 1):
-        t_start: Fraction = shared_sorted[idx]
-        t_end: Fraction = shared_sorted[idx + 1]
-        if t_end <= t_start:
-            continue
-
-        u_slice_deg, u_slice_dur = _voice_slice(
-            degrees=upper_degrees,
-            durations=upper_durations,
-            onsets=upper_onsets,
-            t_start=t_start,
-            t_end=t_end,
+    for i in range(len(boundary_sorted) - 1):
+        for j in range(i + 1, len(boundary_sorted)):
+            t_start: Fraction = boundary_sorted[i]
+            t_end: Fraction = boundary_sorted[j]
+            if t_end <= t_start:
+                continue
+            u_slice_deg, u_slice_dur = _voice_slice(
+                degrees=upper_degrees,
+                durations=upper_durations,
+                onsets=upper_onsets,
+                t_start=t_start,
+                t_end=t_end,
+            )
+            l_slice_deg, l_slice_dur = _voice_slice(
+                degrees=lower_degrees,
+                durations=lower_durations,
+                onsets=lower_onsets,
+                t_start=t_start,
+                t_end=t_end,
+            )
+            u_count: int = len(u_slice_deg)
+            l_count: int = len(l_slice_deg)
+            longer_count: int = max(u_count, l_count)
+            # At least one voice must have 2+ notes; other may have 1.
+            if longer_count < _KERNEL_MIN_NOTES:
+                continue
+            if u_count < 1 or l_count < 1:
+                continue
+            if longer_count > _KERNEL_MAX_NOTES:
+                continue
+            # Normalise: shift all degrees so upper_degrees[0] == 0.
+            base: int = u_slice_deg[0]
+            norm_upper: tuple[int, ...] = tuple(d - base for d in u_slice_deg)
+            norm_lower: tuple[int, ...] = tuple(d - base for d in l_slice_deg)
+            total_dur: Fraction = t_end - t_start
+            tag: str = f"{source}[{t_start}:{t_end}]"
+            kernels.append(PairedKernel(
+                name=tag,
+                upper_degrees=norm_upper,
+                upper_durations=tuple(u_slice_dur),
+                lower_degrees=norm_lower,
+                lower_durations=tuple(l_slice_dur),
+                total_duration=total_dur,
+                source=source,
+            ))
+    if not kernels:
+        n_windows: int = len(boundary_sorted) * (len(boundary_sorted) - 1) // 2
+        print(
+            f"[EPI-6] _extract_slices({source}): 0 kernels from "
+            f"{len(boundary_sorted)} boundaries ({n_windows} windows). "
+            f"min={_KERNEL_MIN_NOTES}, max={_KERNEL_MAX_NOTES}, "
+            f"upper_durs={upper_durations[:6]}, lower_durs={lower_durations[:6]}"
         )
-        l_slice_deg, l_slice_dur = _voice_slice(
-            degrees=lower_degrees,
-            durations=lower_durations,
-            onsets=lower_onsets,
-            t_start=t_start,
-            t_end=t_end,
-        )
-
-        shorter_count: int = min(len(u_slice_deg), len(l_slice_deg))
-        longer_count: int = max(len(u_slice_deg), len(l_slice_deg))
-
-        if shorter_count < _KERNEL_MIN_NOTES:
-            continue
-        if longer_count > _KERNEL_MAX_NOTES:
-            continue
-
-        # Normalise: shift all degrees so upper_degrees[0] == 0.
-        base: int = u_slice_deg[0]
-        norm_upper: tuple[int, ...] = tuple(d - base for d in u_slice_deg)
-        norm_lower: tuple[int, ...] = tuple(d - base for d in l_slice_deg)
-        total_dur: Fraction = t_end - t_start
-
-        tag: str = f"{source}[{t_start}:{t_end}]"
-        kernels.append(PairedKernel(
-            name=tag,
-            upper_degrees=norm_upper,
-            upper_durations=tuple(u_slice_dur),
-            lower_degrees=norm_lower,
-            lower_durations=tuple(l_slice_dur),
-            total_duration=total_dur,
-            source=source,
-        ))
-
     return kernels
 
 
@@ -283,7 +284,9 @@ def _truncate_pk(
         t_end=span_end,
     )
 
-    if min(len(u_deg), len(l_deg)) < _KERNEL_MIN_NOTES:
+    if max(len(u_deg), len(l_deg)) < _KERNEL_MIN_NOTES:
+        return None
+    if len(u_deg) < 1 or len(l_deg) < 1:
         return None
     if max(len(u_deg), len(l_deg)) > _KERNEL_MAX_NOTES:
         return None

@@ -825,7 +825,7 @@ def validate_cadences() -> list[str]:
     data = _load(path=path)
     rel = _rel(path)
     schemas_data = _load(path=DATA_DIR / "schemas" / "schemas.yaml")
-    for section in ("types", "internal", "final"):
+    for section in ("types",):
         if section not in data:
             errors.append(f"{rel}: missing required section '{section}' -- add it")
     # Validate types section
@@ -847,7 +847,7 @@ def validate_cadences() -> list[str]:
 
 def validate_cadence_templates() -> list[str]:
     errors: list[str] = []
-    path = DATA_DIR / "cadence_templates" / "templates.yaml"
+    path = DATA_DIR / "cadences" / "templates.yaml"
     data = _load(path=path)
     rel = _rel(path)
 
@@ -1271,6 +1271,508 @@ def validate_thematic_entry_sequence() -> list[str]:
 
 
 # =============================================================================
+# 22. Archetypes directory (subject gesture archetypes)
+# =============================================================================
+
+VALID_GESTURE_INTERVAL_TYPES: frozenset[str] = frozenset({
+    "step", "leap", "skip", "back", "hold",
+})
+
+VALID_GESTURE_FORCE_DIRECTIONS: frozenset[str] = frozenset({
+    "ascending", "descending",
+})
+
+VALID_RHETORIC_POSITIONS: frozenset[str] = frozenset({
+    "exordium", "narratio", "confirmatio", "confutatio", "peroratio",
+})
+
+VALID_TIME_RELATIONS: frozenset[str] = frozenset({
+    "independent", "synchronized", "offset", "phased", "interlocking",
+})
+
+VALID_PITCH_RELATIONS: frozenset[str] = frozenset({
+    "independent", "harmonic", "transposed", "variant", "partials",
+})
+
+VALID_ACCOMPANIMENT_MOTIONS: frozenset[str] = frozenset({
+    "arpeggiated", "stepwise", "chromatic",
+})
+
+VALID_ACCOMPANIMENT_DIRECTIONS: frozenset[str] = frozenset({
+    "ascending", "descending", "alternating", "toward_target",
+})
+
+VALID_DIMINUTION_POLARITY: frozenset[str] = frozenset({
+    "upper", "lower", "balanced",
+})
+
+VALID_DIMINUTION_ARRIVAL: frozenset[str] = frozenset({
+    "direct", "stepwise", "accented",
+})
+
+VALID_DIMINUTION_PLACEMENT: frozenset[str] = frozenset({
+    "start", "end", "span",
+})
+
+VALID_DIMINUTION_FIGURE_CHARACTERS: frozenset[str] = frozenset({
+    "plain", "expressive", "energetic", "ornate", "bold",
+})
+
+VALID_DIMINUTION_TENSION: frozenset[str] = frozenset({
+    "low", "medium", "high",
+})
+
+
+def validate_archetypes_dir() -> list[str]:
+    """Validate all archetype files in data/archetypes/."""
+    errors: list[str] = []
+    archetypes_dir = DATA_DIR / "archetypes"
+    if not archetypes_dir.exists():
+        return errors
+
+    head_gestures = _load(path=DATA_DIR / "subject_gestures" / "head_gestures.yaml")
+    tail_cells = _load(path=DATA_DIR / "subject_gestures" / "tail_cells.yaml")
+    kadenz_formulas = _load(path=DATA_DIR / "subject_gestures" / "kadenz_formulas.yaml")
+
+    for arch_file in sorted(archetypes_dir.glob("*.yaml")):
+        rel = _rel(arch_file)
+        data = _load(path=arch_file)
+        name = data.get("name", arch_file.stem)
+
+        for required_section in ("head", "continuation", "kadenz", "rhythm"):
+            if required_section not in data:
+                errors.append(f"{rel}: archetype '{name}' missing required section '{required_section}' -- add it")
+
+        head = data.get("head", {})
+        if isinstance(head, dict):
+            for field in ("min_notes", "max_notes", "intervals", "gestures"):
+                if field not in head:
+                    errors.append(f"{rel}: archetype '{name}' head missing '{field}' -- add it")
+            gestures = head.get("gestures", [])
+            if isinstance(gestures, list):
+                for g in gestures:
+                    if g not in head_gestures:
+                        errors.append(f"{rel}: archetype '{name}' head.gestures '{g}' not in head_gestures.yaml -- check spelling")
+
+        cont = data.get("continuation", {})
+        if isinstance(cont, dict):
+            cells = cont.get("preferred_cells", [])
+            if isinstance(cells, list):
+                for c in cells:
+                    if c not in tail_cells:
+                        errors.append(f"{rel}: archetype '{name}' continuation.preferred_cells '{c}' not in tail_cells.yaml -- check spelling")
+
+        kadenz = data.get("kadenz", {})
+        if isinstance(kadenz, dict):
+            formulas = kadenz.get("formulas", [])
+            if isinstance(formulas, list):
+                for f in formulas:
+                    if f not in kadenz_formulas:
+                        errors.append(f"{rel}: archetype '{name}' kadenz.formulas '{f}' not in kadenz_formulas.yaml -- check spelling")
+
+        mode_bias = data.get("mode_bias", {})
+        if isinstance(mode_bias, dict):
+            for mode, val in mode_bias.items():
+                if not isinstance(val, (int, float)) or not (0.0 <= float(val) <= 1.0):
+                    errors.append(f"{rel}: archetype '{name}' mode_bias.{mode} must be float 0-1, got {val}")
+
+    return errors
+
+
+# =============================================================================
+# 23. Figurae
+# =============================================================================
+
+def validate_figurae() -> list[str]:
+    """Validate data/rhetoric/figurae.yaml."""
+    errors: list[str] = []
+    path = DATA_DIR / "rhetoric" / "figurae.yaml"
+    data = _load(path=path)
+    rel = _rel(path)
+
+    affects_data = _load(path=DATA_DIR / "rhetoric" / "affects.yaml")
+    valid_affects = set(affects_data.get("affects", {}).keys())
+
+    for category, figures in data.items():
+        if not isinstance(figures, dict):
+            continue
+        for name, fig in figures.items():
+            if not isinstance(fig, dict):
+                continue
+
+            for aff in fig.get("affects", []):
+                if aff not in valid_affects:
+                    errors.append(f"{rel}: figura '{name}' affect '{aff}' not in affects.yaml -- available: {sorted(valid_affects)}")
+
+            for pos in fig.get("rhetoric_positions", []):
+                if pos not in VALID_RHETORIC_POSITIONS:
+                    errors.append(f"{rel}: figura '{name}' rhetoric_position '{pos}' -- expected one of {sorted(VALID_RHETORIC_POSITIONS)}")
+
+            tr = fig.get("tension_range")
+            if tr is not None:
+                if not isinstance(tr, list) or len(tr) != 2:
+                    errors.append(f"{rel}: figura '{name}' tension_range must be [low, high] pair")
+                else:
+                    for i, v in enumerate(tr):
+                        if not isinstance(v, (int, float)) or not (0.0 <= float(v) <= 1.0):
+                            errors.append(f"{rel}: figura '{name}' tension_range[{i}] must be float 0-1, got {v}")
+
+    return errors
+
+
+# =============================================================================
+# 24. Tension curves
+# =============================================================================
+
+def validate_tension_curves() -> list[str]:
+    """Validate data/rhetoric/tension_curves.yaml."""
+    errors: list[str] = []
+    path = DATA_DIR / "rhetoric" / "tension_curves.yaml"
+    data = _load(path=path)
+    rel = _rel(path)
+
+    for name, curve in data.items():
+        if not isinstance(curve, dict):
+            continue
+
+        points = curve.get("points")
+        if points is None:
+            errors.append(f"{rel}: curve '{name}' missing 'points' -- add it")
+            continue
+        if not isinstance(points, list):
+            errors.append(f"{rel}: curve '{name}' points must be a list of [position, level] pairs")
+            continue
+        for i, point in enumerate(points):
+            if not isinstance(point, list) or len(point) != 2:
+                errors.append(f"{rel}: curve '{name}' points[{i}] must be [position, level] pair")
+            else:
+                for j, v in enumerate(point):
+                    if not isinstance(v, (int, float)) or not (0.0 <= float(v) <= 1.0):
+                        errors.append(f"{rel}: curve '{name}' points[{i}][{j}] must be float 0-1, got {v}")
+
+    return errors
+
+
+# =============================================================================
+# 25. Schema transitions
+# =============================================================================
+
+_SCHEMA_TRANSITION_META_KEYS: frozenset[str] = frozenset({"genre_preferences", "references"})
+
+
+def validate_schema_transitions() -> list[str]:
+    """Validate data/schemas/schema_transitions.yaml."""
+    errors: list[str] = []
+    path = DATA_DIR / "schemas" / "schema_transitions.yaml"
+    data = _load(path=path)
+    rel = _rel(path)
+    schemas_data = _load(path=DATA_DIR / "schemas" / "schemas.yaml")
+    valid_schemas = set(schemas_data.keys())
+
+    for schema_name, entry in data.items():
+        if schema_name in _SCHEMA_TRANSITION_META_KEYS:
+            continue
+        if not isinstance(entry, dict):
+            continue
+
+        if schema_name not in valid_schemas:
+            errors.append(f"{rel}: transition key '{schema_name}' not found in schemas.yaml -- add schema or fix name")
+
+        pos = entry.get("typical_position")
+        if pos is not None and pos not in VALID_SCHEMA_POSITIONS:
+            errors.append(f"{rel}: transition '{schema_name}' typical_position '{pos}' -- expected one of {sorted(VALID_SCHEMA_POSITIONS)}")
+
+        exit_deg = entry.get("exit", {})
+        if isinstance(exit_deg, dict):
+            for voice in ("soprano", "bass"):
+                v = exit_deg.get(voice)
+                if v is not None and (not isinstance(v, int) or not (1 <= v <= 7)):
+                    errors.append(f"{rel}: transition '{schema_name}' exit.{voice} must be int 1-7, got {v}")
+
+        allowed = entry.get("allowed_next", [])
+        if isinstance(allowed, list):
+            for next_schema in allowed:
+                if not isinstance(next_schema, str):
+                    continue
+                if next_schema not in valid_schemas:
+                    errors.append(f"{rel}: transition '{schema_name}' allowed_next '{next_schema}' not in schemas.yaml -- check spelling")
+
+    return errors
+
+
+# =============================================================================
+# 26. Subject gestures (head_gestures, kadenz_formulas, tail_cells)
+# =============================================================================
+
+def validate_subject_gestures() -> list[str]:
+    """Validate all files in data/subject_gestures/."""
+    errors: list[str] = []
+
+    archetypes_dir = DATA_DIR / "archetypes"
+    valid_archetypes: set[str] = set()
+    if archetypes_dir.exists():
+        valid_archetypes = {p.stem for p in archetypes_dir.glob("*.yaml")}
+
+    # --- head_gestures.yaml ---
+    hg_path = DATA_DIR / "subject_gestures" / "head_gestures.yaml"
+    hg_data = _load(path=hg_path)
+    hg_rel = _rel(hg_path)
+
+    for name, gesture in hg_data.items():
+        if not isinstance(gesture, dict):
+            continue
+
+        archetype = gesture.get("archetype")
+        if archetype is None:
+            errors.append(f"{hg_rel}: gesture '{name}' missing 'archetype' -- add it")
+        elif archetype not in valid_archetypes:
+            errors.append(f"{hg_rel}: gesture '{name}' archetype '{archetype}' not in archetypes/ -- available: {sorted(valid_archetypes)}")
+
+        for it in gesture.get("interval_types", []):
+            if it not in VALID_GESTURE_INTERVAL_TYPES:
+                errors.append(f"{hg_rel}: gesture '{name}' interval_type '{it}' -- expected one of {sorted(VALID_GESTURE_INTERVAL_TYPES)}")
+
+        force_dir = gesture.get("force_direction")
+        if force_dir is not None and force_dir not in VALID_GESTURE_FORCE_DIRECTIONS:
+            errors.append(f"{hg_rel}: gesture '{name}' force_direction '{force_dir}' -- expected one of {sorted(VALID_GESTURE_FORCE_DIRECTIONS)}")
+
+        for field in ("interval_types", "rhythm", "character"):
+            if field not in gesture:
+                errors.append(f"{hg_rel}: gesture '{name}' missing '{field}' -- add it")
+
+    # --- kadenz_formulas.yaml ---
+    kf_path = DATA_DIR / "subject_gestures" / "kadenz_formulas.yaml"
+    kf_data = _load(path=kf_path)
+    kf_rel = _rel(kf_path)
+
+    for name, formula in kf_data.items():
+        if not isinstance(formula, dict):
+            continue
+
+        for field in ("approach_degrees", "rhythm", "archetypes", "may_augment"):
+            if field not in formula:
+                errors.append(f"{kf_rel}: formula '{name}' missing '{field}' -- add it")
+
+        for arch in formula.get("archetypes", []):
+            if arch not in valid_archetypes:
+                errors.append(f"{kf_rel}: formula '{name}' archetype '{arch}' not in archetypes/ -- available: {sorted(valid_archetypes)}")
+
+        approach_degrees = formula.get("approach_degrees", [])
+        rhythm = formula.get("rhythm", [])
+        if approach_degrees and rhythm and len(approach_degrees) != len(rhythm):
+            errors.append(f"{kf_rel}: formula '{name}' approach_degrees ({len(approach_degrees)}) != rhythm ({len(rhythm)}) -- lengths must match")
+
+    # --- tail_cells.yaml ---
+    tc_path = DATA_DIR / "subject_gestures" / "tail_cells.yaml"
+    tc_data = _load(path=tc_path)
+    tc_rel = _rel(tc_path)
+
+    for name, cell in tc_data.items():
+        if not isinstance(cell, dict):
+            continue
+
+        for field in ("intervals", "net", "character"):
+            if field not in cell:
+                errors.append(f"{tc_rel}: cell '{name}' missing '{field}' -- add it")
+
+        intervals = cell.get("intervals", [])
+        net = cell.get("net")
+        if isinstance(intervals, list) and net is not None:
+            computed = sum(i for i in intervals if isinstance(i, int))
+            if computed != net:
+                errors.append(f"{tc_rel}: cell '{name}' net={net} does not match sum(intervals)={computed} -- fix net")
+
+    return errors
+
+
+# =============================================================================
+# 27. Textures
+# =============================================================================
+
+def validate_textures() -> list[str]:
+    """Validate data/voicing/textures.yaml."""
+    errors: list[str] = []
+    path = DATA_DIR / "voicing" / "textures.yaml"
+    data = _load(path=path)
+    rel = _rel(path)
+
+    for name, texture in data.items():
+        if name == "spacing":
+            continue  # meta section, not a texture definition
+        if not isinstance(texture, dict):
+            continue
+
+        time_rel = texture.get("time_relation")
+        if time_rel is None:
+            errors.append(f"{rel}: texture '{name}' missing 'time_relation' -- add it")
+        elif time_rel not in VALID_TIME_RELATIONS:
+            errors.append(f"{rel}: texture '{name}' time_relation '{time_rel}' -- expected one of {sorted(VALID_TIME_RELATIONS)}")
+
+        pitch_rel = texture.get("pitch_relation")
+        if pitch_rel is None:
+            errors.append(f"{rel}: texture '{name}' missing 'pitch_relation' -- add it")
+        elif pitch_rel not in VALID_PITCH_RELATIONS:
+            errors.append(f"{rel}: texture '{name}' pitch_relation '{pitch_rel}' -- expected one of {sorted(VALID_PITCH_RELATIONS)}")
+
+        if "voice_roles" not in texture:
+            errors.append(f"{rel}: texture '{name}' missing 'voice_roles' -- add it")
+
+        if "interdictions" not in texture:
+            errors.append(f"{rel}: texture '{name}' missing 'interdictions' -- add it")
+
+    return errors
+
+
+# =============================================================================
+# 28. Accompaniments
+# =============================================================================
+
+def validate_accompaniments() -> list[str]:
+    """Validate data/figuration/accompaniments.yaml."""
+    errors: list[str] = []
+    path = DATA_DIR / "figuration" / "accompaniments.yaml"
+    data = _load(path=path)
+    rel = _rel(path)
+
+    for name, pattern in data.items():
+        if not isinstance(pattern, dict):
+            continue
+
+        if "description" not in pattern:
+            errors.append(f"{rel}: accompaniment '{name}' missing 'description' -- add it")
+
+        if "motion" in pattern:
+            # Walking bass pattern
+            motion = pattern.get("motion")
+            if motion not in VALID_ACCOMPANIMENT_MOTIONS:
+                errors.append(f"{rel}: accompaniment '{name}' motion '{motion}' -- expected one of {sorted(VALID_ACCOMPANIMENT_MOTIONS)}")
+
+            direction = pattern.get("direction")
+            if direction is not None and direction not in VALID_ACCOMPANIMENT_DIRECTIONS:
+                errors.append(f"{rel}: accompaniment '{name}' direction '{direction}' -- expected one of {sorted(VALID_ACCOMPANIMENT_DIRECTIONS)}")
+
+            if "notes_per_bar" not in pattern:
+                errors.append(f"{rel}: accompaniment '{name}' walking pattern missing 'notes_per_bar' -- add it")
+        else:
+            # Static pattern with degrees/durations
+            degrees = pattern.get("degrees")
+            durations = pattern.get("durations")
+
+            if degrees is None:
+                errors.append(f"{rel}: accompaniment '{name}' missing 'degrees' -- add it")
+            if durations is None:
+                errors.append(f"{rel}: accompaniment '{name}' missing 'durations' -- add it")
+
+            if isinstance(degrees, list) and isinstance(durations, list) and len(degrees) != len(durations):
+                errors.append(f"{rel}: accompaniment '{name}' degrees ({len(degrees)}) != durations ({len(durations)}) -- lengths must match")
+
+            per_bar = pattern.get("per_bar")
+            if per_bar is not None and not isinstance(per_bar, bool):
+                errors.append(f"{rel}: accompaniment '{name}' per_bar must be bool, got {type(per_bar).__name__}")
+
+    return errors
+
+
+# =============================================================================
+# 29. Diminutions (figuration/diminutions.yaml — the soprano figure table)
+# =============================================================================
+
+def validate_diminutions() -> list[str]:
+    """Validate data/figuration/diminutions.yaml."""
+    errors: list[str] = []
+    path = DATA_DIR / "figuration" / "diminutions.yaml"
+    data = _load(path=path)
+    rel = _rel(path)
+
+    required_fields = (
+        "name", "degrees", "contour", "polarity", "arrival", "placement",
+        "character", "harmonic_tension", "max_density", "cadential_safe",
+        "repeatable", "requires_compensation", "compensation_direction",
+        "is_compound", "minor_safe", "requires_leading_tone", "weight",
+    )
+
+    for interval_group, patterns in data.items():
+        if not isinstance(patterns, list):
+            continue
+        for i, pat in enumerate(patterns):
+            if not isinstance(pat, dict):
+                errors.append(f"{rel}: {interval_group}[{i}] must be a dict")
+                continue
+
+            pat_name = pat.get("name", f"{interval_group}[{i}]")
+
+            for field in required_fields:
+                if field not in pat:
+                    errors.append(f"{rel}: {interval_group} '{pat_name}' missing '{field}' -- add it")
+
+            char = pat.get("character")
+            if char is not None and char not in VALID_DIMINUTION_FIGURE_CHARACTERS:
+                errors.append(f"{rel}: {interval_group} '{pat_name}' character '{char}' -- expected one of {sorted(VALID_DIMINUTION_FIGURE_CHARACTERS)}")
+
+            polarity = pat.get("polarity")
+            if polarity is not None and polarity not in VALID_DIMINUTION_POLARITY:
+                errors.append(f"{rel}: {interval_group} '{pat_name}' polarity '{polarity}' -- expected one of {sorted(VALID_DIMINUTION_POLARITY)}")
+
+            arrival = pat.get("arrival")
+            if arrival is not None and arrival not in VALID_DIMINUTION_ARRIVAL:
+                errors.append(f"{rel}: {interval_group} '{pat_name}' arrival '{arrival}' -- expected one of {sorted(VALID_DIMINUTION_ARRIVAL)}")
+
+            placement = pat.get("placement")
+            if placement is not None and placement not in VALID_DIMINUTION_PLACEMENT:
+                errors.append(f"{rel}: {interval_group} '{pat_name}' placement '{placement}' -- expected one of {sorted(VALID_DIMINUTION_PLACEMENT)}")
+
+            ht = pat.get("harmonic_tension")
+            if ht is not None and ht not in VALID_DIMINUTION_TENSION:
+                errors.append(f"{rel}: {interval_group} '{pat_name}' harmonic_tension '{ht}' -- expected one of {sorted(VALID_DIMINUTION_TENSION)}")
+
+            md = pat.get("max_density")
+            if md is not None and md not in VALID_DIMINUTION_TENSION:
+                errors.append(f"{rel}: {interval_group} '{pat_name}' max_density '{md}' -- expected one of {sorted(VALID_DIMINUTION_TENSION)}")
+
+            weight = pat.get("weight")
+            if weight is not None and (not isinstance(weight, (int, float)) or weight <= 0):
+                errors.append(f"{rel}: {interval_group} '{pat_name}' weight must be > 0, got {weight}")
+
+    return errors
+
+
+# =============================================================================
+# 30. Rhythm patterns (figuration/rhythm_patterns.yaml)
+# =============================================================================
+
+def validate_rhythm_patterns() -> list[str]:
+    """Validate data/figuration/rhythm_patterns.yaml."""
+    errors: list[str] = []
+    path = DATA_DIR / "figuration" / "rhythm_patterns.yaml"
+    data = _load(path=path)
+    rel = _rel(path)
+
+    for name, pattern in data.items():
+        if not isinstance(pattern, dict):
+            continue
+
+        if "description" not in pattern:
+            errors.append(f"{rel}: rhythm_pattern '{name}' missing 'description' -- add it")
+
+        beats = pattern.get("beats")
+        if beats is None:
+            errors.append(f"{rel}: rhythm_pattern '{name}' missing 'beats' -- add it")
+        elif not isinstance(beats, list):
+            errors.append(f"{rel}: rhythm_pattern '{name}' beats must be a list")
+        else:
+            for i, b in enumerate(beats):
+                if not isinstance(b, dict):
+                    errors.append(f"{rel}: rhythm_pattern '{name}' beats[{i}] must be a dict with 'beat' and 'duration'")
+                    continue
+                if "beat" not in b:
+                    errors.append(f"{rel}: rhythm_pattern '{name}' beats[{i}] missing 'beat' -- add it")
+                if "duration" not in b:
+                    errors.append(f"{rel}: rhythm_pattern '{name}' beats[{i}] missing 'duration' -- add it")
+
+    return errors
+
+
+# =============================================================================
 # Legacy: required fields, unknown keys, genre sections, brief files
 # =============================================================================
 
@@ -1427,11 +1929,9 @@ def collect_definitions(type_spec: dict[str, Any]) -> dict[str, set[str]]:
                         continue
                     data = _load(path=genre_file)
                     values |= get_nested(data=data, path=path_str)
-        elif file_key == "cadences":
-            data = _load(path=DATA_DIR / "cadences" / "cadences.yaml")
-            values = get_nested(data=data, path="internal.keys") | get_nested(data=data, path="final.keys")
         else:
-            yaml_path = DATA_DIR / f"{file_key}.yaml"
+            file_rel: str = file_schema.get("file", f"{file_key}.yaml")
+            yaml_path = DATA_DIR / file_rel
             if not yaml_path.exists():
                 continue
             data = _load(path=yaml_path)
@@ -1479,7 +1979,8 @@ def validate_cross_references() -> list[str]:
                                     f"{_rel(genre_file)}: {ref_path}={v!r} not in {type_spec_str} -- check value or add to source"
                                 )
         else:
-            yaml_path = DATA_DIR / f"{file_key}.yaml"
+            file_rel: str = file_schema.get("file", f"{file_key}.yaml")
+            yaml_path = DATA_DIR / file_rel
             if not yaml_path.exists():
                 continue
             data = _load(path=yaml_path)
@@ -1489,7 +1990,7 @@ def validate_cross_references() -> list[str]:
                 for v in values:
                     if v and v not in valid:
                         errors.append(
-                            f"{file_key}.yaml: {ref_path}={v!r} not in {type_spec_str} -- check value or add to source"
+                            f"data/{file_rel}: {ref_path}={v!r} not in {type_spec_str} -- check value or add to source"
                         )
     return errors
 
@@ -1659,7 +2160,18 @@ def validate_all(force: bool = False) -> ValidationResult:
     # Phase 4: Thematic entry_sequence validation
     errors.extend(validate_thematic_entry_sequence())
 
-    # Phase 5: Cross-references
+    # Phase 5: Previously uncovered files
+    errors.extend(validate_archetypes_dir())
+    errors.extend(validate_figurae())
+    errors.extend(validate_tension_curves())
+    errors.extend(validate_schema_transitions())
+    errors.extend(validate_subject_gestures())
+    errors.extend(validate_textures())
+    errors.extend(validate_accompaniments())
+    errors.extend(validate_diminutions())
+    errors.extend(validate_rhythm_patterns())
+
+    # Phase 6: Cross-references
     errors.extend(validate_cross_references())
 
     # Build usages and orphaned

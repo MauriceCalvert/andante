@@ -287,6 +287,19 @@ quiescenza:
   notes: "Framing function; used to begin pieces or confirm cadences. -7 is flat 7."
   source: "Gjerdingen Ch.17"
 
+cadenza_trillata:
+  description: Two-voice cadence with written-out trill on supertonic over dominant pedal
+  soprano_degrees: ["2", "-1", "+2", "-1"]
+  bass_degrees: ["5", "5", "5", "-1"]
+  harmony: ["V", "V", "V", "I"]
+  bars: [2, 2]
+  cadence_type: authentic_internal
+  position: cadential
+  figuration_profile: galant_general
+  cadence_approach: true
+  accompany_texture: pillar
+  source: "Partimento tradition (trillo cadence)"
+
 # =============================================================================
 # BASS CONTINUITY RULES
 # =============================================================================

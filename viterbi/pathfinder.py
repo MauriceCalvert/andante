@@ -71,6 +71,31 @@ def _beam_prune(
             del details[s]
 
 
+def _log_hc_fallback(
+    beat: float,
+    hc_blocks: Counter,
+    legal_pitches: list[int],
+    other_pitches: list[int],
+    beat_strength: str,
+    is_knot: bool,
+) -> None:
+    """Log diagnostic when hard constraints block all transitions at a beat."""
+    import logging
+    log = logging.getLogger("andante.viterbi")
+    rule_summary: str = ", ".join(f"{r}={c}" for r, c in hc_blocks.most_common())
+    follower_lo: str = pitch_name(min(legal_pitches)) if legal_pitches else "?"
+    follower_hi: str = pitch_name(max(legal_pitches)) if legal_pitches else "?"
+    others_str: str = " ".join(pitch_name(p) for p in other_pitches) if other_pitches else "none"
+    knot_tag: str = " KNOT" if is_knot else ""
+    log.warning(
+        "HC fallback at beat %.2f [%s%s]: blocked %d transitions [%s]. "
+        "Follower corridor %s..%s (%d pitches), other voices: %s",
+        beat, beat_strength, knot_tag,
+        sum(hc_blocks.values()), rule_summary,
+        follower_lo, follower_hi, len(legal_pitches), others_str,
+    )
+
+
 def compute_contour_targets(
     corridors: list[Corridor],
     legal: list[list[int]],
@@ -210,12 +235,13 @@ def find_path(
                 details[1][state] = bd
     # Check if beat 1 has no valid states due to hard constraints
     if hard_constraints and not dp[1]:
-        import logging
-        rule_summary = ", ".join(f"{r}={c}" for r, c in hc_blocks_1.most_common())
-        logging.getLogger("andante.viterbi").warning(
-            "Hard constraints blocked all %d candidates at beat %s "
-            "[%s] — falling back to soft-only",
-            sum(hc_blocks_1.values()), beats[1], rule_summary,
+        _log_hc_fallback(
+            beat=beats[1],
+            hc_blocks=hc_blocks_1,
+            legal_pitches=legal[1],
+            other_pitches=voice_pitches[1],
+            beat_strength=corridors[1].beat_strength,
+            is_knot=beats[1] in knot_map,
         )
         return find_path(
             corridors=corridors,
@@ -282,12 +308,13 @@ def find_path(
         _beam_prune(dp[t], bt[t], details[t] if details is not None else None, BEAM_WIDTH)
         # Infeasibility fallback: if all transitions were hard-blocked, retry with soft-only
         if hard_constraints and not dp[t]:
-            import logging
-            rule_summary = ", ".join(f"{r}={c}" for r, c in hc_blocks_t.most_common())
-            logging.getLogger("andante.viterbi").warning(
-                "Hard constraints blocked all %d transitions at beat %s "
-                "[%s] — falling back to soft-only",
-                sum(hc_blocks_t.values()), beats[t], rule_summary,
+            _log_hc_fallback(
+                beat=beats[t],
+                hc_blocks=hc_blocks_t,
+                legal_pitches=legal[t],
+                other_pitches=voice_pitches[t],
+                beat_strength=corridors[t].beat_strength,
+                is_knot=beats[t] in knot_map,
             )
             return find_path(
                 corridors=corridors,

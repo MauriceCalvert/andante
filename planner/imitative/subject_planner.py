@@ -51,6 +51,7 @@ _SLOTS_PER_QUAVER: int = 2
 # Development is purely episodic; scope controls how many keys episodes visit.
 _SCOPE_DEV_COUNT: dict[str, int] = {"short": 0, "medium": 0, "extended": 0}
 _SCOPE_EPISODE_KEYS: dict[str, int] = {"short": 2, "medium": 3, "extended": 5}
+_EPISODE_ENTRY_INTERVAL: int = 2  # max consecutive episodes before anchoring entry
 
 # Scope -> final cadence schema (CLR-3)
 _SCOPE_CADENCE: dict[str, str] = {
@@ -230,32 +231,45 @@ def generate_entry_sequence(
         })
 
     # ── b2. Episodic development ────────────────────────────────────
-    # Subject fragments sequenced through related keys.  One answer+CS
-    # entry at the midpoint gives the comes a second hearing without
-    # restating the full subject.  Scope controls how many keys are visited.
+    # Subject fragments sequenced through related keys.  Answer+CS entries
+    # interleaved every _EPISODE_ENTRY_INTERVAL episodes anchor the listener.
+    # Scope controls how many keys episodes visit.
     if dev_count == 0 and len(base_journey) > 0:
         n_keys: int = _SCOPE_EPISODE_KEYS.get(scope, 3)
         ep_journey: list[str] = base_journey[:n_keys]
         ep_journey.append("I")  # retransition to tonic
-        midpoint: int = len(ep_journey) // 2
+        consecutive_episodes: int = 0
+        ep_cs_count: int = 0  # tracks voice alternation for inserted entries
         for ep_idx in range(len(ep_journey) - 1):
             from_label: str = ep_journey[ep_idx]
             to_label: str = ep_journey[ep_idx + 1]
             ep_lead: int = ep_idx % 2  # alternate lead voice
-            # Insert answer+CS entry at midpoint of key journey
-            if ep_idx == midpoint:
-                mid_key: str = ep_journey[ep_idx]
-                sequence.append({
-                    "upper": ["cs", mid_key],
-                    "lower": ["answer", mid_key],
-                    "cs_variant": 1,
-                })
+            # Insert answer+CS entry after every _EPISODE_ENTRY_INTERVAL episodes
+            if consecutive_episodes >= _EPISODE_ENTRY_INTERVAL:
+                anchor_key: str = ep_journey[ep_idx]
+                anchor_upper_first: bool = ep_cs_count % 2 == 0
+                anchor_cs_variant: int = (ep_cs_count + 1) % 2
+                if anchor_upper_first:
+                    sequence.append({
+                        "upper": ["answer", anchor_key],
+                        "lower": ["cs", anchor_key],
+                        "cs_variant": anchor_cs_variant,
+                    })
+                else:
+                    sequence.append({
+                        "upper": ["cs", anchor_key],
+                        "lower": ["answer", anchor_key],
+                        "cs_variant": anchor_cs_variant,
+                    })
+                ep_cs_count += 1
+                consecutive_episodes = 0
             sequence.append({
                 "type": "episode",
                 "from_key": from_label,
                 "to_key": to_label,
                 "lead_voice": ep_lead,
             })
+            consecutive_episodes += 1
 
     # ── c. Peroration ─────────────────────────────────────────────────
     peroration_entries: list[dict] = vocabulary.get("peroration_entries", [])
@@ -385,14 +399,14 @@ def plan_subject(
     cadence_key: tuple[str, str] = (cadence_schema, metre)
     assert cadence_key in templates, (
         f"No cadence template for '{cadence_schema}' in metre '{metre}'. "
-        f"Add it to data/cadence_templates/templates.yaml"
+        f"Add it to data/cadences/templates.yaml"
     )
     cadence_bars: int = templates[cadence_key].bars
 
     hc_key: tuple[str, str] = ("half_cadence", metre)
     assert hc_key in templates, (
         f"No cadence template for 'half_cadence' in metre '{metre}'. "
-        f"Add it to data/cadence_templates/templates.yaml"
+        f"Add it to data/cadences/templates.yaml"
     )
     hc_bars: int = templates[hc_key].bars
 

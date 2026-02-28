@@ -7,77 +7,35 @@
 # which are defined in data/schemas.yaml.
 #
 # Format:
-#   file.yaml:
+#   type_key:
+#     file: path/to/actual.yaml   # Path relative to data/ directory
 #     defines: type_name          # Keys at this path define the type
 #     references:
 #       path.to.field: type_name  # Values at this path must exist in type_name
 #
 # Path syntax:
 #   - "keys" means the dictionary keys at that level
-#   - "*.field" means field in all children
+#   - "foo.keys" means the dictionary keys nested under 'foo'
+#   - "*.field" means field in all dict children
 #   - "[*]" means all array elements
 
 affects:
+  file: rhetoric/affects.yaml
   defines: affect
-  path: keys
-
-articulations:
-  defines: articulation
-  path: keys
-
-arcs:
-  defines: arc
-  path: keys
-  references:
-    "*.texture": texture
-
-arc_selection:
-  references:
-    "*.keys": affect
-    "*.*": arc|fantasia_arc
+  path: affects.keys
 
 cadences:
+  file: cadences/cadences.yaml
   defines: cadence
-  path: internal.keys + final.keys + roman_numerals.keys
-
-energy:
-  defines: energy_level
-  path: levels.keys
-  references:
-    "levels.*.rhythm_override": rhythm
-    "levels.*.articulation": articulation
+  path: types.keys
 
 episodes:
+  file: rhetoric/episodes.yaml
   defines: episode
-  path: keys
-  references:
-    "*.energy_profile": energy_level
-    "*.rhythm": rhythm
-
-episode_constraints:
-  references:
-    "energy_profiles.keys": episode
-    "energy_profiles.*": energy_level
-    "energy_arc_rules.keys": energy_level
-    "energy_arc_rules.*.allowed[*]": energy_level
-    "energy_arc_rules.*.must_contain[*]": energy_level
-    "energy_order[*]": energy_level
-    "first_episode.*.options[*]": episode
-    "transitions.keys": episode
-    "transitions.*[*]": episode
-    "character_affinity.*.preferred[*]": episode
-    "character_affinity.*.avoided[*]": episode
-    "climax_characters[*]": episode
-
-fantasia_arcs:
-  defines: fantasia_arc
-  path: keys
-  references:
-    "*.sections[*].character": section_character
-    "*.sections[*].texture": texture
-    "*.sections[*].energy_arc": energy_level
+  path: episodes.keys
 
 figurations:
+  file: figuration/figurations.yaml
   defines: figuration
   path: keys
   references:
@@ -86,31 +44,10 @@ figurations:
 genres:
   path: "genres/*.yaml"
   references:
-    arc: arc
     "sections[*].final_cadence": cadence
     "sections[*].episodes[*]": episode
 
-rhythms:
-  defines: rhythm
-  path: keys
-
-section_templates:
-  defines: section_character
-  path: keys
-  references:
-    "*[*].type": episode
-
-surprises:
-  defines: surprise
-  path: keys
-  references:
-    "*.cadence_override": cadence
-    "*.rhythm_override": rhythm
-
 textures:
+  file: voicing/textures.yaml
   defines: texture
-  path: keys
-
-transitions:
-  defines: transition
   path: keys

@@ -82,7 +82,7 @@ def _validate_template(
         assert 1 <= deg <= 7, (
             f"Template '{schema_name}/{metre}': bass degree {deg} invalid"
         )
-    if schema_name in ("cadenza_semplice", "cadenza_composta", "comma"):
+    if schema_name in ("cadenza_semplice", "cadenza_composta", "comma", "cadenza_trillata"):
         assert soprano_degrees[-1] == 1, (
             f"Template '{schema_name}': soprano must end on degree 1"
         )
@@ -100,7 +100,7 @@ def load_cadence_templates() -> dict[tuple[str, str], CadenceTemplate]:
     global _cache
     if _cache is not None:
         return _cache
-    path: Path = DATA_DIR / "cadence_templates" / "templates.yaml"
+    path: Path = DATA_DIR / "cadences" / "templates.yaml"
     assert path.exists(), f"Cadence templates file not found: {path}"
     with open(path, encoding="utf-8") as f:
         raw: dict[str, Any] = yaml.safe_load(f)

@@ -38,8 +38,10 @@ _CADENCE_TYPE_MAP: dict[str, str] = {
     "cadenza_composta": "authentic",
     "cadenza_grande": "authentic",
     "cadenza_doppia": "authentic",
+    "cadenza_trillata": "authentic",
     "half_cadence": "half",
     "comma": "authentic",
+    "invention": "authentic",
 }
 
 _MATERIAL_MAP: dict[str, str | None] = {

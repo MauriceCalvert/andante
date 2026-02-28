@@ -94,3 +94,13 @@ cadenza_doppia:
     bass:
       degrees: [4, 5, 5, 1]
       durations: ["1/2", "1/2", "1/2", "1/2"]
+
+cadenza_trillata:
+  "4/4":
+    bars: 2
+    soprano:
+      degrees: [3, 2, 7, 1, 2, 7, 1]
+      durations: ["1/8", "1/8", "1/8", "1/8", "1/2", "1/4", "3/4"]
+    bass:
+      degrees: [1, 7, 5, 4, 5, 5, 1]
+      durations: ["1/8", "1/8", "1/8", "1/8", "1/2", "1/4", "3/4"]
