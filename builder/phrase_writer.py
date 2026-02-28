@@ -38,6 +38,48 @@ _PEDAL_HARMONY_2BAR_4_4: tuple[tuple[int, int, int], ...] = (
 )
 
 
+def _compute_next_entry_pitch(
+    role: "ThematicRole",
+    beat_role: BeatRole | None,
+    key: Key,
+    voice_range: Range,
+    fugue: SubjectTriple,
+) -> int | None:
+    """Return the MIDI pitch of the first note of a given entry, or None if uncomputable.
+
+    Used to give episode trajectories an arrival target.  Returns None for HOLD/FREE
+    roles where the pitch cannot be determined ahead of time; the caller should fall
+    back to the prior pitch.
+    """
+    from builder.imitation import _fit_shift
+    from planner.thematic import ThematicRole
+
+    tonic_midi: int = 60 + key.tonic_pc
+
+    if role == ThematicRole.SUBJECT or role == ThematicRole.STRETTO:
+        pitches: tuple[int, ...] = fugue.subject_midi(tonic_midi=tonic_midi, mode=key.mode)
+        shift: int = _fit_shift(midi_pitches=pitches, target_range=voice_range, label="Subject")
+        return pitches[0] + shift
+
+    if role == ThematicRole.ANSWER:
+        pitches = fugue.answer_midi()
+        shift = _fit_shift(midi_pitches=pitches, target_range=voice_range, label="Answer")
+        return pitches[0] + shift
+
+    if role == ThematicRole.CS:
+        cs_index: int = (
+            int(beat_role.material)
+            if beat_role is not None and beat_role.material is not None and beat_role.material.isdigit()
+            else 0
+        )
+        pitches = fugue.get_countersubject_midi(index=cs_index, tonic_midi=tonic_midi, mode=key.mode)
+        shift = _fit_shift(midi_pitches=pitches, target_range=voice_range, label="CS")
+        return pitches[0] + shift
+
+    # HOLD, FREE, EPISODE, and any other role: not computable ahead of time.
+    return None
+
+
 def _is_walking(plan: PhrasePlan) -> bool:
     """True if plan uses walking bass texture (Viterbi path)."""
     return (
@@ -285,8 +327,75 @@ def _write_thematic(
             assert beat_role_v1 is not None
             episode_key: Key = beat_role_v0.material_key
             lead_voice_idx: int = 0 if beat_role_v0.material == "head" else 1
-            # Ascending if fragment_iteration is negative (convention from subject_planner)
-            ascending: bool = beat_role_v0.fragment_iteration < 0
+
+            _prior_upper_raw: int | None = (
+                soprano_notes[-1].pitch if soprano_notes
+                else (prior_upper[-1].pitch if prior_upper else None)
+            )
+            _prior_lower_raw: int | None = (
+                bass_notes[-1].pitch if bass_notes
+                else (prior_lower[-1].pitch if prior_lower else None)
+            )
+            assert _prior_upper_raw is not None, (
+                "EPISODE entry has no prior soprano pitch — "
+                "ensure at least one entry precedes this episode in the piece."
+            )
+            assert _prior_lower_raw is not None, (
+                "EPISODE entry has no prior bass pitch — "
+                "ensure at least one entry precedes this episode in the piece."
+            )
+
+            # Compute target pitches for endpoint-driven trajectory (EPI-8).
+            _target_upper_raw: int | None
+            _target_lower_raw: int | None
+            if entry_idx + 1 < len(material_entries):
+                next_e: dict = material_entries[entry_idx + 1]
+                _next_key_v0: Key = (
+                    next_e["beat_role_v0"].material_key
+                    if next_e["beat_role_v0"] is not None
+                    else episode_key
+                )
+                _next_key_v1: Key = (
+                    next_e["beat_role_v1"].material_key
+                    if next_e["beat_role_v1"] is not None
+                    else episode_key
+                )
+                _target_upper_raw = _compute_next_entry_pitch(
+                    role=next_e["voice0_role"],
+                    beat_role=next_e["beat_role_v0"],
+                    key=_next_key_v0,
+                    voice_range=plan.upper_range,
+                    fugue=fugue,
+                )
+                _target_lower_raw = _compute_next_entry_pitch(
+                    role=next_e["voice1_role"],
+                    beat_role=next_e["beat_role_v1"],
+                    key=_next_key_v1,
+                    voice_range=plan.lower_range,
+                    fugue=fugue,
+                )
+            elif next_phrase_entry_degree is not None and next_phrase_entry_key is not None:
+                # Cross-phrase: resolve degree + key to MIDI, anchoring to prior pitch.
+                _target_upper_raw = degree_to_nearest_midi(
+                    degree=next_phrase_entry_degree,
+                    key=next_phrase_entry_key,
+                    target_midi=_prior_upper_raw,
+                    midi_range=(plan.upper_range.low, plan.upper_range.high),
+                )
+                _target_lower_raw = degree_to_nearest_midi(
+                    degree=next_phrase_entry_degree,
+                    key=next_phrase_entry_key,
+                    target_midi=_prior_lower_raw,
+                    midi_range=(plan.lower_range.low, plan.lower_range.high),
+                )
+            else:
+                _target_upper_raw = None
+                _target_lower_raw = None
+
+            # Fallback to static (no arrival) if target is not computable.
+            _target_upper: int = _target_upper_raw if _target_upper_raw is not None else _prior_upper_raw
+            _target_lower: int = _target_lower_raw if _target_lower_raw is not None else _prior_lower_raw
+
             assert episode_source is not None, "EpisodeDialogue required for EPISODE bars"
             ep_soprano: tuple[Note, ...]
             ep_bass: tuple[Note, ...]
@@ -297,15 +406,10 @@ def _write_thematic(
                 lead_voice=lead_voice_idx,
                 upper_range=plan.upper_range,
                 lower_range=plan.lower_range,
-                prior_upper_midi=(
-                    soprano_notes[-1].pitch if soprano_notes
-                    else (prior_upper[-1].pitch if prior_upper else None)
-                ),
-                prior_lower_midi=(
-                    bass_notes[-1].pitch if bass_notes
-                    else (prior_lower[-1].pitch if prior_lower else None)
-                ),
-                ascending=ascending,
+                prior_upper_midi=_prior_upper_raw,
+                prior_lower_midi=_prior_lower_raw,
+                target_upper_midi=_target_upper,
+                target_lower_midi=_target_lower,
             )
             if ep_soprano:
                 ep_soprano = (replace(ep_soprano[0], lyric="episode"),) + ep_soprano[1:]

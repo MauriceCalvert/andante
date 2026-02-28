@@ -118,6 +118,8 @@ def render_entry_voice(
             return ()
 
     # EPISODE
+    # DEAD CODE — episodes route through EpisodeDialogue in phrase_writer.
+    # Retained for reference. See EPI-8.
     elif role == ThematicRole.EPISODE:
         # Render all episode fragments (one per bar with incrementing iteration)
         all_episode_notes: list[Note] = []

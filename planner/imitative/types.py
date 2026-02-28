@@ -16,7 +16,7 @@ class VoiceAssignment:
     texture: str       # "plain", "bariolage_single", etc.
     pairing: str       # "independent", "parallel_10ths", etc.
     fragment: str | None        # "head", "tail", None
-    fragment_iteration: int     # for sequential transposition in episodes (positive = descending, negative = ascending)
+    fragment_iteration: int     # sequential transposition index; 0 for episodes (trajectory computed at render time)
 
 
 @dataclass(frozen=True)

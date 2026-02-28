@@ -65,6 +65,25 @@ def _midi_to_nearest_degree(
     return best_deg
 
 
+def _compute_step_schedule(start_deg: int, end_deg: int, bar_count: int) -> list[int]:
+    """Cumulative degree offsets for each bar (index 0..bar_count-1).
+
+    schedule[i] is the cumulative degree offset for bar i relative to start_deg.
+    Front-loaded: first r bars get (q+1) steps; remaining bars get q steps.
+    This gives larger steps early and commits the voice to its direction.
+    """
+    total_steps: int = end_deg - start_deg
+    sign: int = 1 if total_steps >= 0 else -1
+    q, r = divmod(abs(total_steps), bar_count)
+    schedule: list[int] = []
+    cumulative: int = 0
+    for i in range(bar_count):
+        step: int = (q + 1) if i < r else q
+        cumulative += step * sign
+        schedule.append(cumulative)
+    return schedule
+
+
 def _build_bar_fragment(
     triple: SubjectTriple,
     bar_length: Fraction,
@@ -408,29 +427,42 @@ class EpisodeDialogue:
         lead_voice: int,
         upper_range: Range,
         lower_range: Range,
-        prior_upper_midi: int | None,
-        prior_lower_midi: int | None,
-        ascending: bool,
+        prior_upper_midi: int,
+        prior_lower_midi: int,
+        target_upper_midi: int,
+        target_lower_midi: int,
+        journey: str = "stepwise",
     ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
         """Generate both episode voices.  Returns (soprano_notes, bass_notes)."""
         assert bar_count >= 1, f"bar_count must be >= 1, got {bar_count}"
-        assert prior_upper_midi is not None, "Episodes require prior_upper_midi"
-        assert prior_lower_midi is not None, "Episodes require prior_lower_midi"
+        assert journey in ("stepwise",), (
+            f"Unsupported journey '{journey}'. Only 'stepwise' is implemented."
+        )
 
         tonic_midi: int = episode_key.tonic_pc + 60
         mode: str = episode_key.mode
-        step: int = 1 if ascending else -1
 
-        # Determine start_degree from prior soprano pitch (ascending-aware).
-        start_degree: int = _DEFAULT_START_DEGREE
-        if prior_upper_midi is not None:
-            nearest: int = _midi_to_nearest_degree(
-                midi=prior_upper_midi,
-                tonic_midi=tonic_midi,
-                mode=mode,
-            )
-            if ascending or nearest >= _DEFAULT_START_DEGREE:
-                start_degree = nearest
+        # Snap prior and target pitches to nearest diatonic degrees.
+        start_upper_deg: int = _midi_to_nearest_degree(
+            midi=prior_upper_midi, tonic_midi=tonic_midi, mode=mode,
+        )
+        end_upper_deg: int = _midi_to_nearest_degree(
+            midi=target_upper_midi, tonic_midi=tonic_midi, mode=mode,
+        )
+        start_lower_deg: int = _midi_to_nearest_degree(
+            midi=prior_lower_midi, tonic_midi=tonic_midi, mode=mode,
+        )
+        end_lower_deg: int = _midi_to_nearest_degree(
+            midi=target_lower_midi, tonic_midi=tonic_midi, mode=mode,
+        )
+
+        # Per-voice cumulative step schedules.
+        upper_schedule: list[int] = _compute_step_schedule(
+            start_upper_deg, end_upper_deg, bar_count,
+        )
+        lower_schedule: list[int] = _compute_step_schedule(
+            start_lower_deg, end_lower_deg, bar_count,
+        )
 
         # Try paired-kernel path first.
         chain: list[PairedKernel] | None = self._kernel_source.generate(
@@ -447,8 +479,10 @@ class EpisodeDialogue:
                 start_offset=start_offset,
                 tonic_midi=tonic_midi,
                 mode=mode,
-                step=step,
-                start_degree=start_degree,
+                start_upper_deg=start_upper_deg,
+                start_lower_deg=start_lower_deg,
+                upper_schedule=upper_schedule,
+                lower_schedule=lower_schedule,
                 upper_range=upper_range,
                 lower_range=lower_range,
                 prior_upper_midi=prior_upper_midi,
@@ -465,8 +499,10 @@ class EpisodeDialogue:
             start_offset=start_offset,
             tonic_midi=tonic_midi,
             mode=mode,
-            step=step,
-            start_degree=start_degree,
+            start_upper_deg=start_upper_deg,
+            start_lower_deg=start_lower_deg,
+            upper_schedule=upper_schedule,
+            lower_schedule=lower_schedule,
             lead_voice=lead_voice,
             upper_range=upper_range,
             lower_range=lower_range,
@@ -485,14 +521,20 @@ class EpisodeDialogue:
         start_offset: Fraction,
         tonic_midi: int,
         mode: str,
-        step: int,
-        start_degree: int,
+        start_upper_deg: int,
+        start_lower_deg: int,
+        upper_schedule: list[int],
+        lower_schedule: list[int],
         upper_range: Range,
         lower_range: Range,
-        prior_upper_midi: int | None,
-        prior_lower_midi: int | None,
+        prior_upper_midi: int,
+        prior_lower_midi: int,
     ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
         """Generate episode using paired-kernel chain."""
+        # Voice exchange at midpoint of long episodes.
+        # Each voice takes the other's melodic contour but stays in its own register:
+        #   soprano ← lower_degrees renormalized by −lower_degrees[0] → starts at 0
+        #   bass    ← upper_degrees shifted by  +lower_degrees[0]     → stays at bass register
         exchange_point: int = (
             len(chain) // 2 if bar_count >= VOICE_EXCHANGE_THRESHOLD else len(chain)
         )
@@ -500,15 +542,19 @@ class EpisodeDialogue:
         soprano_notes: list[Note] = []
         bass_notes: list[Note] = []
         cumulative_offset: Fraction = Fraction(0)
-        # Pitch offset increments once per bar, not once per kernel.
+        # Bar index increments once per bar, not once per kernel.
         cumulative_bars: int = 0
 
         for i, pk in enumerate(chain):
-            # Voice assignment: after exchange_point, swap upper/lower.
+            # pk_lower_base: register gap between voices (lower_degrees[0] ≤ 0).
+            pk_lower_base: int = pk.lower_degrees[0] if pk.lower_degrees else 0
             voice_exchanged: bool = i >= exchange_point
             if voice_exchanged:
-                upper_pk_degs = list(pk.lower_degrees)
-                lower_pk_degs = list(pk.upper_degrees)
+                # Soprano takes bass contour, renormalized to 0 so it stays at soprano register.
+                upper_pk_degs: list[int] = [d - pk_lower_base for d in pk.lower_degrees]
+                # Bass takes soprano contour as-is: upper_degrees[0]==0 and start_lower_deg
+                # already encodes bass register, so no additional shift is needed.
+                lower_pk_degs: list[int] = list(pk.upper_degrees)
                 upper_durs: tuple[Fraction, ...] = pk.lower_durations
                 lower_durs: tuple[Fraction, ...] = pk.upper_durations
             else:
@@ -517,15 +563,18 @@ class EpisodeDialogue:
                 upper_durs = pk.upper_durations
                 lower_durs = pk.lower_durations
 
-            pitch_offset: int = cumulative_bars * step
+            # Per-voice offsets from endpoint-driven schedules (EPI-8).
+            bar_idx: int = min(cumulative_bars, len(upper_schedule) - 1)
+            upper_offset: int = upper_schedule[bar_idx]
+            lower_offset: int = lower_schedule[bar_idx]
 
-            # Absolute degrees for this iteration.
+            # Absolute degrees for this iteration — IMITATION_DEGREE_OFFSET no longer
+            # applied to the trajectory; each voice navigates its own endpoint.
             upper_abs: list[int] = [
-                d + pitch_offset + start_degree for d in upper_pk_degs
+                d + upper_offset + start_upper_deg for d in upper_pk_degs
             ]
             lower_abs: list[int] = [
-                d + pitch_offset + start_degree + IMITATION_DEGREE_OFFSET
-                for d in lower_pk_degs
+                d + lower_offset + start_lower_deg for d in lower_pk_degs
             ]
 
             # Consonance check: adjust lower in-place where needed.
@@ -603,13 +652,15 @@ class EpisodeDialogue:
         start_offset: Fraction,
         tonic_midi: int,
         mode: str,
-        step: int,
-        start_degree: int,
+        start_upper_deg: int,
+        start_lower_deg: int,
+        upper_schedule: list[int],
+        lower_schedule: list[int],
         lead_voice: int,
         upper_range: Range,
         lower_range: Range,
-        prior_upper_midi: int | None,
-        prior_lower_midi: int | None,
+        prior_upper_midi: int,
+        prior_lower_midi: int,
     ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
         """Generate episode using EPI-5b single-fragment approach (fallback)."""
         assert len(self._fragment_degrees) >= 2, (
@@ -640,10 +691,10 @@ class EpisodeDialogue:
                 follower_degrees = self._half_degrees
                 follower_durations = self._half_durations
 
-            pitch_offset: int = i * step
             iter_start: Fraction = start_offset + i * self._bar_length
 
-            sop_base: int = pitch_offset + start_degree
+            # Per-voice base degrees from endpoint-driven schedules (EPI-8).
+            sop_base: int = upper_schedule[i] + start_upper_deg
             sop_is_leader: bool = (current_leader == 0)
             sop_frag_degrees: tuple[int, ...] = (
                 leader_degrees if sop_is_leader else follower_degrees
@@ -663,7 +714,8 @@ class EpisodeDialogue:
                 track=TRACK_SOPRANO,
             )
 
-            bass_base: int = pitch_offset + start_degree + IMITATION_DEGREE_OFFSET
+            # IMITATION_DEGREE_OFFSET no longer applied to trajectory (EPI-8).
+            bass_base: int = lower_schedule[i] + start_lower_deg
             bass_is_leader: bool = (current_leader == 1)
             bass_frag_degrees: tuple[int, ...] = (
                 leader_degrees if bass_is_leader else follower_degrees

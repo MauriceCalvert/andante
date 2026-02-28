@@ -122,6 +122,8 @@ def render_thematic_beat(
     return result
 
 
+# DEAD CODE — episodes route through EpisodeDialogue in phrase_writer.
+# Retained for reference. See EPI-8.
 def _render_episode_fragment(
     role: BeatRole,
     fugue: SubjectTriple,

@@ -648,34 +648,21 @@ def plan_subject(
         # Episode between development entries
         if isinstance(entry, dict) and entry.get("type") == "episode":
             ep_from_key: Key = home_key.modulate_to(entry["from_key"])
-            ep_to_key: Key = home_key.modulate_to(entry["to_key"])
             ep_lead_voice: int = entry["lead_voice"]
             ep_companion: int = 1 - ep_lead_voice
-
-            dist: int = _semitone_distance(key1=ep_from_key, key2=ep_to_key)
-            ascending: bool = dist > 0
 
             for bar_offset in range(cost):
                 bar_num: int = bar_pointer + bar_offset
                 voices: dict[int, VoiceAssignment] = {}
 
-                if ascending:
-                    iteration: int = -(bar_offset + 1)
-                else:
-                    iteration = bar_offset + 1
-
-                upper_iteration: int = iteration
-                lower_iteration: int = -iteration
-
+                # fragment_iteration=0: trajectory computed at render time (EPI-8)
                 voices[ep_lead_voice] = VoiceAssignment(
                     role="episode",
                     material_key=ep_from_key,
                     texture="plain",
                     pairing="independent",
                     fragment="head",
-                    fragment_iteration=(
-                        upper_iteration if ep_lead_voice == 0 else lower_iteration
-                    ),
+                    fragment_iteration=0,
                 )
                 voices[ep_companion] = VoiceAssignment(
                     role="episode",
@@ -683,9 +670,7 @@ def plan_subject(
                     texture="plain",
                     pairing="independent",
                     fragment="tail",
-                    fragment_iteration=(
-                        upper_iteration if ep_companion == 0 else lower_iteration
-                    ),
+                    fragment_iteration=0,
                 )
 
                 bar_assignments.append(BarAssignment(
