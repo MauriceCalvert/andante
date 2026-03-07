@@ -45,13 +45,11 @@ def place_structural_tones(
     plan: PhrasePlan,
     prev_exit_midi: int | None,
 ) -> list[tuple[Fraction, int, Key]]:
-    """Place structural tones with octave selection and floor clamp.
-
-    Returns list of (offset, midi, key) triples.
-    """
+    """Place structural tones using pre-resolved knot pitches when available."""
     bar_length, beat_unit = parse_metre(metre=plan.metre)
     structural_tones: list[tuple[Fraction, int, Key]] = []
     biased_upper_median: int = plan.upper_median + plan.registral_bias
+    use_preresolved: bool = len(plan.knot_midi_upper) == len(plan.degrees_upper)
     prev_midi: int = (
         prev_exit_midi if prev_exit_midi is not None
         else biased_upper_median
@@ -64,15 +62,17 @@ def place_structural_tones(
             plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
         )
         key_for_degree: Key = plan.degree_keys[i]
-        midi: int = degree_to_nearest_midi(
-            degree=degree,
-            key=key_for_degree,
-            target_midi=prev_midi,
-            midi_range=(plan.upper_range.low, plan.upper_range.high),
-            prev_midi=actual_prev,
-            prev_prev_midi=prev_prev,
-        )
-        # Soprano floor clamp: preserve degree, shift up by octave
+        if use_preresolved:
+            midi: int = plan.knot_midi_upper[i]
+        else:
+            midi = degree_to_nearest_midi(
+                degree=degree,
+                key=key_for_degree,
+                target_midi=prev_midi,
+                midi_range=(plan.upper_range.low, plan.upper_range.high),
+                prev_midi=actual_prev,
+                prev_prev_midi=prev_prev,
+            )
         if midi < MIN_SOPRANO_MIDI:
             midi += 12
         structural_tones.append((offset, midi, key_for_degree))

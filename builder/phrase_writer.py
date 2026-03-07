@@ -13,7 +13,7 @@ from builder.phrase_types import PhrasePlan, PhraseResult, make_free_companion_p
 from builder.voice_types import VoiceBias
 from builder.soprano_viterbi import SopranoOptions, generate_soprano_viterbi
 from builder.types import Note
-from motifs.episode_dialogue import EpisodeDialogue
+from builder.episode_dialogue import EpisodeDialogue
 from motifs.subject_loader import SubjectTriple, ThematicBias
 from planner.schema_loader import get_schema
 from planner.thematic import BeatRole
@@ -408,12 +408,12 @@ def _write_thematic(
                 lead_voice=lead_voice_idx,
                 upper_range=plan.upper_range,
                 lower_range=plan.lower_range,
-                prior_upper_midi=_prior_upper_raw,
-                prior_lower_midi=_prior_lower_raw,
+                prior_upper_midi=plan.register_target.start_upper_midi,
+                prior_lower_midi=plan.register_target.start_lower_midi,
                 target_upper_midi=_target_upper,
                 target_lower_midi=_target_lower,
             )
-            ep_label: str = f"episode {episode_source._episode_count}"
+            ep_label: str = f"episode {get_tracer()._episode_count}"
             if ep_soprano:
                 ep_soprano = (replace(ep_soprano[0], lyric=ep_label),) + ep_soprano[1:]
             if ep_bass:
@@ -799,14 +799,12 @@ def _write_pedal(
     assert pedal_beat_role.material is not None, "PEDAL BeatRole missing material (degree)"
     pedal_degree: int = int(pedal_beat_role.material)
     # Place pedal bass pitch
-    pedal_midi: int = plan.local_key.degree_to_midi(degree=pedal_degree, octave=4)
-    while pedal_midi < plan.lower_range.low:
-        pedal_midi += 12
-    while pedal_midi - 12 >= plan.lower_range.low:
-        if abs(pedal_midi - 12 - plan.lower_median) < abs(pedal_midi - plan.lower_median):
-            pedal_midi -= 12
-        else:
-            break
+    pedal_midi: int = degree_to_nearest_midi(
+        degree=pedal_degree,
+        key=plan.local_key,
+        target_midi=plan.lower_median,
+        midi_range=(plan.lower_range.low, plan.lower_range.high),
+    )
     assert plan.lower_range.low <= pedal_midi <= plan.lower_range.high, (
         f"Pedal pitch {pedal_midi} outside lower range "
         f"[{plan.lower_range.low}, {plan.lower_range.high}]"
@@ -828,14 +826,12 @@ def _write_pedal(
     # Use degree 5 (dominant) as the initial structural tone — consonant
     # with the pedal bass and placed near range ceiling for clear descent.
     PEDAL_SOPRANO_START_DEGREE: int = 5
-    start_knot_midi: int = plan.local_key.degree_to_midi(
+    start_knot_midi: int = degree_to_nearest_midi(
         degree=PEDAL_SOPRANO_START_DEGREE,
-        octave=5,
+        key=plan.local_key,
+        target_midi=plan.upper_range.high - 6,
+        midi_range=(plan.upper_range.low, plan.upper_range.high),
     )
-    while start_knot_midi > plan.upper_range.high:
-        start_knot_midi -= 12
-    while start_knot_midi + 12 <= plan.upper_range.high:
-        start_knot_midi += 12
     start_bar_relative: int = 1
     pedal_plan: PhrasePlan = make_free_companion_plan(
         plan=plan,

@@ -1,3 +1,12 @@
+### MIDI-1 — Canonical degree-to-MIDI resolution (2026-03-07 12:00)
+
+Added `Key.degree_to_pc`; added `knot_midi_upper/lower` to `PhrasePlan`; added
+`resolve_knot_pitches` forward pass in `register_plan.py`; called from `compose_phrases`
+after register-target injection; updated `place_structural_tones` and bass Step 1 to use
+pre-resolved knots when available; fixed 3 `degree_to_midi(octave=4)` callers in
+`harmony.py` to use `degree_to_pc`; replaced two while-loop blocks in `_write_pedal` with
+`degree_to_nearest_midi`. Pipeline clean, no assertion errors.
+
 ### REG-1 — Register planner (2026-02-28 21:00)
 
 Two-pass register planner delivered in `planner/register_plan.py`. Pass 1 collects

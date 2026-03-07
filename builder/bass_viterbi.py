@@ -85,22 +85,23 @@ def generate_bass_viterbi(
         knots = list(structural_knots_override)
     else:
         knots = []
+        use_preresolved: bool = len(plan.knot_midi_lower) == len(plan.degrees_lower)
         prev_midi: int = prev_exit_midi if prev_exit_midi is not None else plan.lower_median
-
         for i, degree in enumerate(plan.degrees_lower):
             pos = plan.degree_positions[i]
             offset: Fraction = phrase_degree_offset(
                 plan=plan, pos=pos, bar_length=bar_length, beat_unit=beat_unit,
             )
             key_for_degree = plan.degree_keys[i]
-            bass_midi: int = degree_to_nearest_midi(
-                degree=degree,
-                key=key_for_degree,
-                target_midi=prev_midi,
-                midi_range=(plan.lower_range.low, plan.lower_range.high),
-            )
-
-            # Consonance check against soprano at this offset
+            if use_preresolved:
+                bass_midi: int = plan.knot_midi_lower[i]
+            else:
+                bass_midi = degree_to_nearest_midi(
+                    degree=degree,
+                    key=key_for_degree,
+                    target_midi=prev_midi,
+                    midi_range=(plan.lower_range.low, plan.lower_range.high),
+                )
             sop_at: int | None = _soprano_at(
                 soprano_notes=soprano_notes, offset=offset,
             )
@@ -114,12 +115,10 @@ def generate_bass_viterbi(
                     ]
                     if alternatives:
                         bass_midi = min(alternatives, key=lambda m: abs(m - prev_midi))
-                # L004: bass must not cross soprano
                 if bass_midi > sop_at:
                     alt_low: int = bass_midi - 12
                     if plan.lower_range.low <= alt_low:
                         bass_midi = alt_low
-
             knots.append(Knot(beat=float(offset), midi_pitch=bass_midi))
             prev_midi = bass_midi
 

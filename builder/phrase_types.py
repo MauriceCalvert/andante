@@ -80,6 +80,8 @@ class PhrasePlan:
     voice_densities: tuple[BarVoiceDensity, ...] | None = None  # Per-voice, per-bar density overrides (B1)
     cadential_approach: bool = False
     register_target: "RegisterTarget | None" = None
+    knot_midi_upper: tuple[int, ...] = ()
+    knot_midi_lower: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

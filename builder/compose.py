@@ -11,7 +11,7 @@ from builder.cadence_writer import cadence_entry_degree
 from builder.phrase_types import HeadMotif, PhrasePlan, PhraseResult, phrase_bar_start, phrase_degree_offset
 from builder.phrase_writer import write_phrase
 from builder.types import Composition, Note
-from motifs.episode_dialogue import EpisodeDialogue
+from builder.episode_dialogue import EpisodeDialogue
 from motifs.subject_loader import SubjectTriple
 from shared.key import Key
 from shared.music_math import parse_metre
@@ -266,6 +266,14 @@ def compose_phrases(
                 end_lower=_target.end_lower_midi,
             )
         phrase_plans = tuple(_plans_list)
+
+    # Resolve structural degrees to MIDI knot pitches (MIDI-1).
+    from planner.register_plan import resolve_knot_pitches as _resolve_knots
+    phrase_plans = tuple(_resolve_knots(
+        phrases=list(phrase_plans),
+        upper_range=phrase_plans[0].upper_range,
+        lower_range=phrase_plans[0].lower_range,
+    ))
 
     for plan_idx, plan in enumerate(phrase_plans):
         # Compute next phrase's first soprano degree/key for cross-phrase guard

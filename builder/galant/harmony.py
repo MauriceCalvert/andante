@@ -147,8 +147,8 @@ def chord_pcs(label: ChordLabel, key: Key) -> frozenset[int]:
     """
     # HRL-6: Secondary dominants — compute chromatically from target
     if label.secondary_target is not None:
-        target_midi: int = key.degree_to_midi(degree=label.secondary_target, octave=4)
-        dom_root_pc: int = (target_midi + 7) % 12
+        target_pc: int = key.degree_to_pc(degree=label.secondary_target)
+        dom_root_pc: int = (target_pc + 7) % 12
         major_third_pc: int = (dom_root_pc + 4) % 12
         perfect_fifth_pc: int = (dom_root_pc + 7) % 12
         return frozenset({dom_root_pc, major_third_pc, perfect_fifth_pc})
@@ -156,8 +156,7 @@ def chord_pcs(label: ChordLabel, key: Key) -> frozenset[int]:
     # Get pitch classes from natural scale
     pcs: list[int] = []
     for degree in label.members:
-        midi: int = key.degree_to_midi(degree=degree, octave=4)
-        pcs.append(midi % 12)
+        pcs.append(key.degree_to_pc(degree=degree))
 
     root_pc: int = pcs[0]
     third_pc: int = pcs[1]
@@ -229,7 +228,7 @@ def bass_pc(label: ChordLabel, key: Key) -> int:
     natural bass degree PC against that set (handles raised 3rds in V, etc.).
     """
     degree: int = bass_degree(label)
-    natural_pc: int = key.degree_to_midi(degree=degree, octave=4) % 12
+    natural_pc: int = key.degree_to_pc(degree=degree)
     pcs: frozenset[int] = chord_pcs(label=label, key=key)
     if natural_pc in pcs:
         return natural_pc

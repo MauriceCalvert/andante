@@ -50,6 +50,11 @@ class Key:
             return frozenset((self.tonic_pc + interval) % 12 for interval in HARMONIC_MINOR_SCALE)
         return self.pitch_class_set
 
+    def degree_to_pc(self, degree: int) -> int:
+        """Return pitch class (0-11) for scale degree. No octave involved."""
+        assert 1 <= degree <= 7, f"degree must be 1-7, got {degree}"
+        return (self.tonic_pc + self.scale[degree - 1]) % 12
+
     @property
     def bridge_pitch_set(self) -> frozenset[int]:
         """Return pentatonic subset for bridges (omits 4th and 7th degrees)."""

@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
+from shared.pitch import degree_to_nearest_midi
 from shared.voice_types import Range
 
 if TYPE_CHECKING:
@@ -368,3 +369,71 @@ def compute_register_targets(
         cur_lower = end_lower
 
     return targets
+
+
+def resolve_knot_pitches(
+    phrases: list[PhrasePlan],
+    upper_range: Range,
+    lower_range: Range,
+) -> list[PhrasePlan]:
+    """Resolve structural degrees to MIDI knot pitches for all non-cadential phrases.
+
+    Forward pass: tracks running exit pitch phrase by phrase.
+    Cadential phrases are skipped (cadence_writer handles its own placement).
+    PhrasePlan.knot_midi_upper and knot_midi_lower are populated.
+    Returns updated phrase list.
+    """
+    cur_upper: int | None = None
+    cur_lower: int | None = None
+    result: list[PhrasePlan] = []
+
+    for plan in phrases:
+        if plan.is_cadential:
+            # Do not resolve knots; update running exit from prev_exit if set.
+            if plan.prev_exit_upper is not None:
+                cur_upper = plan.prev_exit_upper
+            if plan.prev_exit_lower is not None:
+                cur_lower = plan.prev_exit_lower
+            result.append(plan)
+            continue
+
+        if not plan.degrees_upper:
+            result.append(plan)
+            continue
+
+        # Resolve upper knots
+        upper_knots: list[int] = []
+        prev_u: int = cur_upper if cur_upper is not None else plan.upper_median + plan.registral_bias
+        for degree in plan.degrees_upper:
+            midi_u: int = degree_to_nearest_midi(
+                degree=degree,
+                key=plan.local_key,
+                target_midi=prev_u,
+                midi_range=(upper_range.low, upper_range.high),
+            )
+            upper_knots.append(midi_u)
+            prev_u = midi_u
+        cur_upper = upper_knots[-1]
+
+        # Resolve lower knots (may differ in count from upper when degrees_lower empty)
+        lower_knots: list[int] = []
+        if plan.degrees_lower:
+            prev_l: int = cur_lower if cur_lower is not None else plan.lower_median
+            for degree in plan.degrees_lower:
+                midi_l: int = degree_to_nearest_midi(
+                    degree=degree,
+                    key=plan.local_key,
+                    target_midi=prev_l,
+                    midi_range=(lower_range.low, lower_range.high),
+                )
+                lower_knots.append(midi_l)
+                prev_l = midi_l
+            cur_lower = lower_knots[-1]
+
+        result.append(replace(
+            plan,
+            knot_midi_upper=tuple(upper_knots),
+            knot_midi_lower=tuple(lower_knots),
+        ))
+
+    return result
