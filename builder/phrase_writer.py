@@ -413,7 +413,7 @@ def _write_thematic(
                 target_upper_midi=_target_upper,
                 target_lower_midi=_target_lower,
             )
-            ep_label: str = f"episode {get_tracer()._episode_count}"
+            ep_label: str = f"episode@{entry_first_bar}"
             if ep_soprano:
                 ep_soprano = (replace(ep_soprano[0], lyric=ep_label),) + ep_soprano[1:]
             if ep_bass:

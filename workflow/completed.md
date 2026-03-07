@@ -1,3 +1,8 @@
+### BUG-1 — Fix ep_label AttributeError (2026-03-07)
+
+One-line fix in `builder/phrase_writer.py`: replaced `get_tracer()._episode_count`
+with `entry_first_bar` for episode lyric label. Pipeline clean, no AttributeError.
+
 ### MIDI-1 — Canonical degree-to-MIDI resolution (2026-03-07 12:00)
 
 Added `Key.degree_to_pc`; added `knot_midi_upper/lower` to `PhrasePlan`; added
