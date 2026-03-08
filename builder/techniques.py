@@ -154,8 +154,20 @@ def technique_4(
     upper_range: Range,
     lower_range: Range,
 ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
-    """Circle-of-fifths sequential episode (Technique 4). Stub — implement in dedicated task."""
-    _log.warning("technique_4 (circle_of_fifths) not yet implemented; using fallback")
+    """Circle-of-fifths sequential episode (Technique 4, roadmap §4).
+
+    Same imitative mechanism as Technique 1 but with a fixed descending
+    diatonic fifth (−4 degrees) per bar instead of a trajectory-derived step.
+    """
+    fixed_upper: list[int] = [-_FIFTH_INTERVAL * (i + 1) for i in range(bar_count)]
+    fixed_lower: list[int] = [-_FIFTH_INTERVAL * (i + 1) for i in range(bar_count)]
+
+    _log.debug(
+        "technique_4: upper steps/bar=%d, lower steps/bar=%d",
+        fixed_upper[0] if fixed_upper else 0,
+        fixed_lower[0] if fixed_lower else 0,
+    )
+
     return dialogue._generate_fallback(
         bar_count=bar_count,
         start_offset=start_offset,
@@ -163,8 +175,8 @@ def technique_4(
         mode=mode,
         start_upper_deg=start_upper_deg,
         start_lower_deg=start_lower_deg,
-        upper_schedule=upper_schedule,
-        lower_schedule=lower_schedule,
+        upper_schedule=fixed_upper,
+        lower_schedule=fixed_lower,
         lead_voice=lead_voice,
         upper_range=upper_range,
         lower_range=lower_range,

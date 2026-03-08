@@ -1789,6 +1789,7 @@ VALID_GENRE_SECTION_KEYS: frozenset[str] = frozenset({
 })
 VALID_BRIEF_KEYS: frozenset[str] = frozenset({
     "brief", "frame", "material", "sections", "structure",
+    "demo_technique", "demo_bars",
 })
 VALID_BRIEF_SECTION_KEYS: frozenset[str] = frozenset({
     "name", "tonal_path", "final_cadence", "phrases",

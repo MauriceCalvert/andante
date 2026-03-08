@@ -1,3 +1,26 @@
+### [T4-1] Technique 4: Circle-of-fifths sequential episode (2026-03-08)
+
+**Code**: `builder/techniques.py` — replaced `technique_4` stub with fixed
+`-_FIFTH_INTERVAL * (i+1)` schedule for both voices, calling `_generate_fallback`.
+Also added `demo_technique`/`demo_bars` to `VALID_BRIEF_KEYS` in
+`scripts/yaml_validator.py` and moved `demo_technique`/`demo_bars` inside the
+`brief:` block of the demo brief.
+
+**Bob**: Bars 4–6 of the episode present the same four-note descending figure on
+three consecutive harmonic areas — recognisable on bars 5 and 6. Character is
+distinctly more driven and harmonically active than a stepwise sequence: each bar
+lands somewhere genuinely new. Bars 7–9 are broken — notes fall below acoustic
+range (known limitation §2, acceptable for demo validation).
+
+**Chaz**: Fixed `-4*(i+1)` schedule ensures identical fragment transposition per
+bar. Range collapse is the documented known limitation — `_emit_voice_notes` emits
+out-of-range notes with a warning but no clamping. Production wiring will manage
+start degree selection.
+
+**Open complaints**: Range drift in bars 7–9 (known, deferred to production wiring).
+
+---
+
 ### [SUSP-1] Suspension reward constant (2026-03-08 16:45)
 
 **Code**: `viterbi/costs.py` — `COST_SUSPENSION = 2.0` renamed to
