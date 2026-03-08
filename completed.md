@@ -1,5 +1,47 @@
 # Completed Work Log
 
+## Technique 2 — Parallel-sixths episode texture (2026-03-08 T16:00)
+
+Implemented `_generate_parallel` in `builder/episode_dialogue.py` and replaced
+the `technique_2` stub in `builder/techniques.py`.
+
+**What it does**: both voices emit the subject fragment at identical onsets
+(no delay, no gap-fill), the lower voice at a diatonic sixth below (PARALLEL_SIXTH_OFFSET
+= -5). Falls back to a tenth (PARALLEL_TENTH_OFFSET = -9) when the sixth pushes
+any bass note outside `lower_range`. `_apply_consonance_check` called after
+each interval selection to handle degree-7 dissonances.
+
+**Listening result**: lockstep texture is immediately distinct from imitative
+exposition (no chase, no delay). In this demo run, the register planner supplied
+a near-flat schedule (actual prior C5 vs. planned E5 start), so all 6 bars
+repeat at the same pitch -- no sequential transposition. Also, the subject
+fragment's wide span (6 diatonic steps) produces a minor-7th inter-bar leap
+that repeats 5 times. Both are documented Known Limitations (brief section 4).
+
+**Open complaints (Bob)**: no sequential transposition in demo run; repeated
+minor-7th inter-bar leap.
+
+## Technique 1 — Fixed-fragment sequential episode (2026-03-08)
+
+Implemented `technique_1` in `builder/techniques.py`.
+
+**What it does**: replaces the front-loaded schedule from `generate()` with
+a fixed-interval one. `_fixed_schedule` computes `steps_per_bar =
+round(total_delta / bar_count)`, defaulting to −1 (descending step) when
+that rounds to zero. Both voice schedules recomputed independently; imitation
+offset, fragment, and fallback path unchanged.
+
+**Listening result**: one fragment, descending one diatonic step per bar,
+clearly audible as a sequence by the second repetition. 3-bar demo passes
+listening gate. 4+ bars approaches monotony in isolation; correct in context
+per roadmap rationale.
+
+**Known limitation**: if the planner schedules a total descent exceeding the
+soprano range, the backstop range warnings still fire (planner scope, not
+technique_1 scope).
+
+**Files**: `builder/techniques.py`.
+
 ## EPI-7 — Episode octave placement rewrite + breath rest removal (2026-02-28)
 
 **Problem**: Jarring octave leaps (e.g. F4→F5) between consecutive episodes.

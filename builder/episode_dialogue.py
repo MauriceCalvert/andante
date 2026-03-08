@@ -14,19 +14,21 @@ import logging
 from dataclasses import replace
 from fractions import Fraction
 from builder.types import Note
-from motifs.episode_kernel import EpisodeKernelSource
+from motifs.episode_kernel import EpisodeKernelSource, KernelRangeContext
 from motifs.extract_kernels import PairedKernel
 from motifs.fragment_catalogue import extract_head, extract_tail
-from motifs.head_generator import degrees_to_midi
 from motifs.subject_loader import SubjectTriple
 from shared.constants import (
     CONSONANT_INTERVALS_ABOVE_BASS,
     TRACK_BASS,
     TRACK_SOPRANO,
+    VOICE_RANGES,
 )
 from shared.key import Key
 from shared.music_math import parse_metre
 from shared.voice_types import Range
+from shared.pitch import degrees_to_midi
+from builder import techniques as _techniques
 
 _log: logging.Logger = logging.getLogger(__name__)
 
@@ -34,12 +36,22 @@ _log: logging.Logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
+# Maps demo_technique name → technique function from builder.techniques.
+# Only episode-generation techniques live here.  Viterbi-level techniques
+# (suspensions, compound_melody) are not listed and fall through to the
+# normal paired-kernel/fallback path in generate().
+# Populated after builder.techniques is imported to avoid a forward-reference.
+_TECHNIQUE_DISPATCH: dict[str, object] = {}  # filled at module load below
 IMITATION_DEGREE_OFFSET: int = -9        # lower 10th in diatonic space
 IMITATION_BEAT_DELAY: Fraction = Fraction(1, 4)  # 1 crotchet beat
 VOICE_EXCHANGE_THRESHOLD: int = 6        # swap voices for 6+ bar episodes
+PARALLEL_SIXTH_OFFSET: int = -5          # diatonic sixth below upper voice
+PARALLEL_TENTH_OFFSET: int = -9          # diatonic tenth below (range-relief fallback)
 
-_DEGREE_SEARCH_LO: int = -7
-_DEGREE_SEARCH_HI: int = 14
+_SOPRANO_RANGE: Range = Range(*VOICE_RANGES[TRACK_SOPRANO])
+
+_DEGREE_SEARCH_LO: int = -28
+_DEGREE_SEARCH_HI: int = 28
 _DEFAULT_START_DEGREE: int = 4           # dominant (0-indexed)
 
 
@@ -192,6 +204,7 @@ def _emit_voice_notes(
     mode: str,
     is_leader: bool,
     track: int,
+    voice_range: Range,
 ) -> list[Note]:
     """Emit notes for one voice in one fallback-path iteration.
 
@@ -213,6 +226,11 @@ def _emit_voice_notes(
         first_midi: int = degrees_to_midi(
             (emit_degrees[0] + base_degree,), tonic_midi, mode,
         )[0]
+        if first_midi < voice_range.low or first_midi > voice_range.high:
+            _log.warning(
+                "Episode track %d gap-fill midi %d out of range [%d, %d] at offset %s",
+                track, first_midi, voice_range.low, voice_range.high, offset,
+            )
         notes.append(Note(
             offset=offset,
             pitch=first_midi,
@@ -224,6 +242,11 @@ def _emit_voice_notes(
     for deg, dur in zip(emit_degrees, adapted_durations):
         absolute_deg: int = deg + base_degree
         midi: int = degrees_to_midi((absolute_deg,), tonic_midi, mode)[0]
+        if midi < voice_range.low or midi > voice_range.high:
+            _log.warning(
+                "Episode track %d midi %d out of range [%d, %d] at offset %s",
+                track, midi, voice_range.low, voice_range.high, offset,
+            )
         notes.append(Note(
             offset=offset,
             pitch=midi,
@@ -233,23 +256,6 @@ def _emit_voice_notes(
         offset += dur
 
     return notes
-
-
-def _place_near(
-    notes: tuple[Note, ...],
-    prev_pitch: int,
-    label: str,
-) -> tuple[Note, ...]:
-    """Shift all notes by the octave multiple placing first note nearest prev_pitch."""
-    if not notes:
-        return notes
-    first_raw: int = notes[0].pitch
-    delta: int = prev_pitch - first_raw
-    # Nearest octave multiple to delta.
-    shift: int = round(delta / 12) * 12
-    if shift == 0:
-        return notes
-    return tuple(replace(n, pitch=n.pitch + shift) for n in notes)
 
 
 def _build_onsets(durations: tuple[Fraction, ...]) -> list[Fraction]:
@@ -270,6 +276,7 @@ def _emit_paired_voice_notes(
     tonic_midi: int,
     mode: str,
     track: int,
+    voice_range: Range,
 ) -> list[Note]:
     """Emit notes for one voice in one paired-kernel iteration.
 
@@ -285,6 +292,11 @@ def _emit_paired_voice_notes(
     offset: Fraction = iter_start
     for deg, dur in zip(adapted_degs, adapted_durs):
         midi: int = degrees_to_midi((deg,), tonic_midi, mode)[0]
+        if midi < voice_range.low or midi > voice_range.high:
+            _log.warning(
+                "Episode track %d midi %d out of range [%d, %d] at offset %s",
+                track, midi, voice_range.low, voice_range.high, offset,
+            )
         notes.append(Note(
             offset=offset,
             pitch=midi,
@@ -432,6 +444,7 @@ class EpisodeDialogue:
         target_upper_midi: int,
         target_lower_midi: int,
         journey: str = "stepwise",
+        demo_technique: str | None = None,
     ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
         """Generate both episode voices.  Returns (soprano_notes, bass_notes)."""
         assert bar_count >= 1, f"bar_count must be >= 1, got {bar_count}"
@@ -464,9 +477,39 @@ class EpisodeDialogue:
             start_lower_deg, end_lower_deg, bar_count,
         )
 
+        # Demo mode: dispatch to the named technique function in builder.techniques.
+        # Viterbi-level techniques (suspensions, compound_melody) are not in
+        # _TECHNIQUE_DISPATCH and fall through to the normal path below.
+        if demo_technique is not None and demo_technique in _TECHNIQUE_DISPATCH:
+            technique_fn = _TECHNIQUE_DISPATCH[demo_technique]
+            return technique_fn(
+                dialogue=self,
+                bar_count=bar_count,
+                start_offset=start_offset,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                start_upper_deg=start_upper_deg,
+                start_lower_deg=start_lower_deg,
+                upper_schedule=upper_schedule,
+                lower_schedule=lower_schedule,
+                lead_voice=lead_voice,
+                upper_range=upper_range,
+                lower_range=lower_range,
+            )
+
         # Try paired-kernel path first.
         chain: list[PairedKernel] | None = self._kernel_source.generate(
             bar_count=bar_count,
+            range_ctx=KernelRangeContext(
+                tonic_midi=tonic_midi,
+                mode=mode,
+                start_upper_deg=start_upper_deg,
+                start_lower_deg=start_lower_deg,
+                upper_schedule=upper_schedule,
+                lower_schedule=lower_schedule,
+                upper_range=upper_range,
+                lower_range=lower_range,
+            ),
         )
         if chain is not None:
             _log.debug(
@@ -485,8 +528,6 @@ class EpisodeDialogue:
                 lower_schedule=lower_schedule,
                 upper_range=upper_range,
                 lower_range=lower_range,
-                prior_upper_midi=prior_upper_midi,
-                prior_lower_midi=prior_lower_midi,
             )
 
         # Fallback: EPI-5b single-fragment imitative dialogue.
@@ -506,8 +547,6 @@ class EpisodeDialogue:
             lead_voice=lead_voice,
             upper_range=upper_range,
             lower_range=lower_range,
-            prior_upper_midi=prior_upper_midi,
-            prior_lower_midi=prior_lower_midi,
         )
 
     # -----------------------------------------------------------------------
@@ -527,8 +566,6 @@ class EpisodeDialogue:
         lower_schedule: list[int],
         upper_range: Range,
         lower_range: Range,
-        prior_upper_midi: int,
-        prior_lower_midi: int,
     ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
         """Generate episode using paired-kernel chain."""
         # Voice exchange at midpoint of long episodes.
@@ -546,36 +583,28 @@ class EpisodeDialogue:
         cumulative_bars: int = 0
 
         for i, pk in enumerate(chain):
-            # pk_lower_base: register gap between voices (lower_degrees[0] ≤ 0).
             pk_lower_base: int = pk.lower_degrees[0] if pk.lower_degrees else 0
             voice_exchanged: bool = i >= exchange_point
+            bar_idx: int = min(cumulative_bars, len(upper_schedule) - 1)
+            soprano_base: int = upper_schedule[bar_idx] + start_upper_deg
+            bass_base: int = lower_schedule[bar_idx] + start_lower_deg
+
             if voice_exchanged:
-                # Soprano takes bass contour, renormalized to 0 so it stays at soprano register.
-                upper_pk_degs: list[int] = [d - pk_lower_base for d in pk.lower_degrees]
-                # Bass takes soprano contour as-is: upper_degrees[0]==0 and start_lower_deg
-                # already encodes bass register, so no additional shift is needed.
-                lower_pk_degs: list[int] = list(pk.upper_degrees)
+                # Soprano takes bass contour at soprano register: renorm to 0.
+                upper_abs: list[int] = [
+                    d - pk_lower_base + soprano_base for d in pk.lower_degrees
+                ]
+                # Bass takes soprano contour at bass register.
+                lower_abs: list[int] = [
+                    d + bass_base for d in pk.upper_degrees
+                ]
                 upper_durs: tuple[Fraction, ...] = pk.lower_durations
                 lower_durs: tuple[Fraction, ...] = pk.upper_durations
             else:
-                upper_pk_degs = list(pk.upper_degrees)
-                lower_pk_degs = list(pk.lower_degrees)
+                upper_abs = [d + soprano_base for d in pk.upper_degrees]
+                lower_abs = [d + bass_base for d in pk.lower_degrees]
                 upper_durs = pk.upper_durations
                 lower_durs = pk.lower_durations
-
-            # Per-voice offsets from endpoint-driven schedules (EPI-8).
-            bar_idx: int = min(cumulative_bars, len(upper_schedule) - 1)
-            upper_offset: int = upper_schedule[bar_idx]
-            lower_offset: int = lower_schedule[bar_idx]
-
-            # Absolute degrees for this iteration — IMITATION_DEGREE_OFFSET no longer
-            # applied to the trajectory; each voice navigates its own endpoint.
-            upper_abs: list[int] = [
-                d + upper_offset + start_upper_deg for d in upper_pk_degs
-            ]
-            lower_abs: list[int] = [
-                d + lower_offset + start_lower_deg for d in lower_pk_degs
-            ]
 
             # Consonance check: adjust lower in-place where needed.
             _apply_consonance_check(
@@ -598,6 +627,7 @@ class EpisodeDialogue:
                 tonic_midi=tonic_midi,
                 mode=mode,
                 track=TRACK_SOPRANO,
+                voice_range=upper_range,
             )
             bass_iter_notes: list[Note] = _emit_paired_voice_notes(
                 iter_start=iter_start,
@@ -607,35 +637,102 @@ class EpisodeDialogue:
                 tonic_midi=tonic_midi,
                 mode=mode,
                 track=TRACK_BASS,
+                voice_range=lower_range,
             )
-
-            # Place each iteration relative to previous exit pitch.
-            sop_prev: int = (
-                soprano_notes[-1].pitch if soprano_notes
-                else prior_upper_midi
-            )
-            bass_prev: int = (
-                bass_notes[-1].pitch if bass_notes
-                else prior_lower_midi
-            )
-            sop_shifted: tuple[Note, ...] = _place_near(
-                notes=tuple(sop_iter_notes),
-                prev_pitch=sop_prev,
-                label="Episode soprano",
-            )
-            bass_shifted: tuple[Note, ...] = _place_near(
-                notes=tuple(bass_iter_notes),
-                prev_pitch=bass_prev,
-                label="Episode bass",
-            )
-
-            soprano_notes.extend(sop_shifted)
-            bass_notes.extend(bass_shifted)
+            soprano_notes.extend(sop_iter_notes)
+            bass_notes.extend(bass_iter_notes)
             cumulative_offset += pk.total_duration
             # Track bar crossings for pitch transposition.
             cumulative_bars = int(cumulative_offset / self._bar_length)
 
         episode_end: Fraction = start_offset + cumulative_offset
+        return self._finalise(
+            soprano_notes=soprano_notes,
+            bass_notes=bass_notes,
+            episode_end=episode_end,
+        )
+
+    # -----------------------------------------------------------------------
+    # Parallel-sixths path (Technique 2)
+    # -----------------------------------------------------------------------
+
+    def _generate_parallel(
+        self,
+        bar_count: int,
+        start_offset: Fraction,
+        tonic_midi: int,
+        mode: str,
+        start_upper_deg: int,
+        upper_schedule: list[int],
+        lower_range: Range,
+    ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
+        """Generate parallel-sixths/tenths episode (Technique 2).
+
+        Both voices move together at identical onsets, a diatonic sixth (or
+        tenth) apart.  Upper voice follows upper_schedule; lower voice is
+        derived at each bar.  Falls back to a tenth when the sixth pushes any
+        bass note outside lower_range.
+        """
+        soprano_notes: list[Note] = []
+        bass_notes: list[Note] = []
+
+        for i in range(bar_count):
+            upper_base: int = start_upper_deg + upper_schedule[i]
+            lower_base: int = upper_base + PARALLEL_SIXTH_OFFSET
+
+            upper_abs: list[int] = [d + upper_base for d in self._fragment_degrees]
+            lower_abs: list[int] = [d + lower_base for d in self._fragment_degrees]
+
+            _apply_consonance_check(
+                upper_abs_degs=upper_abs,
+                lower_abs_degs=lower_abs,
+                upper_durs=self._fragment_durations,
+                lower_durs=self._fragment_durations,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                lower_range=lower_range,
+            )
+
+            lower_midis: list[int] = [
+                degrees_to_midi((deg,), tonic_midi, mode)[0] for deg in lower_abs
+            ]
+            if any(m < lower_range.low or m > lower_range.high for m in lower_midis):
+                lower_base = upper_base + PARALLEL_TENTH_OFFSET
+                lower_abs = [d + lower_base for d in self._fragment_degrees]
+                _apply_consonance_check(
+                    upper_abs_degs=upper_abs,
+                    lower_abs_degs=lower_abs,
+                    upper_durs=self._fragment_durations,
+                    lower_durs=self._fragment_durations,
+                    tonic_midi=tonic_midi,
+                    mode=mode,
+                    lower_range=lower_range,
+                )
+
+            iter_start: Fraction = start_offset + i * self._bar_length
+
+            soprano_notes.extend(_emit_paired_voice_notes(
+                iter_start=iter_start,
+                bar_length=self._bar_length,
+                abs_degrees=upper_abs,
+                durations=self._fragment_durations,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                track=TRACK_SOPRANO,
+                voice_range=_SOPRANO_RANGE,
+            ))
+            bass_notes.extend(_emit_paired_voice_notes(
+                iter_start=iter_start,
+                bar_length=self._bar_length,
+                abs_degrees=lower_abs,
+                durations=self._fragment_durations,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                track=TRACK_BASS,
+                voice_range=lower_range,
+            ))
+
+        episode_end: Fraction = start_offset + bar_count * self._bar_length
         return self._finalise(
             soprano_notes=soprano_notes,
             bass_notes=bass_notes,
@@ -659,8 +756,6 @@ class EpisodeDialogue:
         lead_voice: int,
         upper_range: Range,
         lower_range: Range,
-        prior_upper_midi: int,
-        prior_lower_midi: int,
     ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
         """Generate episode using EPI-5b single-fragment approach (fallback)."""
         assert len(self._fragment_degrees) >= 2, (
@@ -712,6 +807,7 @@ class EpisodeDialogue:
                 mode=mode,
                 is_leader=sop_is_leader,
                 track=TRACK_SOPRANO,
+                voice_range=upper_range,
             )
 
             # IMITATION_DEGREE_OFFSET no longer applied to trajectory (EPI-8).
@@ -733,29 +829,11 @@ class EpisodeDialogue:
                 mode=mode,
                 is_leader=bass_is_leader,
                 track=TRACK_BASS,
+                voice_range=lower_range,
             )
 
-            sop_prev: int = (
-                soprano_notes[-1].pitch if soprano_notes
-                else prior_upper_midi
-            )
-            bass_prev: int = (
-                bass_notes[-1].pitch if bass_notes
-                else prior_lower_midi
-            )
-            sop_shifted: tuple[Note, ...] = _place_near(
-                notes=tuple(sop_iter_notes),
-                prev_pitch=sop_prev,
-                label="Episode soprano",
-            )
-            bass_shifted: tuple[Note, ...] = _place_near(
-                notes=tuple(bass_iter_notes),
-                prev_pitch=bass_prev,
-                label="Episode bass",
-            )
-
-            soprano_notes.extend(sop_shifted)
-            bass_notes.extend(bass_shifted)
+            soprano_notes.extend(sop_iter_notes)
+            bass_notes.extend(bass_iter_notes)
 
         episode_end: Fraction = start_offset + bar_count * self._bar_length
         return self._finalise(
@@ -767,7 +845,6 @@ class EpisodeDialogue:
     # -----------------------------------------------------------------------
     # Shared utilities
     # -----------------------------------------------------------------------
-
 
     def _finalise(
         self,
@@ -791,3 +868,11 @@ class EpisodeDialogue:
             "Check fragment extraction and bar_length."
         )
         return soprano_tuple, bass_tuple
+
+
+# Populate _TECHNIQUE_DISPATCH now that _techniques is imported.
+_TECHNIQUE_DISPATCH.update({
+    "sequential_episode": _techniques.technique_1,
+    "parallel_sixths":    _techniques.technique_2,
+    "circle_of_fifths":   _techniques.technique_4,
+})
