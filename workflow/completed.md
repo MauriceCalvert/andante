@@ -1,3 +1,46 @@
+### [SUSP-1] Suspension reward constant (2026-03-08 16:45)
+
+**Code**: `viterbi/costs.py` — `COST_SUSPENSION = 2.0` renamed to
+`COST_SUSPENSION_REWARD = -18.0`. Reference updated in `dissonance_at_departure`.
+
+**Bob**: No suspensions present in this output. Every strong beat settles
+immediately — no lean-and-release. The invention.brief (seed 42) generates no
+galant Viterbi sections, so the mechanism has no opportunity to fire.
+
+**Chaz**: The constant is correct. Net suspension chain cost is now −3.0 (was
++17.0), making the pattern 3 units cheaper than alternatives. No Viterbi galant
+voices are scheduled in this invention plan; verification requires a galant-schema
+brief. No unprepared strong-beat dissonances in the fault log.
+
+**Open**: Acceptance criterion (audible 7-6 suspension) deferred — invention
+brief has no galant Viterbi sections. Fix is architectural; will manifest in a
+galant or suite movement.
+
+---
+
+### EPI-6 fixes + kernel range solver (2026-03-08)
+
+Three spec deviations in the paired-kernel system corrected:
+- `extract_kernels.py`: min-notes rule tightened to ≥2 per voice in both
+  `_extract_slices` and `_truncate_pk`.
+- `extract_kernels.py`: third source pairing corrected to `cs_subj`
+  (CS as upper, subject as bass).
+- `episode_kernel.py`: pool register filter added (`lower_degrees[0] >= 0`
+  → reject); fixes episode bass resolving to soprano register.
+
+Range warnings added to `_emit_paired_voice_notes` and `_emit_voice_notes`
+in `episode_dialogue.py` — no clamping, warnings only.
+
+`KernelRangeContext` dataclass added to `episode_kernel.py`. DFS solver
+(`_dfs`) now calls `_kernel_in_range` before accepting each candidate atom:
+computes all absolute MIDI degrees for all notes across all repetitions at
+the current chain position, rejects if any falls outside the assigned voice
+range. `episode_dialogue.py` constructs and passes the context from
+per-episode data already in scope. Canonical solution: range policy owned
+by planner, builder executes, solver prunes without compensating.
+
+---
+
 ### BUG-1 — Fix ep_label AttributeError (2026-03-07)
 
 One-line fix in `builder/phrase_writer.py`: replaced `get_tracer()._episode_count`

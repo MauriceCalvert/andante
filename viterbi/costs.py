@@ -56,7 +56,7 @@ COST_HALF_RESOLVED = 15.0     # only one of approach/departure is stepwise
 COST_UNRESOLVED_DISS = 50.0   # neither approach nor departure by step
 
 # Strong-beat dissonance classification
-COST_SUSPENSION = 2.0                  # prepared dissonance resolving down by step
+COST_SUSPENSION_REWARD = -18.0         # reward: prepared dissonance resolving down by step
 COST_ACCENTED_PASSING_TONE = 6.0       # stepwise through-motion on strong beat
 COST_UNPREPARED_STRONG_DISS = 120.0    # unprepared strong-beat dissonance
 
@@ -363,7 +363,7 @@ def dissonance_at_departure(
         resolves_down = (departure_pitch < pitch
                          and scale_degree_distance(pitch, departure_pitch, key) == 1)
         if is_prepared and resolves_down:
-            return COST_SUSPENSION + tritone_surcharge
+            return COST_SUSPENSION_REWARD + tritone_surcharge
         # Accented passing tone: step approach + step departure, same direction
         approached_by_step = (approach_pitch is not None
                               and scale_degree_distance(approach_pitch, pitch, key) == 1)
