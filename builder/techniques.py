@@ -14,6 +14,7 @@ Technique index:
   3  suspensions                 — Viterbi-level; not dispatched here
   4  circle_of_fifths            — fifth-transposition sequential episode
   5  harmonic_rhythm_acceleration — episode densification toward cadence
+  6  compound_melody             — Viterbi-level; not dispatched here
 """
 from __future__ import annotations
 
@@ -140,6 +141,44 @@ def technique_2(
     )
 
 
+
+def technique_3(
+    dialogue: EpisodeDialogue,
+    bar_count: int,
+    start_offset: Fraction,
+    tonic_midi: int,
+    mode: str,
+    start_upper_deg: int,
+    start_lower_deg: int,
+    upper_schedule: list[int],
+    lower_schedule: list[int],
+    lead_voice: int,
+    upper_range: Range,
+    lower_range: Range,
+) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
+    """Suspensions episode pass-through (Technique 3).
+
+    Suspensions act at Viterbi cost level globally; there is no episode-specific
+    behaviour.  This entry exists so that demo_technique: suspensions is
+    recognised and falls through to the normal fallback path rather than
+    silently bypassing the dispatch.
+    """
+    _log.debug("technique_3: suspensions -- delegating to fallback (Viterbi costs apply globally)")
+    return dialogue._generate_fallback(
+        bar_count=bar_count,
+        start_offset=start_offset,
+        tonic_midi=tonic_midi,
+        mode=mode,
+        start_upper_deg=start_upper_deg,
+        start_lower_deg=start_lower_deg,
+        upper_schedule=upper_schedule,
+        lower_schedule=lower_schedule,
+        lead_voice=lead_voice,
+        upper_range=upper_range,
+        lower_range=lower_range,
+    )
+
+
 def technique_4(
     dialogue: EpisodeDialogue,
     bar_count: int,
@@ -211,6 +250,43 @@ def technique_5(
     )
 
     return dialogue._generate_accelerating(
+        bar_count=bar_count,
+        start_offset=start_offset,
+        tonic_midi=tonic_midi,
+        mode=mode,
+        start_upper_deg=start_upper_deg,
+        start_lower_deg=start_lower_deg,
+        upper_schedule=upper_schedule,
+        lower_schedule=lower_schedule,
+        lead_voice=lead_voice,
+        upper_range=upper_range,
+        lower_range=lower_range,
+    )
+
+
+def technique_6(
+    dialogue: EpisodeDialogue,
+    bar_count: int,
+    start_offset: Fraction,
+    tonic_midi: int,
+    mode: str,
+    start_upper_deg: int,
+    start_lower_deg: int,
+    upper_schedule: list[int],
+    lower_schedule: list[int],
+    lead_voice: int,
+    upper_range: Range,
+    lower_range: Range,
+) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
+    """Compound melody pass-through (Technique 6).
+
+    Compound melody acts at Viterbi cost level globally; there is no
+    episode-specific behaviour.  This entry exists so that
+    demo_technique: compound_melody is recognised and falls through to the
+    normal fallback path rather than silently bypassing the dispatch.
+    """
+    _log.debug("technique_6: compound_melody -- delegating to fallback (Viterbi costs apply globally)")
+    return dialogue._generate_fallback(
         bar_count=bar_count,
         start_offset=start_offset,
         tonic_midi=tonic_midi,

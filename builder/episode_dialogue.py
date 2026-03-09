@@ -37,9 +37,8 @@ _log: logging.Logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 # Maps demo_technique name → technique function from builder.techniques.
-# Only episode-generation techniques live here.  Viterbi-level techniques
-# (suspensions, compound_melody) are not listed and fall through to the
-# normal paired-kernel/fallback path in generate().
+# Viterbi-level techniques (suspensions, compound_melody) delegate to
+# _generate_fallback via their technique_N pass-throughs.
 # Populated after builder.techniques is imported to avoid a forward-reference.
 _TECHNIQUE_DISPATCH: dict[str, object] = {}  # filled at module load below
 ACCEL_BAR_COUNT: int = 2                 # final N bars use doubled harmonic rhythm
@@ -479,8 +478,8 @@ class EpisodeDialogue:
         )
 
         # Demo mode: dispatch to the named technique function in builder.techniques.
-        # Viterbi-level techniques (suspensions, compound_melody) are not in
-        # _TECHNIQUE_DISPATCH and fall through to the normal path below.
+        # Viterbi-level techniques (suspensions, compound_melody) are in
+        # _TECHNIQUE_DISPATCH but delegate to _generate_fallback via pass-throughs.
         if demo_technique is not None and demo_technique in _TECHNIQUE_DISPATCH:
             technique_fn = _TECHNIQUE_DISPATCH[demo_technique]
             return technique_fn(
@@ -1046,7 +1045,9 @@ class EpisodeDialogue:
 # Populate _TECHNIQUE_DISPATCH now that _techniques is imported.
 _TECHNIQUE_DISPATCH.update({
     "sequential_episode":            _techniques.technique_1,
+    "suspensions":                   _techniques.technique_3,
     "parallel_sixths":               _techniques.technique_2,
     "circle_of_fifths":              _techniques.technique_4,
     "harmonic_rhythm_acceleration":  _techniques.technique_5,
+    "compound_melody":               _techniques.technique_6,
 })

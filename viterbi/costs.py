@@ -6,7 +6,10 @@ Dissonance is assessed at departure: when transitioning from pitch A to
 pitch B, we evaluate A's dissonance with full knowledge of both approach
 (from the predecessor) and departure (to B).
 """
+import logging
 from dataclasses import dataclass
+
+_log: logging.Logger = logging.getLogger(__name__)
 
 from viterbi.mtypes import AffinityContext
 from viterbi.scale import (
@@ -59,6 +62,18 @@ COST_UNRESOLVED_DISS = 50.0   # neither approach nor departure by step
 COST_SUSPENSION_REWARD = -18.0         # reward: prepared dissonance resolving down by step
 COST_ACCENTED_PASSING_TONE = 6.0       # stepwise through-motion on strong beat
 COST_UNPREPARED_STRONG_DISS = 120.0    # unprepared strong-beat dissonance
+
+# Compound melody: implied-voice dissonance on wide leaps
+COMPOUND_MELODY_LEAP_THRESHOLD: int = 3
+# diatonic steps: 4th or larger triggers implied-voice check.
+# A 3rd is a routine arpeggio step; the listener does not sustain it.
+# This filter also naturally excludes suspensions, which are prepared
+# stepwise, not by leaps.
+
+COST_COMPOUND_MELODY_DISSONANCE: float = 18.0
+# Comparable to COST_HALF_RESOLVED: a departure pitch that no longer
+# fits the chord is roughly as bad as a half-resolved dissonance.
+# Tunable by listening.
 
 # Phrase position
 COST_CADENCE_BONUS = -2.5     # discount for stepwise approach near end
@@ -502,6 +517,38 @@ def chord_tone_cost(
     return COST_NON_CHORD_TONE
 
 
+def implied_voice_dissonance_cost(
+    prev_pitch: int,
+    curr_pitch: int,
+    chord_pcs: frozenset[int],
+    key: KeyInfo,
+) -> float:
+    """Cost for leaps that leave an implied held pitch outside the current chord.
+
+    On a leap of a 4th or larger, the listener sustains the departed pitch.
+    If that pitch no longer fits the current chord, penalise.
+    Suspensions are excluded: they are prepared stepwise, not by leaps.
+    """
+    leap_size: int = scale_degree_distance(prev_pitch, curr_pitch, key)
+    if leap_size < COMPOUND_MELODY_LEAP_THRESHOLD:
+        return 0.0
+    implied_pc: int = prev_pitch % 12
+    if chord_pcs:
+        dissonant: bool = implied_pc not in chord_pcs
+        _log.debug(
+            "compound_melody chord-pcs path: prev=%d curr=%d leap=%d implied_pc=%d in_chord=%s",
+            prev_pitch, curr_pitch, leap_size, implied_pc, not dissonant,
+        )
+        return COST_COMPOUND_MELODY_DISSONANCE if dissonant else 0.0
+    # Fallback: no harmonic grid data — diatonic consonance between the two pitches.
+    consonant: bool = is_consonant(abs(prev_pitch - curr_pitch))
+    _log.debug(
+        "compound_melody fallback path: prev=%d curr=%d leap=%d consonant=%s",
+        prev_pitch, curr_pitch, leap_size, consonant,
+    )
+    return COST_COMPOUND_MELODY_DISSONANCE if not consonant else 0.0
+
+
 def voice_crossing_cost(
     follower_pitch: int,
     other_pitch: int,
@@ -697,6 +744,12 @@ def transition_cost(
     pp = phrase_position_cost(curr_pitch, target_pitch, phrase_position, key)
     cc = contour_cost(curr_pitch, contour_target, key, contour_weight=contour_weight)
     ctc = chord_tone_cost(curr_pitch, chord_pcs, step.curr_beat_strength)
+    ivdc: float = implied_voice_dissonance_cost(
+        prev_pitch=prev_pitch,
+        curr_pitch=curr_pitch,
+        chord_pcs=chord_pcs,
+        key=key,
+    )
     dac: float = 0.0
     if affinity is not None and affinity.degree_affinity is not None:
         dac = degree_affinity_cost(
@@ -748,7 +801,7 @@ def transition_cost(
 
     total = (sc + mc_total + lrc + zc + prc + rp + dc_total
              + pp + xrc_total + spc_total + iqc_total + vcc_total + cc + ctc
-             + dpc_total + dac + iac + vgc)
+             + ivdc + dpc_total + dac + iac + vgc)
     breakdown = {
         "step": sc,
         "motion": mc_total,
@@ -765,6 +818,7 @@ def transition_cost(
         "direct_perf": dpc_total,
         "contour": cc,
         "chord": ctc,
+        "implied_v": ivdc,
         "deg_aff": dac,
         "iv_aff": iac,
         "vg": vgc,
