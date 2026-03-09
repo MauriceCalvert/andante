@@ -20,7 +20,7 @@ from planner.thematic import BeatRole
 from shared.constants import TRACK_BASS, TRACK_SOPRANO
 from shared.key import Key
 from shared.music_math import parse_metre
-from shared.pitch import degree_to_nearest_midi
+from shared.pitch import place_near
 from shared.tracer import get_tracer, _key_str
 from shared.voice_types import Range
 from viterbi.scale import KeyInfo, triad_pcs as viterbi_triad_pcs
@@ -233,6 +233,7 @@ def _write_thematic(
     next_phrase_entry_degree: int | None,
     next_phrase_entry_key: Key | None,
     episode_source: EpisodeDialogue | None,
+    demo_technique: str | None = None,
 ) -> PhraseResult:
     """Write phrase using thematic renderer (TD-3 + R1 refactor).
 
@@ -412,6 +413,7 @@ def _write_thematic(
                 prior_lower_midi=plan.register_target.start_lower_midi,
                 target_upper_midi=_target_upper,
                 target_lower_midi=_target_lower,
+                demo_technique=demo_technique if demo_technique is not None else plan.episode_type,
             )
             ep_label: str = f"episode@{entry_first_bar}"
             if ep_soprano:
@@ -799,9 +801,9 @@ def _write_pedal(
     assert pedal_beat_role.material is not None, "PEDAL BeatRole missing material (degree)"
     pedal_degree: int = int(pedal_beat_role.material)
     # Place pedal bass pitch
-    pedal_midi: int = degree_to_nearest_midi(
-        degree=pedal_degree,
+    pedal_midi: int = place_near(
         key=plan.local_key,
+        degree=pedal_degree,
         target_midi=plan.lower_median,
         midi_range=(plan.lower_range.low, plan.lower_range.high),
     )
@@ -826,9 +828,9 @@ def _write_pedal(
     # Use degree 5 (dominant) as the initial structural tone — consonant
     # with the pedal bass and placed near range ceiling for clear descent.
     PEDAL_SOPRANO_START_DEGREE: int = 5
-    start_knot_midi: int = degree_to_nearest_midi(
-        degree=PEDAL_SOPRANO_START_DEGREE,
+    start_knot_midi: int = place_near(
         key=plan.local_key,
+        degree=PEDAL_SOPRANO_START_DEGREE,
         target_midi=plan.upper_range.high - 6,
         midi_range=(plan.upper_range.low, plan.upper_range.high),
     )
@@ -922,9 +924,9 @@ def _write_pedal(
     # This connects the pedal ascent to the cadence's first soprano note.
     contour_end: float
     if next_phrase_entry_degree is not None and next_phrase_entry_key is not None:
-        next_entry_midi: int = degree_to_nearest_midi(
-            degree=next_phrase_entry_degree,
+        next_entry_midi: int = place_near(
             key=next_phrase_entry_key,
+            degree=next_phrase_entry_degree,
             target_midi=start_knot_midi,
             midi_range=(plan.upper_range.low, plan.upper_range.high),
         )
@@ -964,9 +966,9 @@ def _write_pedal(
                 contour_frac = (knot_progress - PEDAL_CONTOUR_NADIR_POS) / (1.0 - PEDAL_CONTOUR_NADIR_POS)
                 contour_val = PEDAL_CONTOUR_NADIR + contour_frac * (contour_end - PEDAL_CONTOUR_NADIR)
             target_midi: int = round(range_mid + contour_val * avg_step)
-            knot_midi: int = degree_to_nearest_midi(
-                degree=knot_degree,
+            knot_midi: int = place_near(
                 key=plan.local_key,
+                degree=knot_degree,
                 target_midi=target_midi,
                 midi_range=(plan.upper_range.low, plan.upper_range.high),
             )
@@ -1085,6 +1087,7 @@ def write_phrase(
     fugue: SubjectTriple | None = None,
     is_final: bool = False,
     episode_source: EpisodeDialogue | None = None,
+    demo_technique: str | None = None,
 ) -> PhraseResult:
     """Write complete phrase (soprano + bass) and return result.
 
@@ -1125,6 +1128,7 @@ def write_phrase(
             next_phrase_entry_degree=next_phrase_entry_degree,
             next_phrase_entry_key=next_phrase_entry_key,
             episode_source=episode_source,
+            demo_technique=demo_technique,
         )
 
     # Path 3: Schematic (galant)

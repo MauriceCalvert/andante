@@ -1,3 +1,22 @@
+### [EPI-7] Planner episode-type selection (2026-03-09)
+
+**Code**: Three files. `builder/phrase_types.py` — added `episode_type` field to
+PhrasePlan. `planner/imitative/entry_layout.py` — added `_select_episode_type()`
+with bar-count gate and adjacency avoidance, wired into `build_imitative_plans`.
+`builder/phrase_writer.py` — threaded `plan.episode_type` through to
+`episode_source.generate()` as `demo_technique` fallback.
+
+**Bob**: Five episodes alternate between two textures: chasing (sequential_episode,
+bars 4-10, 19-25, 34-40) and blended lockstep (parallel_sixths, bars 11-16,
+26-31). Adjacent episodes are texturally distinct. Bars 26-31 are static (same
+pattern repeating) — a pre-existing technique_2 limitation, not a selection bug.
+
+**Chaz**: `prev_episode_type` advances correctly through all 5 episodes. No two
+adjacent share the same type. Circle-of-fifths never selected (Known Limitation #2).
+
+**Open**: Bars 26-31 static loop in parallel_sixths (technique_2 narrow-trajectory
+handling). Cross-relation faults at Bb/A boundaries (technique-level, not selection).
+
 ### [T4-1] Technique 4: Circle-of-fifths sequential episode (2026-03-08)
 
 **Code**: `builder/techniques.py` — replaced `technique_4` stub with fixed

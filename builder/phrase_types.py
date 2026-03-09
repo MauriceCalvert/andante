@@ -80,6 +80,13 @@ class PhrasePlan:
     voice_densities: tuple[BarVoiceDensity, ...] | None = None  # Per-voice, per-bar density overrides (B1)
     cadential_approach: bool = False
     register_target: "RegisterTarget | None" = None
+    episode_type: str | None = None
+    # Production episode texture for EPISODE phrases. One of:
+    # "sequential_episode", "parallel_sixths", "circle_of_fifths".
+    # None = paired-kernel path (current default).
+    # Populated by entry_layout.py using bar-count gate and adjacency
+    # avoidance. Trajectory-delta criterion deferred — register_target
+    # is not available at entry_layout time.
     knot_midi_upper: tuple[int, ...] = ()
     knot_midi_lower: tuple[int, ...] = ()
 

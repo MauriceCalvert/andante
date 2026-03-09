@@ -57,6 +57,44 @@ _MATERIAL_MAP: dict[str, str | None] = {
 }
 
 
+CIRCLE_OF_FIFTHS_MIN_BARS: int = 4
+# A circle-of-fifths sequence needs at least 4 bars to establish the
+# pattern. In fewer bars the ear cannot infer the cycle — it sounds
+# like a fragment, not a sequence.
+
+_EPISODE_TYPE_POOL: tuple[str, ...] = (
+    "sequential_episode",
+    "parallel_sixths",
+    "circle_of_fifths",
+)
+# Production episode types in selection order. Fixed-cycle proxy for
+# musical judgment — a musician would choose by emotional arc and
+# section position. Harmonic_rhythm_acceleration omitted; it is a
+# within-episode modifier, not a texture type at this level.
+
+
+def _select_episode_type(
+    bar_count: int,
+    prev_type: str | None,
+) -> str:
+    """Select episode type using bar-count gate and adjacency avoidance.
+
+    Iterates _EPISODE_TYPE_POOL; skips circle_of_fifths when bar_count
+    is below CIRCLE_OF_FIFTHS_MIN_BARS, and skips any type matching
+    prev_type. Falls back to "sequential_episode" (safe at any bar count).
+
+    Trajectory-delta criterion (prefer circle_of_fifths when delta/bar ~= 4)
+    is deferred: register_target is not available at entry_layout time.
+    """
+    for candidate in _EPISODE_TYPE_POOL:
+        if candidate == "circle_of_fifths" and bar_count < CIRCLE_OF_FIFTHS_MIN_BARS:
+            continue
+        if candidate == prev_type:
+            continue
+        return candidate
+    return "sequential_episode"
+
+
 def build_imitative_plans(
     subject_plan: SubjectPlan,
     genre_config: GenreConfig,
@@ -102,6 +140,7 @@ def build_imitative_plans(
     )
 
     # Build PhrasePlan for each group
+    prev_episode_type: str | None = None
     phrase_plans: list[PhrasePlan] = []
     for group_idx, group in enumerate(groups):
         function: str = group["function"]
@@ -166,6 +205,15 @@ def build_imitative_plans(
             # Map function to schema_name: keep "subject_entry" for actual entries,
             # use function name directly for episodes/holds/pedals/strettos
             schema_name: str = "subject_entry" if function == "entry" else function
+
+            selected_episode_type: str | None = None
+            if function == "episode":
+                selected_episode_type = _select_episode_type(
+                    bar_count=bar_count,
+                    prev_type=prev_episode_type,
+                )
+                prev_episode_type = selected_episode_type
+
             phrase_plans.append(PhrasePlan(
                 schema_name=schema_name,
                 degrees_upper=(),
@@ -189,6 +237,7 @@ def build_imitative_plans(
                 lower_median=lower_median,
                 bass_texture="contrapuntal",
                 thematic_roles=thematic_roles,
+                episode_type=selected_episode_type,
             ))
 
     return tuple(phrase_plans)

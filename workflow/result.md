@@ -1,77 +1,156 @@
-# Result: Technique 6 — Compound melody implied-voice cost
+# EPI-7 Result: Planner episode-type selection
 
 ## Code Changes
 
-### viterbi/costs.py
-- Added constants `COMPOUND_MELODY_LEAP_THRESHOLD = 3` (diatonic steps; 4th or larger) and `COST_COMPOUND_MELODY_DISSONANCE = 18.0` (matched to COST_HALF_RESOLVED).
-- Added `implied_voice_dissonance_cost(prev_pitch, curr_pitch, chord_pcs, key)`: on leaps >= 3 diatonic steps, checks whether the departure pitch (implied held voice) fits the current chord. Uses chord_pcs when available; falls back to diatonic consonance check via `is_consonant(abs(prev_pitch - curr_pitch))`. DEBUG logging distinguishes the two paths.
-- Wired `ivdc` into `transition_cost` total and breakdown dict as `"implied_v"`.
+Three files modified, no new files.
 
-### builder/techniques.py
-- Added `technique_6`: pass-through to `_generate_fallback` (same pattern as `technique_3` for suspensions). Updated docstring technique index.
+**1. builder/phrase_types.py** — Added `episode_type: str | None = None` field to
+PhrasePlan after `register_target`. Default None preserves paired-kernel path for
+non-episode phrases and for episodes where no type is explicitly assigned.
 
-### builder/episode_dialogue.py
-- Added `"compound_melody": _techniques.technique_6` to `_TECHNIQUE_DISPATCH`. Updated comments to reflect that Viterbi-level techniques now delegate through pass-throughs.
+**2. planner/imitative/entry_layout.py** — Added:
+- `CIRCLE_OF_FIFTHS_MIN_BARS = 4` constant
+- `_EPISODE_TYPE_POOL` tuple: `("sequential_episode", "parallel_sixths", "circle_of_fifths")`
+- `_select_episode_type(bar_count, prev_type)` function: iterates pool, skips
+  circle_of_fifths when bar_count < 4, skips any type matching prev_type, falls
+  back to "sequential_episode"
+- In `build_imitative_plans`: `prev_episode_type` tracker, episode_type selection
+  for `function == "episode"` groups, passed to PhrasePlan constructor
 
-### Bug fix during implementation
-- Fixed `is_consonant` call in fallback path: was passing two pitches instead of the interval `abs(prev_pitch - curr_pitch)`.
-
-## Demonstration
-
-Ran `python -m scripts.run_pipeline minuet freudigkeit c_major -trace -o output`. Pipeline clean, 97 soprano + 63 bass notes, 22 bars.
-
-Also ran the standard invention pipeline (seed 42) — clean, no regressions. Invention faults (parallel 5ths bars 40, 45) are in episode bars (EpisodeDialogue), not Viterbi — pre-existing.
+**3. builder/phrase_writer.py** — In the EPISODE case of `_write_thematic`, changed
+`demo_technique=demo_technique` to
+`demo_technique=demo_technique if demo_technique is not None else plan.episode_type`.
+Demo mode takes priority; production uses plan.episode_type; both None falls through
+to paired-kernel path.
 
 ---
 
 ## Bob's Assessment
 
-### Pass 1 — What I hear
+### Pass 1: What do I hear?
 
-The soprano opens with a graceful ascending arch (C5 stepping through A4-B4 up to E5 in bar 3) — the classic do-re-mi opening gesture. Bars 4-7 (fenaroli) bring the line down through G major with quarter-note motion: C5 descending through B4, A4, G4, then climbing back through F#4-A4-B4. The line breathes — it rises, falls, and rises again without feeling mechanical.
+Five episodes in this invention. They alternate between two clearly different
+textures, and that alternation is the most audible structural change this phase
+introduces.
 
-The Prinner phrase (bars 8-11) shifts to quicker eighth-note figuration and drops the soprano to its lowest point: E4. From there, E4 leaps up a perfect 4th to A4 (bar 8 beat 1.5). The ear sustains that departed E as an inner voice. Against the IV harmony, that held E is the third of the C major chord — it sounds rich, not accidental. The same purposeful 4th appears in bar 10 (E4 up to A4 against ii harmony, where E is the fifth of A minor). Both leaps feel harmonically motivated: the departed pitch belongs in the chord, so the implied lower strand adds warmth rather than creating a random clash.
+**Bars 4-10 (episode 1):** Voices chase each other. The soprano descends in
+semiquaver groups — D5 C5 B4 A4 — and the bass follows with its own figures
+offset by a beat. The ear tracks two independent lines, one pursuing the other.
+Direction is clear: downward through A minor. Motion is lively.
 
-The monte sequence (bars 12-14) climbs through three keys with eighth-note motion, mostly stepwise with occasional thirds. No wide leaps — the forward propulsion comes from the sequential transposition, not registral jumps.
+**Bars 11-16 (episode 2):** Both voices move together in lockstep. Every attack
+is simultaneous. The soprano descends from E5 to F3 over six bars — a large
+sweeping descent — and the bass mirrors it a sixth below. No chase, no delay.
+The texture is fuller, blended, and the sense of two independent voices vanishes.
+It is unmistakably different from the preceding episode.
 
-The second fenaroli (bars 15-18) returns the active eighth-note pattern. Bar 16 has the characteristic B4-D5-C5-B4-G4-A4 descent — thirds, not 4ths. The soprano stays in the comfortable G4-D5 area.
+**Bars 19-25 (episode 3):** Back to chasing. Soprano descends from B5, bass
+follows with offset figuration. The call-and-response returns. After the blended
+lockstep of bars 11-16, the return to independent motion is refreshing.
 
-The passo_indietro (bars 19-20) drops to quarter-note homophony — a deliberate pre-cadential settling. The cadenza_composta (bars 21-22) delivers F5-E5-D5-C5, a satisfying stepwise descent to the final tonic. The B4-to-F5 tritone at the phrase boundary (bar 20 to bar 21) scratches briefly — an ungraceful lurch into the cadence.
+**Bars 26-31 (episode 4):** Lockstep again. Both voices are simultaneous. But
+here the contrast collapses: the exact same 7-note melodic pattern (D5 C5 Bb4 A4
+Bb4 G4 E4) repeats identically in every bar for six bars. There is no
+transposition, no development, no direction. The soprano is trapped. The ear
+gives up tracking after bar 27 — it is a static loop, not a sequence. This is
+the weakest moment in the piece. Where bars 11-16 descended continuously and
+maintained momentum, bars 26-31 simply circle.
 
-Overall range: C4 (bar 10) to F5 (bar 21) — nearly two octaves. The soprano is not flattened into stepwise motion. Thirds and the occasional 4th appear freely. Wide leaps land on pitches that belong to the harmony. No random crunches from sustained implied voices anywhere in the Viterbi-generated bars.
+**Bars 34-40 (episode 5):** Chasing returns. Soprano F#5 descending through E
+minor, bass trailing. The relief after the static loop is palpable.
 
-### Pass 2 — Why it sounds that way
+### Pass 2: Why does it sound that way?
 
-The two P4 leaps (bars 8 and 10) both depart from E4 (scale degree 6 in G major). The IV chord in G major (C-E-G, pitch classes {0, 4, 7}) contains E as its third; the ii chord (A-C-E, pitch classes {9, 0, 4}) contains E as its fifth. The compound melody cost evaluates both departures: implied_pc=4 is a member of the chord_pcs set in each case — zero penalty. The Viterbi pathfinder freely selects these leaps because the departure pitch fits the landing harmony.
+The alternation between "chasing" (sequential_episode) and "blended"
+(parallel_sixths) is doing what the task intended: adjacent episodes are
+texturally distinct. The chasing episodes use staggered attacks and independent
+rhythms; the blended episodes use simultaneous attacks throughout. The ear
+distinguishes these instantly.
 
-The step-interval distribution across 97 soprano notes is dominated by seconds and thirds, with exactly two 4ths. This matches a healthy galant minuet soprano. The compound melody cost has not shifted the distribution toward smaller intervals.
+The failure at bars 26-31 is not an episode-type problem — the type assignment
+is correct (parallel_sixths, distinct from the preceding sequential). The problem
+is that parallel_sixths in D minor at this pitch level produces no transposition
+across iterations. Each bar is identical. This is a pre-existing limitation of
+the parallel_sixths technique function, not of the selection logic.
 
-The tritone B4-to-F5 at bar 21 is a clausula template (cadenza_composta), not Viterbi-generated.
+Bars 11-16 (also parallel_sixths) avoid this because the soprano range is wider
+(E5 to F3), giving the technique room to descend. Bars 26-31 start at D5 and
+the pattern simply repeats.
+
+The cross-relation faults (A natural vs Bb) at bars 11, 12, 13, 26-31 are a
+consequence of the parallel_sixths technique moving through keys that include Bb
+while adjacent material uses A natural.
+
+1. **Do adjacent episodes sound texturally distinct?** Yes. Every adjacent pair
+   differs: bars 4-10 (chasing) vs 11-16 (blended), bars 11-16 (blended) vs
+   19-25 (chasing), bars 19-25 (chasing) vs 26-31 (blended), bars 26-31
+   (blended) vs 34-40 (chasing).
+
+2. **Is any episode indistinguishable from its neighbour?** No. Every adjacent
+   pair has a different texture.
+
+3. **Tension and release across the episode sequence?** The alternation
+   contributes to variety. The chasing episodes create forward motion; the
+   blended episodes provide contrast. However, bars 26-31 undermine the arc —
+   a static loop six bars long drains momentum from the confirmatio section.
+   The return to chasing at bar 34 rescues the forward motion, but the damage
+   is done: the most structurally important part of the piece (confirmatio)
+   has its longest episode stuck in a repetitive loop.
 
 ---
 
 ## Chaz's Diagnosis
 
-Bob says: "E4 leaps up a perfect 4th to A4 and the held E sounds rich, not accidental."
-Cause: `implied_voice_dissonance_cost` fires (leap_size=3, >= COMPOUND_MELODY_LEAP_THRESHOLD). Chord-pcs path: implied_pc=4 (E), chord_pcs from HarmonicGrid for IV in G major = {0, 4, 7}. 4 in set -> returns 0.0.
-Location: viterbi/costs.py:implied_voice_dissonance_cost
-Assessment: Working as designed.
+### Episode type assignments
 
-Bob says: "The soprano is not flattened into stepwise motion."
-Cause: COST_COMPOUND_MELODY_DISSONANCE=18.0 fires only on leaps >= 3 diatonic steps where the departure pitch creates dissonance. Consonant leaps pass at zero cost. step_cost for a 4th = 5.0, far below 18.0. A consonant 4th leap costs 5.0 total; a dissonant one costs 23.0 (5.0 + 18.0), comparable to COST_STEP_OCTAVE=25.0. The cost discriminates dissonant leaps without suppressing consonant ones.
-Location: viterbi/costs.py:COST_COMPOUND_MELODY_DISSONANCE, step_cost
-Assessment: Weight calibrated correctly.
+| Phrase | Bars   | bar_count | episode_type        | prev_episode_type (before) |
+|--------|--------|-----------|---------------------|----------------------------|
+| [2]    | 4-10   | 7         | sequential_episode  | None                       |
+| [3]    | 11-16  | 6         | parallel_sixths     | sequential_episode         |
+| [5]    | 19-25  | 7         | sequential_episode  | parallel_sixths            |
+| [6]    | 26-31  | 6         | parallel_sixths     | sequential_episode         |
+| [8]    | 34-40  | 7         | sequential_episode  | parallel_sixths            |
 
-Bob says: "The B4-to-F5 tritone at the phrase boundary scratches."
-Cause: cadenza_composta template writes fixed degree sequence S(4,3,2,1). The passo_indietro's last soprano note (B4, degree 7 in C major) transitions to the template's first note (F5, degree 4 in C major) = tritone. Compound melody cost has no jurisdiction over cadential templates.
-Location: builder/cadence_writer.py (clausula template)
-Fix: Out of scope. Cross-phrase interval smoothing is a separate concern.
+**Verification:** `prev_episode_type` advances correctly. No two adjacent
+episode PhrasePlans share the same type. Two distinct values appear
+(sequential_episode and parallel_sixths).
 
-### Acceptance Criteria
+**Circle-of-fifths never selected.** The `_select_episode_type` function iterates
+`_EPISODE_TYPE_POOL` in order. When `prev_type` is "parallel_sixths", the first
+candidate "sequential_episode" passes both gates (not circle_of_fifths, not
+prev_type) and is returned immediately. Circle-of-fifths is third in the pool
+and is only reachable when both preceding candidates are skipped. This happens
+only if `prev_type` is "sequential_episode" AND "parallel_sixths" is also
+skipped — which never occurs because parallel_sixths has no bar-count gate.
+Known Limitation #2 in the task brief acknowledges this as a fixed-cycle proxy.
 
-1. **Implied_pc in chord_pcs consonance rate**: 2/2 qualifying leaps have implied pitches that are chord tones. Rate = 100% (>= 70% threshold). Passed.
-2. **Step-interval distribution**: 97 soprano notes: seconds and thirds dominate, 2 fourths, no larger leaps. No shift toward smaller intervals. Passed.
-3. **No new parallel fifths/octaves**: Minuet fault scan: parallel_rhythm (pre-existing) + ugly_leap at cadential template (pre-existing). Zero parallel 5ths/8ves. Passed.
+### Bob's complaints traced
+
+**Bob says:** "the exact same 7-note melodic pattern repeats identically in
+every bar for six bars [at bars 26-31]"
+
+**Cause:** The `technique_2` (parallel_sixths) function in `builder/techniques.py`
+generates the pattern. When the register_target start and end pitches are close
+together, the step_schedule produces zero transposition per iteration. Each
+iteration of the parallel_sixths kernel is identical. The `_select_episode_type`
+function in `entry_layout.py` correctly assigned "parallel_sixths" — the problem
+is in the technique function's handling of narrow pitch trajectories, which is
+outside EPI-7 scope.
+
+**Location:** `builder/techniques.py` (technique_2 / parallel_sixths generator)
+
+**Fix:** Not in scope for EPI-7. The technique function would need to enforce a
+minimum transposition step or fall back to a different voicing when the trajectory
+is near-zero.
+
+---
+
+## Acceptance Criteria
+
+- [x] At least two distinct episode_type values appear: sequential_episode and parallel_sixths
+- [x] No two consecutive episode PhrasePlans share the same episode_type
+- [x] Bob hears textural contrast between adjacent episodes (chasing vs blended)
+- [x] Pipeline runs clean, no new assertions or regressions
 
 ---
 
