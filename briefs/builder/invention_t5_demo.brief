@@ -1,0 +1,12 @@
+brief:
+  affect: Freudigkeit
+  genre: invention
+  forces: keyboard
+  demo_technique: harmonic_rhythm_acceleration
+  demo_bars: 6
+frame:
+  key: C
+  mode: major
+  metre: 4/4
+  tempo: 120
+  subject: subject09_2bar

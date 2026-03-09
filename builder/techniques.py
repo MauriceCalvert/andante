@@ -197,9 +197,20 @@ def technique_5(
     upper_range: Range,
     lower_range: Range,
 ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
-    """Harmonic rhythm acceleration (Technique 5). Stub — implement in dedicated task."""
-    _log.warning("technique_5 (harmonic_rhythm_acceleration) not yet implemented; using fallback")
-    return dialogue._generate_fallback(
+    """Harmonic rhythm acceleration (Technique 5, roadmap S5).
+
+    Final ACCEL_BAR_COUNT bars double the rate of melodic change by emitting
+    two half-fragments per bar at two successive transposition levels.
+    Preceding bars use one full fragment per bar for contrast.
+    """
+    from builder.episode_dialogue import ACCEL_BAR_COUNT
+
+    _log.debug(
+        "technique_5: bar_count=%d, accel_bars=%d",
+        bar_count, ACCEL_BAR_COUNT,
+    )
+
+    return dialogue._generate_accelerating(
         bar_count=bar_count,
         start_offset=start_offset,
         tonic_midi=tonic_midi,

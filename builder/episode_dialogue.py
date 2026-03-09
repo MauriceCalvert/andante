@@ -42,6 +42,7 @@ _log: logging.Logger = logging.getLogger(__name__)
 # normal paired-kernel/fallback path in generate().
 # Populated after builder.techniques is imported to avoid a forward-reference.
 _TECHNIQUE_DISPATCH: dict[str, object] = {}  # filled at module load below
+ACCEL_BAR_COUNT: int = 2                 # final N bars use doubled harmonic rhythm
 IMITATION_DEGREE_OFFSET: int = -9        # lower 10th in diatonic space
 IMITATION_BEAT_DELAY: Fraction = Fraction(1, 4)  # 1 crotchet beat
 VOICE_EXCHANGE_THRESHOLD: int = 6        # swap voices for 6+ bar episodes
@@ -843,6 +844,178 @@ class EpisodeDialogue:
         )
 
     # -----------------------------------------------------------------------
+    # Accelerating path (Technique 5: harmonic rhythm acceleration)
+    # -----------------------------------------------------------------------
+
+    def _generate_accelerating(
+        self,
+        bar_count: int,
+        start_offset: Fraction,
+        tonic_midi: int,
+        mode: str,
+        start_upper_deg: int,
+        start_lower_deg: int,
+        upper_schedule: list[int],
+        lower_schedule: list[int],
+        lead_voice: int,
+        upper_range: Range,
+        lower_range: Range,
+        accel_bars: int = ACCEL_BAR_COUNT,
+    ) -> tuple[tuple[Note, ...], tuple[Note, ...]]:
+        """Generate episode with doubled harmonic rhythm in the final bars.
+
+        Normal phase (bars 0..bar_count-accel_bars-1): one full fragment per
+        bar, identical to _generate_fallback.
+
+        Accelerated phase (final accel_bars bars): two half-fragments per bar,
+        each at a successive transposition level — the midpoint and endpoint
+        of the bar's scheduled pitch journey. This doubles the rate of melodic
+        change, producing cadential gathering without adding new mechanisms.
+
+        The sub-bar degree calculations are rhythmic proxies for harmonic
+        acceleration, NOT voice-leading targets. A true harmonic grid
+        (IV/ii -> V) is future work (EPI-7).
+
+        Follower in each half-bar slot receives IMITATION_BEAT_DELAY gap-fill
+        then fills half_bar - IMITATION_BEAT_DELAY with the adapted fragment.
+        This yields oblique motion (one sustained note against the leader's
+        active figure) — intended, not a bug. The sustained note reinforces
+        urgency by reducing the follower to harmonic support.
+        """
+        # Guard: not enough bars for contrast — fall back.
+        if bar_count < accel_bars + 1:
+            return self._generate_fallback(
+                bar_count=bar_count,
+                start_offset=start_offset,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                start_upper_deg=start_upper_deg,
+                start_lower_deg=start_lower_deg,
+                upper_schedule=upper_schedule,
+                lower_schedule=lower_schedule,
+                lead_voice=lead_voice,
+                upper_range=upper_range,
+                lower_range=lower_range,
+            )
+
+        assert len(self._fragment_degrees) >= 2, (
+            "Fragment has fewer than 2 notes; cannot generate dialogue. "
+            "Verify subject extraction produced a valid fragment."
+        )
+
+        normal_count: int = bar_count - accel_bars
+        exchange_point: int = (
+            bar_count // 2 if bar_count >= VOICE_EXCHANGE_THRESHOLD else bar_count
+        )
+        half_bar: Fraction = self._bar_length / 2
+
+        soprano_notes: list[Note] = []
+        bass_notes: list[Note] = []
+
+        # --- Normal phase: identical to _generate_fallback loop body ---
+        for i in range(normal_count):
+            current_leader: int = lead_voice if i < exchange_point else 1 - lead_voice
+            iter_start: Fraction = start_offset + i * self._bar_length
+
+            sop_base: int = upper_schedule[i] + start_upper_deg
+            sop_is_leader: bool = (current_leader == 0)
+            sop_frag_degrees: tuple[int, ...] = (
+                self._fragment_degrees if sop_is_leader else self._head_degrees
+            )
+            sop_frag_durations: tuple[Fraction, ...] = (
+                self._fragment_durations if sop_is_leader else self._head_durations
+            )
+            soprano_notes.extend(_emit_voice_notes(
+                iter_start=iter_start,
+                bar_length=self._bar_length,
+                fragment_degrees=sop_frag_degrees,
+                fragment_durations=sop_frag_durations,
+                base_degree=sop_base,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                is_leader=sop_is_leader,
+                track=TRACK_SOPRANO,
+                voice_range=upper_range,
+            ))
+
+            bass_base: int = lower_schedule[i] + start_lower_deg
+            bass_is_leader: bool = (current_leader == 1)
+            bass_frag_degrees: tuple[int, ...] = (
+                self._fragment_degrees if bass_is_leader else self._head_degrees
+            )
+            bass_frag_durations: tuple[Fraction, ...] = (
+                self._fragment_durations if bass_is_leader else self._head_durations
+            )
+            bass_notes.extend(_emit_voice_notes(
+                iter_start=iter_start,
+                bar_length=self._bar_length,
+                fragment_degrees=bass_frag_degrees,
+                fragment_durations=bass_frag_durations,
+                base_degree=bass_base,
+                tonic_midi=tonic_midi,
+                mode=mode,
+                is_leader=bass_is_leader,
+                track=TRACK_BASS,
+                voice_range=lower_range,
+            ))
+
+        # --- Accelerated phase: two half-fragments per bar ---
+        for i in range(normal_count, bar_count):
+            current_leader = lead_voice if i < exchange_point else 1 - lead_voice
+            iter_start = start_offset + i * self._bar_length
+
+            # Compute two sub-step base degrees (rhythmic proxy, not harmonic grid).
+            prev_upper: int = upper_schedule[i - 1] if i > 0 else 0
+            curr_upper: int = upper_schedule[i]
+            sub_a_upper: int = start_upper_deg + (prev_upper + curr_upper) // 2
+            sub_b_upper: int = start_upper_deg + curr_upper
+
+            prev_lower: int = lower_schedule[i - 1] if i > 0 else 0
+            curr_lower: int = lower_schedule[i]
+            sub_a_lower: int = start_lower_deg + (prev_lower + curr_lower) // 2
+            sub_b_lower: int = start_lower_deg + curr_lower
+
+            for sub_idx, (sub_upper, sub_lower) in enumerate(
+                ((sub_a_upper, sub_a_lower), (sub_b_upper, sub_b_lower))
+            ):
+                sub_start: Fraction = iter_start + sub_idx * half_bar
+
+                sop_is_leader = (current_leader == 0)
+                soprano_notes.extend(_emit_voice_notes(
+                    iter_start=sub_start,
+                    bar_length=half_bar,
+                    fragment_degrees=self._half_degrees,
+                    fragment_durations=self._half_durations,
+                    base_degree=sub_upper,
+                    tonic_midi=tonic_midi,
+                    mode=mode,
+                    is_leader=sop_is_leader,
+                    track=TRACK_SOPRANO,
+                    voice_range=upper_range,
+                ))
+
+                bass_is_leader = (current_leader == 1)
+                bass_notes.extend(_emit_voice_notes(
+                    iter_start=sub_start,
+                    bar_length=half_bar,
+                    fragment_degrees=self._half_degrees,
+                    fragment_durations=self._half_durations,
+                    base_degree=sub_lower,
+                    tonic_midi=tonic_midi,
+                    mode=mode,
+                    is_leader=bass_is_leader,
+                    track=TRACK_BASS,
+                    voice_range=lower_range,
+                ))
+
+        episode_end: Fraction = start_offset + bar_count * self._bar_length
+        return self._finalise(
+            soprano_notes=soprano_notes,
+            bass_notes=bass_notes,
+            episode_end=episode_end,
+        )
+
+    # -----------------------------------------------------------------------
     # Shared utilities
     # -----------------------------------------------------------------------
 
@@ -872,7 +1045,8 @@ class EpisodeDialogue:
 
 # Populate _TECHNIQUE_DISPATCH now that _techniques is imported.
 _TECHNIQUE_DISPATCH.update({
-    "sequential_episode": _techniques.technique_1,
-    "parallel_sixths":    _techniques.technique_2,
-    "circle_of_fifths":   _techniques.technique_4,
+    "sequential_episode":            _techniques.technique_1,
+    "parallel_sixths":               _techniques.technique_2,
+    "circle_of_fifths":              _techniques.technique_4,
+    "harmonic_rhythm_acceleration":  _techniques.technique_5,
 })
